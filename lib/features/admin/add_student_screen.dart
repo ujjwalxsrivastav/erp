@@ -172,7 +172,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _selectedDepartment,
+                            initialValue: _selectedDepartment,
                             decoration: InputDecoration(
                               prefixIcon: const Icon(Icons.school),
                               filled: true,
@@ -330,7 +330,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     DropdownButtonFormField<String>(
-                                      value: _selectedYear,
+                                      initialValue: _selectedYear,
                                       decoration: InputDecoration(
                                         prefixIcon:
                                             const Icon(Icons.calendar_today),
@@ -370,7 +370,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     DropdownButtonFormField<String>(
-                                      value: _selectedSemester,
+                                      initialValue: _selectedSemester,
                                       decoration: InputDecoration(
                                         prefixIcon: const Icon(Icons.book),
                                         filled: true,

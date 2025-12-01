@@ -350,7 +350,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                             border: Border.all(color: Colors.grey.shade300),
                           ),
                           child: DropdownButtonFormField<String>(
-                            value: _selectedRole,
+                            initialValue: _selectedRole,
                             decoration: const InputDecoration(
                               labelText: 'Teacher Role',
                               icon: Icon(Icons.work_outline),
