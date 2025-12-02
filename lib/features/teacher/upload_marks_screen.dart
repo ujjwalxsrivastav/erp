@@ -174,7 +174,7 @@ class _UploadMarksScreenState extends State<UploadMarksScreen> {
                         delegate: SliverChildListDelegate([
                           GlassCard(
                             child: DropdownButtonFormField<String>(
-                              value: _selectedExamType,
+                              initialValue: _selectedExamType,
                               decoration: const InputDecoration(
                                 labelText: 'Select Exam Type',
                                 prefixIcon:

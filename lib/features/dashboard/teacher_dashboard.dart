@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
 import '../../services/teacher_service.dart';
 import '../teacher/subject_classes_screen.dart';
+import '../leave/teacher_leave_apply_screen.dart';
+import '../leave/holiday_calendar_screen.dart';
+import '../teacher/teacher_payroll_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -270,6 +273,165 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
                         bgColor: Color(0xFFECFDF5),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Leave Management Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            if (_teacherData != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TeacherLeaveApplyScreen(
+                                    teacherId: _teacherData!['teacher_id'] ??
+                                        'teacher1',
+                                    teacherName:
+                                        _teacherData!['name'] ?? 'Teacher',
+                                    department:
+                                        _teacherData!['department'] ?? 'N/A',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF10B981), Color(0xFF059669)],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      const Color(0xFF10B981).withOpacity(0.3),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.event_available,
+                                    color: Colors.white, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Apply Leave',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const HolidayCalendarScreen(
+                                  isHRMode: false,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFEF4444), Color(0xFFF87171)],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      const Color(0xFFEF4444).withOpacity(0.3),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.calendar_month,
+                                    color: Colors.white, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Calendar',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Payroll Button
+                  GestureDetector(
+                    onTap: () {
+                      if (_teacherData != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TeacherPayrollScreen(
+                              teacherId: _teacherData!['teacher_id'] ?? '',
+                              employeeId: _teacherData!['employee_id'] ?? '',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF8B5CF6).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.payment, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'My Payroll',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 24),
 

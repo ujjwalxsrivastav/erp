@@ -195,7 +195,7 @@ class _UploadStudyMaterialScreenState extends State<UploadStudyMaterialScreen> {
                           ),
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
-                            value: _materialType,
+                            initialValue: _materialType,
                             decoration: const InputDecoration(
                               labelText: 'Material Type',
                               prefixIcon: Icon(Icons.category_outlined),

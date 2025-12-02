@@ -180,7 +180,7 @@ class _MakeAnnouncementScreenState extends State<MakeAnnouncementScreen> {
                           ),
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
-                            value: _priority,
+                            initialValue: _priority,
                             decoration: InputDecoration(
                               labelText: 'Priority',
                               prefixIcon: Icon(

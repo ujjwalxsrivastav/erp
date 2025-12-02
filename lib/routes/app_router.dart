@@ -7,6 +7,7 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/dashboard/student_dashboard.dart';
 import '../features/dashboard/teacher_dashboard.dart';
 import '../features/dashboard/admin_dashboard.dart';
+import '../features/dashboard/hr_dashboard.dart';
 import '../features/student/student_profile_screen.dart';
 import '../features/student/student_subjects_screen.dart';
 import '../features/student/student_exam_schedule_screen.dart';
@@ -90,6 +91,10 @@ final router = GoRouter(
     GoRoute(
       path: '/admin-dashboard',
       builder: (context, state) => const AdminDashboard(),
+    ),
+    GoRoute(
+      path: '/hr-dashboard',
+      builder: (context, state) => const HRDashboard(),
     ),
     GoRoute(
       path: '/admin/add-user',

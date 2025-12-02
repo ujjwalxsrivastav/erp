@@ -30,11 +30,11 @@ class _SplashScreenState extends State<SplashScreen> {
     if (isLoggedIn) {
       // Verify session is still valid
       final isValid = await _authService.verifySession();
-      
+
       if (isValid) {
         // Get user role and navigate to appropriate dashboard
         final role = await _authService.getCurrentUserRole();
-        
+
         if (!mounted) return;
 
         switch (role) {
@@ -46,6 +46,9 @@ class _SplashScreenState extends State<SplashScreen> {
             break;
           case 'admin':
             context.go('/admin-dashboard');
+            break;
+          case 'HR':
+            context.go('/hr-dashboard');
             break;
           default:
             context.go('/login');
@@ -118,4 +121,3 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
-

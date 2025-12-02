@@ -60,6 +60,9 @@ dependencies:
   # Excel Export
   excel: ^4.0.2
   
+  # CSV Parser
+  csv: ^6.0.0
+  
   # Calendar
   table_calendar: ^3.0.9
   syncfusion_flutter_calendar: ^24.1.41
