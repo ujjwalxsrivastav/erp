@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../services/teacher_service.dart';
-import 'class_detail_screen.dart';
+import 'class_options_screen.dart';
 
 class SubjectClassesScreen extends StatefulWidget {
   final Map<String, dynamic> subject;
@@ -180,7 +180,7 @@ class _SubjectClassesScreenState extends State<SubjectClassesScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ClassDetailScreen(
+            builder: (context) => ClassOptionsScreen(
               subject: widget.subject,
               teacherId: widget.teacherId,
               year: classData['year'].toString(),

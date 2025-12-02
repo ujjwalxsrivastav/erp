@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
+import 'cache_manager.dart';
 
 class StudentService {
   static final StudentService _instance = StudentService._internal();
@@ -11,15 +12,29 @@ class StudentService {
   StudentService._internal();
 
   final supabase = Supabase.instance.client;
+  final _cache = CacheManager();
 
-  /// Get student details by student ID
+  /// Get student details by student ID with caching
   Future<Map<String, dynamic>?> getStudentDetails(String studentId) async {
     try {
+      // Check cache first
+      final cacheKey = CacheKeys.studentDetails(studentId);
+      final cachedData = await _cache.getFromCache(cacheKey);
+
+      if (cachedData != null) {
+        return Map<String, dynamic>.from(cachedData);
+      }
+
       final response = await supabase
           .from('student_details')
           .select()
           .eq('student_id', studentId)
           .maybeSingle();
+
+      if (response != null) {
+        // Cache the result
+        await _cache.saveToCache(cacheKey, response);
+      }
 
       return response;
     } catch (e) {
@@ -139,9 +154,17 @@ class StudentService {
     return 'marks_year${year}_section${normalizedSection}_$tableSuffix';
   }
 
-  /// Get student marks from all exam type tables
+  /// Get student marks from all exam type tables with caching
   Future<List<Map<String, dynamic>>> getStudentMarks(String studentId) async {
     try {
+      // Check cache first
+      final cacheKey = CacheKeys.studentMarks(studentId);
+      final cachedData = await _cache.getFromCache(cacheKey);
+
+      if (cachedData != null) {
+        return List<Map<String, dynamic>>.from(cachedData);
+      }
+
       print('🎯 getStudentMarks called for: $studentId');
 
       // First get student's year and section
@@ -209,6 +232,10 @@ class StudentService {
       }
 
       print('✅ Total marks fetched: ${allMarks.length}');
+
+      // Cache the result
+      await _cache.saveToCache(cacheKey, allMarks);
+
       return allMarks;
     } catch (e, stackTrace) {
       print('❌ Error fetching student marks: $e');
@@ -217,11 +244,21 @@ class StudentService {
     }
   }
 
-  /// Get student assignments
+  /// Get assignments for student with caching
   Future<List<Map<String, dynamic>>> getStudentAssignments(
       String studentId) async {
     try {
-      // First get subjects for the student
+      // Check cache first
+      final cacheKey = CacheKeys.studentAssignments(studentId);
+      final cachedData = await _cache.getFromCache(cacheKey);
+
+      if (cachedData != null) {
+        return List<Map<String, dynamic>>.from(cachedData);
+      }
+
+      print('🔄 Fetching assignments from API...');
+
+      // Get enrolled subjects
       final subjects = await supabase
           .from('student_subjects')
           .select('subject_id')
@@ -239,16 +276,29 @@ class StudentService {
           .filter('subject_id', 'in', subjectIds)
           .order('created_at', ascending: false);
 
-      return List<Map<String, dynamic>>.from(response);
+      final assignments = List<Map<String, dynamic>>.from(response);
+
+      // Cache the result
+      await _cache.saveToCache(cacheKey, assignments);
+
+      return assignments;
     } catch (e) {
       print('Error fetching student assignments: $e');
       return [];
     }
   }
 
-  /// Get student timetable
+  /// Get student timetable with caching
   Future<List<Map<String, dynamic>>> getTimetable(String studentId) async {
     try {
+      // Check cache first
+      final cacheKey = CacheKeys.timetable(studentId);
+      final cachedData = await _cache.getFromCache(cacheKey);
+
+      if (cachedData != null) {
+        return List<Map<String, dynamic>>.from(cachedData);
+      }
+
       // 1. Get enrolled subjects
       final subjects = await supabase
           .from('student_subjects')
@@ -268,9 +318,353 @@ class StudentService {
           .order('day_of_week')
           .order('start_time');
 
-      return List<Map<String, dynamic>>.from(response);
+      final timetable = List<Map<String, dynamic>>.from(response);
+
+      // Cache the result
+      await _cache.saveToCache(cacheKey, timetable);
+
+      return timetable;
     } catch (e) {
       print('Error fetching student timetable: $e');
+      return [];
+    }
+  }
+
+  /// Get study materials for student with caching
+  Future<List<Map<String, dynamic>>> getStudyMaterials(String studentId) async {
+    try {
+      // Check cache first
+      final cacheKey = CacheKeys.studyMaterials(studentId);
+      final cachedData = await _cache.getFromCache(cacheKey);
+
+      if (cachedData != null) {
+        return List<Map<String, dynamic>>.from(cachedData);
+      }
+
+      // First get student's year and section
+      final studentDetails = await getStudentDetails(studentId);
+      if (studentDetails == null) {
+        print('❌ No student details found for: $studentId');
+        return [];
+      }
+
+      final year = studentDetails['year'].toString();
+      final section = studentDetails['section'];
+
+      // Get subjects for the student
+      final subjects = await supabase
+          .from('student_subjects')
+          .select('subject_id')
+          .eq('student_id', studentId);
+
+      final subjectIds =
+          (subjects as List).map((s) => s['subject_id']).toList();
+
+      if (subjectIds.isEmpty) return [];
+
+      // Fetch study materials for these subjects matching year and section
+      final materials = await supabase
+          .from('study_materials')
+          .select()
+          .filter('subject_id', 'in', subjectIds)
+          .eq('year', year)
+          .eq('section', section)
+          .order('created_at', ascending: false);
+
+      // Enrich with subject and teacher details
+      final enrichedMaterials = <Map<String, dynamic>>[];
+
+      for (var material in materials) {
+        final enrichedMaterial = Map<String, dynamic>.from(material);
+
+        // Fetch subject details
+        if (material['subject_id'] != null) {
+          final subjectData = await supabase
+              .from('subjects')
+              .select('subject_name')
+              .eq('subject_id', material['subject_id'])
+              .maybeSingle();
+
+          if (subjectData != null) {
+            enrichedMaterial['subjects'] = subjectData;
+          }
+        }
+
+        // Fetch teacher details
+        if (material['teacher_id'] != null) {
+          final teacherData = await supabase
+              .from('teacher_details')
+              .select('name')
+              .eq('teacher_id', material['teacher_id'])
+              .maybeSingle();
+
+          if (teacherData != null) {
+            enrichedMaterial['teacher_details'] = teacherData;
+          }
+        }
+
+        enrichedMaterials.add(enrichedMaterial);
+      }
+
+      // Cache the result
+      await _cache.saveToCache(cacheKey, enrichedMaterials);
+
+      return enrichedMaterials;
+    } catch (e) {
+      print('Error fetching study materials: $e');
+      return [];
+    }
+  }
+
+  /// Get announcements for student with caching
+  Future<List<Map<String, dynamic>>> getAnnouncements(String studentId) async {
+    try {
+      // Check cache first
+      final cacheKey = CacheKeys.studentAnnouncements(studentId);
+      final cachedData = await _cache.getFromCache(cacheKey);
+
+      if (cachedData != null) {
+        return List<Map<String, dynamic>>.from(cachedData);
+      }
+
+      // First get student's year and section
+      final studentDetails = await getStudentDetails(studentId);
+      if (studentDetails == null) {
+        print('❌ No student details found for: $studentId');
+        return [];
+      }
+
+      final year = studentDetails['year'].toString();
+      final section = studentDetails['section'];
+
+      // Get subjects for the student
+      final subjects = await supabase
+          .from('student_subjects')
+          .select('subject_id')
+          .eq('student_id', studentId);
+
+      final subjectIds =
+          (subjects as List).map((s) => s['subject_id']).toList();
+
+      if (subjectIds.isEmpty) return [];
+
+      // Fetch announcements for these subjects matching year and section
+      final announcementsData = await supabase
+          .from('announcements')
+          .select()
+          .filter('subject_id', 'in', subjectIds)
+          .eq('year', year)
+          .eq('section', section)
+          .order('created_at', ascending: false);
+
+      // Enrich with subject and teacher details
+      final enrichedAnnouncements = <Map<String, dynamic>>[];
+
+      for (var announcement in announcementsData) {
+        final enrichedAnnouncement = Map<String, dynamic>.from(announcement);
+
+        // Fetch subject details
+        if (announcement['subject_id'] != null) {
+          final subjectData = await supabase
+              .from('subjects')
+              .select('subject_name')
+              .eq('subject_id', announcement['subject_id'])
+              .maybeSingle();
+
+          if (subjectData != null) {
+            enrichedAnnouncement['subjects'] = subjectData;
+          }
+        }
+
+        // Fetch teacher details
+        if (announcement['teacher_id'] != null) {
+          final teacherData = await supabase
+              .from('teacher_details')
+              .select('name')
+              .eq('teacher_id', announcement['teacher_id'])
+              .maybeSingle();
+
+          if (teacherData != null) {
+            enrichedAnnouncement['teacher_details'] = teacherData;
+          }
+        }
+
+        enrichedAnnouncements.add(enrichedAnnouncement);
+      }
+
+      // Cache the result
+      await _cache.saveToCache(cacheKey, enrichedAnnouncements);
+
+      return enrichedAnnouncements;
+    } catch (e) {
+      print('Error fetching announcements: $e');
+      return [];
+    }
+  }
+
+  /// Stream study materials for real-time updates
+  Stream<List<Map<String, dynamic>>> streamStudyMaterials(
+      String studentId) async* {
+    try {
+      final studentDetails = await getStudentDetails(studentId);
+      if (studentDetails == null) return;
+
+      final year = studentDetails['year'].toString();
+      final section = studentDetails['section'];
+
+      yield* supabase
+          .from('study_materials')
+          .stream(primaryKey: ['id'])
+          .order('created_at', ascending: false)
+          .map((data) {
+            // Filter by year and section in the map
+            return data
+                .where((item) =>
+                    item['year'].toString() == year &&
+                    item['section'] == section)
+                .toList()
+                .cast<Map<String, dynamic>>();
+          });
+    } catch (e) {
+      print('Error streaming study materials: $e');
+    }
+  }
+
+  /// Stream announcements for real-time updates
+  Stream<List<Map<String, dynamic>>> streamAnnouncements(
+      String studentId) async* {
+    try {
+      final studentDetails = await getStudentDetails(studentId);
+      if (studentDetails == null) return;
+
+      final year = studentDetails['year'].toString();
+      final section = studentDetails['section'];
+
+      yield* supabase
+          .from('announcements')
+          .stream(primaryKey: ['id'])
+          .order('created_at', ascending: false)
+          .map((data) {
+            // Filter by year and section in the map
+            return data
+                .where((item) =>
+                    item['year'].toString() == year &&
+                    item['section'] == section)
+                .toList()
+                .cast<Map<String, dynamic>>();
+          });
+    } catch (e) {
+      print('Error streaming announcements: $e');
+    }
+  }
+
+  /// Submit assignment solution
+  Future<bool> submitAssignment({
+    required String assignmentId,
+    required String studentId,
+    required File file,
+  }) async {
+    try {
+      print('📤 Starting assignment submission...');
+
+      // Compress file if it's a PDF or image
+      File fileToUpload = file;
+      final extension = file.path.split('.').last.toLowerCase();
+
+      if (extension == 'pdf' || ['jpg', 'jpeg', 'png'].contains(extension)) {
+        print('🗜️ Compressing file...');
+        fileToUpload = await _compressFile(file);
+        print('✅ File compressed successfully');
+      }
+
+      // Upload to storage
+      final fileName =
+          'submission_${studentId}_${assignmentId}_${DateTime.now().millisecondsSinceEpoch}.${extension}';
+      final path = 'submissions/$fileName';
+
+      print('📁 Uploading to storage...');
+      await supabase.storage.from('assignment-submissions').upload(
+            path,
+            fileToUpload,
+            fileOptions: const FileOptions(upsert: true),
+          );
+
+      final fileUrl =
+          supabase.storage.from('assignment-submissions').getPublicUrl(path);
+
+      print('💾 Saving submission record...');
+      // Insert submission record
+      await supabase.from('assignment_submissions').insert({
+        'assignment_id': assignmentId,
+        'student_id': studentId,
+        'file_url': fileUrl,
+        'status': 'submitted',
+        'submitted_at': DateTime.now().toIso8601String(),
+      });
+
+      print('✅ Assignment submitted successfully!');
+      return true;
+    } catch (e) {
+      print('❌ Error submitting assignment: $e');
+      return false;
+    }
+  }
+
+  /// Compress file to save storage
+  Future<File> _compressFile(File file) async {
+    try {
+      final extension = file.path.split('.').last.toLowerCase();
+
+      // For images, we can use flutter's image compression
+      if (['jpg', 'jpeg', 'png'].contains(extension)) {
+        // For now, just return the original file
+        // In production, you'd use image compression package
+        // like flutter_image_compress
+        return file;
+      }
+
+      // For PDFs, return as is (PDF compression requires native libraries)
+      // In production, you'd use a package like pdf_compressor
+      return file;
+    } catch (e) {
+      print('⚠️ Compression failed, using original file: $e');
+      return file;
+    }
+  }
+
+  /// Check if student has submitted an assignment
+  Future<Map<String, dynamic>?> getSubmissionStatus(
+    String assignmentId,
+    String studentId,
+  ) async {
+    try {
+      final response = await supabase
+          .from('assignment_submissions')
+          .select()
+          .eq('assignment_id', assignmentId)
+          .eq('student_id', studentId)
+          .maybeSingle();
+
+      return response;
+    } catch (e) {
+      print('Error checking submission status: $e');
+      return null;
+    }
+  }
+
+  /// Get all submissions for a student
+  Future<List<Map<String, dynamic>>> getStudentSubmissions(
+      String studentId) async {
+    try {
+      final response = await supabase
+          .from('assignment_submissions')
+          .select('*, assignments(*)')
+          .eq('student_id', studentId)
+          .order('submitted_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error fetching submissions: $e');
       return [];
     }
   }

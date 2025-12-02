@@ -3,11 +3,14 @@ import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
 import '../../services/student_service.dart';
 import '../../services/fees_service.dart';
+import '../../core/theme/app_theme.dart';
 import '../fees/student_fees_screen.dart';
-import '../notices/notices_screen.dart';
 import '../student/student_marks_screen.dart';
 import '../student/student_subjects_screen.dart';
 import '../student/student_timetable.dart';
+import '../student/student_assignments_screen.dart';
+import '../student/student_study_materials_screen.dart';
+import '../student/student_announcements_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -29,6 +32,7 @@ class _StudentDashboardState extends State<StudentDashboard>
   String _studentInfo = '';
   List<Map<String, dynamic>> _marks = [];
   List<Map<String, dynamic>> _assignments = [];
+  List<Map<String, dynamic>> _announcements = [];
   List<Map<String, dynamic>> _upcomingClasses = [];
   bool _loadingClasses = true;
   double _attendancePercentage = 0.0;
@@ -65,6 +69,7 @@ class _StudentDashboardState extends State<StudentDashboard>
         final marks = await _studentService.getStudentMarks(username);
         final assignments =
             await _studentService.getStudentAssignments(username);
+        final announcements = await _studentService.getAnnouncements(username);
         final timetable = await _studentService.getTimetable(username);
 
         // Fetch fees
@@ -113,6 +118,7 @@ class _StudentDashboardState extends State<StudentDashboard>
             }
             _marks = marks;
             _assignments = assignments;
+            _announcements = announcements;
             _upcomingClasses = upcoming;
             _loadingClasses = false;
 
@@ -570,16 +576,20 @@ class _StudentDashboardState extends State<StudentDashboard>
                               },
                             ),
                             _PremiumStatCard(
-                              title: "Notices",
-                              value: "3",
-                              icon: Icons.notifications_outlined,
+                              title: "Announcements",
+                              value: "${_announcements.length}",
+                              icon: Icons.campaign_outlined,
                               color: const Color(0xFF8B5CF6),
                               bgColor: const Color(0xFFF3E8FF),
                               onTap: () {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const NoticesScreen(),
+                                    builder: (context) =>
+                                        StudentAnnouncementsScreen(
+                                      studentId:
+                                          _studentData?['student_id'] ?? '',
+                                    ),
                                   ),
                                 );
                               },
@@ -1315,174 +1325,246 @@ class _StudentDashboardState extends State<StudentDashboard>
     );
   }
 
-  Widget _buildNavButton(String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSidebar(BuildContext context) {
     return Drawer(
-      child: Container(
-        color: const Color(0xFF1E3A8A),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(0),
+          bottomRight: Radius.circular(0),
+        ),
+      ),
+      child: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [const Color(0xFF1E3A8A), const Color(0xFF3B82F6)],
-                ),
-              ),
+            // sleek Profile Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.white,
-                    child: Text(
-                      _studentName.isNotEmpty
-                          ? _studentName[0].toUpperCase()
-                          : 'S',
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E3A8A),
+                  Row(
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.grey[200],
+                          border: Border.all(
+                            color: Colors.grey[300]!,
+                            width: 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _studentName.isNotEmpty
+                                ? _studentName[0].toUpperCase()
+                                : 'S',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.studentPrimary,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   Text(
                     _studentName,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
+                      color: Colors.black,
+                      fontSize: 24,
                       fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    _studentData?['student_id'] ?? '',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  Row(
+                    children: [
+                      Text(
+                        _studentData?['student_id'] ?? '',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[400],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'View Profile',
+                        style: TextStyle(
+                          color: AppTheme.studentPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            // Navigation items
+
+            const Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
+            const SizedBox(height: 16),
+
+            // Navigation Items
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: EdgeInsets.zero,
                 children: [
-                  _buildSidebarItem(
-                    Icons.dashboard,
+                  _buildSleekSidebarItem(
+                    Icons.grid_view_rounded,
                     "Dashboard",
-                    Colors.cyan,
                     () => Navigator.pop(context),
+                    isActive: true,
                   ),
-                  _buildSidebarItem(
-                    Icons.book,
+                  _buildSleekSidebarItem(
+                    Icons.menu_book_rounded,
                     "Subjects",
-                    Colors.blue,
                     () {
                       Navigator.pop(context);
                       context.push('/student/subjects');
                     },
                   ),
-                  _buildSidebarItem(
-                    Icons.calendar_today,
+                  _buildSleekSidebarItem(
+                    Icons.assignment_outlined,
+                    "Assignments",
+                    () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => StudentAssignmentsScreen(
+                            studentId: _studentData?['student_id'] ?? '',
+                          ),
+                        ),
+                      );
+                    },
+                    badgeCount: _assignments.length,
+                  ),
+                  _buildSleekSidebarItem(
+                    Icons.library_books_outlined,
+                    "Study Materials",
+                    () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => StudentStudyMaterialsScreen(
+                            studentId: _studentData?['student_id'] ?? '',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildSleekSidebarItem(
+                    Icons.campaign_outlined,
+                    "Announcements",
+                    () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => StudentAnnouncementsScreen(
+                            studentId: _studentData?['student_id'] ?? '',
+                          ),
+                        ),
+                      );
+                    },
+                    badgeCount: _announcements.length,
+                    isAlert: true,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                    child: Divider(height: 1, color: Color(0xFFF0F0F0)),
+                  ),
+                  _buildSleekSidebarItem(
+                    Icons.calendar_today_rounded,
                     "Exam Schedule",
-                    Colors.purple,
                     () {
                       Navigator.pop(context);
                       context.push('/student/exam-schedule');
                     },
                   ),
-                  _buildSidebarItem(
-                    Icons.library_books,
+                  _buildSleekSidebarItem(
+                    Icons.local_library_outlined,
                     "Library",
-                    Colors.green,
                     () {
                       Navigator.pop(context);
                       context.push('/student/library');
                     },
                   ),
-                  _buildSidebarItem(
-                    Icons.groups,
+                  _buildSleekSidebarItem(
+                    Icons.groups_outlined,
                     "Clubs & Activities",
-                    Colors.orange,
                     () {
                       Navigator.pop(context);
                       context.push('/student/clubs');
                     },
                   ),
-                  _buildSidebarItem(
-                    Icons.notifications,
-                    "Notice",
-                    Colors.red,
-                    () {
-                      Navigator.pop(context);
-                      context.push('/student/notice');
-                    },
-                  ),
-                  _buildSidebarItem(
-                    Icons.settings,
+                ],
+              ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  _buildSleekSidebarItem(
+                    Icons.settings_outlined,
                     "Settings",
-                    Colors.grey,
                     () {
                       Navigator.pop(context);
                       context.push('/student/settings');
                     },
                   ),
-                ],
-              ),
-            ),
-            // Logout button at bottom
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Colors.white.withOpacity(0.2)),
-                ),
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    await _authService.logout();
-                    if (!mounted) return;
-                    context.go('/login');
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text("Logout"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade600,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await _authService.logout();
+                      if (!mounted) return;
+                      context.go('/login');
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 16),
+                      child: Row(
+                        children: [
+                          Icon(Icons.power_settings_new_rounded,
+                              color: Colors.red[400], size: 24),
+                          const SizedBox(width: 16),
+                          Text(
+                            "Log Out",
+                            style: TextStyle(
+                              color: Colors.red[400],
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
@@ -1491,26 +1573,73 @@ class _StudentDashboardState extends State<StudentDashboard>
     );
   }
 
-  Widget _buildSidebarItem(
-      IconData icon, String label, Color color, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: ListTile(
-        leading: Icon(icon, color: color, size: 24),
-        title: Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+  Widget _buildSleekSidebarItem(
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    bool isActive = false,
+    int badgeCount = 0,
+    bool isAlert = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          decoration: isActive
+              ? BoxDecoration(
+                  border: Border(
+                    left: BorderSide(
+                      color: AppTheme.studentPrimary,
+                      width: 4,
+                    ),
+                  ),
+                  color: AppTheme.studentPrimary.withOpacity(0.05),
+                )
+              : null,
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: isActive ? AppTheme.studentPrimary : Colors.grey[600],
+                size: 24,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: isActive ? AppTheme.studentPrimary : Colors.black87,
+                    fontSize: 16,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+              if (badgeCount > 0)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isAlert ? Colors.red[50] : Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isAlert ? Colors.red[100]! : Colors.blue[100]!,
+                    ),
+                  ),
+                  child: Text(
+                    badgeCount.toString(),
+                    style: TextStyle(
+                      color: isAlert ? Colors.red[700] : Colors.blue[700],
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
-        trailing: Icon(
-          Icons.arrow_forward_ios,
-          size: 14,
-          color: Colors.white30,
-        ),
-        onTap: onTap,
       ),
     );
   }
@@ -1570,74 +1699,6 @@ class _StudentDashboardState extends State<StudentDashboard>
             ),
           ),
           Icon(Icons.download, color: color, size: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExamResultCard(
-    String examName,
-    String score,
-    String grade,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.assessment, color: color, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  examName,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  grade,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            score,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
         ],
       ),
     );

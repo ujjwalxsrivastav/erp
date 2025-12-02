@@ -206,8 +206,8 @@ class TeacherService {
             'assignment_${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
         final path = 'assignments/$fileName';
 
-        await _supabase.storage.from('assignments').upload(path, file);
-        fileUrl = _supabase.storage.from('assignments').getPublicUrl(path);
+        await _supabase.storage.from('Assignments').upload(path, file);
+        fileUrl = _supabase.storage.from('Assignments').getPublicUrl(path);
       }
 
       await _supabase.from('assignments').insert({
@@ -279,6 +279,143 @@ class TeacherService {
     } catch (e) {
       print('❌ Error uploading marks: $e');
       return false;
+    }
+  }
+
+  // Upload Study Material
+  Future<bool> uploadStudyMaterial({
+    required String title,
+    required String description,
+    required String materialType,
+    required String subjectId,
+    required String teacherId,
+    required String year,
+    required String section,
+    required File file,
+  }) async {
+    try {
+      // Upload file to storage
+      final fileName =
+          'study_material_${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+      final path = 'study-materials/$fileName';
+
+      await _supabase.storage.from('study-materials').upload(
+            path,
+            file,
+            fileOptions: const FileOptions(upsert: true),
+          );
+
+      final fileUrl =
+          _supabase.storage.from('study-materials').getPublicUrl(path);
+
+      // Insert record into database
+      await _supabase.from('study_materials').insert({
+        'title': title,
+        'description': description,
+        'material_type': materialType,
+        'subject_id': subjectId,
+        'teacher_id': teacherId,
+        'file_url': fileUrl,
+        'year': year,
+        'section': section,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      print('✅ Study material uploaded successfully');
+      return true;
+    } catch (e) {
+      print('❌ Error uploading study material: $e');
+      return false;
+    }
+  }
+
+  // Make Announcement
+  Future<bool> makeAnnouncement({
+    required String title,
+    required String message,
+    required String priority,
+    required String subjectId,
+    required String teacherId,
+    required String year,
+    required String section,
+  }) async {
+    try {
+      await _supabase.from('announcements').insert({
+        'title': title,
+        'message': message,
+        'priority': priority,
+        'subject_id': subjectId,
+        'teacher_id': teacherId,
+        'year': year,
+        'section': section,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      print('✅ Announcement created successfully');
+      return true;
+    } catch (e) {
+      print('❌ Error creating announcement: $e');
+      return false;
+    }
+  }
+
+  /// Get teacher's assignments for a specific class
+  Future<List<Map<String, dynamic>>> getTeacherAssignments(
+    String teacherId,
+    String year,
+    String section,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('assignments')
+          .select()
+          .eq('teacher_id', teacherId)
+          .eq('year', year)
+          .eq('section', section)
+          .order('created_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error fetching teacher assignments: $e');
+      return [];
+    }
+  }
+
+  /// Get submissions for a specific assignment
+  Future<List<Map<String, dynamic>>> getAssignmentSubmissions(
+    String assignmentId,
+  ) async {
+    try {
+      // First, get all submissions for this assignment
+      final submissions = await _supabase
+          .from('assignment_submissions')
+          .select()
+          .eq('assignment_id', assignmentId)
+          .order('submitted_at', ascending: false);
+
+      // Then fetch student details for each submission
+      final enrichedSubmissions = <Map<String, dynamic>>[];
+
+      for (var submission in submissions) {
+        final studentId = submission['student_id'];
+
+        // Fetch student details
+        final studentDetails = await _supabase
+            .from('student_details')
+            .select('name, student_id')
+            .eq('student_id', studentId)
+            .maybeSingle();
+
+        // Add student details to submission
+        final enrichedSubmission = Map<String, dynamic>.from(submission);
+        enrichedSubmission['student_details'] = studentDetails;
+        enrichedSubmissions.add(enrichedSubmission);
+      }
+
+      return enrichedSubmissions;
+    } catch (e) {
+      print('Error fetching submissions: $e');
+      return [];
     }
   }
 }
