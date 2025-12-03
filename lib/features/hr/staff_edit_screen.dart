@@ -638,7 +638,7 @@ class _StaffEditScreenState extends State<StaffEditScreen>
         ],
       ),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, color: const Color(0xFF059669)),

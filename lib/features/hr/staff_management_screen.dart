@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'staff_profile_detail_screen.dart';
 
 class StaffManagementScreen extends StatefulWidget {
@@ -10,72 +11,28 @@ class StaffManagementScreen extends StatefulWidget {
 
 class _StaffManagementScreenState extends State<StaffManagementScreen>
     with SingleTickerProviderStateMixin {
+  final _supabase = Supabase.instance.client;
   final TextEditingController _searchController = TextEditingController();
   late AnimationController _animationController;
   String _searchQuery = '';
 
-  // Mock data - Replace with actual API call
-  final List<Map<String, dynamic>> _allStaff = [
-    {
-      'id': 'EMP001',
-      'name': 'Dr. Rajesh Kumar',
-      'role': 'Professor',
-      'department': 'Computer Science',
-      'email': 'rajesh.kumar@shivalik.edu',
-      'phone': '+91 98765 43210',
-      'status': 'Active',
-      'photo': null,
-    },
-    {
-      'id': 'EMP002',
-      'name': 'Dr. Priya Sharma',
-      'role': 'Associate Professor',
-      'department': 'Electronics',
-      'email': 'priya.sharma@shivalik.edu',
-      'phone': '+91 98765 43211',
-      'status': 'Active',
-      'photo': null,
-    },
-    {
-      'id': 'EMP003',
-      'name': 'Prof. Amit Verma',
-      'role': 'Assistant Professor',
-      'department': 'Mechanical',
-      'email': 'amit.verma@shivalik.edu',
-      'phone': '+91 98765 43212',
-      'status': 'On Leave',
-      'photo': null,
-    },
-    {
-      'id': 'EMP004',
-      'name': 'Dr. Sneha Patel',
-      'role': 'HOD',
-      'department': 'Computer Science',
-      'email': 'sneha.patel@shivalik.edu',
-      'phone': '+91 98765 43213',
-      'status': 'Active',
-      'photo': null,
-    },
-    {
-      'id': 'ADM001',
-      'name': 'Mr. Vikram Singh',
-      'role': 'Admin Manager',
-      'department': 'Administration',
-      'email': 'vikram.singh@shivalik.edu',
-      'phone': '+91 98765 43214',
-      'status': 'Active',
-      'photo': null,
-    },
-  ];
+  List<Map<String, dynamic>> _allStaff = [];
+  bool _isLoading = true;
 
   List<Map<String, dynamic>> get _filteredStaff {
     if (_searchQuery.isEmpty) return _allStaff;
     return _allStaff.where((staff) {
       final query = _searchQuery.toLowerCase();
-      return staff['name'].toLowerCase().contains(query) ||
-          staff['id'].toLowerCase().contains(query) ||
-          staff['department'].toLowerCase().contains(query) ||
-          staff['role'].toLowerCase().contains(query);
+      return (staff['name']?.toString() ?? '').toLowerCase().contains(query) ||
+          (staff['employee_id']?.toString() ?? '')
+              .toLowerCase()
+              .contains(query) ||
+          (staff['department']?.toString() ?? '')
+              .toLowerCase()
+              .contains(query) ||
+          (staff['designation']?.toString() ?? '')
+              .toLowerCase()
+              .contains(query);
     }).toList();
   }
 
@@ -86,6 +43,40 @@ class _StaffManagementScreenState extends State<StaffManagementScreen>
       duration: const Duration(milliseconds: 600),
       vsync: this,
     )..forward();
+    _loadStaffData();
+  }
+
+  Future<void> _loadStaffData() async {
+    try {
+      final response = await _supabase
+          .from('teacher_details')
+          .select()
+          .order('created_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          _allStaff = List<Map<String, dynamic>>.from(response).map((staff) {
+            return {
+              'id': staff['employee_id'],
+              'employee_id': staff['employee_id'],
+              'name': staff['name'],
+              'role': staff['designation'] ?? 'Teacher',
+              'department': staff['department'] ?? 'N/A',
+              'email': staff['email'] ?? 'N/A',
+              'phone': staff['phone'] ?? 'N/A',
+              'status': staff['status'] ?? 'Active',
+              'photo': staff['profile_photo_url'],
+            };
+          }).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading staff: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -258,18 +249,26 @@ class _StaffManagementScreenState extends State<StaffManagementScreen>
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
           // Staff List
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final staff = _filteredStaff[index];
-                  return _buildStaffCard(staff, index);
-                },
-                childCount: _filteredStaff.length,
-              ),
-            ),
-          ),
+          _isLoading
+              ? const SliverFillRemaining(
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF059669),
+                    ),
+                  ),
+                )
+              : SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final staff = _filteredStaff[index];
+                        return _buildStaffCard(staff, index);
+                      },
+                      childCount: _filteredStaff.length,
+                    ),
+                  ),
+                ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],

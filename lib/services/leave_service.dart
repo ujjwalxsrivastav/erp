@@ -64,14 +64,11 @@ class LeaveService {
     try {
       final totalDays = endDate.difference(startDate).inDays + 1;
 
-      // Check if teacher has enough balance
+      // Get current balance (for reference, not blocking)
+      int remainingBalance = 0;
       final balance = await getLeaveBalance(teacherId);
       if (balance != null) {
-        final remaining = balance['sick_leaves_remaining'] as int;
-        if (remaining < totalDays) {
-          throw Exception(
-              'Insufficient leave balance. You have $remaining leaves remaining.');
-        }
+        remainingBalance = balance['sick_leaves_remaining'] as int;
       }
 
       await _supabase.from('teacher_leaves').insert({
@@ -164,18 +161,18 @@ class LeaveService {
         final days = leaveData['total_days'] as int;
         final employeeId = leaveData['employee_id'] as String;
 
-        // 2. Get teacher's net salary
+        // 2. Get teacher's basic salary
         final salaryData = await _supabase
             .from('teacher_salary')
-            .select('net_salary')
+            .select('basic_salary')
             .eq('employee_id', employeeId)
             .eq('is_active', true)
             .maybeSingle();
 
         if (salaryData != null) {
-          final netSalary = salaryData['net_salary'] as num;
-          // Calculate per day salary (approx 30 days)
-          final perDaySalary = netSalary / 30;
+          final basicSalary = salaryData['basic_salary'] as num;
+          // Calculate per day salary (30 days per month)
+          final perDaySalary = basicSalary / 30;
           deductionAmount = perDaySalary * days;
         }
       }

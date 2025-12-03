@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 import '../../services/staff_pdf_service.dart';
 import 'staff_edit_screen.dart';
+import 'edit_salary_screen.dart';
 
 class StaffProfileDetailScreen extends StatefulWidget {
   final Map<String, dynamic> staff;
@@ -14,8 +17,14 @@ class StaffProfileDetailScreen extends StatefulWidget {
 
 class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
     with SingleTickerProviderStateMixin {
+  final _supabase = Supabase.instance.client;
   late TabController _tabController;
   int _selectedTabIndex = 0;
+
+  // Salary data
+  Map<String, dynamic>? _salaryData;
+  bool _isSalaryLoading = true;
+  double _leaveDeductions = 0.0;
 
   final List<String> _tabs = [
     'Personal',
@@ -33,6 +42,62 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
     _tabController.addListener(() {
       setState(() => _selectedTabIndex = _tabController.index);
     });
+    _loadSalaryData();
+  }
+
+  Future<void> _loadSalaryData() async {
+    try {
+      final employeeId = widget.staff['employee_id'];
+
+      if (employeeId == null) {
+        print('Error: employee_id is null in staff data');
+        if (mounted) {
+          setState(() => _isSalaryLoading = false);
+        }
+        return;
+      }
+
+      // Fetch salary data
+      final salaryData = await _supabase
+          .from('teacher_salary')
+          .select()
+          .eq('employee_id', employeeId)
+          .eq('is_active', true)
+          .maybeSingle();
+
+      // Fetch current month leave deductions
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1);
+      final endOfMonth = DateTime(now.year, now.month + 1, 0);
+
+      final leaveDeductions = await _supabase
+          .from('teacher_leaves')
+          .select('deduction_amount')
+          .eq('employee_id', employeeId)
+          .eq('status', 'Approved')
+          .eq('is_salary_deducted', true)
+          .gte('start_date', startOfMonth.toIso8601String())
+          .lte('start_date', endOfMonth.toIso8601String());
+
+      double totalDeductions = 0.0;
+      for (var leave in leaveDeductions) {
+        totalDeductions +=
+            (leave['deduction_amount'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      if (mounted) {
+        setState(() {
+          _salaryData = salaryData;
+          _leaveDeductions = totalDeductions;
+          _isSalaryLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading salary data: $e');
+      if (mounted) {
+        setState(() => _isSalaryLoading = false);
+      }
+    }
   }
 
   @override
@@ -503,18 +568,87 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
 
   // TAB 3: Salary & Payroll
   Widget _buildSalaryTab() {
+    if (_isSalaryLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF059669)),
+      );
+    }
+
+    if (_salaryData == null) {
+      return const Center(
+        child: Text('No salary data found'),
+      );
+    }
+
+    final basicSalary =
+        (_salaryData!['basic_salary'] as num?)?.toDouble() ?? 0.0;
+    final hra = (_salaryData!['hra'] as num?)?.toDouble() ?? 0.0;
+    final travelAllowance =
+        (_salaryData!['travel_allowance'] as num?)?.toDouble() ?? 0.0;
+    final medicalAllowance =
+        (_salaryData!['medical_allowance'] as num?)?.toDouble() ?? 0.0;
+    final specialAllowance =
+        (_salaryData!['special_allowance'] as num?)?.toDouble() ?? 0.0;
+    final otherAllowances =
+        (_salaryData!['other_allowances'] as num?)?.toDouble() ?? 0.0;
+
+    final pf = (_salaryData!['provident_fund'] as num?)?.toDouble() ?? 0.0;
+    final professionalTax =
+        (_salaryData!['professional_tax'] as num?)?.toDouble() ?? 0.0;
+    final incomeTax = (_salaryData!['income_tax'] as num?)?.toDouble() ?? 0.0;
+    final otherDeductions =
+        (_salaryData!['other_deductions'] as num?)?.toDouble() ?? 0.0;
+
+    final grossSalary =
+        (_salaryData!['gross_salary'] as num?)?.toDouble() ?? 0.0;
+    final baseNetSalary =
+        (_salaryData!['net_salary'] as num?)?.toDouble() ?? 0.0;
+    final finalNetSalary = baseNetSalary - _leaveDeductions;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Salary & Payroll',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1F2937),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Salary & Payroll',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditSalaryScreen(
+                        staff: widget.staff,
+                        salaryData: _salaryData,
+                      ),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadSalaryData(); // Reload data
+                  }
+                },
+                icon: const Icon(Icons.edit, size: 18),
+                label: const Text('Edit'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
 
@@ -548,9 +682,11 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '₹85,000',
-                  style: TextStyle(
+                Text(
+                  NumberFormat.currency(
+                          symbol: '₹', locale: 'en_IN', decimalDigits: 0)
+                      .format(finalNetSalary),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 42,
                     fontWeight: FontWeight.w800,
@@ -565,9 +701,11 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text(
-                    'After all deductions',
-                    style: TextStyle(
+                  child: Text(
+                    _leaveDeductions > 0
+                        ? 'After all deductions (incl. ₹${_leaveDeductions.toStringAsFixed(0)} leave deduction)'
+                        : 'After all deductions',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -579,24 +717,90 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
           ),
           const SizedBox(height: 24),
 
-          _buildSalaryDetailCard('Basic Salary', '₹60,000',
-              Icons.account_balance_wallet, Colors.blue),
+          _buildSalaryDetailCard(
+              'Basic Salary',
+              NumberFormat.currency(
+                      symbol: '₹', locale: 'en_IN', decimalDigits: 0)
+                  .format(basicSalary),
+              Icons.account_balance_wallet,
+              Colors.blue),
           const SizedBox(height: 12),
 
           _buildSalaryDetailCard(
-              'House Rent Allowance', '₹20,000', Icons.home, Colors.purple),
+              'House Rent Allowance',
+              NumberFormat.currency(
+                      symbol: '₹', locale: 'en_IN', decimalDigits: 0)
+                  .format(hra),
+              Icons.home,
+              Colors.purple),
           const SizedBox(height: 12),
 
-          _buildSalaryDetailCard('Travel Allowance', '₹5,000',
-              Icons.directions_car, Colors.orange),
+          _buildSalaryDetailCard(
+              'Travel Allowance',
+              NumberFormat.currency(
+                      symbol: '₹', locale: 'en_IN', decimalDigits: 0)
+                  .format(travelAllowance),
+              Icons.directions_car,
+              Colors.orange),
           const SizedBox(height: 12),
 
-          _buildSalaryDetailCard('Medical Allowance', '₹3,000',
-              Icons.medical_services, Colors.red),
+          _buildSalaryDetailCard(
+              'Medical Allowance',
+              NumberFormat.currency(
+                      symbol: '₹', locale: 'en_IN', decimalDigits: 0)
+                  .format(medicalAllowance),
+              Icons.medical_services,
+              Colors.red),
           const SizedBox(height: 12),
 
-          _buildSalaryDetailCard('Provident Fund (Deduction)', '- ₹3,000',
-              Icons.savings, Colors.red.shade700),
+          if (specialAllowance > 0) ...[
+            _buildSalaryDetailCard(
+                'Special Allowance',
+                NumberFormat.currency(
+                        symbol: '₹', locale: 'en_IN', decimalDigits: 0)
+                    .format(specialAllowance),
+                Icons.star,
+                Colors.amber),
+            const SizedBox(height: 12),
+          ],
+
+          const Divider(height: 32),
+
+          const Text(
+            'Deductions',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1F2937),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          _buildSalaryDetailCard(
+              'Provident Fund',
+              '- ${NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 0).format(pf)}',
+              Icons.savings,
+              Colors.red.shade700),
+          const SizedBox(height: 12),
+
+          if (professionalTax > 0) ...[
+            _buildSalaryDetailCard(
+                'Professional Tax',
+                '- ${NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 0).format(professionalTax)}',
+                Icons.receipt,
+                Colors.red.shade700),
+            const SizedBox(height: 12),
+          ],
+
+          if (_leaveDeductions > 0) ...[
+            _buildSalaryDetailCard(
+                'Leave Deductions',
+                '- ${NumberFormat.currency(symbol: '₹', locale: 'en_IN', decimalDigits: 0).format(_leaveDeductions)}',
+                Icons.event_busy,
+                Colors.red.shade900),
+            const SizedBox(height: 12),
+          ],
+
           const SizedBox(height: 24),
 
           const Text(
@@ -609,14 +813,21 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
           ),
           const SizedBox(height: 12),
 
+          _buildInfoCard('Bank Name', _salaryData!['bank_name'] ?? 'N/A',
+              Icons.account_balance),
+          const SizedBox(height: 12),
+
           _buildInfoCard(
-              'Account Number', '1234567890123', Icons.account_balance),
+              'Account Number',
+              _salaryData!['account_number'] ?? 'N/A',
+              Icons.account_balance_wallet),
           const SizedBox(height: 12),
 
           Row(
             children: [
               Expanded(
-                child: _buildInfoCard('IFSC Code', 'SBIN0001234', Icons.code),
+                child: _buildInfoCard('IFSC Code',
+                    _salaryData!['ifsc_code'] ?? 'N/A', Icons.code),
               ),
               const SizedBox(width: 12),
               Expanded(

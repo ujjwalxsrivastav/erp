@@ -42,6 +42,24 @@ class _HRLeaveRequestsScreenState extends State<HRLeaveRequestsScreen>
     setState(() => _isLoading = true);
     final pending = await _leaveService.getPendingLeaves();
     final all = await _leaveService.getAllLeaves();
+
+    // Fetch balance for each leave request
+    for (var leave in pending) {
+      final teacherId = leave['teacher_id'];
+      if (teacherId != null) {
+        final balance = await _leaveService.getLeaveBalance(teacherId);
+        leave['_balance_info'] = balance;
+      }
+    }
+
+    for (var leave in all) {
+      final teacherId = leave['teacher_id'];
+      if (teacherId != null) {
+        final balance = await _leaveService.getLeaveBalance(teacherId);
+        leave['_balance_info'] = balance;
+      }
+    }
+
     if (mounted) {
       setState(() {
         _pendingLeaves = pending;
@@ -446,6 +464,12 @@ class _HRLeaveRequestsScreenState extends State<HRLeaveRequestsScreen>
                   _buildInfoRow(Icons.category, 'Type', leave['leave_type']),
                   const SizedBox(height: 12),
                   _buildInfoRow(Icons.description, 'Reason', leave['reason']),
+
+                  // Show balance info if available
+                  if (leave['_balance_info'] != null) ...[
+                    const SizedBox(height: 12),
+                    _buildBalanceInfo(leave),
+                  ],
                 ],
               ),
             ),
@@ -521,6 +545,53 @@ class _HRLeaveRequestsScreenState extends State<HRLeaveRequestsScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildBalanceInfo(Map<String, dynamic> leave) {
+    final balanceInfo = leave['_balance_info'] as Map<String, dynamic>?;
+    final totalDays = leave['total_days'] as int;
+    final remaining = balanceInfo?['sick_leaves_remaining'] as int? ?? 0;
+    final isInsufficient = remaining < totalDays;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color:
+            isInsufficient ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isInsufficient
+              ? const Color(0xFFEF4444)
+              : const Color(0xFF10B981),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isInsufficient ? Icons.warning_amber : Icons.check_circle,
+            size: 16,
+            color: isInsufficient
+                ? const Color(0xFFEF4444)
+                : const Color(0xFF10B981),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              isInsufficient
+                  ? 'Leave Balance: $remaining days (Requested: $totalDays days)'
+                  : 'Leave Balance: $remaining days available',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isInsufficient
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFF10B981),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

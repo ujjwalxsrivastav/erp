@@ -189,12 +189,94 @@ class _TeacherPayrollScreenState extends State<TeacherPayrollScreen> {
         _buildRow('Provident Fund', _payrollData!['provident_fund']),
         _buildRow('Professional Tax', _payrollData!['professional_tax']),
         _buildRow('Income Tax', _payrollData!['income_tax']),
-        if (totalLeaveDeductions > 0)
-          _buildRow('Leave Deductions', totalLeaveDeductions, isRed: true),
+
+        // Detailed Leave Deductions
+        if (_deductions.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Leave Deductions:',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFFEF4444),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._deductions.map((leave) => _buildLeaveDeductionItem(leave)),
+          const SizedBox(height: 4),
+          _buildRow('Total Leave Deductions', totalLeaveDeductions,
+              isRed: true, isBold: true),
+        ],
+
         const Divider(height: 24),
         _buildRow('Total Deductions', totalDeductions,
             isBold: true, isRed: true),
       ],
+    );
+  }
+
+  Widget _buildLeaveDeductionItem(Map<String, dynamic> leave) {
+    final amount = (leave['deduction_amount'] as num).toDouble();
+    final startDate = leave['start_date'] as String;
+    final endDate = leave['end_date'] as String;
+    final totalDays = leave['total_days'] as int;
+    final reason = leave['reason'] as String;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$totalDays day${totalDays > 1 ? 's' : ''} leave',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFEF4444),
+                ),
+              ),
+              Text(
+                '- ₹${amount.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFEF4444),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$startDate to $endDate',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          if (reason.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Reason: $reason',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade500,
+                fontStyle: FontStyle.italic,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
     );
   }
 
