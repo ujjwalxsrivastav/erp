@@ -81,6 +81,9 @@ class _LoginScreenState extends State<LoginScreen>
           case 'HR':
             context.go('/hr-dashboard');
             break;
+          case 'hod':
+            context.go('/hod-dashboard');
+            break;
         }
       } else {
         _showError(result['message'] ?? 'Login failed');
@@ -310,6 +313,7 @@ class _LoginScreenState extends State<LoginScreen>
           _buildCredentialRow('Teacher', 'teacher1', AppTheme.teacherPrimary),
           _buildCredentialRow('Admin', 'admin1', AppTheme.adminPrimary),
           _buildCredentialRow('HR', 'hr1', const Color(0xFF059669)),
+          _buildCredentialRow('HOD', 'hod1', const Color(0xFF0891B2)),
         ],
       ),
     );
