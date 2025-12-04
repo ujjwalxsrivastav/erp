@@ -5,13 +5,27 @@ import 'routes/app_router.dart';
 import 'services/supabase_service.dart';
 
 void main() async {
+  // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Try to load .env file (for mobile), but don't fail if it doesn't exist (web)
   try {
     await dotenv.load(fileName: ".env");
+    print('✅ .env file loaded successfully');
   } catch (e) {
-    print('Warning: Could not load .env file: $e');
+    print('ℹ️ .env file not found (expected for web builds): $e');
   }
-  await SupabaseService.initialize();
+
+  // Initialize Supabase
+  try {
+    await SupabaseService.initialize();
+    print('✅ App initialization complete');
+  } catch (e) {
+    print('⚠️ Error during initialization: $e');
+    // Continue anyway - app should still run
+  }
+
+  // Run the app
   runApp(const MyERPApp());
 }
 

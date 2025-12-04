@@ -226,6 +226,12 @@ class _LoginScreenState extends State<LoginScreen>
             // Username Field
             TextFormField(
               controller: _usernameController,
+              autofocus: true,
+              textInputAction: TextInputAction.next,
+              onFieldSubmitted: (_) {
+                // Move focus to password field when Enter is pressed
+                FocusScope.of(context).nextFocus();
+              },
               decoration: InputDecoration(
                 labelText: 'Username',
                 hintText: 'Enter your username',
@@ -246,6 +252,13 @@ class _LoginScreenState extends State<LoginScreen>
             TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) {
+                // Submit form when Enter is pressed on password field
+                if (!_isLoading) {
+                  _handleLogin();
+                }
+              },
               decoration: InputDecoration(
                 labelText: 'Password',
                 hintText: 'Enter your password',

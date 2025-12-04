@@ -177,7 +177,7 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: selectedSubjectId,
+                            initialValue: selectedSubjectId,
                             decoration: InputDecoration(
                               hintText: 'Select subject',
                               border: OutlineInputBorder(
@@ -226,7 +226,7 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: selectedTeacherId,
+                            initialValue: selectedTeacherId,
                             decoration: InputDecoration(
                               hintText: 'Select teacher',
                               border: OutlineInputBorder(

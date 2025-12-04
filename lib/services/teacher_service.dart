@@ -8,15 +8,38 @@ class TeacherService {
   // Get teacher details by teacher_id
   Future<Map<String, dynamic>?> getTeacherDetails(String teacherId) async {
     try {
+      print('🔍 Fetching teacher details for: $teacherId');
+
       final response = await _supabase
           .from('teacher_details')
           .select()
           .eq('teacher_id', teacherId)
-          .single();
+          .maybeSingle();
 
+      if (response == null) {
+        print('⚠️ No teacher details found for: $teacherId');
+        print('💡 Checking if data exists without filter...');
+
+        // Try to get all records to see if table is accessible
+        try {
+          final allRecords = await _supabase
+              .from('teacher_details')
+              .select('teacher_id')
+              .limit(5);
+          print('📊 Found ${allRecords.length} teacher records in table');
+          print(
+              '👥 Teacher IDs: ${allRecords.map((r) => r['teacher_id']).toList()}');
+        } catch (e) {
+          print('❌ Cannot access teacher_details table: $e');
+        }
+
+        return null;
+      }
+
+      print('✅ Teacher details found: ${response['name']}');
       return response;
     } catch (e) {
-      print('Error fetching teacher details: $e');
+      print('❌ Error fetching teacher details: $e');
       return null;
     }
   }

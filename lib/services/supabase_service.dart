@@ -12,11 +12,35 @@ class SupabaseService {
 
   static Future<void> initialize() async {
     try {
-      final url = dotenv.get('SUPABASE_URL', fallback: '');
-      final anonKey = dotenv.get('SUPABASE_ANON_KEY', fallback: '');
+      // Try to get from AppConfig first (for web), then fallback to dotenv (for mobile)
+      String url = '';
+      String anonKey = '';
+
+      // Import AppConfig
+      try {
+        // For web builds, use AppConfig
+        const configUrl =
+            String.fromEnvironment('SUPABASE_URL', defaultValue: '');
+        const configKey =
+            String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
+
+        if (configUrl.isNotEmpty && configKey.isNotEmpty) {
+          url = configUrl;
+          anonKey = configKey;
+        } else {
+          // Fallback to dotenv for mobile
+          url = dotenv.get('SUPABASE_URL', fallback: '');
+          anonKey = dotenv.get('SUPABASE_ANON_KEY', fallback: '');
+        }
+      } catch (e) {
+        // If dotenv fails, try environment variables
+        url = dotenv.get('SUPABASE_URL', fallback: '');
+        anonKey = dotenv.get('SUPABASE_ANON_KEY', fallback: '');
+      }
 
       if (url.isEmpty || anonKey.isEmpty) {
         print('Warning: Supabase credentials not found in environment');
+        print('Please set SUPABASE_URL and SUPABASE_ANON_KEY');
         return;
       }
 

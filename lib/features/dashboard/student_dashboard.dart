@@ -11,6 +11,7 @@ import '../student/student_timetable.dart';
 import '../student/student_assignments_screen.dart';
 import '../student/student_study_materials_screen.dart';
 import '../student/student_announcements_screen.dart';
+import '../student/student_events_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -677,6 +678,19 @@ class _StudentDashboardState extends State<StudentDashboard>
                             MaterialPageRoute(
                               builder: (context) =>
                                   const StudentSubjectsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _QuickActionCard(
+                        icon: Icons.event_outlined,
+                        label: "Events",
+                        color: const Color(0xFF8B5CF6),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const StudentEventsScreen(),
                             ),
                           );
                         },

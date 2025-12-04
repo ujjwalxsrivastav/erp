@@ -439,7 +439,7 @@ class _TeacherLeaveApplyScreenState extends State<TeacherLeaveApplyScreen>
               // Leave Type
               _buildFloatingField(
                 child: DropdownButtonFormField<String>(
-                  value: _selectedLeaveType,
+                  initialValue: _selectedLeaveType,
                   decoration: const InputDecoration(
                     labelText: 'Leave Type',
                     prefixIcon:

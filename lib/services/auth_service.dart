@@ -151,7 +151,7 @@ class AuthService {
 
       // Verify user still exists in database
       final response = await _supabase
-          .from('user_accounts')
+          .from('users')
           .select('username')
           .eq('username', username)
           .maybeSingle();
