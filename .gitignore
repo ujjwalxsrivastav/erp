@@ -48,3 +48,17 @@ app.*.map.json
 /android/app/release
 # Sensitive config files
 lib/core/config/app_config.dart
+
+# Database exports with sensitive data
+database_export/all_data.sql
+database_export/data_dump.sql
+database_export/data_backup_*.sql
+
+# Supabase temp files
+supabase/.temp/
+
+# SQL files with credentials
+test_*.sql
+fix_*.sql
+setup_*.sql
+

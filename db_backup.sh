@@ -1,8 +1,18 @@
 #!/bin/bash
 # Database Backup and Restore Script for ERP
 # Usage: ./db_backup.sh backup OR ./db_backup.sh restore
+# 
+# SET DB_URL ENVIRONMENT VARIABLE BEFORE RUNNING:
+# export DB_URL="postgresql://postgres:YOUR_PASSWORD@db.YOUR_PROJECT.supabase.co:5432/postgres"
 
-DB_URL="postgresql://postgres:csIUArBX6xeiqdYB@db.rvyzfqffjgwadxtbiuvr.supabase.co:5432/postgres"
+if [ -z "$DB_URL" ]; then
+  echo "❌ Error: DB_URL environment variable not set!"
+  echo ""
+  echo "Please set it first:"
+  echo 'export DB_URL="postgresql://postgres:YOUR_PASSWORD@db.YOUR_PROJECT.supabase.co:5432/postgres"'
+  exit 1
+fi
+
 BACKUP_DIR="database_export"
 PSQL="/opt/homebrew/opt/libpq/bin/psql"
 PG_DUMP="/opt/homebrew/opt/libpq/bin/pg_dump"
