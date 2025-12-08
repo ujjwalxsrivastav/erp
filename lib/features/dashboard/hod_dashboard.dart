@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/auth_service.dart';
+import '../../services/arrangement_service.dart';
 import '../hod/manage_classes_screen.dart';
 import '../hod/hod_events_screen.dart';
+import '../hod/arrangement_screen.dart';
 
 class HODDashboard extends StatefulWidget {
   const HODDashboard({super.key});
@@ -16,12 +18,14 @@ class _HODDashboardState extends State<HODDashboard>
     with TickerProviderStateMixin {
   final _authService = AuthService();
   final _supabase = Supabase.instance.client;
+  final _arrangementService = ArrangementService();
   late AnimationController _fadeController;
   late AnimationController _slideController;
 
   int _totalFaculty = 0;
   int _totalStudents = 0;
   int _activeCourses = 0;
+  int _pendingArrangements = 0;
   double _departmentAttendance = 0.0;
   bool _isLoading = true;
   String _hodName = 'HOD';
@@ -55,12 +59,15 @@ class _HODDashboardState extends State<HODDashboard>
       final facultyData = await _supabase.from('teacher_details').select();
       final studentsData = await _supabase.from('student_details').select();
       final coursesData = await _supabase.from('subjects').select();
+      final pendingCount =
+          await _arrangementService.getPendingArrangementsCount();
 
       if (mounted) {
         setState(() {
           _totalFaculty = facultyData.length;
           _totalStudents = studentsData.length;
           _activeCourses = coursesData.length;
+          _pendingArrangements = pendingCount;
           _departmentAttendance = 87.5; // Mock data
           _isLoading = false;
         });
@@ -238,6 +245,85 @@ class _HODDashboardState extends State<HODDashboard>
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       const SizedBox(height: 8),
+
+                      // ---------- ARRANGEMENT ALERT CARD ----------
+                      if (_pendingArrangements > 0)
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ArrangementScreen(),
+                              ),
+                            ).then((_) => _loadDashboardData());
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.red.shade400,
+                                  Colors.red.shade600
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.red.withOpacity(0.4),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '$_pendingArrangements Arrangement${_pendingArrangements > 1 ? 's' : ''} Needed',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Teachers on leave today - assign substitutes',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.arrow_forward_ios,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
 
                       // ---------- PREMIUM STATS CARDS ----------
                       SlideTransition(

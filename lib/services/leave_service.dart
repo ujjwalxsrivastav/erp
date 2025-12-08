@@ -149,19 +149,26 @@ class LeaveService {
   }) async {
     try {
       double deductionAmount = 0.0;
+      String? teacherId;
+      DateTime? startDate;
+      DateTime? endDate;
+
+      // Get leave details
+      final leaveData = await _supabase
+          .from('teacher_leaves')
+          .select('total_days, employee_id, teacher_id, start_date, end_date')
+          .eq('leave_id', leaveId)
+          .single();
+
+      teacherId = leaveData['teacher_id'] as String?;
+      startDate = DateTime.tryParse(leaveData['start_date'] ?? '');
+      endDate = DateTime.tryParse(leaveData['end_date'] ?? '');
 
       if (deductSalary) {
-        // 1. Get leave details (days, employee_id)
-        final leaveData = await _supabase
-            .from('teacher_leaves')
-            .select('total_days, employee_id')
-            .eq('leave_id', leaveId)
-            .single();
-
         final days = leaveData['total_days'] as int;
         final employeeId = leaveData['employee_id'] as String;
 
-        // 2. Get teacher's basic salary
+        // Get teacher's basic salary
         final salaryData = await _supabase
             .from('teacher_salary')
             .select('basic_salary')
@@ -171,7 +178,6 @@ class LeaveService {
 
         if (salaryData != null) {
           final basicSalary = salaryData['basic_salary'] as num;
-          // Calculate per day salary (30 days per month)
           final perDaySalary = basicSalary / 30;
           deductionAmount = perDaySalary * days;
         }
@@ -185,10 +191,80 @@ class LeaveService {
         'deduction_amount': deductionAmount,
       }).eq('leave_id', leaveId);
 
+      // Create arrangement entries for HOD to assign substitutes
+      if (teacherId != null && startDate != null && endDate != null) {
+        await _createArrangementsForLeave(
+          teacherId: teacherId,
+          leaveId: leaveId,
+          startDate: startDate,
+          endDate: endDate,
+          createdBy: approvedBy,
+        );
+      }
+
       return true;
     } catch (e) {
       print('Error approving leave: $e');
       return false;
+    }
+  }
+
+  // Helper to create arrangement entries
+  Future<void> _createArrangementsForLeave({
+    required String teacherId,
+    required int leaveId,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String createdBy,
+  }) async {
+    try {
+      // Get teacher's timetable entries
+      final timetableEntries = await _supabase
+          .from('timetable')
+          .select()
+          .eq('teacher_id', teacherId);
+
+      if (timetableEntries.isEmpty) return;
+
+      final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+      // For each day in leave period
+      for (var date = startDate;
+          date.isBefore(endDate.add(const Duration(days: 1)));
+          date = date.add(const Duration(days: 1))) {
+        // Get day name (1 = Monday, 7 = Sunday)
+        if (date.weekday > 5) continue; // Skip weekends
+        final dayName = days[date.weekday - 1];
+
+        // Get timetable entries for this day
+        final dayEntries =
+            timetableEntries.where((t) => t['day_of_week'] == dayName).toList();
+
+        for (var entry in dayEntries) {
+          // Check if arrangement already exists
+          final existing = await _supabase
+              .from('teacher_arrangements')
+              .select()
+              .eq('original_teacher_id', teacherId)
+              .eq('arrangement_date', date.toIso8601String().split('T')[0])
+              .eq('timetable_id', entry['id'])
+              .maybeSingle();
+
+          if (existing == null) {
+            await _supabase.from('teacher_arrangements').insert({
+              'original_teacher_id': teacherId,
+              'leave_id': leaveId,
+              'arrangement_date': date.toIso8601String().split('T')[0],
+              'timetable_id': entry['id'],
+              'status': 'pending',
+              'created_by': createdBy,
+            });
+          }
+        }
+      }
+      print('✅ Created arrangement entries for leave $leaveId');
+    } catch (e) {
+      print('Error creating arrangements: $e');
     }
   }
 

@@ -4,12 +4,14 @@ import '../../services/leave_service.dart';
 
 class TeacherLeaveApplyScreen extends StatefulWidget {
   final String teacherId;
+  final String employeeId;
   final String teacherName;
   final String department;
 
   const TeacherLeaveApplyScreen({
     super.key,
     required this.teacherId,
+    required this.employeeId,
     required this.teacherName,
     required this.department,
   });
@@ -109,13 +111,10 @@ class _TeacherLeaveApplyScreenState extends State<TeacherLeaveApplyScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Get employee_id from balance data (already fetched in _loadData)
-      final employeeId =
-          _leaveBalance?['employee_id'] as String? ?? widget.teacherId;
-
       await _leaveService.applyLeave(
         teacherId: widget.teacherId,
-        employeeId: employeeId, // Use actual employee_id
+        employeeId:
+            widget.employeeId, // Use actual employee_id from teacher_details
         leaveType: _selectedLeaveType,
         startDate: _startDate!,
         endDate: _endDate!,

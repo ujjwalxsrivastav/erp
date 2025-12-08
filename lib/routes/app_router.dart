@@ -20,6 +20,7 @@ import '../features/timetable/timetable_screen.dart';
 import '../features/admin/add_user_screen.dart';
 import '../features/admin/add_teacher_screen.dart';
 import '../features/admin/add_student_screen.dart';
+import '../debug/database_debug_screen.dart';
 
 final router = GoRouter(
   routes: [
@@ -112,6 +113,10 @@ final router = GoRouter(
     GoRoute(
       path: '/admin/add-student',
       builder: (context, state) => const AddStudentScreen(),
+    ),
+    GoRoute(
+      path: '/debug',
+      builder: (context, state) => const DatabaseDebugScreen(),
     ),
   ],
 );

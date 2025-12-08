@@ -290,6 +290,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
                                   builder: (context) => TeacherLeaveApplyScreen(
                                     teacherId: _teacherData!['teacher_id'] ??
                                         'teacher1',
+                                    employeeId: _teacherData!['employee_id'] ??
+                                        'EMP001',
                                     teacherName:
                                         _teacherData!['name'] ?? 'Teacher',
                                     department:
@@ -565,6 +567,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
               title:
                   const Text('Profile', style: TextStyle(color: Colors.white)),
               onTap: () => context.go('/teacher-profile'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bug_report, color: Colors.orange),
+              title: const Text('Debug Database',
+                  style: TextStyle(color: Colors.orange)),
+              onTap: () => context.go('/debug'),
             ),
             const Spacer(),
             ListTile(
