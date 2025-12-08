@@ -62,3 +62,7 @@ test_*.sql
 fix_*.sql
 setup_*.sql
 
+
+# Local database scripts with credentials
+db_backup.sh
+
