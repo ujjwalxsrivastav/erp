@@ -14,11 +14,12 @@ class StudentService {
   final supabase = Supabase.instance.client;
   final _cache = CacheManager();
 
-  /// Get student details by student ID with caching
+  /// Get student details by student ID with caching and offline fallback
   Future<Map<String, dynamic>?> getStudentDetails(String studentId) async {
+    final cacheKey = CacheKeys.studentDetails(studentId);
+
     try {
       // Check cache first
-      final cacheKey = CacheKeys.studentDetails(studentId);
       final cachedData = await _cache.getFromCache(cacheKey);
 
       if (cachedData != null) {
@@ -38,7 +39,15 @@ class StudentService {
 
       return response;
     } catch (e) {
-      print('Error fetching student details: $e');
+      print('⚠️ Error fetching student details: $e');
+
+      // Try offline fallback
+      final offlineData = await _cache.getOfflineFallback(cacheKey);
+      if (offlineData != null) {
+        print('📴 Using offline data for student: $studentId');
+        return Map<String, dynamic>.from(offlineData);
+      }
+
       return null;
     }
   }
@@ -272,6 +281,15 @@ class StudentService {
     } catch (e, stackTrace) {
       print('❌ Error fetching student marks: $e');
       print('Stack trace: $stackTrace');
+
+      // Try offline fallback
+      final cacheKey = CacheKeys.studentMarks(studentId);
+      final offlineData = await _cache.getOfflineFallback(cacheKey);
+      if (offlineData != null) {
+        print('📴 Using offline marks data for: $studentId');
+        return List<Map<String, dynamic>>.from(offlineData);
+      }
+
       return [];
     }
   }

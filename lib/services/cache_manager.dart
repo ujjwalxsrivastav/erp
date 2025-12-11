@@ -2,15 +2,28 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Cache Manager for storing and retrieving data locally
-/// Reduces backend load and improves app performance
-/// Note: Caching is disabled for web to ensure real-time data
+/// Offline-capable Cache Manager for storing and retrieving data locally
+/// - Works offline: Returns cached data even when expired if no network
+/// - Reduces backend load and improves app performance
+/// - Note: Caching is disabled for web to ensure real-time data
 class CacheManager {
   static final CacheManager _instance = CacheManager._internal();
   factory CacheManager() => _instance;
   CacheManager._internal();
 
   SharedPreferences? _prefs;
+
+  /// Offline mode flag - when true, returns expired cache data
+  bool _isOffline = false;
+
+  /// Set offline mode
+  void setOfflineMode(bool offline) {
+    _isOffline = offline;
+    print(_isOffline ? '📴 Offline mode enabled' : '📶 Online mode enabled');
+  }
+
+  /// Check if in offline mode
+  bool get isOffline => _isOffline;
 
   Future<void> initialize() async {
     _prefs ??= await SharedPreferences.getInstance();
@@ -22,8 +35,11 @@ class CacheManager {
     }
   }
 
-  /// Cache duration in minutes
+  /// Cache duration in minutes (online mode)
   static const int _cacheDuration = 5; // 5 minutes default
+
+  /// Offline cache duration in hours
+  static const int _offlineCacheDurationHours = 24; // 24 hours for offline
 
   /// Save data to cache with timestamp
   Future<void> saveToCache(String key, dynamic data) async {
@@ -42,7 +58,9 @@ class CacheManager {
     print('✅ Cached: $key');
   }
 
-  /// Get data from cache if not expired
+  /// Get data from cache
+  /// - In online mode: Returns data only if not expired (5 min default)
+  /// - In offline mode: Returns data even if expired (up to 24 hours)
   Future<dynamic> getFromCache(String key, {int? durationMinutes}) async {
     // Disable caching for web - always return null to fetch fresh data
     if (kIsWeb) {
@@ -62,21 +80,63 @@ class CacheManager {
       final cacheData = jsonDecode(cachedString);
       final timestamp = cacheData['timestamp'] as int;
       final now = DateTime.now().millisecondsSinceEpoch;
-      final duration = durationMinutes ?? _cacheDuration;
+      final ageInMinutes = (now - timestamp) / 1000 / 60;
 
-      // Check if cache is still valid
-      if (now - timestamp < duration * 60 * 1000) {
+      // Online mode: Use normal duration
+      if (!_isOffline) {
+        final duration = durationMinutes ?? _cacheDuration;
+        if (ageInMinutes < duration) {
+          print(
+              '✅ Cache hit: $key (${ageInMinutes.toStringAsFixed(1)} min old)');
+          return cacheData['data'];
+        } else {
+          print('⏰ Cache expired: $key');
+          // Don't clear - keep for offline use
+          return null;
+        }
+      }
+
+      // Offline mode: Accept older cached data
+      final maxOfflineMinutes = _offlineCacheDurationHours * 60;
+      if (ageInMinutes < maxOfflineMinutes) {
         print(
-            '✅ Cache hit: $key (${((now - timestamp) / 1000 / 60).toStringAsFixed(1)} min old)');
+            '📴 Offline cache hit: $key (${ageInMinutes.toStringAsFixed(1)} min old)');
         return cacheData['data'];
       } else {
-        print('⏰ Cache expired: $key');
-        await clearCache(key);
+        print(
+            '⏰ Offline cache too old: $key (${(ageInMinutes / 60).toStringAsFixed(1)} hours)');
         return null;
       }
     } catch (e) {
       print('❌ Cache error: $e');
-      await clearCache(key);
+      return null;
+    }
+  }
+
+  /// Get data from cache ignoring expiry (for offline fallback)
+  /// Use this when online fetch fails
+  Future<dynamic> getOfflineFallback(String key) async {
+    if (kIsWeb) return null;
+
+    await initialize();
+    final cachedString = _prefs?.getString(key);
+
+    if (cachedString == null) return null;
+
+    try {
+      final cacheData = jsonDecode(cachedString);
+      final timestamp = cacheData['timestamp'] as int;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final ageInMinutes = (now - timestamp) / 1000 / 60;
+
+      // Accept any cached data up to 24 hours old
+      if (ageInMinutes < _offlineCacheDurationHours * 60) {
+        print(
+            '📴 Using offline fallback: $key (${ageInMinutes.toStringAsFixed(1)} min old)');
+        return cacheData['data'];
+      }
+      return null;
+    } catch (e) {
       return null;
     }
   }
@@ -106,6 +166,12 @@ class CacheManager {
     return data != null;
   }
 
+  /// Check if any cached data exists (even expired)
+  Future<bool> hasCachedData(String key) async {
+    await initialize();
+    return _prefs?.containsKey(key) ?? false;
+  }
+
   /// Get cache age in minutes
   Future<double?> getCacheAge(String key) async {
     await initialize();
@@ -121,6 +187,36 @@ class CacheManager {
     } catch (e) {
       return null;
     }
+  }
+
+  /// Get all cached keys
+  Future<List<String>> getAllCacheKeys() async {
+    await initialize();
+    final keys = _prefs?.getKeys() ?? {};
+    return keys.where((key) => key.startsWith('cache_')).toList();
+  }
+
+  /// Get cache statistics
+  Future<Map<String, dynamic>> getCacheStats() async {
+    await initialize();
+    final keys = await getAllCacheKeys();
+    int validCount = 0;
+    int expiredCount = 0;
+
+    for (var key in keys) {
+      final age = await getCacheAge(key);
+      if (age != null && age < _cacheDuration) {
+        validCount++;
+      } else {
+        expiredCount++;
+      }
+    }
+
+    return {
+      'totalKeys': keys.length,
+      'validKeys': validCount,
+      'expiredKeys': expiredCount,
+    };
   }
 }
 
@@ -140,4 +236,7 @@ class CacheKeys {
       'cache_teacher_assignments_$teacherId';
   static String submissions(String assignmentId) =>
       'cache_submissions_$assignmentId';
+  static String teacherDetails(String teacherId) => 'cache_teacher_$teacherId';
+  static String staffList() => 'cache_staff_list';
+  static String studentList() => 'cache_student_list';
 }

@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'core/theme/app_theme.dart';
 import 'routes/app_router.dart';
 import 'services/supabase_service.dart';
+import 'services/offline_service.dart';
 
 void main() async {
   // Ensure Flutter is initialized
@@ -20,6 +21,10 @@ void main() async {
   try {
     await SupabaseService.initialize();
     print('✅ Supabase initialization complete');
+
+    // Initialize offline service for connectivity monitoring
+    OfflineService().initialize();
+    print('✅ Offline service initialized');
   } catch (e) {
     print('⚠️ Error during initialization: $e');
     // Continue anyway - app should still run
