@@ -155,6 +155,7 @@ class StudentService {
   }
 
   /// Get student marks from all exam type tables with caching
+  /// OPTIMIZED: Uses batch query for subjects instead of N+1 pattern
   Future<List<Map<String, dynamic>>> getStudentMarks(String studentId) async {
     try {
       // Check cache first
@@ -183,14 +184,13 @@ class StudentService {
       final examTypes = ['Mid Term', 'End Semester', 'Quiz', 'Assignment'];
 
       List<Map<String, dynamic>> allMarks = [];
+      Set<String> allSubjectIds = {};
 
-      // Fetch marks from each exam type table
+      // Step 1: Fetch marks from each exam type table and collect subject IDs
       for (final examType in examTypes) {
         try {
           final tableName =
               _getMarksTableName(year.toString(), section, examType);
-
-          print('🔍 Querying table: $tableName for student: $studentId');
 
           final response = await supabase
               .from(tableName)
@@ -200,29 +200,12 @@ class StudentService {
 
           print('✅ Table $tableName returned ${response.length} records');
 
-          // Add exam_type to each record for filtering
+          // Add exam_type to each record and collect subject IDs
           for (var mark in response) {
             mark['exam_type'] = examType;
-
-            // Try to fetch subject name separately if needed
-            try {
-              if (mark['subject_id'] != null) {
-                final subjectData = await supabase
-                    .from('subjects')
-                    .select('subject_name')
-                    .eq('subject_id', mark['subject_id'])
-                    .maybeSingle();
-
-                if (subjectData != null) {
-                  mark['subjects'] = {
-                    'subject_name': subjectData['subject_name']
-                  };
-                }
-              }
-            } catch (e) {
-              print('⚠️ Could not fetch subject name: $e');
+            if (mark['subject_id'] != null) {
+              allSubjectIds.add(mark['subject_id'].toString());
             }
-
             allMarks.add(Map<String, dynamic>.from(mark));
           }
         } catch (e) {
@@ -231,7 +214,33 @@ class StudentService {
         }
       }
 
-      print('✅ Total marks fetched: ${allMarks.length}');
+      // Step 2: Batch fetch all subjects in ONE query (optimization)
+      Map<String, String> subjectMap = {};
+      if (allSubjectIds.isNotEmpty) {
+        try {
+          final subjectsData = await supabase
+              .from('subjects')
+              .select('subject_id, subject_name')
+              .filter('subject_id', 'in', allSubjectIds.toList());
+
+          for (var s in subjectsData) {
+            subjectMap[s['subject_id'].toString()] = s['subject_name'] ?? '';
+          }
+          print('✅ Batch fetched ${subjectMap.length} subjects');
+        } catch (e) {
+          print('⚠️ Could not batch fetch subjects: $e');
+        }
+      }
+
+      // Step 3: Enrich marks with subject names using map (O(1) lookups)
+      for (var mark in allMarks) {
+        final subjectId = mark['subject_id']?.toString();
+        if (subjectId != null && subjectMap.containsKey(subjectId)) {
+          mark['subjects'] = {'subject_name': subjectMap[subjectId]};
+        }
+      }
+
+      print('✅ Total marks fetched: ${allMarks.length} (optimized)');
 
       // Cache the result
       await _cache.saveToCache(cacheKey, allMarks);
@@ -331,6 +340,7 @@ class StudentService {
   }
 
   /// Get study materials for student with caching
+  /// OPTIMIZED: Uses batch queries instead of N+1 pattern
   Future<List<Map<String, dynamic>>> getStudyMaterials(String studentId) async {
     try {
       // Check cache first
@@ -371,36 +381,62 @@ class StudentService {
           .eq('section', section)
           .order('created_at', ascending: false);
 
-      // Enrich with subject and teacher details
-      final enrichedMaterials = <Map<String, dynamic>>[];
+      if (materials.isEmpty) return [];
 
+      // OPTIMIZATION: Batch fetch all subjects and teachers in 2 queries instead of 2*N
+      final materialSubjectIds = (materials as List)
+          .map((m) => m['subject_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      final materialTeacherIds = materials
+          .map((m) => m['teacher_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      // Batch fetch subjects
+      Map<String, Map<String, dynamic>> subjectMap = {};
+      if (materialSubjectIds.isNotEmpty) {
+        final subjectsData = await supabase
+            .from('subjects')
+            .select('subject_id, subject_name')
+            .filter('subject_id', 'in', materialSubjectIds);
+
+        for (var s in subjectsData) {
+          subjectMap[s['subject_id'].toString()] = {
+            'subject_name': s['subject_name']
+          };
+        }
+      }
+
+      // Batch fetch teachers
+      Map<String, Map<String, dynamic>> teacherMap = {};
+      if (materialTeacherIds.isNotEmpty) {
+        final teachersData = await supabase
+            .from('teacher_details')
+            .select('teacher_id, name')
+            .filter('teacher_id', 'in', materialTeacherIds);
+
+        for (var t in teachersData) {
+          teacherMap[t['teacher_id'].toString()] = {'name': t['name']};
+        }
+      }
+
+      // Enrich materials using maps (O(1) lookups instead of queries)
+      final enrichedMaterials = <Map<String, dynamic>>[];
       for (var material in materials) {
         final enrichedMaterial = Map<String, dynamic>.from(material);
 
-        // Fetch subject details
-        if (material['subject_id'] != null) {
-          final subjectData = await supabase
-              .from('subjects')
-              .select('subject_name')
-              .eq('subject_id', material['subject_id'])
-              .maybeSingle();
+        final subjectId = material['subject_id']?.toString();
+        final teacherId = material['teacher_id']?.toString();
 
-          if (subjectData != null) {
-            enrichedMaterial['subjects'] = subjectData;
-          }
+        if (subjectId != null && subjectMap.containsKey(subjectId)) {
+          enrichedMaterial['subjects'] = subjectMap[subjectId];
         }
-
-        // Fetch teacher details
-        if (material['teacher_id'] != null) {
-          final teacherData = await supabase
-              .from('teacher_details')
-              .select('name')
-              .eq('teacher_id', material['teacher_id'])
-              .maybeSingle();
-
-          if (teacherData != null) {
-            enrichedMaterial['teacher_details'] = teacherData;
-          }
+        if (teacherId != null && teacherMap.containsKey(teacherId)) {
+          enrichedMaterial['teacher_details'] = teacherMap[teacherId];
         }
 
         enrichedMaterials.add(enrichedMaterial);
@@ -409,6 +445,8 @@ class StudentService {
       // Cache the result
       await _cache.saveToCache(cacheKey, enrichedMaterials);
 
+      print(
+          '✅ Fetched ${enrichedMaterials.length} study materials (optimized)');
       return enrichedMaterials;
     } catch (e) {
       print('Error fetching study materials: $e');
@@ -417,6 +455,7 @@ class StudentService {
   }
 
   /// Get announcements for student with caching
+  /// OPTIMIZED: Uses batch queries instead of N+1 pattern
   Future<List<Map<String, dynamic>>> getAnnouncements(String studentId) async {
     try {
       // Check cache first
@@ -457,36 +496,62 @@ class StudentService {
           .eq('section', section)
           .order('created_at', ascending: false);
 
-      // Enrich with subject and teacher details
-      final enrichedAnnouncements = <Map<String, dynamic>>[];
+      if (announcementsData.isEmpty) return [];
 
+      // OPTIMIZATION: Batch fetch all subjects and teachers in 2 queries instead of 2*N
+      final announcementSubjectIds = (announcementsData as List)
+          .map((a) => a['subject_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      final announcementTeacherIds = announcementsData
+          .map((a) => a['teacher_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      // Batch fetch subjects
+      Map<String, Map<String, dynamic>> subjectMap = {};
+      if (announcementSubjectIds.isNotEmpty) {
+        final subjectsData = await supabase
+            .from('subjects')
+            .select('subject_id, subject_name')
+            .filter('subject_id', 'in', announcementSubjectIds);
+
+        for (var s in subjectsData) {
+          subjectMap[s['subject_id'].toString()] = {
+            'subject_name': s['subject_name']
+          };
+        }
+      }
+
+      // Batch fetch teachers
+      Map<String, Map<String, dynamic>> teacherMap = {};
+      if (announcementTeacherIds.isNotEmpty) {
+        final teachersData = await supabase
+            .from('teacher_details')
+            .select('teacher_id, name')
+            .filter('teacher_id', 'in', announcementTeacherIds);
+
+        for (var t in teachersData) {
+          teacherMap[t['teacher_id'].toString()] = {'name': t['name']};
+        }
+      }
+
+      // Enrich announcements using maps (O(1) lookups instead of queries)
+      final enrichedAnnouncements = <Map<String, dynamic>>[];
       for (var announcement in announcementsData) {
         final enrichedAnnouncement = Map<String, dynamic>.from(announcement);
 
-        // Fetch subject details
-        if (announcement['subject_id'] != null) {
-          final subjectData = await supabase
-              .from('subjects')
-              .select('subject_name')
-              .eq('subject_id', announcement['subject_id'])
-              .maybeSingle();
+        final subjectId = announcement['subject_id']?.toString();
+        final teacherId = announcement['teacher_id']?.toString();
 
-          if (subjectData != null) {
-            enrichedAnnouncement['subjects'] = subjectData;
-          }
+        if (subjectId != null && subjectMap.containsKey(subjectId)) {
+          enrichedAnnouncement['subjects'] = subjectMap[subjectId];
         }
-
-        // Fetch teacher details
-        if (announcement['teacher_id'] != null) {
-          final teacherData = await supabase
-              .from('teacher_details')
-              .select('name')
-              .eq('teacher_id', announcement['teacher_id'])
-              .maybeSingle();
-
-          if (teacherData != null) {
-            enrichedAnnouncement['teacher_details'] = teacherData;
-          }
+        if (teacherId != null && teacherMap.containsKey(teacherId)) {
+          enrichedAnnouncement['teacher_details'] = teacherMap[teacherId];
         }
 
         enrichedAnnouncements.add(enrichedAnnouncement);
@@ -495,6 +560,8 @@ class StudentService {
       // Cache the result
       await _cache.saveToCache(cacheKey, enrichedAnnouncements);
 
+      print(
+          '✅ Fetched ${enrichedAnnouncements.length} announcements (optimized)');
       return enrichedAnnouncements;
     } catch (e) {
       print('Error fetching announcements: $e');

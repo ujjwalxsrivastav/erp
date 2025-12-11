@@ -405,6 +405,7 @@ class TeacherService {
   }
 
   /// Get submissions for a specific assignment
+  /// OPTIMIZED: Uses batch query for student details instead of N+1 pattern
   Future<List<Map<String, dynamic>>> getAssignmentSubmissions(
     String assignmentId,
   ) async {
@@ -416,25 +417,45 @@ class TeacherService {
           .eq('assignment_id', assignmentId)
           .order('submitted_at', ascending: false);
 
-      // Then fetch student details for each submission
-      final enrichedSubmissions = <Map<String, dynamic>>[];
+      if (submissions.isEmpty) return [];
 
-      for (var submission in submissions) {
-        final studentId = submission['student_id'];
+      // OPTIMIZATION: Collect all student IDs and batch fetch
+      final studentIds = (submissions as List)
+          .map((s) => s['student_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
 
-        // Fetch student details
-        final studentDetails = await _supabase
+      // Batch fetch all student details in ONE query
+      Map<String, Map<String, dynamic>> studentMap = {};
+      if (studentIds.isNotEmpty) {
+        final studentsData = await _supabase
             .from('student_details')
-            .select('name, student_id')
-            .eq('student_id', studentId)
-            .maybeSingle();
+            .select('student_id, name')
+            .filter('student_id', 'in', studentIds);
 
-        // Add student details to submission
+        for (var s in studentsData) {
+          studentMap[s['student_id'].toString()] = {
+            'student_id': s['student_id'],
+            'name': s['name'],
+          };
+        }
+      }
+
+      // Enrich submissions using map (O(1) lookups)
+      final enrichedSubmissions = <Map<String, dynamic>>[];
+      for (var submission in submissions) {
         final enrichedSubmission = Map<String, dynamic>.from(submission);
-        enrichedSubmission['student_details'] = studentDetails;
+        final studentId = submission['student_id']?.toString();
+
+        if (studentId != null && studentMap.containsKey(studentId)) {
+          enrichedSubmission['student_details'] = studentMap[studentId];
+        }
+
         enrichedSubmissions.add(enrichedSubmission);
       }
 
+      print('✅ Fetched ${enrichedSubmissions.length} submissions (optimized)');
       return enrichedSubmissions;
     } catch (e) {
       print('Error fetching submissions: $e');
