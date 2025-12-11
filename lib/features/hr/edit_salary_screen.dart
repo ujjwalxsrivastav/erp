@@ -17,7 +17,7 @@ class EditSalaryScreen extends StatefulWidget {
 }
 
 class _EditSalaryScreenState extends State<EditSalaryScreen> {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _basicSalaryController;

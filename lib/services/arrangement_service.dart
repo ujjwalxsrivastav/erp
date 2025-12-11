@@ -1,7 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ArrangementService {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
   /// Get teachers who are on approved leave for a specific date
   Future<List<Map<String, dynamic>>> getTeachersOnLeave(DateTime date) async {

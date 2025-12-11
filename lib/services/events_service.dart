@@ -1,7 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EventsService {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
   /// Get all upcoming events (event_date >= today)
   Future<List<Map<String, dynamic>>> getUpcomingEvents() async {

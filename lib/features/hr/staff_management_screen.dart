@@ -11,7 +11,7 @@ class StaffManagementScreen extends StatefulWidget {
 
 class _StaffManagementScreenState extends State<StaffManagementScreen>
     with SingleTickerProviderStateMixin {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   final TextEditingController _searchController = TextEditingController();
   late AnimationController _animationController;
   String _searchQuery = '';

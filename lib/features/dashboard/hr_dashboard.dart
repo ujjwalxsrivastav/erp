@@ -19,7 +19,7 @@ class HRDashboard extends StatefulWidget {
 class _HRDashboardState extends State<HRDashboard>
     with TickerProviderStateMixin {
   final _authService = AuthService();
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   late AnimationController _fadeController;
   String _selectedDepartment = 'All Departments';
   String _selectedStatus = 'Active';

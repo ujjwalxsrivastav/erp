@@ -11,7 +11,7 @@ class DatabaseDebugScreen extends StatefulWidget {
 }
 
 class _DatabaseDebugScreenState extends State<DatabaseDebugScreen> {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   List<String> _logs = [];
   bool _isLoading = false;
 

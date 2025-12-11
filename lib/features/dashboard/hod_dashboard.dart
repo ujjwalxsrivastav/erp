@@ -17,7 +17,7 @@ class HODDashboard extends StatefulWidget {
 class _HODDashboardState extends State<HODDashboard>
     with TickerProviderStateMixin {
   final _authService = AuthService();
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   final _arrangementService = ArrangementService();
   late AnimationController _fadeController;
   late AnimationController _slideController;

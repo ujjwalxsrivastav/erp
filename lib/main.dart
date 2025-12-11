@@ -19,7 +19,7 @@ void main() async {
   // Initialize Supabase
   try {
     await SupabaseService.initialize();
-    print('✅ App initialization complete');
+    print('✅ Supabase initialization complete');
   } catch (e) {
     print('⚠️ Error during initialization: $e');
     // Continue anyway - app should still run

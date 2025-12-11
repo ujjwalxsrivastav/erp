@@ -17,7 +17,7 @@ class TeacherPayrollScreen extends StatefulWidget {
 }
 
 class _TeacherPayrollScreenState extends State<TeacherPayrollScreen> {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   bool _isLoading = true;
   Map<String, dynamic>? _payrollData;
   List<Map<String, dynamic>> _deductions = [];

@@ -19,50 +19,61 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuthAndNavigate() async {
-    // Wait for splash animation
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Wait for splash animation
+      await Future.delayed(const Duration(seconds: 2));
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    // Check if user is already logged in
-    final isLoggedIn = await _authService.isLoggedIn();
+      // Check if user is already logged in
+      final isLoggedIn = await _authService.isLoggedIn();
 
-    if (isLoggedIn) {
-      // Verify session is still valid
-      final isValid = await _authService.verifySession();
+      if (isLoggedIn) {
+        // Verify session is still valid
+        final isValid = await _authService.verifySession();
 
-      if (isValid) {
-        // Get user role and navigate to appropriate dashboard
-        final role = await _authService.getCurrentUserRole();
+        if (isValid) {
+          // Get user role and navigate to appropriate dashboard
+          final role = await _authService.getCurrentUserRole();
 
-        if (!mounted) return;
+          if (!mounted) return;
 
-        switch (role) {
-          case 'student':
-            context.go('/student-dashboard');
-            break;
-          case 'teacher':
-            context.go('/teacher-dashboard');
-            break;
-          case 'admin':
-            context.go('/admin-dashboard');
-            break;
-          case 'HR':
-            context.go('/hr-dashboard');
-            break;
-          default:
-            context.go('/login');
+          switch (role?.toLowerCase()) {
+            case 'student':
+              context.go('/student-dashboard');
+              break;
+            case 'teacher':
+              context.go('/teacher-dashboard');
+              break;
+            case 'admin':
+              context.go('/admin-dashboard');
+              break;
+            case 'hr':
+              context.go('/hr-dashboard');
+              break;
+            case 'hod':
+              context.go('/hod-dashboard');
+              break;
+            default:
+              context.go('/login');
+          }
+        } else {
+          // Session invalid, logout and go to login
+          await _authService.logout();
+          if (!mounted) return;
+          context.go('/login');
         }
       } else {
-        // Session invalid, logout and go to login
-        await _authService.logout();
+        // Not logged in, go to login screen
         if (!mounted) return;
         context.go('/login');
       }
-    } else {
-      // Not logged in, go to login screen
-      if (!mounted) return;
-      context.go('/login');
+    } catch (e) {
+      print('⚠️ Error during auth check: $e');
+      // On any error, go to login screen
+      if (mounted) {
+        context.go('/login');
+      }
     }
   }
 

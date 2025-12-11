@@ -13,7 +13,7 @@ class EditTimetableScreen extends StatefulWidget {
 
 class _EditTimetableScreenState extends State<EditTimetableScreen>
     with SingleTickerProviderStateMixin {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   final _arrangementService = ArrangementService();
   Map<String, List<Map<String, dynamic>>> _timetableByDay = {};
   List<Map<String, dynamic>> _subjects = [];

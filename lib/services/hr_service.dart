@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HRService {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
   // Fetch all staff members
   Future<List<Map<String, dynamic>>> getAllStaff() async {

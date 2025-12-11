@@ -17,7 +17,7 @@ class StaffProfileDetailScreen extends StatefulWidget {
 
 class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
     with SingleTickerProviderStateMixin {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   late TabController _tabController;
   int _selectedTabIndex = 0;
 

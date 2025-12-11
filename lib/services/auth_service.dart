@@ -11,7 +11,8 @@ class AuthService {
 
   AuthService._internal();
 
-  final _supabase = Supabase.instance.client;
+  // Lazy access to prevent accessing before Supabase is initialized
+  SupabaseClient get _supabase => Supabase.instance.client;
 
   // Keys for SharedPreferences
   static const String _keyIsLoggedIn = 'is_logged_in';

@@ -11,7 +11,7 @@ class ArrangementScreen extends StatefulWidget {
 
 class _ArrangementScreenState extends State<ArrangementScreen> {
   final _arrangementService = ArrangementService();
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
   List<Map<String, dynamic>> _teachersOnLeave = [];
   List<Map<String, dynamic>> _pendingArrangements = [];
