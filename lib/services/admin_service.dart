@@ -3,63 +3,74 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AdminService {
   SupabaseClient get _supabase => Supabase.instance.client;
 
-  // Get total count of all users
+  // Get total count of all users (optimized)
   Future<int> getTotalUsers() async {
     try {
-      final response = await _supabase.from('users').select('username');
-      return response.length;
+      final response = await _supabase
+          .from('users')
+          .select('username')
+          .count(CountOption.exact);
+      return response.count;
     } catch (e) {
       print('Error getting total users: $e');
       return 0;
     }
   }
 
-  // Get count of students
+  // Get count of students (optimized)
   Future<int> getStudentCount() async {
     try {
       final response = await _supabase
           .from('users')
           .select('username')
-          .eq('role', 'student');
-      return response.length;
+          .eq('role', 'student')
+          .count(CountOption.exact);
+      return response.count;
     } catch (e) {
       print('Error getting student count: $e');
       return 0;
     }
   }
 
-  // Get count of teachers
+  // Get count of teachers (optimized)
   Future<int> getTeacherCount() async {
     try {
       final response = await _supabase
           .from('users')
           .select('username')
-          .eq('role', 'teacher');
-      return response.length;
+          .eq('role', 'teacher')
+          .count(CountOption.exact);
+      return response.count;
     } catch (e) {
       print('Error getting teacher count: $e');
       return 0;
     }
   }
 
-  // Get count of staff
+  // Get count of staff (optimized)
   Future<int> getStaffCount() async {
     try {
-      final response =
-          await _supabase.from('users').select('username').eq('role', 'staff');
-      return response.length;
+      final response = await _supabase
+          .from('users')
+          .select('username')
+          .eq('role', 'staff')
+          .count(CountOption.exact);
+      return response.count;
     } catch (e) {
       print('Error getting staff count: $e');
       return 0;
     }
   }
 
-  // Get count of admins
+  // Get count of admins (optimized)
   Future<int> getAdminCount() async {
     try {
-      final response =
-          await _supabase.from('users').select('username').eq('role', 'admin');
-      return response.length;
+      final response = await _supabase
+          .from('users')
+          .select('username')
+          .eq('role', 'admin')
+          .count(CountOption.exact);
+      return response.count;
     } catch (e) {
       print('Error getting admin count: $e');
       return 0;

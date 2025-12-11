@@ -4,18 +4,38 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class HRService {
   SupabaseClient get _supabase => Supabase.instance.client;
 
-  // Fetch all staff members
-  Future<List<Map<String, dynamic>>> getAllStaff() async {
+  // Fetch all staff members with pagination
+  Future<List<Map<String, dynamic>>> getAllStaff({
+    int page = 0,
+    int limit = 25,
+  }) async {
     try {
+      final offset = page * limit;
       final response = await _supabase
           .from('teacher_details')
           .select()
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
 
+      print('📄 Fetched staff page $page (${response.length} items)');
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print('Error fetching staff: $e');
       return [];
+    }
+  }
+
+  // Get total count of staff (for pagination)
+  Future<int> getStaffCount() async {
+    try {
+      final response = await _supabase
+          .from('teacher_details')
+          .select('teacher_id')
+          .count(CountOption.exact);
+      return response.count;
+    } catch (e) {
+      print('Error counting staff: $e');
+      return 0;
     }
   }
 

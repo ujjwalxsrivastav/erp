@@ -114,16 +114,39 @@ class StudentService {
     }
   }
 
-  /// Get all students (for admin/teacher)
-  Future<List<Map<String, dynamic>>> getAllStudents() async {
+  /// Get all students (for admin/teacher) with pagination
+  /// [page] starts from 0, [limit] defaults to 25
+  Future<List<Map<String, dynamic>>> getAllStudents({
+    int page = 0,
+    int limit = 25,
+  }) async {
     try {
-      final response =
-          await supabase.from('student_details').select().order('student_id');
+      final offset = page * limit;
+      final response = await supabase
+          .from('student_details')
+          .select()
+          .order('student_id')
+          .range(offset, offset + limit - 1);
 
+      print('📄 Fetched students page $page (${response.length} items)');
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print('Error fetching all students: $e');
       return [];
+    }
+  }
+
+  /// Get total count of students (for pagination)
+  Future<int> getStudentsCount() async {
+    try {
+      final response = await supabase
+          .from('student_details')
+          .select('student_id')
+          .count(CountOption.exact);
+      return response.count;
+    } catch (e) {
+      print('Error counting students: $e');
+      return 0;
     }
   }
 
