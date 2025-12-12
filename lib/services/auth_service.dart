@@ -6,6 +6,8 @@
 // 4. Timing attack protection (artificial delay)
 // 5. Secure session with signature
 // 6. No console logging in production
+// 7. Environment-based secrets
+// 8. Role guard integration
 
 import 'dart:io';
 import 'dart:math';
@@ -16,6 +18,9 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../core/security/security_config.dart';
+import '../core/security/role_guard.dart';
+import '../core/security/secure_logger.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -37,8 +42,8 @@ class AuthService {
   static const String _keySessionSignature = 'session_signature';
   static const String _keySessionTimestamp = 'session_timestamp';
 
-  // Secret for session signing (in production, use from secure storage)
-  static const String _sessionSecret = 'shivalik_erp_session_secret_2024';
+  // Get session secret from security config (environment-based)
+  String get _sessionSecret => SecurityConfig.sessionSecret;
 
   // Cached device fingerprint and IP
   String? _cachedFingerprint;
@@ -330,8 +335,14 @@ class AuthService {
       await prefs.setString(_keyRole, role);
       await prefs.setInt(_keySessionTimestamp, timestamp);
       await prefs.setString(_keySessionSignature, signature);
+
+      // Update role guard with current user
+      roleGuard.setCurrentUser(username, role);
+
+      SecureLogger.security(
+          'AUTH', 'User logged in: $username with role: $role');
     } catch (e) {
-      _secureLog('Error saving session');
+      SecureLogger.error('AUTH', 'Error saving session', error: e);
     }
   }
 
@@ -410,6 +421,8 @@ class AuthService {
   /// Logout user and clear session
   Future<void> logout() async {
     try {
+      final username = roleGuard.currentUsername;
+
       final prefs = await SharedPreferences.getInstance();
       // Only clear auth-related keys, not all preferences
       await prefs.remove(_keyIsLoggedIn);
@@ -418,8 +431,13 @@ class AuthService {
       await prefs.remove(_keySessionTimestamp);
       await prefs.remove(_keySessionSignature);
       // Keep device fingerprint for rate limiting
+
+      // Clear role guard
+      roleGuard.clearCurrentUser();
+
+      SecureLogger.security('AUTH', 'User logged out: $username');
     } catch (e) {
-      _secureLog('Error during logout');
+      SecureLogger.error('AUTH', 'Error during logout', error: e);
     }
   }
 
