@@ -54,7 +54,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final success = await _adminService.addTeacher(
+      final result = await _adminService.addTeacher(
         teacherId: _teacherIdController.text.trim(),
         password: _passwordController.text.trim(),
         name: _nameController.text.trim(),
@@ -69,18 +69,19 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
 
       if (!mounted) return;
 
-      if (success) {
+      if (result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Teacher added successfully!'),
+          SnackBar(
+            content:
+                Text('✅ ${result['message'] ?? 'Teacher added successfully!'}'),
             backgroundColor: Colors.green,
           ),
         );
         context.pop();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to add teacher. Please try again.'),
+          SnackBar(
+            content: Text('❌ ${result['message'] ?? 'Failed to add teacher'}'),
             backgroundColor: Colors.red,
           ),
         );

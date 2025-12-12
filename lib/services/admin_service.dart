@@ -102,8 +102,8 @@ class AdminService {
     }
   }
 
-  // Add a new teacher
-  Future<bool> addTeacher({
+  // Add a new teacher (SECURE - uses hashed passwords)
+  Future<Map<String, dynamic>> addTeacher({
     required String teacherId,
     required String password,
     required String name,
@@ -114,14 +114,25 @@ class AdminService {
     required String email,
     required String qualification,
     String? teacherRole,
+    String? createdBy,
   }) async {
     try {
-      // 1. Add to users table for authentication
-      await _supabase.from('users').insert({
-        'username': teacherId,
-        'password': password,
-        'role': 'teacher',
+      // 1. Add to users table using secure function (password auto-hashed)
+      final authResult = await _supabase.rpc('secure_add_user_v2', params: {
+        'p_username': teacherId,
+        'p_password': password,
+        'p_role': 'teacher',
+        'p_created_by': createdBy ?? 'admin',
       });
+
+      final result = Map<String, dynamic>.from(authResult);
+
+      if (result['success'] != true) {
+        return {
+          'success': false,
+          'message': result['message'] ?? 'Failed to create user account',
+        };
+      }
 
       // 2. Add to teacher_details table
       await _supabase.from('teacher_details').insert({
@@ -137,10 +148,10 @@ class AdminService {
         'updated_at': DateTime.now().toIso8601String(),
       });
 
-      return true;
+      return {'success': true, 'message': 'Teacher added successfully'};
     } catch (e) {
       print('Error adding teacher: $e');
-      return false;
+      return {'success': false, 'message': e.toString()};
     }
   }
 
@@ -202,8 +213,8 @@ class AdminService {
     }
   }
 
-  // Add a new student
-  Future<bool> addStudent({
+  // Add a new student (SECURE - uses hashed passwords)
+  Future<Map<String, dynamic>> addStudent({
     required String studentId,
     required String password,
     required String name,
@@ -212,14 +223,25 @@ class AdminService {
     required String semester,
     required String department,
     required String section,
+    String? createdBy,
   }) async {
     try {
-      // 1. Add to users table for authentication
-      await _supabase.from('users').insert({
-        'username': studentId,
-        'password': password,
-        'role': 'student',
+      // 1. Add to users table using secure function (password auto-hashed)
+      final authResult = await _supabase.rpc('secure_add_user_v2', params: {
+        'p_username': studentId,
+        'p_password': password,
+        'p_role': 'student',
+        'p_created_by': createdBy ?? 'admin',
       });
+
+      final result = Map<String, dynamic>.from(authResult);
+
+      if (result['success'] != true) {
+        return {
+          'success': false,
+          'message': result['message'] ?? 'Failed to create user account',
+        };
+      }
 
       // 2. Add to student_details table
       await _supabase.from('student_details').insert({
@@ -234,10 +256,10 @@ class AdminService {
         'updated_at': DateTime.now().toIso8601String(),
       });
 
-      return true;
+      return {'success': true, 'message': 'Student added successfully'};
     } catch (e) {
       print('Error adding student: $e');
-      return false;
+      return {'success': false, 'message': e.toString()};
     }
   }
 

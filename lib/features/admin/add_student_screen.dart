@@ -72,7 +72,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final success = await _adminService.addStudent(
+      final result = await _adminService.addStudent(
         studentId: _studentIdController.text,
         password: _passwordController.text,
         name: _nameController.text,
@@ -83,28 +83,32 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         section: _sectionController.text,
       );
 
-      if (success) {
+      if (!mounted) return;
+
+      if (result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Student added successfully!'),
+          SnackBar(
+            content:
+                Text('✅ ${result['message'] ?? 'Student added successfully!'}'),
             backgroundColor: Colors.green,
           ),
         );
         context.pop();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Failed to add student'),
+          SnackBar(
+            content: Text('❌ ${result['message'] ?? 'Failed to add student'}'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

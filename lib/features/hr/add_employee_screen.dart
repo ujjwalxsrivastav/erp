@@ -177,25 +177,26 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen>
         'pan_number': _panController.text.trim(),
       };
 
-      final success = await _hrService.createStaff(
+      final result = await _hrService.createStaff(
         staffData: staffData,
         createdBy: 'hr1', // TODO: Get from current user session
       );
 
       if (!mounted) return;
 
-      if (success) {
+      if (result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Employee added successfully!'),
-            backgroundColor: Color(0xFF059669),
+          SnackBar(
+            content: Text(
+                '✅ ${result['message'] ?? 'Employee added successfully!'}'),
+            backgroundColor: const Color(0xFF059669),
           ),
         );
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Failed to add employee'),
+          SnackBar(
+            content: Text('❌ ${result['message'] ?? 'Failed to add employee'}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -274,12 +275,12 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen>
                 : null,
           };
 
-          final success = await _hrService.createStaff(
+          final result = await _hrService.createStaff(
             staffData: staffData,
             createdBy: 'hr1',
           );
 
-          if (success) {
+          if (result['success'] == true) {
             successCount++;
           } else {
             failCount++;

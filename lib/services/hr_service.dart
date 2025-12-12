@@ -370,12 +370,36 @@ class HRService {
     }
   }
 
-  // Create new staff member
-  Future<bool> createStaff({
+  // Create new staff member (SECURE - uses hashed passwords)
+  Future<Map<String, dynamic>> createStaff({
     required Map<String, dynamic> staffData,
     required String createdBy,
   }) async {
     try {
+      final teacherId = staffData['teacher_id'] as String?;
+
+      if (teacherId == null || teacherId.isEmpty) {
+        return {'success': false, 'message': 'Teacher ID is required'};
+      }
+
+      // 1. First create auth user using secure function (password auto-hashed)
+      final authResult = await _supabase.rpc('secure_add_user_v2', params: {
+        'p_username': teacherId,
+        'p_password': teacherId, // Default password = username
+        'p_role': 'teacher',
+        'p_created_by': createdBy,
+      });
+
+      final result = Map<String, dynamic>.from(authResult);
+
+      if (result['success'] != true) {
+        return {
+          'success': false,
+          'message': result['message'] ?? 'Failed to create user account',
+        };
+      }
+
+      // 2. Then add to teacher_details table
       await _supabase.from('teacher_details').insert({
         ...staffData,
         'created_by': createdBy,
@@ -391,10 +415,10 @@ class HRService {
         'performed_by': createdBy,
       });
 
-      return true;
+      return {'success': true, 'message': 'Staff created successfully'};
     } catch (e) {
       print('Error creating staff: $e');
-      return false;
+      return {'success': false, 'message': e.toString()};
     }
   }
 

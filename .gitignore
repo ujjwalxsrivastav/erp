@@ -50,19 +50,31 @@ app.*.map.json
 lib/core/config/app_config.dart
 
 # Database exports with sensitive data
-database_export/all_data.sql
-database_export/data_dump.sql
-database_export/data_backup_*.sql
+database_export/
+db_backup/
 
 # Supabase temp files
 supabase/.temp/
+supabase/
 
 # SQL files with credentials
-test_*.sql
-fix_*.sql
-setup_*.sql
-
+*_credentials.sql
+*_secrets.sql
+*.backup.sql
+*RESTORE*.sql
+EMERGENCY_*.sql
 
 # Local database scripts with credentials
 db_backup.sh
 
+# Keys and secrets
+*.pem
+*.key
+*.keystore
+*.jks
+secrets.json
+credentials.json
+
+# Keychain/keystore
+*.p12
+*.mobileprovision

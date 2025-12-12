@@ -1,5 +1,6 @@
 // Login Screen with Beautiful UI
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/gradient_button.dart';
@@ -300,6 +301,11 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildQuickLoginHints() {
+    // ⚠️ SECURITY: Only show in debug mode, NEVER in production
+    if (!kDebugMode) {
+      return const SizedBox.shrink();
+    }
+
     return GlassCard(
       padding: const EdgeInsets.all(AppTheme.md),
       child: Column(
@@ -307,16 +313,18 @@ class _LoginScreenState extends State<LoginScreen>
           Row(
             children: [
               Icon(
-                Icons.info_outline,
+                Icons.warning_amber_rounded,
                 size: 16,
-                color: AppTheme.info,
+                color: Colors.orange,
               ),
               const SizedBox(width: AppTheme.sm),
-              Text(
-                'Quick Login Credentials',
-                style: AppTheme.bodySmall.copyWith(
-                  color: AppTheme.mediumGray,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  'DEBUG MODE ONLY - Not visible in production',
+                  style: AppTheme.bodySmall.copyWith(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
