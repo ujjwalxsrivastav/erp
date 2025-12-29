@@ -398,7 +398,9 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                                 roomNumber: roomNumber,
                                 existingId: existingEntry?['id'],
                               );
-                              Navigator.pop(context);
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                              }
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -451,7 +453,8 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
           'room_number': roomNumber,
         }).eq('id', existingId);
       } else {
-        await _supabase.from('timetable').insert({
+        // Use upsert to handle duplicates
+        await _supabase.from('timetable').upsert({
           'class_id': widget.classData['id'],
           'day_of_week': day,
           'time_slot': 'Slot ${timeSlot['slot']}',
@@ -460,26 +463,30 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
           'subject_id': subjectId,
           'teacher_id': teacherId,
           'room_number': roomNumber,
-        });
+        }, onConflict: 'class_id,day_of_week,time_slot');
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✓ Timetable updated'),
-          backgroundColor: Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ Timetable updated'),
+            backgroundColor: Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
 
       _loadData();
     } catch (e) {
       print('Error saving slot: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

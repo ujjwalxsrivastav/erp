@@ -66,7 +66,7 @@ class OptimizedStudentService {
   // MARKS - OPTIMIZED (Fixed N+1 Query Problem)
   // ============================================
 
-  /// Get student marks with batch subject fetching
+  /// Get student marks from unified student_marks table with batch subject fetching
   Future<List<Map<String, dynamic>>> getStudentMarks(String studentId) async {
     final cacheKey = '${CacheKeyPrefixes.marks}$studentId';
 
@@ -83,42 +83,31 @@ class OptimizedStudentService {
           return List<Map<String, dynamic>>.from(cachedData);
         }
 
-        // Get student details for year/section
+        // Get student details for actual student_id
         final studentDetails = await getStudentDetails(studentId);
         if (studentDetails == null) return [];
 
-        final year = studentDetails['year'];
-        final section = studentDetails['section'];
+        final actualStudentId = studentDetails['student_id'] ?? studentId;
 
-        final examTypes = ['Mid Term', 'End Semester', 'Quiz', 'Assignment'];
-        List<Map<String, dynamic>> allMarks = [];
-        Set<String> subjectIds = {};
+        // Query marks without FK relationship
+        final response = await _supabase
+            .from('student_marks')
+            .select('*')
+            .eq('student_id', actualStudentId)
+            .order('uploaded_at', ascending: false);
 
-        // Fetch marks from all exam tables
-        for (final examType in examTypes) {
-          try {
-            final tableName =
-                _getMarksTableName(year.toString(), section, examType);
+        if (response.isEmpty) return [];
 
-            final response = await _supabase
-                .from(tableName)
-                .select('*')
-                .eq('student_id', studentId)
-                .order('uploaded_at', ascending: false);
-
-            for (var mark in response) {
-              mark['exam_type'] = examType;
-              if (mark['subject_id'] != null) {
-                subjectIds.add(mark['subject_id'].toString());
-              }
-              allMarks.add(Map<String, dynamic>.from(mark));
-            }
-          } catch (e) {
-            // Table might not exist, continue
+        // Collect subject IDs for batch fetch
+        final subjectIds = <String>{};
+        for (var mark in response) {
+          if (mark['subject_id'] != null) {
+            subjectIds.add(mark['subject_id'].toString());
           }
         }
 
-        // BATCH FETCH all subjects at once (fixes N+1 problem)
+        // Batch fetch subjects
+        Map<String, String> subjectMap = {};
         if (subjectIds.isNotEmpty) {
           final subjects = await _queryOptimizer.batchFetch(
             table: 'subjects',
@@ -126,19 +115,32 @@ class OptimizedStudentService {
             ids: subjectIds.toList(),
             selectColumns: 'subject_id, subject_name',
           );
-
-          // Create lookup map
-          final subjectMap = {
-            for (var s in subjects) s['subject_id'].toString(): s
-          };
-
-          // Enrich marks with subject data
-          for (var mark in allMarks) {
-            final subjectId = mark['subject_id']?.toString();
-            if (subjectId != null && subjectMap.containsKey(subjectId)) {
-              mark['subjects'] = subjectMap[subjectId];
-            }
+          for (var s in subjects) {
+            subjectMap[s['subject_id'].toString()] = s['subject_name'] ?? '';
           }
+        }
+
+        // Transform exam_type to user-friendly names
+        final examTypeDisplayNames = {
+          'midterm': 'Mid Term',
+          'endsem': 'End Semester',
+          'quiz': 'Quiz',
+          'assignment': 'Assignment',
+        };
+
+        List<Map<String, dynamic>> allMarks = [];
+        for (var mark in response) {
+          final markCopy = Map<String, dynamic>.from(mark);
+          final examType = mark['exam_type']?.toString() ?? '';
+          markCopy['exam_type'] = examTypeDisplayNames[examType] ?? examType;
+
+          // Add subject info
+          final subjectId = mark['subject_id']?.toString();
+          if (subjectId != null && subjectMap.containsKey(subjectId)) {
+            markCopy['subjects'] = {'subject_name': subjectMap[subjectId]};
+          }
+
+          allMarks.add(markCopy);
         }
 
         // Cache result
@@ -562,26 +564,5 @@ class OptimizedStudentService {
       print('❌ Error submitting assignment: $e');
       return false;
     }
-  }
-
-  // ============================================
-  // HELPER FUNCTIONS
-  // ============================================
-
-  String _getMarksTableName(String year, String section, String examType) {
-    final normalizedExamType = examType.toLowerCase().replaceAll(' ', '');
-    final normalizedSection = section.toLowerCase();
-
-    final examTypeMap = {
-      'midterm': 'midterm',
-      'mid term': 'midterm',
-      'endsemester': 'endsem',
-      'end semester': 'endsem',
-      'quiz': 'quiz',
-      'assignment': 'assignment',
-    };
-
-    final tableSuffix = examTypeMap[normalizedExamType] ?? normalizedExamType;
-    return 'marks_year${year}_section${normalizedSection}_$tableSuffix';
   }
 }

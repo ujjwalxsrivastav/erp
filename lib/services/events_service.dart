@@ -43,6 +43,7 @@ class EventsService {
   Future<List<Map<String, dynamic>>> getStudentEvents() async {
     try {
       final today = DateTime.now().toIso8601String().split('T')[0];
+      print('📅 Fetching student events for date >= $today');
 
       final response = await _supabase
           .from('events')
@@ -50,16 +51,37 @@ class EventsService {
           .gte('event_date', today)
           .order('event_date', ascending: true);
 
+      print('📊 Raw events fetched: ${response.length}');
+
       // Filter events that include students or all
       final filtered = (response as List).where((event) {
-        final audience = event['target_audience'] as List?;
-        return audience?.contains('students') == true ||
-            audience?.contains('all') == true;
+        final audienceRaw = event['target_audience'];
+
+        // Handle different formats: array, string, or null
+        if (audienceRaw == null) {
+          print('⚠️ Event "${event['title']}" has no target_audience');
+          return true; // Show all events without target_audience
+        }
+
+        if (audienceRaw is List) {
+          // PostgreSQL array format
+          return audienceRaw.contains('students') ||
+              audienceRaw.contains('all');
+        } else if (audienceRaw is String) {
+          // String format (comma-separated or single value)
+          final lower = audienceRaw.toLowerCase();
+          return lower.contains('students') || lower.contains('all');
+        }
+
+        print(
+            '⚠️ Unknown audience format for "${event['title']}": $audienceRaw');
+        return true; // Show event if format is unknown
       }).toList();
 
+      print('✅ Filtered events for students: ${filtered.length}');
       return List<Map<String, dynamic>>.from(filtered);
     } catch (e) {
-      print('Error fetching student events: $e');
+      print('❌ Error fetching student events: $e');
       return [];
     }
   }

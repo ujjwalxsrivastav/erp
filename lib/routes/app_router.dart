@@ -21,6 +21,11 @@ import '../features/admin/add_user_screen.dart';
 import '../features/admin/add_teacher_screen.dart';
 import '../features/admin/add_student_screen.dart';
 import '../debug/database_debug_screen.dart';
+// Lead Management imports
+import '../features/leads/screens/dean_dashboard.dart';
+import '../features/leads/screens/counsellor_dashboard.dart';
+import '../features/leads/screens/lead_detail_screen.dart';
+import '../features/leads/screens/lead_capture_screen.dart';
 
 final router = GoRouter(
   routes: [
@@ -117,6 +122,36 @@ final router = GoRouter(
     GoRoute(
       path: '/debug',
       builder: (context, state) => const DatabaseDebugScreen(),
+    ),
+    // ============================================================================
+    // LEAD MANAGEMENT ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/leads/dean',
+      builder: (context, state) {
+        final username =
+            state.uri.queryParameters['username'] ?? 'admissiondean1';
+        return DeanDashboard(username: username);
+      },
+    ),
+    GoRoute(
+      path: '/leads/counsellor',
+      builder: (context, state) {
+        final username = state.uri.queryParameters['username'] ?? 'counsellor1';
+        return CounsellorDashboard(username: username);
+      },
+    ),
+    GoRoute(
+      path: '/leads/detail/:id',
+      builder: (context, state) {
+        final leadId = state.pathParameters['id'] ?? '';
+        final username = state.uri.queryParameters['username'] ?? 'unknown';
+        return LeadDetailScreen(leadId: leadId, username: username);
+      },
+    ),
+    GoRoute(
+      path: '/leads/capture',
+      builder: (context, state) => const LeadCaptureScreen(),
     ),
   ],
 );

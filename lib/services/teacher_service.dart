@@ -252,25 +252,7 @@ class TeacherService {
   }
 
   // Upload Marks
-  /// Helper function to get table name based on year, section, and exam type
-  String _getMarksTableName(String year, String section, String examType) {
-    // Normalize exam type: remove spaces and convert to lowercase
-    final normalizedExamType = examType.toLowerCase().replaceAll(' ', '');
-    final normalizedSection = section.toLowerCase();
-
-    // Map exam types to table suffixes
-    final examTypeMap = {
-      'midterm': 'midterm',
-      'endsemester': 'endsem',
-      'quiz': 'quiz',
-      'assignment': 'assignment',
-    };
-
-    final tableSuffix = examTypeMap[normalizedExamType] ?? normalizedExamType;
-
-    return 'marks_year${year}_section${normalizedSection}_$tableSuffix';
-  }
-
+  /// Upload marks to unified student_marks table
   Future<bool> uploadMarks({
     required String studentId,
     required String subjectId,
@@ -282,22 +264,34 @@ class TeacherService {
     required String section,
   }) async {
     try {
-      // Get the appropriate table name
-      final tableName = _getMarksTableName(year, section, examType);
+      // Normalize exam type for storage
+      final normalizedExamType = examType.toLowerCase().replaceAll(' ', '');
+      final examTypeMap = {
+        'midterm': 'midterm',
+        'mid term': 'midterm',
+        'endsemester': 'endsem',
+        'end semester': 'endsem',
+        'quiz': 'quiz',
+        'assignment': 'assignment',
+      };
+      final dbExamType = examTypeMap[normalizedExamType] ?? normalizedExamType;
 
-      print('📊 Uploading marks to table: $tableName');
+      print('📊 Uploading marks to student_marks table');
 
-      // Insert or update marks in the specific table
-      await _supabase.from(tableName).upsert({
+      // Insert or update marks in the unified table
+      await _supabase.from('student_marks').upsert({
         'student_id': studentId,
         'subject_id': subjectId,
         'teacher_id': teacherId,
+        'year': int.parse(year),
+        'section': section.toUpperCase(),
+        'exam_type': dbExamType,
         'marks_obtained': marks,
         'total_marks': totalMarks,
         'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'student_id, subject_id');
+      }, onConflict: 'student_id, subject_id, exam_type');
 
-      print('✅ Marks uploaded successfully to $tableName');
+      print('✅ Marks uploaded successfully');
       return true;
     } catch (e) {
       print('❌ Error uploading marks: $e');

@@ -270,8 +270,12 @@ class AuthService {
 
       // Check if login was successful
       if (result['success'] == true) {
-        // Save secure session
-        await _saveSecureSession(sanitizedUsername, result['role'] as String);
+        // Use actual username from database (preserves case)
+        final actualUsername =
+            result['username'] as String? ?? sanitizedUsername;
+
+        // Save secure session with actual username
+        await _saveSecureSession(actualUsername, result['role'] as String);
 
         return {
           'success': true,

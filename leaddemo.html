@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABC College - Apply Now</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .form-container {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-group label span {
+            color: #e53935;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .note {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Success State */
+        .success-container {
+            display: none;
+            text-align: center;
+            padding: 40px 30px;
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: #4CAF50;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+
+        .success-icon svg {
+            width: 40px;
+            height: 40px;
+            fill: white;
+        }
+
+        .success-container h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .success-container p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .info-box p {
+            color: #1565c0;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .reset-btn {
+            background: #f5f5f5;
+            color: #333;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .reset-btn:hover {
+            background: #e0e0e0;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, .3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Error message */
+        .error-msg {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 ABC College of Technology</h1>
+            <p>Start Your Journey Towards Success</p>
+        </div>
+
+        <!-- Form Section -->
+        <div class="form-container" id="formSection">
+            <div class="error-msg" id="errorMsg"></div>
+
+            <form id="leadForm">
+                <div class="form-group">
+                    <label>Full Name <span>*</span></label>
+                    <input type="text" id="studentName" placeholder="Enter your full name" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number <span>*</span></label>
+                    <input type="tel" id="phone" placeholder="10-digit mobile number" pattern="[0-9]{10}" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="email" placeholder="yourname@email.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Interested Course <span>*</span></label>
+                    <select id="course" required>
+                        <option value="">Select Course</option>
+                        <option value="BCA">BCA - Bachelor of Computer Applications</option>
+                        <option value="MCA">MCA - Master of Computer Applications</option>
+                        <option value="BBA">BBA - Bachelor of Business Administration</option>
+                        <option value="MBA">MBA - Master of Business Administration</option>
+                        <option value="BTech">B.Tech - Bachelor of Technology</option>
+                        <option value="MTech">M.Tech - Master of Technology</option>
+                        <option value="BSc">B.Sc - Bachelor of Science</option>
+                        <option value="MSc">M.Sc - Master of Science</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>City</label>
+                        <input type="text" id="city" placeholder="Your city">
+                    </div>
+                    <div class="form-group">
+                        <label>State</label>
+                        <select id="state">
+                            <option value="">Select State</option>
+                            <option value="Himachal Pradesh">Himachal Pradesh</option>
+                            <option value="Punjab">Punjab</option>
+                            <option value="Haryana">Haryana</option>
+                            <option value="Delhi">Delhi</option>
+                            <option value="Uttarakhand">Uttarakhand</option>
+                            <option value="Uttar Pradesh">Uttar Pradesh</option>
+                            <option value="Rajasthan">Rajasthan</option>
+                            <option value="Chandigarh">Chandigarh</option>
+                            <option value="Jammu & Kashmir">Jammu & Kashmir</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Preferred Batch</label>
+                    <select id="batch">
+                        <option value="Morning">Morning Batch</option>
+                        <option value="Evening">Evening Batch</option>
+                        <option value="Flexible">Flexible</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    Submit Inquiry 📩
+                </button>
+
+                <p class="note">By submitting, you agree to be contacted by our admission team.</p>
+            </form>
+        </div>
+
+        <!-- Success Section -->
+        <div class="success-container" id="successSection">
+            <div class="success-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                </svg>
+            </div>
+            <h2>Thank You! 🎉</h2>
+            <p>Your inquiry has been submitted successfully.</p>
+
+            <div class="info-box">
+                <p>📞 Our team will call you within 24 hours</p>
+                <p>👨‍🏫 A dedicated counsellor will be assigned to you</p>
+            </div>
+
+            <button class="reset-btn" onclick="resetForm()">Submit Another Inquiry</button>
+        </div>
+    </div>
+
+    <!-- Load config from external file (add this file to .gitignore!) -->
+    <script src="supabase_config.js"></script>
+
+    <script>
+        // =====================================================
+        // SUPABASE CONFIGURATION - Loaded from supabase_config.js
+        // =====================================================
+        const SUPABASE_URL = SUPABASE_CONFIG.url;
+        const SUPABASE_ANON_KEY = SUPABASE_CONFIG.anonKey;
+
+        // =====================================================
+        // FORM HANDLING
+        // =====================================================
+
+        const form = document.getElementById('leadForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const formSection = document.getElementById('formSection');
+        const successSection = document.getElementById('successSection');
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            // Disable button and show loading
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Submitting...';
+            errorMsg.style.display = 'none';
+
+            // Get form values
+            const data = {
+                p_student_name: document.getElementById('studentName').value.trim(),
+                p_phone: document.getElementById('phone').value.trim(),
+                p_email: document.getElementById('email').value.trim() || null,
+                p_city: document.getElementById('city').value.trim() || null,
+                p_state: document.getElementById('state').value || null,
+                p_preferred_course: document.getElementById('course').value,
+                p_preferred_batch: document.getElementById('batch').value,
+                p_source: 'website',
+                p_source_detail: 'Lead Demo Page'
+            };
+
+            try {
+                // Call Supabase RPC function
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/public_create_lead`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Failed to submit');
+                }
+
+                const leadId = await response.json();
+                console.log('Lead created with ID:', leadId);
+
+                // Show success
+                formSection.style.display = 'none';
+                successSection.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error:', error);
+                errorMsg.textContent = '❌ ' + (error.message || 'Something went wrong. Please try again.');
+                errorMsg.style.display = 'block';
+
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Submit Inquiry 📩';
+            }
+        });
+
+        function resetForm() {
+            form.reset();
+            formSection.style.display = 'block';
+            successSection.style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Submit Inquiry 📩';
+        }
+
+        // Phone number validation
+        document.getElementById('phone').addEventListener('input', function (e) {
+            this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+        });
+    </script>
+</body>
+
+</html>

@@ -26,11 +26,21 @@ class StudentService {
         return Map<String, dynamic>.from(cachedData);
       }
 
-      final response = await supabase
+      // Try exact match first
+      var response = await supabase
           .from('student_details')
           .select()
           .eq('student_id', studentId)
           .maybeSingle();
+
+      // If not found, try uppercase (database might have uppercase IDs)
+      if (response == null) {
+        response = await supabase
+            .from('student_details')
+            .select()
+            .eq('student_id', studentId.toUpperCase())
+            .maybeSingle();
+      }
 
       if (response != null) {
         // Cache the result
@@ -168,115 +178,85 @@ class StudentService {
         .map((data) => data.isNotEmpty ? data.first : null);
   }
 
-  /// Helper function to get table name
-  String _getMarksTableName(String year, String section, String examType) {
-    final normalizedExamType = examType.toLowerCase().replaceAll(' ', '');
-    final normalizedSection = section.toLowerCase();
-
-    final examTypeMap = {
-      'midterm': 'midterm',
-      'mid term': 'midterm',
-      'endsemester': 'endsem',
-      'end semester': 'endsem',
-      'quiz': 'quiz',
-      'assignment': 'assignment',
-    };
-
-    final tableSuffix = examTypeMap[normalizedExamType] ?? normalizedExamType;
-    return 'marks_year${year}_section${normalizedSection}_$tableSuffix';
-  }
-
-  /// Get student marks from all exam type tables with caching
-  /// OPTIMIZED: Uses batch query for subjects instead of N+1 pattern
+  /// Get student marks from unified student_marks table with caching
+  /// OPTIMIZED: Single query + manual subject lookup
   Future<List<Map<String, dynamic>>> getStudentMarks(String studentId) async {
     try {
-      // Check cache first
-      final cacheKey = CacheKeys.studentMarks(studentId);
-      final cachedData = await _cache.getFromCache(cacheKey);
-
-      if (cachedData != null) {
-        return List<Map<String, dynamic>>.from(cachedData);
-      }
-
       print('🎯 getStudentMarks called for: $studentId');
 
-      // First get student's year and section
+      // First get student's actual ID (preserves case)
       final studentDetails = await getStudentDetails(studentId);
       if (studentDetails == null) {
         print('❌ No student details found for: $studentId');
         return [];
       }
 
-      final year = studentDetails['year'];
-      final section = studentDetails['section'];
+      final actualStudentId = studentDetails['student_id'] ?? studentId;
+      print('📚 Fetching marks for student ID: $actualStudentId');
 
-      print('📚 Student Year: $year, Section: $section');
+      // Query marks without relationship (to avoid FK requirement)
+      final response = await supabase
+          .from('student_marks')
+          .select('*')
+          .eq('student_id', actualStudentId)
+          .order('uploaded_at', ascending: false);
 
-      // Define all exam types
-      final examTypes = ['Mid Term', 'End Semester', 'Quiz', 'Assignment'];
+      print('✅ Fetched ${response.length} marks records');
 
-      List<Map<String, dynamic>> allMarks = [];
-      Set<String> allSubjectIds = {};
+      if (response.isEmpty) return [];
 
-      // Step 1: Fetch marks from each exam type table and collect subject IDs
-      for (final examType in examTypes) {
-        try {
-          final tableName =
-              _getMarksTableName(year.toString(), section, examType);
-
-          final response = await supabase
-              .from(tableName)
-              .select('*')
-              .eq('student_id', studentId)
-              .order('uploaded_at', ascending: false);
-
-          print('✅ Table $tableName returned ${response.length} records');
-
-          // Add exam_type to each record and collect subject IDs
-          for (var mark in response) {
-            mark['exam_type'] = examType;
-            if (mark['subject_id'] != null) {
-              allSubjectIds.add(mark['subject_id'].toString());
-            }
-            allMarks.add(Map<String, dynamic>.from(mark));
-          }
-        } catch (e) {
-          print('⚠️ Error fetching from $examType table: $e');
-          // Continue to next exam type even if one fails
+      // Collect unique subject IDs for batch fetch
+      final subjectIds = <String>{};
+      for (var mark in response) {
+        if (mark['subject_id'] != null) {
+          subjectIds.add(mark['subject_id'].toString());
         }
       }
 
-      // Step 2: Batch fetch all subjects in ONE query (optimization)
+      // Batch fetch subjects
       Map<String, String> subjectMap = {};
-      if (allSubjectIds.isNotEmpty) {
+      if (subjectIds.isNotEmpty) {
         try {
           final subjectsData = await supabase
               .from('subjects')
               .select('subject_id, subject_name')
-              .filter('subject_id', 'in', allSubjectIds.toList());
+              .filter('subject_id', 'in', subjectIds.toList());
 
           for (var s in subjectsData) {
             subjectMap[s['subject_id'].toString()] = s['subject_name'] ?? '';
           }
           print('✅ Batch fetched ${subjectMap.length} subjects');
         } catch (e) {
-          print('⚠️ Could not batch fetch subjects: $e');
+          print('⚠️ Could not fetch subjects: $e');
         }
       }
 
-      // Step 3: Enrich marks with subject names using map (O(1) lookups)
-      for (var mark in allMarks) {
+      // Transform exam_type to user-friendly names
+      final examTypeDisplayNames = {
+        'midterm': 'Mid Term',
+        'endsem': 'End Semester',
+        'quiz': 'Quiz',
+        'assignment': 'Assignment',
+      };
+
+      List<Map<String, dynamic>> allMarks = [];
+      for (var mark in response) {
+        final markCopy = Map<String, dynamic>.from(mark);
+
+        // Convert exam_type to display name
+        final examType = mark['exam_type']?.toString() ?? '';
+        markCopy['exam_type'] = examTypeDisplayNames[examType] ?? examType;
+
+        // Add subject info
         final subjectId = mark['subject_id']?.toString();
         if (subjectId != null && subjectMap.containsKey(subjectId)) {
-          mark['subjects'] = {'subject_name': subjectMap[subjectId]};
+          markCopy['subjects'] = {'subject_name': subjectMap[subjectId]};
         }
+
+        allMarks.add(markCopy);
       }
 
-      print('✅ Total marks fetched: ${allMarks.length} (optimized)');
-
-      // Cache the result
-      await _cache.saveToCache(cacheKey, allMarks);
-
+      print('✅ Total marks processed: ${allMarks.length}');
       return allMarks;
     } catch (e, stackTrace) {
       print('❌ Error fetching student marks: $e');

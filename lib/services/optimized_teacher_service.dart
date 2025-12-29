@@ -330,6 +330,7 @@ class OptimizedTeacherService {
     }
   }
 
+  /// Upload marks to unified student_marks table
   Future<bool> uploadMarks({
     required String studentId,
     required String subjectId,
@@ -341,16 +342,29 @@ class OptimizedTeacherService {
     required String section,
   }) async {
     try {
-      final tableName = _getMarksTableName(year, section, examType);
+      // Normalize exam type for storage
+      final normalizedExamType = examType.toLowerCase().replaceAll(' ', '');
+      final examTypeMap = {
+        'midterm': 'midterm',
+        'mid term': 'midterm',
+        'endsemester': 'endsem',
+        'end semester': 'endsem',
+        'quiz': 'quiz',
+        'assignment': 'assignment',
+      };
+      final dbExamType = examTypeMap[normalizedExamType] ?? normalizedExamType;
 
-      await _supabase.from(tableName).upsert({
+      await _supabase.from('student_marks').upsert({
         'student_id': studentId,
         'subject_id': subjectId,
         'teacher_id': teacherId,
+        'year': int.parse(year),
+        'section': section.toUpperCase(),
+        'exam_type': dbExamType,
         'marks_obtained': marks,
         'total_marks': totalMarks,
         'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'student_id, subject_id');
+      }, onConflict: 'student_id, subject_id, exam_type');
 
       // Invalidate marks cache
       _queryOptimizer.invalidateCache('${CacheKeyPrefixes.marks}$studentId');
@@ -437,25 +451,6 @@ class OptimizedTeacherService {
       print('❌ Error creating announcement: $e');
       return false;
     }
-  }
-
-  // ============================================
-  // HELPER FUNCTIONS
-  // ============================================
-
-  String _getMarksTableName(String year, String section, String examType) {
-    final normalizedExamType = examType.toLowerCase().replaceAll(' ', '');
-    final normalizedSection = section.toLowerCase();
-
-    final examTypeMap = {
-      'midterm': 'midterm',
-      'endsemester': 'endsem',
-      'quiz': 'quiz',
-      'assignment': 'assignment',
-    };
-
-    final tableSuffix = examTypeMap[normalizedExamType] ?? normalizedExamType;
-    return 'marks_year${year}_section${normalizedSection}_$tableSuffix';
   }
 
   // ============================================

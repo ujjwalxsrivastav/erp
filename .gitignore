@@ -78,3 +78,6 @@ credentials.json
 # Keychain/keystore
 *.p12
 *.mobileprovision
+
+# Supabase config for demo page
+supabase_config.js
