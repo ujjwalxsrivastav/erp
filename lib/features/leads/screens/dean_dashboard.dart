@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../services/auth_service.dart';
 import '../data/lead_model.dart';
 import '../data/lead_status.dart';
 import '../data/counsellor_model.dart';
@@ -106,12 +108,13 @@ class _DeanDashboardState extends State<DeanDashboard>
                         labelColor: Theme.of(context).primaryColor,
                         unselectedLabelColor: Colors.grey,
                         indicatorColor: Theme.of(context).primaryColor,
+                        isScrollable: true,
                         tabs: [
                           Tab(
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.inbox, size: 18),
+                                const Icon(Icons.inbox, size: 16),
                                 const SizedBox(width: 4),
                                 Text('New (${_unassignedLeads.length})'),
                               ],
@@ -158,6 +161,14 @@ class _DeanDashboardState extends State<DeanDashboard>
           icon: const Icon(Icons.refresh),
           onPressed: _loadData,
           tooltip: 'Refresh',
+        ),
+        IconButton(
+          icon: const Icon(Icons.logout),
+          onPressed: () async {
+            await AuthService().logout();
+            if (mounted) context.go('/login');
+          },
+          tooltip: 'Logout',
         ),
         const SizedBox(width: 8),
       ],

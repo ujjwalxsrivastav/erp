@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../services/auth_service.dart';
 import '../data/lead_model.dart';
 import '../data/lead_status.dart';
 import '../data/counsellor_model.dart';
@@ -194,6 +196,14 @@ class _CounsellorDashboardState extends State<CounsellorDashboard>
           icon: const Icon(Icons.refresh),
           onPressed: _loadData,
           tooltip: 'Refresh',
+        ),
+        IconButton(
+          icon: const Icon(Icons.logout),
+          onPressed: () async {
+            await AuthService().logout();
+            if (mounted) context.go('/login');
+          },
+          tooltip: 'Logout',
         ),
         const SizedBox(width: 8),
       ],

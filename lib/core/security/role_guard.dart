@@ -15,6 +15,8 @@ enum UserRole {
   hod,
   hr,
   admin,
+  admissiondean,
+  counsellor,
 }
 
 /// Permissions for different actions
@@ -98,7 +100,9 @@ class RoleGuard {
   static const List<UserRole> _roleHierarchy = [
     UserRole.student,
     UserRole.teacher,
+    UserRole.counsellor,
     UserRole.hod,
+    UserRole.admissiondean,
     UserRole.hr,
     UserRole.admin,
   ];
@@ -239,6 +243,10 @@ class RoleGuard {
         return UserRole.hr;
       case 'admin':
         return UserRole.admin;
+      case 'admissiondean':
+        return UserRole.admissiondean;
+      case 'counsellor':
+        return UserRole.counsellor;
       default:
         SecureLogger.warning('RoleGuard', 'Unknown role: $roleString');
         return null;

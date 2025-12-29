@@ -85,6 +85,14 @@ class _LoginScreenState extends State<LoginScreen>
           case 'hod':
             context.go('/hod-dashboard');
             break;
+          case 'admissiondean':
+            context
+                .go('/leads/dean?username=${_usernameController.text.trim()}');
+            break;
+          case 'counsellor':
+            context.go(
+                '/leads/counsellor?username=${_usernameController.text.trim()}');
+            break;
         }
       } else {
         _showError(result['message'] ?? 'Login failed');
