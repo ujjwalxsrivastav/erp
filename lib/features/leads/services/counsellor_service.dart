@@ -342,4 +342,84 @@ class CounsellorService {
       return {'assigned_today': 0, 'converted_today': 0};
     }
   }
+
+  // ============================================================================
+  // REGION-BASED ASSIGNMENT
+  // ============================================================================
+
+  /// Get counsellor assigned to a specific state/region
+  Future<Counsellor?> getCounsellorByRegion(String state) async {
+    try {
+      final response = await _supabase.rpc('get_counsellor_by_state', params: {
+        'p_state': state,
+      });
+
+      if (response != null && response is List && response.isNotEmpty) {
+        final counsellorId = response[0]['counsellor_id'];
+        if (counsellorId != null) {
+          return await getCounsellorById(counsellorId);
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error getting counsellor by region: $e');
+      return null;
+    }
+  }
+
+  /// Get regions assigned to a counsellor
+  Future<List<Map<String, dynamic>>> getCounsellorRegions(
+      String counsellorId) async {
+    try {
+      final response = await _supabase
+          .from('counsellor_regions')
+          .select()
+          .eq('counsellor_id', counsellorId)
+          .order('priority', ascending: true);
+
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error fetching counsellor regions: $e');
+      return [];
+    }
+  }
+
+  /// Get all region mappings
+  Future<List<Map<String, dynamic>>> getAllRegionMappings() async {
+    try {
+      final response = await _supabase
+          .from('counsellor_regions')
+          .select('*, counsellor_details(name, user_id)')
+          .order('priority', ascending: true);
+
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error fetching region mappings: $e');
+      return [];
+    }
+  }
+
+  /// Update region mapping for a counsellor
+  Future<bool> updateCounsellorRegion({
+    required String counsellorId,
+    required String regionName,
+    required List<String> states,
+    bool isDefault = false,
+    int priority = 1,
+  }) async {
+    try {
+      // Upsert - update if exists, insert if not
+      await _supabase.from('counsellor_regions').upsert({
+        'counsellor_id': counsellorId,
+        'region_name': regionName,
+        'states': states,
+        'is_default': isDefault,
+        'priority': priority,
+      });
+      return true;
+    } catch (e) {
+      print('Error updating region: $e');
+      return false;
+    }
+  }
 }

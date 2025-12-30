@@ -10,7 +10,9 @@ class LeadCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onAssign;
   final VoidCallback? onStatusUpdate;
+  final VoidCallback? onTransfer;
   final bool showAssignButton;
+  final bool showTransferButton;
   final bool showQuickActions;
   final bool isCompact;
 
@@ -20,7 +22,9 @@ class LeadCard extends StatelessWidget {
     this.onTap,
     this.onAssign,
     this.onStatusUpdate,
+    this.onTransfer,
     this.showAssignButton = false,
+    this.showTransferButton = false,
     this.showQuickActions = true,
     this.isCompact = false,
   });
@@ -289,6 +293,21 @@ class LeadCard extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).primaryColor,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ],
+
+        // Transfer button (for Dean on assigned leads)
+        if (showTransferButton && onTransfer != null) ...[
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: onTransfer,
+            icon: const Icon(Icons.swap_calls, size: 16),
+            label: const Text('Transfer'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.orange,
+              side: const BorderSide(color: Colors.orange),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
           ),

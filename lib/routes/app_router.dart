@@ -26,6 +26,7 @@ import '../features/leads/screens/dean_dashboard.dart';
 import '../features/leads/screens/counsellor_dashboard.dart';
 import '../features/leads/screens/lead_detail_screen.dart';
 import '../features/leads/screens/lead_capture_screen.dart';
+import '../features/leads/screens/counsellor_profile_screen.dart';
 
 final router = GoRouter(
   routes: [
@@ -147,6 +148,13 @@ final router = GoRouter(
         final leadId = state.pathParameters['id'] ?? '';
         final username = state.uri.queryParameters['username'] ?? 'unknown';
         return LeadDetailScreen(leadId: leadId, username: username);
+      },
+    ),
+    GoRoute(
+      path: '/leads/counsellor-profile/:id',
+      builder: (context, state) {
+        final counsellorId = state.pathParameters['id'] ?? '';
+        return CounsellorProfileScreen(counsellorId: counsellorId);
       },
     ),
     GoRoute(

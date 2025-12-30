@@ -593,4 +593,128 @@ class LeadService {
         .order('updated_at', ascending: false)
         .map((data) => data.map((json) => Lead.fromJson(json)).toList());
   }
+
+  // ============================================================================
+  // LEAD TRANSFER
+  // ============================================================================
+
+  /// Transfer lead to another counsellor (preserves status)
+  Future<bool> transferLead({
+    required String leadId,
+    required String newCounsellorId,
+    required String transferredBy,
+    String? reason,
+  }) async {
+    try {
+      await _supabase.rpc('transfer_lead', params: {
+        'p_lead_id': leadId,
+        'p_new_counsellor_id': newCounsellorId,
+        'p_transferred_by': transferredBy,
+        'p_reason': reason,
+      });
+      return true;
+    } catch (e) {
+      print('Error transferring lead: $e');
+      return false;
+    }
+  }
+
+  // ============================================================================
+  // ACTIVITY FEED
+  // ============================================================================
+
+  /// Get recent activity for all leads (for Dean)
+  Future<List<Map<String, dynamic>>> getActivityFeed({
+    int limit = 50,
+    String? counsellorId,
+  }) async {
+    try {
+      dynamic query = _supabase.from('lead_activity_feed').select();
+
+      if (counsellorId != null) {
+        query = query.eq('counsellor_id', counsellorId);
+      }
+
+      final response =
+          await query.order('created_at', ascending: false).limit(limit);
+
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error fetching activity feed: $e');
+      return [];
+    }
+  }
+
+  /// Subscribe to activity feed (real-time updates)
+  Stream<List<Map<String, dynamic>>> subscribeToActivityFeed() {
+    return _supabase
+        .from('lead_status_history')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .map((data) => data.cast<Map<String, dynamic>>());
+  }
+
+  // ============================================================================
+  // SLA VIOLATIONS
+  // ============================================================================
+
+  /// Get all SLA violations
+  Future<List<Map<String, dynamic>>> getSlaViolations({
+    String? counsellorId,
+    String? violationType,
+  }) async {
+    try {
+      var query = _supabase.from('sla_violations').select();
+
+      if (counsellorId != null) {
+        query = query.eq('assigned_counsellor_id', counsellorId);
+      }
+      if (violationType != null) {
+        query = query.eq('violation_type', violationType);
+      }
+
+      final response = await query.order('created_at', ascending: false);
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error fetching SLA violations: $e');
+      return [];
+    }
+  }
+
+  /// Get SLA statistics
+  Future<Map<String, int>> getSlaStats() async {
+    try {
+      final response = await _supabase.rpc('get_sla_stats');
+
+      if (response != null && response is List && response.isNotEmpty) {
+        final stats = response[0];
+        return {
+          'total': (stats['total_violations'] as int?) ?? 0,
+          'critical': (stats['critical_count'] as int?) ?? 0,
+          'warning': (stats['warning_count'] as int?) ?? 0,
+          'stale': (stats['stale_count'] as int?) ?? 0,
+        };
+      }
+      return {'total': 0, 'critical': 0, 'warning': 0, 'stale': 0};
+    } catch (e) {
+      print('Error fetching SLA stats: $e');
+      return {'total': 0, 'critical': 0, 'warning': 0, 'stale': 0};
+    }
+  }
+
+  /// Get critical violations only
+  Future<List<Map<String, dynamic>>> getCriticalViolations() async {
+    try {
+      final response = await _supabase
+          .from('sla_violations')
+          .select()
+          .like('violation_type', 'critical%')
+          .order('created_at', ascending: false);
+
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error fetching critical violations: $e');
+      return [];
+    }
+  }
 }

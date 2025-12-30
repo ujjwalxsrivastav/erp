@@ -8,9 +8,11 @@ import '../services/lead_service.dart';
 import '../services/counsellor_service.dart';
 import '../services/lead_analytics_service.dart';
 import '../widgets/lead_card.dart';
-
 import '../widgets/analytics_charts.dart';
+import '../widgets/activity_feed.dart';
+import '../widgets/sla_alerts.dart';
 import 'lead_detail_screen.dart';
+import 'counsellor_profile_screen.dart';
 
 /// AdmissionDean Dashboard - Main dashboard for lead management
 class DeanDashboard extends StatefulWidget {
@@ -37,6 +39,7 @@ class _DeanDashboardState extends State<DeanDashboard>
   Map<String, dynamic> _stats = {};
   List<Map<String, dynamic>> _dailyAnalytics = [];
   List<Map<String, dynamic>> _sourceAnalytics = [];
+  List<Map<String, dynamic>> _stateAnalytics = [];
 
   bool _isLoading = true;
   String? _error;
@@ -49,7 +52,7 @@ class _DeanDashboardState extends State<DeanDashboard>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadData();
   }
 
@@ -70,6 +73,7 @@ class _DeanDashboardState extends State<DeanDashboard>
         _leadService.getLeadStats(),
         _analyticsService.getDailyAnalytics(limit: 14),
         _analyticsService.getSourceAnalytics(),
+        _analyticsService.getStateAnalytics(),
       ]);
 
       setState(() {
@@ -79,6 +83,7 @@ class _DeanDashboardState extends State<DeanDashboard>
         _stats = results[3] as Map<String, dynamic>;
         _dailyAnalytics = results[4] as List<Map<String, dynamic>>;
         _sourceAnalytics = results[5] as List<Map<String, dynamic>>;
+        _stateAnalytics = results[6] as List<Map<String, dynamic>>;
         _isLoading = false;
       });
     } catch (e) {
@@ -102,6 +107,12 @@ class _DeanDashboardState extends State<DeanDashboard>
                   onRefresh: _loadData,
                   child: Column(
                     children: [
+                      // SLA Alerts Banner
+                      SlaAlertsWidget(
+                          compact: true,
+                          onTap: () {
+                            _tabController.animateTo(4); // Go to Activity tab
+                          }),
                       _buildStatsRow(),
                       TabBar(
                         controller: _tabController,
@@ -123,6 +134,16 @@ class _DeanDashboardState extends State<DeanDashboard>
                           const Tab(text: 'All Leads'),
                           const Tab(text: 'Team'),
                           const Tab(text: 'Analytics'),
+                          const Tab(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.timeline, size: 16),
+                                SizedBox(width: 4),
+                                Text('Activity'),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                       Expanded(
@@ -133,6 +154,7 @@ class _DeanDashboardState extends State<DeanDashboard>
                             _buildAllLeadsTab(),
                             _buildTeamTab(),
                             _buildAnalyticsTab(),
+                            _buildActivityTab(),
                           ],
                         ),
                       ),
@@ -342,10 +364,13 @@ class _DeanDashboardState extends State<DeanDashboard>
             itemCount: _filteredLeads.length,
             itemBuilder: (context, index) {
               final lead = _filteredLeads[index];
+              final isAssigned = lead.assignedCounsellorId != null;
               return LeadCard(
                 lead: lead,
                 onTap: () => _openLeadDetail(lead),
                 onStatusUpdate: () => _showStatusUpdateDialog(lead),
+                showTransferButton: isAssigned,
+                onTransfer: isAssigned ? () => _showTransferDialog(lead) : null,
               );
             },
           ),
@@ -388,6 +413,11 @@ class _DeanDashboardState extends State<DeanDashboard>
           'Counsellor Performance',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
+        const SizedBox(height: 8),
+        const Text(
+          'Tap on a counsellor to view full profile',
+          style: TextStyle(color: Colors.grey, fontSize: 12),
+        ),
         const SizedBox(height: 16),
         ..._counsellorPerformance.asMap().entries.map((entry) {
           final index = entry.key;
@@ -400,14 +430,26 @@ class _DeanDashboardState extends State<DeanDashboard>
                       ? '🥉'
                       : '';
 
-          return _CounsellorPerformanceCard(
-            counsellor: counsellor,
-            rank: index + 1,
-            badge: badge,
+          return GestureDetector(
+            onTap: () => _openCounsellorProfile(counsellor.counsellorId),
+            child: _CounsellorPerformanceCard(
+              counsellor: counsellor,
+              rank: index + 1,
+              badge: badge,
+            ),
           );
         }),
       ],
     );
+  }
+
+  void _openCounsellorProfile(String counsellorId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CounsellorProfileScreen(counsellorId: counsellorId),
+      ),
+    ).then((_) => _loadData());
   }
 
   Widget _buildAnalyticsTab() {
@@ -419,6 +461,10 @@ class _DeanDashboardState extends State<DeanDashboard>
           data: _dailyAnalytics,
           title: 'Lead Trends (Last 14 Days)',
         ),
+        const SizedBox(height: 16),
+
+        // State-wise Distribution
+        StateDistributionChart(data: _stateAnalytics),
         const SizedBox(height: 16),
 
         // Source Distribution
@@ -436,6 +482,14 @@ class _DeanDashboardState extends State<DeanDashboard>
               .toList(),
         ),
       ],
+    );
+  }
+
+  Widget _buildActivityTab() {
+    return ActivityFeedWidget(
+      limit: 50,
+      showHeader: false,
+      onRefresh: _loadData,
     );
   }
 
@@ -531,6 +585,171 @@ class _DeanDashboardState extends State<DeanDashboard>
             ),
             const SizedBox(height: 20),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showTransferDialog(Lead lead) async {
+    final counsellors =
+        await _counsellorService.getCounsellorsWithAvailability();
+
+    if (!mounted) return;
+
+    String? selectedCounsellorId;
+    final reasonController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 20,
+            right: 20,
+            top: 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.swap_calls, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Transfer Lead',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Transfer "${lead.studentName}" to another counsellor',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Current Status: ${lead.status.label} (will be preserved)',
+                    style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text('Select New Counsellor',
+                    style: TextStyle(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 12),
+                ...counsellors.map((c) {
+                  final id = c['id'] as String;
+                  final name = c['name'] as String;
+                  final activeLeads = c['active_leads'] as int? ?? 0;
+                  final maxLeads = c['max_leads'] as int? ?? 50;
+                  final isSelected = id == selectedCounsellorId;
+                  final isCurrentCounsellor = id == lead.assignedCounsellorId;
+
+                  return Card(
+                    color: isSelected ? Colors.blue.shade50 : null,
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            isSelected ? Colors.blue : Colors.grey.shade200,
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : '?',
+                          style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.black),
+                        ),
+                      ),
+                      title: Text(
+                        name,
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.bold : null,
+                        ),
+                      ),
+                      subtitle: Text('$activeLeads/$maxLeads leads'),
+                      trailing: isCurrentCounsellor
+                          ? const Chip(
+                              label: Text('Current',
+                                  style: TextStyle(fontSize: 10)))
+                          : isSelected
+                              ? const Icon(Icons.check_circle,
+                                  color: Colors.blue)
+                              : null,
+                      onTap: isCurrentCounsellor
+                          ? null
+                          : () =>
+                              setSheetState(() => selectedCounsellorId = id),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: reasonController,
+                  decoration: const InputDecoration(
+                    labelText: 'Reason for transfer (optional)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.notes),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: selectedCounsellorId != null
+                        ? () async {
+                            final success = await _leadService.transferLead(
+                              leadId: lead.id,
+                              newCounsellorId: selectedCounsellorId!,
+                              transferredBy: widget.username,
+                              reason: reasonController.text.isNotEmpty
+                                  ? reasonController.text
+                                  : null,
+                            );
+
+                            Navigator.pop(context);
+                            if (success) {
+                              _loadData();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text('Lead transferred successfully!'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Failed to transfer lead'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        : null,
+                    icon: const Icon(Icons.swap_calls),
+                    label: const Text('Transfer Lead'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.orange,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
         ),
       ),
     );
