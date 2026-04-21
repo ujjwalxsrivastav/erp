@@ -29,6 +29,13 @@ class Lead {
   final LeadPriority priority;
   final List<String>? tags;
 
+  // Manual Entry Tracking
+  final bool isManualEntry;
+  final ReferralType? referralType;
+  final String? referrerName;
+  final String? referrerId;
+  final String? enteredBy;
+
   // Assignment
   final String? assignedCounsellorId;
   final String? assignedBy;
@@ -46,6 +53,7 @@ class Lead {
   final DateTime? convertedAt;
   final String? admissionFormId;
   final String? seatAllotmentId;
+  final String? tempStudentId; // Temp credentials for converted leads
 
   // Notes
   final String? notes;
@@ -74,6 +82,11 @@ class Lead {
     this.sourceDetail,
     this.priority = LeadPriority.normal,
     this.tags,
+    this.isManualEntry = false,
+    this.referralType,
+    this.referrerName,
+    this.referrerId,
+    this.enteredBy,
     this.assignedCounsellorId,
     this.assignedBy,
     this.assignedAt,
@@ -86,6 +99,7 @@ class Lead {
     this.convertedAt,
     this.admissionFormId,
     this.seatAllotmentId,
+    this.tempStudentId,
     this.notes,
     this.lastRemark,
     required this.createdAt,
@@ -115,6 +129,11 @@ class Lead {
       priority: LeadPriority.fromString(json['priority'] as String?),
       tags:
           json['tags'] != null ? List<String>.from(json['tags'] as List) : null,
+      isManualEntry: json['is_manual_entry'] as bool? ?? false,
+      referralType: ReferralType.fromString(json['referral_type'] as String?),
+      referrerName: json['referrer_name'] as String?,
+      referrerId: json['referrer_id'] as String?,
+      enteredBy: json['entered_by'] as String?,
       assignedCounsellorId: json['assigned_counsellor_id'] as String?,
       assignedBy: json['assigned_by'] as String?,
       assignedAt: json['assigned_at'] != null
@@ -135,6 +154,7 @@ class Lead {
           : null,
       admissionFormId: json['admission_form_id'] as String?,
       seatAllotmentId: json['seat_allotment_id'] as String?,
+      tempStudentId: json['temp_student_id'] as String?,
       notes: json['notes'] as String?,
       lastRemark: json['last_remark'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
@@ -162,6 +182,11 @@ class Lead {
       'source_detail': sourceDetail,
       'priority': priority.value,
       'tags': tags,
+      'is_manual_entry': isManualEntry,
+      'referral_type': referralType?.value,
+      'referrer_name': referrerName,
+      'referrer_id': referrerId,
+      'entered_by': enteredBy,
       'assigned_counsellor_id': assignedCounsellorId,
       'assigned_by': assignedBy,
       'assigned_at': assignedAt?.toIso8601String(),
@@ -201,6 +226,11 @@ class Lead {
     String? sourceDetail,
     LeadPriority? priority,
     List<String>? tags,
+    bool? isManualEntry,
+    ReferralType? referralType,
+    String? referrerName,
+    String? referrerId,
+    String? enteredBy,
     String? assignedCounsellorId,
     String? assignedBy,
     DateTime? assignedAt,
@@ -237,6 +267,11 @@ class Lead {
       sourceDetail: sourceDetail ?? this.sourceDetail,
       priority: priority ?? this.priority,
       tags: tags ?? this.tags,
+      isManualEntry: isManualEntry ?? this.isManualEntry,
+      referralType: referralType ?? this.referralType,
+      referrerName: referrerName ?? this.referrerName,
+      referrerId: referrerId ?? this.referrerId,
+      enteredBy: enteredBy ?? this.enteredBy,
       assignedCounsellorId: assignedCounsellorId ?? this.assignedCounsellorId,
       assignedBy: assignedBy ?? this.assignedBy,
       assignedAt: assignedAt ?? this.assignedAt,

@@ -123,6 +123,12 @@ class TableWhitelist {
     'blocked_devices',
     'blocked_ips',
     'security_audit_log',
+    'hostel_students',
+    'transport_students',
+    'hostels',
+    'hostel_rooms',
+    'room_occupancy_view',
+    'hostel_grievances',
   };
 
   /// Check if a core table name is valid

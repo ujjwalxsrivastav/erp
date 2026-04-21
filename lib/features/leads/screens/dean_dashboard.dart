@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../services/auth_service.dart';
 import '../data/lead_model.dart';
 import '../data/lead_status.dart';
@@ -52,7 +53,7 @@ class _DeanDashboardState extends State<DeanDashboard>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     _loadData();
   }
 
@@ -144,6 +145,27 @@ class _DeanDashboardState extends State<DeanDashboard>
                               ],
                             ),
                           ),
+                          const Tab(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.person_off,
+                                    size: 16, color: Colors.red),
+                                SizedBox(width: 4),
+                                Text('Rejected'),
+                              ],
+                            ),
+                          ),
+                          const Tab(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.business, size: 16),
+                                SizedBox(width: 4),
+                                Text('Facilities'),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                       Expanded(
@@ -155,6 +177,8 @@ class _DeanDashboardState extends State<DeanDashboard>
                             _buildTeamTab(),
                             _buildAnalyticsTab(),
                             _buildActivityTab(),
+                            _buildRejectedTab(),
+                            _buildFacilitiesTab(),
                           ],
                         ),
                       ),
@@ -365,17 +389,114 @@ class _DeanDashboardState extends State<DeanDashboard>
             itemBuilder: (context, index) {
               final lead = _filteredLeads[index];
               final isAssigned = lead.assignedCounsellorId != null;
+
+              // Get counsellor name if assigned
+              String? counsellorName;
+              if (isAssigned) {
+                final counsellor = _counsellorPerformance.firstWhere(
+                  (c) => c.counsellorId == lead.assignedCounsellorId,
+                  orElse: () => _counsellorPerformance.isNotEmpty
+                      ? _counsellorPerformance.first
+                      : throw StateError('No counsellor found'),
+                );
+                try {
+                  counsellorName = counsellor.counsellorName;
+                } catch (_) {
+                  counsellorName = null;
+                }
+              }
+
               return LeadCard(
                 lead: lead,
                 onTap: () => _openLeadDetail(lead),
                 onStatusUpdate: () => _showStatusUpdateDialog(lead),
                 showTransferButton: isAssigned,
                 onTransfer: isAssigned ? () => _showTransferDialog(lead) : null,
+                counsellorName: counsellorName,
+                showDeleteButton: true,
+                onDelete: () => _showDeleteConfirmation(lead),
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  void _showDeleteConfirmation(Lead lead) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Permanently Delete Lead?'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('This will permanently delete the lead for:'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lead.studentName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(lead.phone, style: const TextStyle(fontSize: 12)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'This action cannot be undone!',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final success =
+                  await _leadService.deleteLead(lead.id, widget.username);
+              if (success) {
+                _loadData();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Lead deleted permanently'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Failed to delete lead'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete Forever',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -491,6 +612,201 @@ class _DeanDashboardState extends State<DeanDashboard>
       showHeader: false,
       onRefresh: _loadData,
     );
+  }
+
+  Widget _buildRejectedTab() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _loadDeadAdmissions(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.check_circle_outline,
+                    color: Colors.green.shade300, size: 64),
+                const SizedBox(height: 12),
+                const Text('No Rejected Admissions',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text('All offers have been accepted!',
+                    style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+
+        final deadAdmissions = snapshot.data!;
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: deadAdmissions.length,
+          itemBuilder: (context, index) {
+            final admission = deadAdmissions[index];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.red.shade100),
+              ),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.red.shade50,
+                  child: Icon(Icons.person_off,
+                      color: Colors.red.shade700, size: 20),
+                ),
+                title: Text(admission['student_name'] ?? 'Unknown',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                    '${admission['course'] ?? '-'} • ${admission['phone'] ?? '-'}'),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10)),
+                      child: const Text('REJECTED',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(admission['assigned_counsellor'] ?? '-',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey)),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFacilitiesTab() {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const Text(
+          'Facility Management',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Manage student allocations for hostel and transportation services.',
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 24),
+        _buildFacilityCard(
+          title: 'Hostel Management',
+          subtitle: 'View and manage hostel room allocations',
+          icon: Icons.hotel,
+          color: Colors.indigo,
+          onTap: () => context.push('/hostel-management'),
+          count: 'Opted: 0',
+        ),
+        const SizedBox(height: 16),
+        _buildFacilityCard(
+          title: 'Transport Management',
+          subtitle: 'Manage bus routes and student pickups',
+          icon: Icons.directions_bus,
+          color: Colors.teal,
+          onTap: () => context.push('/transport-management'),
+          count: 'Opted: 0',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFacilityCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required String count,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 32),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadDeadAdmissions() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('dead_admissions')
+          .select()
+          .order('rejected_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      return [];
+    }
   }
 
   void _openLeadDetail(Lead lead) {
@@ -763,6 +1079,11 @@ class _DeanDashboardState extends State<DeanDashboard>
         email = '',
         city = '',
         state = '';
+    String? referralType;
+    String referrerName = '';
+    String referrerId = '';
+    bool isCheckingDuplicate = false;
+    Map<String, dynamic>? duplicateLead;
 
     showModalBottomSheet(
       context: context,
@@ -770,126 +1091,381 @@ class _DeanDashboardState extends State<DeanDashboard>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 20,
-          right: 20,
-          top: 20,
-        ),
-        child: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Add New Lead',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Student Name *',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) => v?.isEmpty == true ? 'Required' : null,
-                  onSaved: (v) => name = v ?? '',
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number *',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.phone,
-                  validator: (v) => v?.isEmpty == true ? 'Required' : null,
-                  onSaved: (v) => phone = v ?? '',
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  onSaved: (v) => email = v ?? '',
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Preferred Course',
-                    border: OutlineInputBorder(),
-                  ),
-                  value: course,
-                  items: ['BCA', 'MCA', 'BBA', 'MBA', 'BTech', 'MTech', 'Other']
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (v) => course = v ?? 'BCA',
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'City',
-                          border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 20,
+            right: 20,
+            top: 20,
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Add New Lead (Manual)',
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold),
                         ),
-                        onSaved: (v) => city = v ?? '',
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'State',
-                          border: OutlineInputBorder(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade100,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        onSaved: (v) => state = v ?? '',
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.edit,
+                                size: 14, color: Colors.orange.shade700),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Manual',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Referral Type Selection
+                  const Text(
+                    'How did this lead come to you?',
+                    style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _ReferralChip(
+                        label: '📞 Website Call',
+                        value: 'website_call',
+                        selected: referralType == 'website_call',
+                        onTap: () =>
+                            setSheetState(() => referralType = 'website_call'),
+                      ),
+                      _ReferralChip(
+                        label: '🎓 Student Referral',
+                        value: 'student',
+                        selected: referralType == 'student',
+                        onTap: () =>
+                            setSheetState(() => referralType = 'student'),
+                      ),
+                      _ReferralChip(
+                        label: '👨‍🏫 Faculty Referral',
+                        value: 'faculty',
+                        selected: referralType == 'faculty',
+                        onTap: () =>
+                            setSheetState(() => referralType = 'faculty'),
+                      ),
+                      _ReferralChip(
+                        label: '📋 Other',
+                        value: 'other',
+                        selected: referralType == 'other',
+                        onTap: () =>
+                            setSheetState(() => referralType = 'other'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Referrer Info (conditional)
+                  if (referralType == 'student' ||
+                      referralType == 'faculty') ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            decoration: InputDecoration(
+                              labelText: referralType == 'student'
+                                  ? 'Student Name'
+                                  : 'Faculty Name',
+                              border: const OutlineInputBorder(),
+                            ),
+                            onSaved: (v) => referrerName = v ?? '',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            decoration: InputDecoration(
+                              labelText: referralType == 'student'
+                                  ? 'Student ID'
+                                  : 'Faculty ID',
+                              border: const OutlineInputBorder(),
+                            ),
+                            onSaved: (v) => referrerId = v ?? '',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Student Info
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Student Name *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) => v?.isEmpty == true ? 'Required' : null,
+                    onSaved: (v) => name = v ?? '',
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number *',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: isCheckingDuplicate
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : (duplicateLead != null
+                              ? const Icon(Icons.warning, color: Colors.orange)
+                              : null),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    validator: (v) => v?.isEmpty == true ? 'Required' : null,
+                    onChanged: (value) async {
+                      if (value.length >= 10) {
+                        setSheetState(() => isCheckingDuplicate = true);
+                        final duplicate =
+                            await _leadService.checkDuplicateLead(value);
+                        setSheetState(() {
+                          isCheckingDuplicate = false;
+                          duplicateLead = duplicate;
+                        });
+                      } else {
+                        setSheetState(() => duplicateLead = null);
+                      }
+                    },
+                    onSaved: (v) => phone = v ?? '',
+                  ),
+
+                  // Duplicate Warning
+                  if (duplicateLead != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber,
+                              color: Colors.orange.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Duplicate Found!',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange.shade800,
+                                  ),
+                                ),
+                                Text(
+                                  '${duplicateLead!['student_name']} - ${duplicateLead!['status']}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (formKey.currentState?.validate() ?? false) {
-                        formKey.currentState?.save();
 
-                        final lead = await _leadService.createLead(
-                          studentName: name,
-                          phone: phone,
-                          email: email.isNotEmpty ? email : null,
-                          city: city.isNotEmpty ? city : null,
-                          state: state.isNotEmpty ? state : null,
-                          preferredCourse: course,
-                        );
-
-                        Navigator.pop(context);
-                        if (lead != null) {
-                          _loadData();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Lead created successfully!'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(),
                     ),
-                    child: const Text('Create Lead'),
+                    keyboardType: TextInputType.emailAddress,
+                    onSaved: (v) => email = v ?? '',
                   ),
-                ),
-                const SizedBox(height: 20),
-              ],
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'Preferred Course',
+                      border: OutlineInputBorder(),
+                    ),
+                    initialValue: course,
+                    items: [
+                      'BCA',
+                      'MCA',
+                      'BBA',
+                      'MBA',
+                      'BTech',
+                      'MTech',
+                      'Other'
+                    ]
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => course = v ?? 'BCA',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          decoration: const InputDecoration(
+                            labelText: 'City',
+                            border: OutlineInputBorder(),
+                          ),
+                          onSaved: (v) => city = v ?? '',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          decoration: const InputDecoration(
+                            labelText: 'State',
+                            border: OutlineInputBorder(),
+                          ),
+                          onSaved: (v) => state = v ?? '',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: duplicateLead != null
+                          ? null
+                          : () async {
+                              if (formKey.currentState?.validate() ?? false) {
+                                formKey.currentState?.save();
+
+                                try {
+                                  final lead =
+                                      await _leadService.createManualLead(
+                                    studentName: name,
+                                    phone: phone,
+                                    email: email.isNotEmpty ? email : null,
+                                    city: city.isNotEmpty ? city : null,
+                                    state: state.isNotEmpty ? state : null,
+                                    preferredCourse: course,
+                                    enteredBy: widget.username,
+                                    referralType: referralType,
+                                    referrerName: referrerName.isNotEmpty
+                                        ? referrerName
+                                        : null,
+                                    referrerId: referrerId.isNotEmpty
+                                        ? referrerId
+                                        : null,
+                                  );
+
+                                  Navigator.pop(context);
+                                  if (lead != null) {
+                                    _loadData();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content:
+                                            Text('Lead created successfully!'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(e
+                                              .toString()
+                                              .contains('DUPLICATE')
+                                          ? 'This phone number already exists!'
+                                          : 'Error creating lead'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor:
+                            duplicateLead != null ? Colors.grey : null,
+                      ),
+                      child: Text(duplicateLead != null
+                          ? 'Cannot Create - Duplicate'
+                          : 'Create Lead'),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReferralChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ReferralChip({
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Colors.blue.shade100 : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? Colors.blue.shade400 : Colors.grey.shade300,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            color: selected ? Colors.blue.shade700 : Colors.grey.shade700,
           ),
         ),
       ),

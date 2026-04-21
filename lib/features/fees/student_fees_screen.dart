@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../services/fees_service.dart';
 import '../../services/auth_service.dart';
 import 'payment_history_screen.dart';
@@ -124,7 +125,8 @@ class _StudentFeesScreenState extends State<StudentFeesScreen>
       });
 
       var options = {
-        'key': 'rzp_test_Rj8ZriIK5tkUjG', // Razorpay Test Key
+        'key': dotenv.get('RAZORPAY_KEY',
+            fallback: 'rzp_test_PLACEHOLDER'), // From .env
         'amount': (amount * 100).toInt(), // Amount in paise
         'name': 'College ERP',
         'description': 'Fee Payment - $_currentAcademicYear',

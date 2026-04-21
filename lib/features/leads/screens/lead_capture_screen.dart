@@ -178,7 +178,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen> {
 
               // Course dropdown
               DropdownButtonFormField<String>(
-                value: _course,
+                initialValue: _course,
                 decoration: _inputDecoration(
                   label: 'Interested Course',
                   icon: Icons.book,
@@ -196,7 +196,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _batch,
+                      initialValue: _batch,
                       decoration: _inputDecoration(
                         label: 'Preferred Batch',
                         icon: Icons.schedule,
@@ -227,7 +227,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _state,
+                      initialValue: _state,
                       decoration: _inputDecoration(
                         label: 'State',
                         icon: Icons.map,

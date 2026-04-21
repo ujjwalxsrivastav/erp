@@ -17,6 +17,8 @@ enum UserRole {
   admin,
   admissiondean,
   counsellor,
+  warden,
+  tempStudent,
 }
 
 /// Permissions for different actions
@@ -59,6 +61,11 @@ enum Permission {
   systemSettings,
   databaseBackup,
   viewSecurityLogs,
+
+  // Warden permissions
+  manageHostelRooms,
+  viewHostelOccupancy,
+  allotRooms,
 }
 
 /// Result of permission check
@@ -99,8 +106,10 @@ class RoleGuard {
   /// Role hierarchy (higher index = more privileges)
   static const List<UserRole> _roleHierarchy = [
     UserRole.student,
+    UserRole.tempStudent,
     UserRole.teacher,
     UserRole.counsellor,
+    UserRole.warden,
     UserRole.hod,
     UserRole.admissiondean,
     UserRole.hr,
@@ -212,6 +221,11 @@ class RoleGuard {
     Permission.systemSettings: {UserRole.admin},
     Permission.databaseBackup: {UserRole.admin},
     Permission.viewSecurityLogs: {UserRole.admin},
+
+    // Warden permissions
+    Permission.manageHostelRooms: {UserRole.warden, UserRole.admin},
+    Permission.viewHostelOccupancy: {UserRole.warden, UserRole.admin},
+    Permission.allotRooms: {UserRole.warden, UserRole.admin},
   };
 
   /// Set current user after login
@@ -247,6 +261,10 @@ class RoleGuard {
         return UserRole.admissiondean;
       case 'counsellor':
         return UserRole.counsellor;
+      case 'warden':
+        return UserRole.warden;
+      case 'temp_student':
+        return UserRole.tempStudent;
       default:
         SecureLogger.warning('RoleGuard', 'Unknown role: $roleString');
         return null;

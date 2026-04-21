@@ -11,10 +11,13 @@ class LeadCard extends StatelessWidget {
   final VoidCallback? onAssign;
   final VoidCallback? onStatusUpdate;
   final VoidCallback? onTransfer;
+  final VoidCallback? onDelete;
   final bool showAssignButton;
   final bool showTransferButton;
+  final bool showDeleteButton;
   final bool showQuickActions;
   final bool isCompact;
+  final String? counsellorName;
 
   const LeadCard({
     super.key,
@@ -23,10 +26,13 @@ class LeadCard extends StatelessWidget {
     this.onAssign,
     this.onStatusUpdate,
     this.onTransfer,
+    this.onDelete,
     this.showAssignButton = false,
     this.showTransferButton = false,
+    this.showDeleteButton = false,
     this.showQuickActions = true,
     this.isCompact = false,
+    this.counsellorName,
   });
 
   @override
@@ -246,72 +252,160 @@ class LeadCard extends StatelessWidget {
   }
 
   Widget _buildActionsRow(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Priority badge
-        LeadPriorityBadge(priority: lead.priority),
-
-        const Spacer(),
-
-        // Quick action buttons
-        if (showQuickActions) ...[
-          // Call button
-          _QuickActionButton(
-            icon: Icons.phone,
-            color: Colors.green,
-            tooltip: 'Call',
-            onPressed: () => _makeCall(lead.phone),
-          ),
-          const SizedBox(width: 8),
-
-          // WhatsApp button
-          _QuickActionButton(
-            icon: Icons.chat,
-            color: Colors.teal,
-            tooltip: 'WhatsApp',
-            onPressed: () => _openWhatsApp(lead.phone),
-          ),
-          const SizedBox(width: 8),
-
-          // Update status button
-          if (onStatusUpdate != null)
-            _QuickActionButton(
-              icon: Icons.update,
-              color: Colors.blue,
-              tooltip: 'Update Status',
-              onPressed: onStatusUpdate!,
-            ),
-        ],
-
-        // Assign button (for Dean)
-        if (showAssignButton && onAssign != null) ...[
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: onAssign,
-            icon: const Icon(Icons.person_add, size: 16),
-            label: const Text('Assign'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-          ),
-        ],
-
-        // Transfer button (for Dean on assigned leads)
-        if (showTransferButton && onTransfer != null) ...[
-          const SizedBox(width: 8),
-          OutlinedButton.icon(
-            onPressed: onTransfer,
-            icon: const Icon(Icons.swap_calls, size: 16),
-            label: const Text('Transfer'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.orange,
-              side: const BorderSide(color: Colors.orange),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        // Badges Row (Manual, Counsellor Name)
+        if (lead.isManualEntry || counsellorName != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                if (lead.isManualEntry)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit,
+                            size: 10, color: Colors.orange.shade700),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Manual',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (counsellorName != null)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.person,
+                            size: 10, color: Colors.blue.shade700),
+                        const SizedBox(width: 2),
+                        Text(
+                          counsellorName!,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
-        ],
+        // Actions Row
+        Row(
+          children: [
+            // Priority badge
+            LeadPriorityBadge(priority: lead.priority),
+
+            const Spacer(),
+
+            // Quick action buttons - in a flexible wrap
+            Flexible(
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  // Quick action buttons
+                  if (showQuickActions) ...[
+                    // Call button
+                    _QuickActionButton(
+                      icon: Icons.phone,
+                      color: Colors.green,
+                      tooltip: 'Call',
+                      onPressed: () => _makeCall(lead.phone),
+                    ),
+
+                    // WhatsApp button
+                    _QuickActionButton(
+                      icon: Icons.chat,
+                      color: Colors.teal,
+                      tooltip: 'WhatsApp',
+                      onPressed: () => _openWhatsApp(lead.phone),
+                    ),
+
+                    // Update status button
+                    if (onStatusUpdate != null)
+                      _QuickActionButton(
+                        icon: Icons.update,
+                        color: Colors.blue,
+                        tooltip: 'Update Status',
+                        onPressed: onStatusUpdate!,
+                      ),
+                  ],
+
+                  // Assign button (for Dean)
+                  if (showAssignButton && onAssign != null)
+                    SizedBox(
+                      height: 32,
+                      child: ElevatedButton.icon(
+                        onPressed: onAssign,
+                        icon: const Icon(Icons.person_add, size: 14),
+                        label: const Text('Assign',
+                            style: TextStyle(fontSize: 12)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                      ),
+                    ),
+
+                  // Transfer button (for Dean on assigned leads)
+                  if (showTransferButton && onTransfer != null)
+                    SizedBox(
+                      height: 32,
+                      child: OutlinedButton.icon(
+                        onPressed: onTransfer,
+                        icon: const Icon(Icons.swap_calls, size: 14),
+                        label: const Text('Transfer',
+                            style: TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.orange,
+                          side: const BorderSide(color: Colors.orange),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                      ),
+                    ),
+
+                  // Delete button (for Dean only)
+                  if (showDeleteButton && onDelete != null)
+                    _QuickActionButton(
+                      icon: Icons.delete_forever,
+                      color: Colors.red,
+                      tooltip: 'Delete Lead',
+                      onPressed: onDelete!,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

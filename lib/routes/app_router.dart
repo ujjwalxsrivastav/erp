@@ -27,6 +27,15 @@ import '../features/leads/screens/counsellor_dashboard.dart';
 import '../features/leads/screens/lead_detail_screen.dart';
 import '../features/leads/screens/lead_capture_screen.dart';
 import '../features/leads/screens/counsellor_profile_screen.dart';
+// Admission Flow imports
+import '../features/admission/screens/temp_student_dashboard.dart';
+import '../features/admission/screens/offer_letter_screen.dart';
+import '../features/admission/screens/dead_admissions_screen.dart';
+import '../features/admission/screens/hostel_management_screen.dart';
+import '../features/admission/screens/transport_management_screen.dart';
+// Hostel Module imports
+import '../features/hostel/screens/warden_dashboard.dart';
+import '../features/hostel/screens/student_hostel_screen.dart';
 
 final router = GoRouter(
   routes: [
@@ -160,6 +169,52 @@ final router = GoRouter(
     GoRoute(
       path: '/leads/capture',
       builder: (context, state) => const LeadCaptureScreen(),
+    ),
+    // ============================================================================
+    // ADMISSION FLOW ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/temp-student-dashboard',
+      builder: (context, state) {
+        final tempId = state.uri.queryParameters['tempId'] ?? '';
+        return TempStudentDashboard(tempId: tempId);
+      },
+    ),
+    GoRoute(
+      path: '/offer-letter/:tempId',
+      builder: (context, state) {
+        final tempId = state.pathParameters['tempId'] ?? '';
+        return OfferLetterScreen(tempId: tempId);
+      },
+    ),
+    GoRoute(
+      path: '/dead-admissions',
+      builder: (context, state) {
+        final counsellorId = state.uri.queryParameters['counsellor'];
+        return DeadAdmissionsScreen(counsellorId: counsellorId);
+      },
+    ),
+    GoRoute(
+      path: '/hostel-management',
+      builder: (context, state) => const HostelManagementScreen(),
+    ),
+    GoRoute(
+      path: '/transport-management',
+      builder: (context, state) => const TransportManagementScreen(),
+    ),
+    // ============================================================================
+    // HOSTEL MODULE ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/warden-dashboard',
+      builder: (context, state) => const WardenDashboard(),
+    ),
+    GoRoute(
+      path: '/student/hostel',
+      builder: (context, state) {
+        final studentId = state.uri.queryParameters['studentId'] ?? '';
+        return StudentHostelScreen(studentId: studentId);
+      },
     ),
   ],
 );

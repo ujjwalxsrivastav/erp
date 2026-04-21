@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/lead_model.dart';
 import '../data/lead_status.dart';
 import '../services/lead_service.dart';
+import '../services/counsellor_service.dart';
 import '../widgets/lead_status_chip.dart';
+import 'admission_form_view_screen.dart';
 
 /// Lead Detail Screen - Full view of a single lead with history and actions
 class LeadDetailScreen extends StatefulWidget {
@@ -22,10 +25,12 @@ class LeadDetailScreen extends StatefulWidget {
 
 class _LeadDetailScreenState extends State<LeadDetailScreen> {
   final LeadService _leadService = LeadService();
+  final CounsellorService _counsellorService = CounsellorService();
 
   Lead? _lead;
   List<LeadStatusHistory> _history = [];
   List<LeadFollowup> _followups = [];
+  String? _counsellorName;
   bool _isLoading = true;
 
   @override
@@ -44,10 +49,25 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
         _leadService.getLeadFollowups(widget.leadId),
       ]);
 
+      final lead = results[0] as Lead?;
+
+      // Fetch counsellor name if assigned
+      String? counsellorName;
+      if (lead?.assignedCounsellorId != null) {
+        try {
+          final counsellor = await _counsellorService
+              .getCounsellorById(lead!.assignedCounsellorId!);
+          counsellorName = counsellor?.name;
+        } catch (_) {
+          // Ignore error, counsellor name is optional
+        }
+      }
+
       setState(() {
-        _lead = results[0] as Lead?;
+        _lead = lead;
         _history = results[1] as List<LeadStatusHistory>;
         _followups = results[2] as List<LeadFollowup>;
+        _counsellorName = counsellorName;
         _isLoading = false;
       });
     } catch (e) {
@@ -97,6 +117,10 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                         _buildCourseCard(),
                         const SizedBox(height: 16),
                         _buildStatusCard(),
+                        if (_lead!.tempStudentId != null) ...[
+                          const SizedBox(height: 16),
+                          _buildTempCredentialsCard(),
+                        ],
                         const SizedBox(height: 16),
                         _buildActionsCard(),
                         const SizedBox(height: 16),
@@ -266,6 +290,158 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
     );
   }
 
+  Widget _buildTempCredentialsCard() {
+    final tempId = _lead!.tempStudentId!;
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Colors.green.shade50,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.green.shade300, width: 2),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.key, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '🎉 Student Login Credentials',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        Text(
+                          'Share these with the student',
+                          style: TextStyle(color: Colors.green, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.person, color: Colors.green),
+                        const SizedBox(width: 12),
+                        const Text('Username: ',
+                            style: TextStyle(color: Colors.grey)),
+                        Expanded(
+                          child: Text(
+                            tempId,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                letterSpacing: 1),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy,
+                              size: 20, color: Colors.green),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: tempId));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Username copied!'),
+                                  backgroundColor: Colors.green),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    Row(
+                      children: [
+                        const Icon(Icons.lock, color: Colors.green),
+                        const SizedBox(width: 12),
+                        const Text('Password: ',
+                            style: TextStyle(color: Colors.grey)),
+                        Expanded(
+                          child: Text(
+                            tempId,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                letterSpacing: 1),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy,
+                              size: 20, color: Colors.green),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: tempId));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Password copied!'),
+                                  backgroundColor: Colors.green),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final message =
+                        'Your temporary login credentials:\n\nUsername: $tempId\nPassword: $tempId\n\nPlease login to view and accept your offer letter.';
+                    await Clipboard.setData(ClipboardData(text: message));
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text(
+                                'Full message copied! Share with student.'),
+                            backgroundColor: Colors.green),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.share),
+                  label: const Text('Copy Full Message'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatusCard() {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -295,6 +471,102 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
               label: 'Priority',
               value: '${_lead!.priority.emoji} ${_lead!.priority.label}',
             ),
+            // Assigned Counsellor
+            if (_lead!.assignedCounsellorId != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.person, size: 18, color: Colors.grey.shade600),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 100,
+                      child: Text(
+                        'Assigned To',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.support_agent,
+                                size: 16, color: Colors.blue.shade700),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                _counsellorName ?? 'Loading...',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blue.shade700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.person_off,
+                        size: 18, color: Colors.orange.shade600),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 100,
+                      child: Text(
+                        'Assigned To',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_amber,
+                              size: 16, color: Colors.orange.shade700),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Not Assigned',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange.shade700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (_lead!.lastContactDate != null)
               _InfoRow(
                 icon: Icons.access_time,
@@ -344,6 +616,10 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
   }
 
   Widget _buildActionsCard() {
+    final hasForm = _lead!.status == LeadStatus.formFilled ||
+        _lead!.status == LeadStatus.seatBooked ||
+        _lead!.status == LeadStatus.converted;
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
@@ -397,6 +673,22 @@ class _LeadDetailScreenState extends State<LeadDetailScreen> {
                   color: Colors.purple,
                   onPressed: _showScheduleFollowupDialog,
                 ),
+                // View Admission Form button
+                if (hasForm)
+                  _ActionButton(
+                    icon: Icons.description,
+                    label: 'View Form',
+                    color: Colors.indigo,
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AdmissionFormViewScreen(
+                          leadId: widget.leadId,
+                          currentUser: widget.username,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ],

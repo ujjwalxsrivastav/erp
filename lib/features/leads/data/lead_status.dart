@@ -75,6 +75,7 @@ enum LeadPriority {
 
 enum LeadSource {
   website('website', 'Website', '🌐'),
+  manual('manual', 'Manual', '✍️'),
   referral('referral', 'Referral', '👥'),
   walkIn('walk-in', 'Walk-in', '🚶'),
   socialMedia('social_media', 'Social Media', '📱'),
@@ -93,6 +94,34 @@ enum LeadSource {
       orElse: () => LeadSource.website,
     );
   }
+
+  bool get isManual => this == LeadSource.manual;
+}
+
+/// Referral Type for manual leads
+enum ReferralType {
+  websiteCall('website_call', 'Website Call', '📞'),
+  studentReferral('student', 'Student Referral', '🎓'),
+  facultyReferral('faculty', 'Faculty Referral', '👨‍🏫'),
+  other('other', 'Other', '📋');
+
+  final String value;
+  final String label;
+  final String emoji;
+
+  const ReferralType(this.value, this.label, this.emoji);
+
+  static ReferralType? fromString(String? value) {
+    if (value == null) return null;
+    return ReferralType.values.firstWhere(
+      (r) => r.value == value,
+      orElse: () => ReferralType.other,
+    );
+  }
+
+  bool get requiresReferrerInfo =>
+      this == ReferralType.studentReferral ||
+      this == ReferralType.facultyReferral;
 }
 
 enum FollowupType {

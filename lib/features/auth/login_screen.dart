@@ -93,6 +93,13 @@ class _LoginScreenState extends State<LoginScreen>
             context.go(
                 '/leads/counsellor?username=${_usernameController.text.trim()}');
             break;
+          case 'temp_student':
+            context.go(
+                '/temp-student-dashboard?tempId=${_usernameController.text.trim()}');
+            break;
+          case 'warden':
+            context.go('/warden-dashboard');
+            break;
         }
       } else {
         _showError(result['message'] ?? 'Login failed');
@@ -343,6 +350,7 @@ class _LoginScreenState extends State<LoginScreen>
           _buildCredentialRow('Admin', 'admin1', AppTheme.adminPrimary),
           _buildCredentialRow('HR', 'hr1', const Color(0xFF059669)),
           _buildCredentialRow('HOD', 'hod1', const Color(0xFF0891B2)),
+          _buildCredentialRow('Warden', 'warden1', const Color(0xFF1E293B)),
         ],
       ),
     );

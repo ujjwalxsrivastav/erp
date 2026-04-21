@@ -50,7 +50,7 @@ app.*.map.json
 lib/core/config/app_config.dart
 
 # Database exports with sensitive data
-database_export/
+
 db_backup/
 
 # Supabase temp files
@@ -81,3 +81,4 @@ credentials.json
 
 # Supabase config for demo page
 supabase_config.js
+demo/config.js

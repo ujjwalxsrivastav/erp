@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Admission Form 2025</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Use same config as leaddemo.html -->
+    <script src="../supabase_config.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            padding: 30px 20px;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .form-card {
+            background: var(--card);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            padding: 32px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title span {
+            font-size: 1.3rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        label .required {
+            color: var(--danger);
+        }
+
+        input,
+        select,
+        textarea {
+            padding: 12px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: all 0.2s;
+            outline: none;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .file-upload {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--bg);
+        }
+
+        .file-upload:hover {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .file-upload.has-file {
+            border-color: var(--secondary);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .file-upload input {
+            display: none;
+        }
+
+        .file-upload .icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .file-upload .text {
+            font-size: 0.875rem;
+            color: var(--text-light);
+        }
+
+        .file-upload .filename {
+            font-weight: 600;
+            color: var(--secondary);
+            margin-top: 8px;
+        }
+
+        .phone-verify {
+            display: flex;
+            gap: 10px;
+        }
+
+        .phone-verify input {
+            flex: 1;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--secondary) 0%, #059669 100%);
+            color: white;
+        }
+
+        .payment-summary {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            border-radius: 16px;
+            padding: 24px;
+            color: white;
+            margin-top: 20px;
+        }
+
+        .payment-summary h3 {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 12px;
+        }
+
+        .payment-amount {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .payment-amount small {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .submit-section {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .submit-section .btn {
+            min-width: 250px;
+            padding: 16px 32px;
+            font-size: 1.1rem;
+        }
+
+        .alert {
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-info {
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(37, 99, 235, 0.2);
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .lead-info {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 10px;
+            padding: 16px;
+            margin-top: 10px;
+        }
+
+        .lead-info h4 {
+            color: #059669;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .lead-info p {
+            color: var(--text);
+            font-size: 0.875rem;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .success-screen {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .success-screen .icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+
+        .success-screen h2 {
+            color: var(--secondary);
+            margin-bottom: 16px;
+        }
+
+        .success-screen p {
+            color: var(--text-light);
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .error-banner {
+            background: var(--danger);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .facility-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .facility-section .section-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .facility-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 14px;
+        }
+
+        .facility-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px 18px;
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg);
+            cursor: pointer;
+            transition: all 0.25s ease;
+            user-select: none;
+        }
+
+        .facility-card:hover {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.03);
+        }
+
+        .facility-card.active {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.06);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .facility-card .facility-icon {
+            font-size: 1.6rem;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            background: rgba(37, 99, 235, 0.08);
+            flex-shrink: 0;
+        }
+
+        .facility-card.active .facility-icon {
+            background: rgba(37, 99, 235, 0.15);
+        }
+
+        .facility-card .facility-info {
+            flex: 1;
+        }
+
+        .facility-card .facility-info .facility-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .facility-card .facility-info .facility-desc {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+
+        .facility-toggle {
+            width: 44px;
+            height: 24px;
+            border-radius: 12px;
+            background: #cbd5e1;
+            position: relative;
+            transition: background 0.25s ease;
+            flex-shrink: 0;
+        }
+
+        .facility-toggle::after {
+            content: '';
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: white;
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            transition: transform 0.25s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        }
+
+        .facility-card.active .facility-toggle {
+            background: var(--primary);
+        }
+
+        .facility-card.active .facility-toggle::after {
+            transform: translateX(20px);
+        }
+
+        .facility-card input[type="checkbox"] {
+            display: none;
+        }
+
+        @media (max-width: 640px) {
+            .form-card {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .phone-verify {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Error banner if config not found -->
+        <div class="error-banner" id="configError" style="display: none;">
+            ⚠️ Configuration Error: supabase_config.js not found!
+        </div>
+
+        <div class="header">
+            <h1 id="collegeTitle">🎓 Shivalik College Admission Form 2025</h1>
+            <p id="collegeSubtitle">Shivalik College - Online Registration Portal</p>
+        </div>
+
+        <!-- Main Form -->
+        <form id="admissionForm" style="display: block;">
+
+            <!-- Phone Verification Section -->
+            <div class="form-card" id="phoneSection">
+                <div class="section-title">
+                    <span>📱</span> Verify Your Phone Number
+                </div>
+                <div class="alert alert-info">
+                    <span>ℹ️</span>
+                    <span>Enter the phone number you provided during inquiry. This helps us link your
+                        application.</span>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Phone Number <span class="required">*</span></label>
+                        <div class="phone-verify">
+                            <input type="tel" id="phone" placeholder="Enter 10-digit number" pattern="[0-9]{10}"
+                                maxlength="10" required>
+                            <button type="button" class="btn btn-primary" id="verifyBtn" onclick="verifyPhone()">
+                                Verify
+                            </button>
+                        </div>
+                        <div id="leadInfo" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Personal Details -->
+            <div class="form-card" id="personalSection" style="display: none;">
+                <div class="section-title">
+                    <span>👤</span> Personal Details
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Full Name <span class="required">*</span></label>
+                        <input type="text" id="studentName" placeholder="As per 12th certificate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email <span class="required">*</span></label>
+                        <input type="email" id="email" placeholder="your.email@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Birth <span class="required">*</span></label>
+                        <input type="date" id="dob" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Gender <span class="required">*</span></label>
+                        <select id="gender" required>
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="category">
+                            <option value="general">General</option>
+                            <option value="obc">OBC</option>
+                            <option value="sc">SC</option>
+                            <option value="st">ST</option>
+                            <option value="ews">EWS</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Aadhar Number</label>
+                        <input type="text" id="aadhar" placeholder="12-digit Aadhar" pattern="[0-9]{12}" maxlength="12">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Permanent Address <span class="required">*</span></label>
+                        <textarea id="address" rows="2" placeholder="Complete address with PIN code"
+                            required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>City <span class="required">*</span></label>
+                        <input type="text" id="city" placeholder="City" required>
+                    </div>
+                    <div class="form-group">
+                        <label>State <span class="required">*</span></label>
+                        <input type="text" id="state" placeholder="State" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Guardian Details -->
+            <div class="form-card" id="guardianSection" style="display: none;">
+                <div class="section-title">
+                    <span>👨‍👩‍👧</span> Guardian Details
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Father's Name <span class="required">*</span></label>
+                        <input type="text" id="fatherName" placeholder="Father's full name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Father's Occupation</label>
+                        <input type="text" id="fatherOccupation" placeholder="Occupation">
+                    </div>
+                    <div class="form-group">
+                        <label>Mother's Name <span class="required">*</span></label>
+                        <input type="text" id="motherName" placeholder="Mother's full name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Mother's Occupation</label>
+                        <input type="text" id="motherOccupation" placeholder="Occupation">
+                    </div>
+                    <div class="form-group">
+                        <label>Guardian Contact <span class="required">*</span></label>
+                        <input type="tel" id="guardianContact" placeholder="10-digit number" pattern="[0-9]{10}"
+                            maxlength="10" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Guardian Email</label>
+                        <input type="email" id="guardianEmail" placeholder="guardian@email.com">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 10th Details -->
+            <div class="form-card" id="tenthSection" style="display: none;">
+                <div class="section-title">
+                    <span>📚</span> 10th Class Details
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>School Name <span class="required">*</span></label>
+                        <input type="text" id="tenthSchool" placeholder="School name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Board <span class="required">*</span></label>
+                        <select id="tenthBoard" required>
+                            <option value="">Select Board</option>
+                            <option value="CBSE">CBSE</option>
+                            <option value="ICSE">ICSE</option>
+                            <option value="HPBOSE">HP Board</option>
+                            <option value="State">Other State Board</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Passing Year <span class="required">*</span></label>
+                        <input type="number" id="tenthYear" placeholder="2020" min="2010" max="2025" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Percentage/CGPA <span class="required">*</span></label>
+                        <input type="text" id="tenthPercentage" placeholder="85.5%" required>
+                    </div>
+                    <div class="form-group full-width">
+                        <label>10th Marksheet (PDF only) <span class="required">*</span></label>
+                        <div class="file-upload" onclick="document.getElementById('tenthMarksheet').click()">
+                            <input type="file" id="tenthMarksheet" accept=".pdf"
+                                onchange="handleFileSelect(this, 'tenthMarksheetName')" required>
+                            <div class="icon">📄</div>
+                            <div class="text">Click to upload 10th Marksheet</div>
+                            <div class="filename" id="tenthMarksheetName"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 12th Details -->
+            <div class="form-card" id="twelfthSection" style="display: none;">
+                <div class="section-title">
+                    <span>📖</span> 12th Class Details
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>School/College Name <span class="required">*</span></label>
+                        <input type="text" id="twelfthSchool" placeholder="School/College name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Board <span class="required">*</span></label>
+                        <select id="twelfthBoard" required>
+                            <option value="">Select Board</option>
+                            <option value="CBSE">CBSE</option>
+                            <option value="ICSE">ICSE</option>
+                            <option value="HPBOSE">HP Board</option>
+                            <option value="State">Other State Board</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Stream <span class="required">*</span></label>
+                        <select id="twelfthStream" required>
+                            <option value="">Select Stream</option>
+                            <option value="Science">Science (PCM)</option>
+                            <option value="Commerce">Commerce</option>
+                            <option value="Arts">Arts/Humanities</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Passing Year <span class="required">*</span></label>
+                        <input type="number" id="twelfthYear" placeholder="2022" min="2010" max="2025" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Percentage/CGPA <span class="required">*</span></label>
+                        <input type="text" id="twelfthPercentage" placeholder="75.5%" required>
+                    </div>
+                    <div class="form-group full-width">
+                        <label>12th Marksheet (PDF only) <span class="required">*</span></label>
+                        <div class="file-upload" onclick="document.getElementById('twelfthMarksheet').click()">
+                            <input type="file" id="twelfthMarksheet" accept=".pdf"
+                                onchange="handleFileSelect(this, 'twelfthMarksheetName')" required>
+                            <div class="icon">📄</div>
+                            <div class="text">Click to upload 12th Marksheet</div>
+                            <div class="filename" id="twelfthMarksheetName"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Course Selection -->
+            <div class="form-card" id="courseSection" style="display: none;">
+                <div class="section-title">
+                    <span>🎯</span> Course Selection
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Preferred Course <span class="required">*</span></label>
+                        <select id="course" required>
+                            <option value="">Select Course</option>
+                            <option value="BCA">BCA - Bachelor of Computer Applications</option>
+                            <option value="MCA">MCA - Master of Computer Applications</option>
+                            <option value="BBA">BBA - Bachelor of Business Administration</option>
+                            <option value="MBA">MBA - Master of Business Administration</option>
+                            <option value="BTech">B.Tech - Bachelor of Technology</option>
+                            <option value="MTech">M.Tech - Master of Technology</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Session <span class="required">*</span></label>
+                        <select id="session" required>
+                            <option value="2025-26">2025-26</option>
+                            <option value="2025-26-lateral">2025-26 (Lateral Entry)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Preferred Batch</label>
+                        <select id="batch">
+                            <option value="morning">Morning (9 AM - 1 PM)</option>
+                            <option value="afternoon">Afternoon (1 PM - 5 PM)</option>
+                        </select>
+                    </div>
+
+                    <!-- Additional Facilities -->
+                    <div class="form-group full-width">
+                        <div class="facility-section">
+                            <div class="section-label">
+                                <span>🏫</span> Additional Facilities <span
+                                    style="font-weight:400; color: var(--text-light); font-size: 0.8rem;">(Optional)</span>
+                            </div>
+                            <div class="facility-cards">
+                                <label class="facility-card" id="hostelCard" onclick="toggleFacility('hostel')">
+                                    <div class="facility-icon">🏠</div>
+                                    <div class="facility-info">
+                                        <div class="facility-name">Hostel Facility</div>
+                                        <div class="facility-desc">On-campus hostel accommodation</div>
+                                    </div>
+                                    <div class="facility-toggle"></div>
+                                    <input type="checkbox" id="hostelRequired">
+                                </label>
+                                <label class="facility-card" id="transportCard" onclick="toggleFacility('transport')">
+                                    <div class="facility-icon">🚌</div>
+                                    <div class="facility-info">
+                                        <div class="facility-name">Transportation Facility</div>
+                                        <div class="facility-desc">College bus/van pickup & drop service</div>
+                                    </div>
+                                    <div class="facility-toggle"></div>
+                                    <input type="checkbox" id="transportRequired">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Summary -->
+                <div class="payment-summary">
+                    <h3>💳 Registration Fee</h3>
+                    <div class="payment-amount">₹1,000 <small>/ one-time</small></div>
+                </div>
+
+                <div class="submit-section">
+                    <button type="button" class="btn btn-success" onclick="processPayment()">
+                        Pay ₹1,000 & Submit Application
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Success Screen -->
+        <div class="form-card" id="successScreen" style="display: none;">
+            <div class="success-screen">
+                <div class="icon">🎉</div>
+                <h2>Application Submitted Successfully!</h2>
+                <p>Your admission form has been received. Our counsellor will contact you within 24-48 hours for further
+                    process.</p>
+                <div style="margin-top: 30px; padding: 20px; background: var(--bg); border-radius: 12px;">
+                    <p style="margin-bottom: 10px;"><strong>Application Reference:</strong></p>
+                    <p id="applicationRef" style="font-size: 1.2rem; font-weight: 600; color: var(--primary);"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================================
+        // Use same config as leaddemo.html
+        // ============================================================================
+        let SUPABASE_URL, SUPABASE_ANON_KEY, RAZORPAY_KEY;
+        let leadData = null;
+        let uploadedFiles = { tenth: null, twelfth: null };
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof SUPABASE_CONFIG === 'undefined') {
+                document.getElementById('configError').style.display = 'block';
+                document.getElementById('admissionForm').style.display = 'none';
+                return;
+            }
+
+            SUPABASE_URL = SUPABASE_CONFIG.url;
+            SUPABASE_ANON_KEY = SUPABASE_CONFIG.anonKey;
+            RAZORPAY_KEY = SUPABASE_CONFIG.razorpayKey || 'rzp_test_Rj8ZriIK5tkUjG';
+
+            console.log('Config loaded:', { SUPABASE_URL, hasKey: !!SUPABASE_ANON_KEY });
+        });
+
+        // ============================================================================
+        // PHONE VERIFICATION
+        // ============================================================================
+        async function verifyPhone() {
+            const phone = document.getElementById('phone').value.trim();
+
+            if (phone.length !== 10 || !/^\d{10}$/.test(phone)) {
+                showAlert('Please enter a valid 10-digit phone number', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('verifyBtn');
+            btn.innerHTML = '<span class="loader"></span>';
+            btn.disabled = true;
+
+            try {
+                console.log('Searching for phone:', phone);
+
+                // Try simple query first
+                const response = await fetch(
+                    `${SUPABASE_URL}/rest/v1/leads?phone=eq.${phone}&select=id,student_name,email,preferred_course,status,phone`,
+                    {
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    console.error('API Error:', response.status, await response.text());
+                    throw new Error('API request failed');
+                }
+
+                const leads = await response.json();
+                console.log('Search results:', leads);
+
+                if (leads && leads.length > 0) {
+                    leadData = leads[0];
+
+                    document.getElementById('leadInfo').style.display = 'block';
+                    document.getElementById('leadInfo').innerHTML = `
+                        <div class="lead-info">
+                            <h4>✅ Inquiry Found!</h4>
+                            <p><strong>Name:</strong> ${leadData.student_name}</p>
+                            <p><strong>Course Interest:</strong> ${leadData.preferred_course || 'Not specified'}</p>
+                        </div>
+                    `;
+
+                    document.getElementById('studentName').value = leadData.student_name || '';
+                    document.getElementById('email').value = leadData.email || '';
+
+                    showFormSections();
+                } else {
+                    document.getElementById('leadInfo').style.display = 'block';
+                    document.getElementById('leadInfo').innerHTML = `
+                        <div class="alert alert-info" style="margin-top: 10px;">
+                            <span>ℹ️</span>
+                            <span>No prior inquiry found. You can still proceed with the application.</span>
+                        </div>
+                    `;
+                    showFormSections();
+                }
+            } catch (error) {
+                console.error('Error verifying phone:', error);
+                showAlert('Error verifying phone. Check console for details.', 'error');
+            }
+
+            btn.innerHTML = 'Verify';
+            btn.disabled = false;
+        }
+
+        function showFormSections() {
+            document.getElementById('personalSection').style.display = 'block';
+            document.getElementById('guardianSection').style.display = 'block';
+            document.getElementById('tenthSection').style.display = 'block';
+            document.getElementById('twelfthSection').style.display = 'block';
+            document.getElementById('courseSection').style.display = 'block';
+            document.getElementById('personalSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // ============================================================================
+        // FILE HANDLING
+        // ============================================================================
+        function handleFileSelect(input, displayId) {
+            const file = input.files[0];
+            const displayEl = document.getElementById(displayId);
+            const uploadDiv = input.closest('.file-upload');
+
+            if (file) {
+                if (file.type !== 'application/pdf') {
+                    showAlert('Please upload PDF files only', 'error');
+                    input.value = '';
+                    return;
+                }
+
+                if (file.size > 5 * 1024 * 1024) {
+                    showAlert('File size must be under 5MB', 'error');
+                    input.value = '';
+                    return;
+                }
+
+                displayEl.textContent = file.name;
+                uploadDiv.classList.add('has-file');
+
+                if (input.id === 'tenthMarksheet') {
+                    uploadedFiles.tenth = file;
+                } else {
+                    uploadedFiles.twelfth = file;
+                }
+            }
+        }
+
+        async function uploadFile(file, type, phone) {
+            const timestamp = Date.now();
+            const filename = `${phone}_${type}_${timestamp}.pdf`;
+            const path = `marksheets/${filename}`;
+
+            const response = await fetch(
+                `${SUPABASE_URL}/storage/v1/object/admission-documents/${path}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/pdf'
+                    },
+                    body: file
+                }
+            );
+
+            if (!response.ok) {
+                console.error('Upload failed:', await response.text());
+                throw new Error('Failed to upload file');
+            }
+
+            return `${SUPABASE_URL}/storage/v1/object/public/admission-documents/${path}`;
+        }
+
+        // ============================================================================
+        // PAYMENT
+        // ============================================================================
+        function loadRazorpayScript() {
+            return new Promise((resolve, reject) => {
+                if (typeof Razorpay !== 'undefined') {
+                    resolve();
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('Failed to load Razorpay SDK. Please check your internet connection.'));
+                document.body.appendChild(script);
+            });
+        }
+
+        async function processPayment() {
+            const form = document.getElementById('admissionForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            if (!uploadedFiles.tenth || !uploadedFiles.twelfth) {
+                showAlert('Please upload both 10th and 12th marksheets', 'error');
+                return;
+            }
+
+            // Ensure Razorpay SDK is loaded
+            try {
+                await loadRazorpayScript();
+            } catch (err) {
+                showAlert(err.message, 'error');
+                return;
+            }
+
+            const options = {
+                key: RAZORPAY_KEY,
+                amount: 100000, // ₹1000 in paise
+                currency: 'INR',
+                name: 'Shivalik College',
+                description: 'Registration Fee 2025-26',
+                prefill: {
+                    name: document.getElementById('studentName').value,
+                    email: document.getElementById('email').value,
+                    contact: document.getElementById('phone').value
+                },
+                theme: { color: '#2563eb' },
+                handler: function (response) {
+                    submitForm(response.razorpay_payment_id);
+                },
+                modal: {
+                    ondismiss: function () {
+                        showAlert('Payment cancelled.', 'error');
+                    }
+                }
+            };
+
+            const rzp = new Razorpay(options);
+            rzp.open();
+        }
+
+        // ============================================================================
+        // FORM SUBMISSION
+        // ============================================================================
+        async function submitForm(paymentId) {
+            const phone = document.getElementById('phone').value;
+            const studentName = document.getElementById('studentName').value;
+            const email = document.getElementById('email').value;
+            const city = document.getElementById('city').value;
+            const state = document.getElementById('state').value;
+            const course = document.getElementById('course').value;
+
+            try {
+                document.body.style.cursor = 'wait';
+
+                // ============================================================
+                // STEP 1: Create a lead if one doesn't already exist
+                // This ensures dean visibility + auto counsellor assignment
+                // ============================================================
+                if (!leadData?.id) {
+                    console.log('No existing lead found. Creating new lead via public_create_lead...');
+                    try {
+                        const leadResponse = await fetch(
+                            `${SUPABASE_URL}/rest/v1/rpc/public_create_lead`,
+                            {
+                                method: 'POST',
+                                headers: {
+                                    'apikey': SUPABASE_ANON_KEY,
+                                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    p_student_name: studentName,
+                                    p_phone: phone,
+                                    p_email: email || null,
+                                    p_city: city || null,
+                                    p_state: state || null,
+                                    p_preferred_course: course || 'Not Specified',
+                                    p_source: 'admission_form',
+                                    p_source_detail: 'Online admission form submission'
+                                })
+                            }
+                        );
+
+                        if (leadResponse.ok) {
+                            const newLeadId = await leadResponse.json();
+                            console.log('✅ Lead created successfully:', newLeadId);
+                            // Set leadData so it gets linked to the admission form
+                            leadData = { id: newLeadId };
+                        } else {
+                            const errText = await leadResponse.text();
+                            console.warn('Lead creation failed (may be duplicate):', errText);
+                            // If duplicate, try to fetch existing lead
+                            if (errText.includes('DUPLICATE_LEAD')) {
+                                const existingResponse = await fetch(
+                                    `${SUPABASE_URL}/rest/v1/leads?phone=eq.${phone}&select=id`,
+                                    {
+                                        headers: {
+                                            'apikey': SUPABASE_ANON_KEY,
+                                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                                        }
+                                    }
+                                );
+                                if (existingResponse.ok) {
+                                    const existing = await existingResponse.json();
+                                    if (existing.length > 0) {
+                                        leadData = { id: existing[0].id };
+                                        console.log('Found existing lead:', leadData.id);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (leadError) {
+                        console.error('Error creating lead:', leadError);
+                        // Continue with form submission even if lead creation fails
+                    }
+                }
+
+                // ============================================================
+                // STEP 2: Upload marksheets
+                // ============================================================
+                let tenthUrl = null, twelfthUrl = null;
+                try {
+                    tenthUrl = await uploadFile(uploadedFiles.tenth, '10th', phone);
+                    twelfthUrl = await uploadFile(uploadedFiles.twelfth, '12th', phone);
+                } catch (e) {
+                    console.error('File upload error:', e);
+                    showAlert('File upload failed. Submitting form without documents.', 'error');
+                }
+
+                // ============================================================
+                // STEP 3: Submit admission form (linked to lead)
+                // ============================================================
+                const formData = {
+                    lead_id: leadData?.id || null,
+                    phone: phone,
+                    student_name: studentName,
+                    email: email,
+                    dob: document.getElementById('dob').value,
+                    gender: document.getElementById('gender').value,
+                    category: document.getElementById('category').value,
+                    aadhar: document.getElementById('aadhar').value || null,
+                    address: document.getElementById('address').value,
+                    city: city,
+                    state: state,
+                    father_name: document.getElementById('fatherName').value,
+                    father_occupation: document.getElementById('fatherOccupation').value || null,
+                    mother_name: document.getElementById('motherName').value,
+                    mother_occupation: document.getElementById('motherOccupation').value || null,
+                    guardian_contact: document.getElementById('guardianContact').value,
+                    guardian_email: document.getElementById('guardianEmail').value || null,
+                    tenth_school: document.getElementById('tenthSchool').value,
+                    tenth_board: document.getElementById('tenthBoard').value,
+                    tenth_year: parseInt(document.getElementById('tenthYear').value),
+                    tenth_percentage: document.getElementById('tenthPercentage').value,
+                    tenth_marksheet_url: tenthUrl,
+                    twelfth_school: document.getElementById('twelfthSchool').value,
+                    twelfth_board: document.getElementById('twelfthBoard').value,
+                    twelfth_stream: document.getElementById('twelfthStream').value,
+                    twelfth_year: parseInt(document.getElementById('twelfthYear').value),
+                    twelfth_percentage: document.getElementById('twelfthPercentage').value,
+                    twelfth_marksheet_url: twelfthUrl,
+                    course: course,
+                    session: document.getElementById('session').value,
+                    batch: document.getElementById('batch').value,
+                    hostel_required: document.getElementById('hostelRequired').checked,
+                    transportation_required: document.getElementById('transportRequired').checked,
+                    payment_id: paymentId,
+                    payment_status: 'completed',
+                    payment_amount: 1000,
+                    is_verified: false,
+                    created_at: new Date().toISOString()
+                };
+
+                const response = await fetch(
+                    `${SUPABASE_URL}/rest/v1/admission_forms`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=representation'
+                        },
+                        body: JSON.stringify(formData)
+                    }
+                );
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    console.error('Submit error:', errText);
+                    throw new Error('Failed to submit form');
+                }
+
+                const result = await response.json();
+
+                document.getElementById('admissionForm').style.display = 'none';
+                document.getElementById('successScreen').style.display = 'block';
+                document.getElementById('applicationRef').textContent =
+                    `SHIV-${new Date().getFullYear()}-${result[0].id.slice(0, 8).toUpperCase()}`;
+
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('Error submitting form. Check console.', 'error');
+            } finally {
+                document.body.style.cursor = 'default';
+            }
+        }
+
+        // ============================================================================
+        // UTILITIES
+        // ============================================================================
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.innerHTML = `<span>${type === 'error' ? '❌' : '✅'}</span><span>${message}</span>`;
+            alertDiv.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;min-width:300px;';
+            document.body.appendChild(alertDiv);
+            setTimeout(() => alertDiv.remove(), 4000);
+        }
+
+        function toggleFacility(type) {
+            const cardId = type === 'hostel' ? 'hostelCard' : 'transportCard';
+            const checkboxId = type === 'hostel' ? 'hostelRequired' : 'transportRequired';
+            const card = document.getElementById(cardId);
+            const checkbox = document.getElementById(checkboxId);
+            checkbox.checked = !checkbox.checked;
+            card.classList.toggle('active', checkbox.checked);
+        }
+    </script>
+</body>
+
+</html>

@@ -717,4 +717,113 @@ class LeadService {
       return [];
     }
   }
+
+  // ============================================================================
+  // DUPLICATE DETECTION & DELETE (V2 Features)
+  // ============================================================================
+
+  /// Check if a lead with this phone number already exists
+  Future<Map<String, dynamic>?> checkDuplicateLead(String phone) async {
+    try {
+      final response = await _supabase.rpc('check_duplicate_lead', params: {
+        'p_phone': phone,
+      });
+
+      if (response != null && (response as List).isNotEmpty) {
+        return response[0] as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      // If RPC doesn't exist, fallback to direct query
+      try {
+        final response = await _supabase
+            .from('leads')
+            .select(
+                'id, student_name, phone, status, assigned_counsellor_id, created_at')
+            .eq('phone', phone)
+            .maybeSingle();
+        return response;
+      } catch (_) {
+        print('Error checking duplicate lead: $e');
+        return null;
+      }
+    }
+  }
+
+  /// Permanently delete a lead (Dean only)
+  Future<bool> deleteLead(String leadId, String deletedBy) async {
+    try {
+      final response = await _supabase.rpc('delete_lead_permanent', params: {
+        'p_lead_id': leadId,
+        'p_deleted_by': deletedBy,
+      });
+
+      return response == true;
+    } catch (e) {
+      // If RPC doesn't exist, try direct delete
+      try {
+        // Delete followups first
+        await _supabase.from('lead_followups').delete().eq('lead_id', leadId);
+        // Delete history
+        await _supabase
+            .from('lead_status_history')
+            .delete()
+            .eq('lead_id', leadId);
+        // Delete lead
+        await _supabase.from('leads').delete().eq('id', leadId);
+        return true;
+      } catch (deleteError) {
+        print('Error deleting lead: $deleteError');
+        return false;
+      }
+    }
+  }
+
+  /// Create a manual lead with full referral tracking
+  Future<Lead?> createManualLead({
+    required String studentName,
+    required String phone,
+    String? email,
+    String? city,
+    String? state,
+    String? preferredCourse,
+    String? preferredBatch,
+    required String enteredBy,
+    String? referralType,
+    String? referrerName,
+    String? referrerId,
+    String? sourceDetail,
+  }) async {
+    try {
+      final response = await _supabase.rpc('public_create_lead', params: {
+        'p_student_name': studentName,
+        'p_phone': phone,
+        'p_email': email,
+        'p_city': city,
+        'p_state': state,
+        'p_preferred_course': preferredCourse ?? 'Not Specified',
+        'p_preferred_batch': preferredBatch,
+        'p_source': 'manual',
+        'p_source_detail': sourceDetail,
+        'p_is_manual_entry': true,
+        'p_referral_type': referralType,
+        'p_referrer_name': referrerName,
+        'p_referrer_id': referrerId,
+        'p_entered_by': enteredBy,
+      });
+
+      if (response != null) {
+        return await getLeadById(response as String);
+      }
+      return null;
+    } catch (e) {
+      // Check if it's a duplicate error
+      if (e.toString().contains('DUPLICATE_LEAD')) {
+        throw Exception(
+            'DUPLICATE: A lead with this phone number already exists');
+      }
+      print('Error creating manual lead: $e');
+      return null;
+    }
+  }
 }
