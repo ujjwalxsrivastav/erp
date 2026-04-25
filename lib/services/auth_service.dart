@@ -263,7 +263,17 @@ class AuthService {
         'p_user_agent': deviceInfo['userAgent'],
       });
 
-      final result = Map<String, dynamic>.from(response);
+      // Supabase may return JSON as a Map or as a raw String depending on
+      // the SQL function's return type declaration — handle both.
+      final Map<String, dynamic> result;
+      if (response is Map) {
+        result = Map<String, dynamic>.from(response);
+      } else if (response is String) {
+        result = Map<String, dynamic>.from(
+            json.decode(response) as Map);
+      } else {
+        throw Exception('Unexpected RPC response type: ${response.runtimeType}');
+      }
 
       // Add security delay before responding
       await _addSecurityDelay(startTime);
@@ -305,8 +315,12 @@ class AuthService {
         'role': null,
         'message': 'Authentication service unavailable. Please try again.',
       };
-    } catch (_) {
-      _secureLog('Login error');
+    } catch (e, stack) {
+      // Log the real error in debug mode so root cause is visible
+      if (kDebugMode) {
+        debugPrint('[AUTH] Login error — ${e.runtimeType}: $e');
+        debugPrint('[AUTH] Stack: ${stack.toString().split('\n').take(6).join('\n')}');
+      }
 
       // Add security delay
       await _addSecurityDelay(startTime);

@@ -36,6 +36,8 @@ import '../features/admission/screens/transport_management_screen.dart';
 // Hostel Module imports
 import '../features/hostel/screens/warden_dashboard.dart';
 import '../features/hostel/screens/student_hostel_screen.dart';
+// Transport Module imports
+import '../features/transport/screens/transport_dashboard.dart';
 
 final router = GoRouter(
   routes: [
@@ -215,6 +217,13 @@ final router = GoRouter(
         final studentId = state.uri.queryParameters['studentId'] ?? '';
         return StudentHostelScreen(studentId: studentId);
       },
+    ),
+    // ============================================================================
+    // TRANSPORT MODULE ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/transport-dashboard',
+      builder: (context, state) => const TransportDashboard(),
     ),
   ],
 );

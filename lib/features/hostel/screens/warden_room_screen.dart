@@ -136,6 +136,11 @@ class _WardenRoomScreenState extends State<WardenRoomScreen>
       backgroundColor: const Color(0xFF0D1B2A),
       foregroundColor: Colors.white,
       elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+        onPressed: () => Navigator.of(context).pop(),
+        tooltip: 'Back',
+      ),
       title: innerBoxIsScrolled
           ? Text(_selectedHostelName,
               style: const TextStyle(
@@ -177,26 +182,29 @@ class _WardenRoomScreenState extends State<WardenRoomScreen>
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0D1B2A), Color(0xFF1E3A8A)],
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF0D1B2A), Color(0xFF1E3A8A)],
+                ),
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
+            Positioned(
+              left: 20, right: 20, bottom: 20,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Hostel name
                   Text(
                     _selectedHostelName,
                     style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 28,
+                        fontSize: 26,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5),
                   ),
@@ -205,10 +213,9 @@ class _WardenRoomScreenState extends State<WardenRoomScreen>
                     'Room Occupancy Dashboard',
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.6),
-                        fontSize: 14),
+                        fontSize: 13),
                   ),
-                  const SizedBox(height: 16),
-                  // Occupancy bar
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -248,14 +255,13 @@ class _WardenRoomScreenState extends State<WardenRoomScreen>
                       const SizedBox(width: 16),
                       _buildMiniStat('Rooms', '${_rooms.length}'),
                       const SizedBox(width: 12),
-                      _buildMiniStat(
-                          'Available', '${capacity - occupied}'),
+                      _buildMiniStat('Available', '${capacity - occupied}'),
                     ],
                   ),
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

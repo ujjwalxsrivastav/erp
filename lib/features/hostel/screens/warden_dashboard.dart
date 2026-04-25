@@ -3,6 +3,11 @@ import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
 import 'warden_room_screen.dart';
 import 'warden_grievance_screen.dart';
+import 'warden_student_directory_screen.dart';
+import 'warden_allocation_screen.dart';
+import 'gatepass_management_screen.dart';
+import 'night_attendance_screen.dart';
+import 'incident_log_screen.dart';
 
 class WardenDashboard extends StatefulWidget {
   const WardenDashboard({super.key});
@@ -184,12 +189,103 @@ class _WardenDashboardState extends State<WardenDashboard>
                     icon: Icons.report_problem_outlined,
                     title: 'Grievance Portal',
                     subtitle: 'Review & respond to student complaints',
-                    gradientColors: const [Color(0xFF7C3AED), Color(0xFFA855F7)],
+                    gradientColors: const [Color(0xFFF59E0B), Color(0xFFD97706)],
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const WardenGrievanceScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Allocation portal
+                  _buildActionCard(
+                    icon: Icons.app_registration_rounded,
+                    title: 'Room Allocation',
+                    subtitle: 'Manual and Auto-mapping by State/City',
+                    gradientColors: const [Color(0xFF10B981), Color(0xFF059669)],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const WardenAllocationScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Student Directory
+                  _buildActionCard(
+                    icon: Icons.contact_page_outlined,
+                    title: 'Student Directory',
+                    subtitle: 'Filter by State, City, Hostel, and generate reports',
+                    gradientColors: const [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const WardenStudentDirectoryScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Gatepasses
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildActionCard(
+                          icon: Icons.exit_to_app_rounded,
+                          title: 'Gatepasses',
+                          subtitle: 'Leaves',
+                          gradientColors: const [Color(0xFFEC4899), Color(0xFFBE185D)],
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const GatepassManagementScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildActionCard(
+                          icon: Icons.nights_stay_outlined,
+                          title: 'Attendance',
+                          subtitle: 'Nightly',
+                          gradientColors: const [Color(0xFF6366F1), Color(0xFF4338CA)],
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const NightAttendanceScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Disciplinary Action
+                   _buildActionCard(
+                    icon: Icons.gavel_rounded,
+                    title: 'Disciplinary Logs',
+                    subtitle: 'Log incidents and view student discipline records',
+                    gradientColors: const [Color(0xFFEF4444), Color(0xFFB91C1C)],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const IncidentLogScreen(),
                         ),
                       );
                     },

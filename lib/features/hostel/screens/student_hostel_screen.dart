@@ -197,19 +197,23 @@ class _StudentHostelScreenState extends State<StudentHostelScreen>
           : const Text('My Hostel',
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0D1B2A), Color(0xFF1E3A8A)],
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF0D1B2A), Color(0xFF1E3A8A)],
+                ),
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 60, 24, 24),
+            Positioned(
+              left: 24, right: 24, bottom: 24,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   if (hostelName != null) ...[
                     Container(
@@ -219,8 +223,7 @@ class _StudentHostelScreenState extends State<StudentHostelScreen>
                         color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                            color:
-                                const Color(0xFF3B82F6).withValues(alpha: 0.3)),
+                            color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
                       ),
                       child: Text(hostelName,
                           style: const TextStyle(
@@ -228,13 +231,13 @@ class _StudentHostelScreenState extends State<StudentHostelScreen>
                               fontSize: 11,
                               fontWeight: FontWeight.w600)),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                   ],
                   Text(
                     roomNumber != null ? 'Room $roomNumber' : 'My Hostel',
                     style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 32,
+                        fontSize: 30,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -1),
                   ),
@@ -250,7 +253,7 @@ class _StudentHostelScreenState extends State<StudentHostelScreen>
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
