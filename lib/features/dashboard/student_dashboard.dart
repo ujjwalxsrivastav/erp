@@ -5,8 +5,9 @@ import '../../services/student_service.dart';
 import '../../services/fees_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../hostel/screens/student_hostel_screen.dart';
+import '../transport/screens/student_transport_screen.dart';
 import '../../core/theme/app_theme.dart';
-import '../fees/student_fees_screen.dart';
+import '../finance/screens/student_fees_screen.dart';
 import '../student/student_marks_screen.dart';
 import '../student/student_subjects_screen.dart';
 import '../student/student_timetable.dart';
@@ -43,6 +44,7 @@ class _StudentDashboardState extends State<StudentDashboard>
   double _pendingFees = 0.0;
   bool _feesLoading = true;
   bool _hasHostel = false;
+  bool _hasTransport = false;
   List<Map<String, dynamic>> _subjectPerformance = [];
   Map<String, List<Map<String, dynamic>>> _examWisePerformance = {
     'End Semester': [],
@@ -246,8 +248,9 @@ class _StudentDashboardState extends State<StudentDashboard>
             // Set attendance (placeholder - you can fetch real attendance later)
             _attendancePercentage = 85.0; // TODO: Fetch from attendance table
 
-            // Check for hostel
+            // Check for hostel & transport
             _checkHostelStatus(username);
+            _checkTransportStatus(username);
           });
         }
       } else {
@@ -274,6 +277,31 @@ class _StudentDashboardState extends State<StudentDashboard>
       }
     } catch (e) {
       print('Error checking hostel status: $e');
+    }
+  }
+
+  Future<void> _checkTransportStatus(String studentId) async {
+    try {
+      // Check if student opted for transport (via admission form or student_transport_requests)
+      final transportRecord = await Supabase.instance.client
+          .from('student_transport_requests')
+          .select()
+          .eq('student_id', studentId)
+          .eq('is_active', true)
+          .maybeSingle();
+
+      if (mounted) {
+        setState(() {
+          _hasTransport = transportRecord != null;
+        });
+      }
+    } catch (e) {
+      // Table might not exist yet, that's ok — also show transport for all students
+      if (mounted) {
+        setState(() {
+          _hasTransport = true; // Show transport for all students
+        });
+      }
     }
   }
 
@@ -595,7 +623,9 @@ class _StudentDashboardState extends State<StudentDashboard>
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
-                                        const StudentFeesScreen(),
+                                        StudentFeesScreen(
+                                          studentId: _studentData?['student_id'] ?? '',
+                                        ),
                                   ),
                                 );
                               },
@@ -687,7 +717,9 @@ class _StudentDashboardState extends State<StudentDashboard>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const StudentFeesScreen(),
+                              builder: (context) => StudentFeesScreen(
+                                studentId: _studentData?['student_id'] ?? '',
+                              ),
                             ),
                           );
                         },
@@ -746,6 +778,24 @@ class _StudentDashboardState extends State<StudentDashboard>
                             }
                           },
                         ),
+                      _QuickActionCard(
+                        icon: Icons.directions_bus_outlined,
+                        label: "Transport",
+                        color: const Color(0xFF0369A1),
+                        onTap: () {
+                          if (_studentData != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => StudentTransportScreen(
+                                  studentId: _studentData!['student_id'] ?? '',
+                                  studentName: _studentData!['name'] ?? 'Student',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
                     ],
                   ),
 

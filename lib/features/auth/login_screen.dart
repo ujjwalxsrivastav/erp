@@ -103,6 +103,12 @@ class _LoginScreenState extends State<LoginScreen>
           case 'transport_officer':
             context.go('/transport-dashboard');
             break;
+          case 'conductor':
+            context.go('/conductor-dashboard');
+            break;
+          case 'accountant':
+            context.go('/accountant-dashboard');
+            break;
         }
       } else {
         _showError(result['message'] ?? 'Login failed');
@@ -355,6 +361,8 @@ class _LoginScreenState extends State<LoginScreen>
           _buildCredentialRow('HOD', 'hod1', const Color(0xFF0891B2)),
           _buildCredentialRow('Warden', 'warden1', const Color(0xFF1E293B)),
           _buildCredentialRow('Transport', 'transportofficer1', const Color(0xFF0C4A6E)),
+          _buildCredentialRow('Conductor', 'conductor1', const Color(0xFFD97706)),
+          _buildCredentialRow('Accountant', 'accountant1', const Color(0xFF8B5CF6)),
         ],
       ),
     );

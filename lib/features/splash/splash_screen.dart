@@ -60,6 +60,12 @@ class _SplashScreenState extends State<SplashScreen> {
             case 'transport_officer':
               context.go('/transport-dashboard');
               break;
+            case 'conductor':
+              context.go('/conductor-dashboard');
+              break;
+            case 'accountant':
+              context.go('/accountant-dashboard');
+              break;
             default:
               context.go('/login');
           }

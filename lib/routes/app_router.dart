@@ -38,6 +38,11 @@ import '../features/hostel/screens/warden_dashboard.dart';
 import '../features/hostel/screens/student_hostel_screen.dart';
 // Transport Module imports
 import '../features/transport/screens/transport_dashboard.dart';
+import '../features/transport/screens/student_transport_screen.dart';
+import '../features/transport/screens/conductor_dashboard.dart';
+import '../features/transport/screens/conductor_attendance_screen.dart';
+// Finance Module imports
+import '../features/finance/screens/accountant_dashboard.dart';
 
 final router = GoRouter(
   routes: [
@@ -224,6 +229,35 @@ final router = GoRouter(
     GoRoute(
       path: '/transport-dashboard',
       builder: (context, state) => const TransportDashboard(),
+    ),
+    GoRoute(
+      path: '/student/transport',
+      builder: (context, state) {
+        final studentId = state.uri.queryParameters['studentId'] ?? '';
+        final studentName = state.uri.queryParameters['studentName'] ?? 'Student';
+        return StudentTransportScreen(studentId: studentId, studentName: studentName);
+      },
+    ),
+    GoRoute(
+      path: '/conductor-dashboard',
+      builder: (context, state) => const ConductorDashboard(),
+    ),
+    GoRoute(
+      path: '/conductor-attendance',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>? ?? {};
+        return ConductorAttendanceScreen(
+          bus: extra['bus'] ?? {},
+          conductorUsername: extra['conductorUsername'] ?? '',
+        );
+      },
+    ),
+    // ============================================================================
+    // FINANCE MODULE ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/accountant-dashboard',
+      builder: (context, state) => const AccountantDashboard(),
     ),
   ],
 );
