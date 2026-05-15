@@ -83,7 +83,7 @@ class _ConductorDashboardState extends State<ConductorDashboard>
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: type,
+                initialValue: type,
                 dropdownColor: const Color(0xFF111827),
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(

@@ -334,7 +334,7 @@ class _ConductorAttendanceScreenState extends State<ConductorAttendanceScreen> {
         subtitle: Text(id, style: const TextStyle(color: Colors.white54, fontSize: 12)),
         trailing: Switch(
           value: isPresent,
-          activeColor: const Color(0xFF10B981),
+          activeThumbColor: const Color(0xFF10B981),
           inactiveThumbColor: const Color(0xFFEF4444),
           inactiveTrackColor: const Color(0xFFEF4444).withOpacity(0.3),
           onChanged: _selectedDate.isAfter(DateTime.now()) ? null : (val) => _toggleStudent(id, val),

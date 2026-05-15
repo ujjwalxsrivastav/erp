@@ -144,7 +144,7 @@ class _ManageFeesScreenState extends State<ManageFeesScreen> {
                                   horizontal: 16, vertical: 12),
                             ),
                             hint: const Text('Choose a department...'),
-                            value: _selectedDepartment,
+                            initialValue: _selectedDepartment,
                             items: _departments.map((dept) {
                               return DropdownMenuItem<String>(
                                 value: dept,
@@ -303,7 +303,7 @@ class _ManageFeesScreenState extends State<ManageFeesScreen> {
                                       scrollDirection: Axis.horizontal,
                                       child: DataTable(
                                         headingRowColor:
-                                            MaterialStateProperty.all(Colors.grey.shade50),
+                                            WidgetStateProperty.all(Colors.grey.shade50),
                                         columns: const [
                                           DataColumn(label: Text('Fee Type')),
                                           DataColumn(label: Text('Amount')),

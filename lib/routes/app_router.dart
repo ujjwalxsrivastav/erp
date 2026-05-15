@@ -43,6 +43,15 @@ import '../features/transport/screens/conductor_dashboard.dart';
 import '../features/transport/screens/conductor_attendance_screen.dart';
 // Finance Module imports
 import '../features/finance/screens/accountant_dashboard.dart';
+import '../features/finance/screens/fee_head_management_screen.dart';
+import '../features/finance/screens/chart_of_accounts_screen.dart';
+import '../features/finance/screens/journal_entry_screen.dart';
+import '../features/finance/screens/receipt_management_screen.dart';
+import '../features/finance/screens/student_ledger_screen.dart';
+import '../features/finance/screens/scholarship_management_screen.dart';
+import '../features/finance/screens/financial_reports_screen.dart';
+import '../features/finance/screens/audit_log_screen.dart';
+import '../features/finance/screens/financial_year_screen.dart';
 
 final router = GoRouter(
   routes: [
@@ -258,6 +267,42 @@ final router = GoRouter(
     GoRoute(
       path: '/accountant-dashboard',
       builder: (context, state) => const AccountantDashboard(),
+    ),
+    GoRoute(
+      path: '/finance/fee-heads',
+      builder: (context, state) => const FeeHeadManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/chart-of-accounts',
+      builder: (context, state) => const ChartOfAccountsScreen(),
+    ),
+    GoRoute(
+      path: '/finance/journal-entries',
+      builder: (context, state) => const JournalEntryScreen(),
+    ),
+    GoRoute(
+      path: '/finance/receipts',
+      builder: (context, state) => const ReceiptManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/student-ledger',
+      builder: (context, state) => const StudentLedgerScreen(),
+    ),
+    GoRoute(
+      path: '/finance/scholarships',
+      builder: (context, state) => const ScholarshipManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/reports',
+      builder: (context, state) => const FinancialReportsScreen(),
+    ),
+    GoRoute(
+      path: '/finance/audit-logs',
+      builder: (context, state) => const AuditLogScreen(),
+    ),
+    GoRoute(
+      path: '/finance/financial-year',
+      builder: (context, state) => const FinancialYearScreen(),
     ),
   ],
 );
