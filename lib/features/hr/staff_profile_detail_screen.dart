@@ -141,7 +141,7 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
 
   Widget _buildHeader() {
     return SliverAppBar(
-      expandedHeight: 280,
+      expandedHeight: 320,
       floating: false,
       pinned: true,
       elevation: 0,
@@ -180,14 +180,14 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
               ),
               // Content
               Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     // Profile Photo
                     Container(
-                      width: 100,
-                      height: 100,
+                      width: 88,
+                      height: 88,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
@@ -212,13 +212,13 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
                               .toUpperCase(),
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 42,
+                            fontSize: 36,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
 
                     // Name
                     Text(
@@ -231,7 +231,7 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
 
                     // Role & Department
                     Text(
@@ -243,7 +243,7 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
 
                     // Employee ID
                     Container(
@@ -264,7 +264,7 @@ class _StaffProfileDetailScreenState extends State<StaffProfileDetailScreen>
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
 
                     // Quick Actions
                     Row(
