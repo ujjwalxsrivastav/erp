@@ -415,6 +415,7 @@ class _AccountantDashboardState extends State<AccountantDashboard> with TickerPr
       {'icon': Icons.account_balance_wallet_rounded, 'label': 'Budgets', 'color': const Color(0xFF00CEC9), 'route': '/finance/budgets'},
       {'icon': Icons.shopping_cart_rounded, 'label': 'Purchase (P2P)', 'color': const Color(0xFF6C5CE7), 'route': '/finance/purchase'},
       {'icon': Icons.science_rounded, 'label': 'Research Grants', 'color': const Color(0xFFFDCB6E), 'route': '/finance/grants'},
+      {'icon': Icons.insights_rounded, 'label': 'Fee Insights', 'color': const Color(0xFFFD79A8), 'route': '/finance/fee-insights'},
     ];
     return Container(
       padding: const EdgeInsets.all(20),

@@ -516,6 +516,18 @@ class _AdminDashboardState extends State<AdminDashboard>
                       color: const Color(0xFFDC2626),
                       onTap: () => context.push('/admin/grievances'),
                     ),
+                    _ManagementCard(
+                      icon: Icons.manage_accounts,
+                      label: "Manage Users",
+                      color: const Color(0xFF2563EB),
+                      onTap: () => context.push('/admin/manage-users'),
+                    ),
+                    _ManagementCard(
+                      icon: Icons.domain,
+                      label: "Institute Setup",
+                      color: const Color(0xFF7C3AED),
+                      onTap: () => context.push('/admin/institute-setup'),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 28),

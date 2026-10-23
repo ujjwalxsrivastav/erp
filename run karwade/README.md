@@ -9,6 +9,10 @@ Saari files idempotent hain (dobara run karne par error nahi ayega).
 | 2 | `02_admin_nodues_certificates.sql` | Admin: nodues_requests, nodues_clearances, certificate_requests, grievance_tickets |
 | 3 | `03_hr_recruitment_appraisal_exit.sql` | HR: job_postings, job_applications, appraisal_forms, employee_exits, exit_nodues |
 | 4 | `04_finance_budget_p2p_grants.sql` | Finance: purchase_indents, purchase_orders, goods_receipts, vendor_bills, research_grants, grant_expenses |
+| 5 | `05_teacher_lifecycle.sql` | Teacher lifecycle: interview_rounds, recruitment_events, offer_letters, employee_onboarding, teacher_subject_competency, subject_allotments (+ job_applications columns) |
+| 6 | `06_superadmin_setup.sql` | Superadmin: departments, designations, academic_years, institute_settings |
+| 7 | `07_student_admission.sql` | Admission: admission_applications |
+| 8 | `08_payroll_runs.sql` | Payroll: payroll_runs, payslips |
 
 ## Note
 - `04` file ke Budget screens purani `sql_migrations/27_enterprise_finance_phase1.sql`

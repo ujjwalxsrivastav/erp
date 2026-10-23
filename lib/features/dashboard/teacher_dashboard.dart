@@ -7,6 +7,7 @@ import '../leave/teacher_leave_apply_screen.dart';
 import '../leave/holiday_calendar_screen.dart';
 import '../teacher/teacher_payroll_screen.dart';
 import '../teacher/teacher_events_screen.dart';
+import '../hr/screens/my_payslips_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -426,6 +427,52 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
                           SizedBox(width: 8),
                           Text(
                             'My Payroll',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // My Payslips Button
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MyPayslipsScreen(
+                            username: _teacherData?['teacher_id'] ?? '',
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0D9488), Color(0xFF0F766E)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0D9488).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.receipt_long, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'My Payslips',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,

@@ -6,6 +6,7 @@ import '../../services/arrangement_service.dart';
 import '../hod/manage_classes_screen.dart';
 import '../hod/hod_events_screen.dart';
 import '../hod/arrangement_screen.dart';
+import '../hr/screens/subject_allotment_screen.dart';
 
 class HODDashboard extends StatefulWidget {
   const HODDashboard({super.key});
@@ -545,6 +546,20 @@ class _HODDashboardState extends State<HODDashboard>
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => const HODEventsScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          _QuickActionCard(
+                            icon: Icons.menu_book_outlined,
+                            label: "Subject Allotment",
+                            color: const Color(0xFF00897B),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const SubjectAllotmentScreen(),
                                 ),
                               );
                             },

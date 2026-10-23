@@ -727,6 +727,38 @@ class _DeanDashboardState extends State<DeanDashboard>
           onTap: () => context.push('/transport-management'),
           count: 'Opted: 0',
         ),
+        const SizedBox(height: 32),
+        const Text(
+          'Admissions',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Review admission applications and log new enquiries.',
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 24),
+        _buildFacilityCard(
+          title: 'Admission Review',
+          subtitle: 'Approve applications and enroll students',
+          icon: Icons.fact_check,
+          color: Colors.blue,
+          onTap: () => context.push('/admissions/review'),
+          count: '',
+        ),
+        const SizedBox(height: 16),
+        _buildFacilityCard(
+          title: 'New Enquiry',
+          subtitle: 'Log a walk-in / phone admission enquiry',
+          icon: Icons.person_add_alt,
+          color: Colors.orange,
+          onTap: () => context.push('/leads/capture-form'),
+          count: '',
+        ),
       ],
     );
   }

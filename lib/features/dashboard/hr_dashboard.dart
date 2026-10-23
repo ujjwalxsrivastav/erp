@@ -11,6 +11,9 @@ import '../leave/hr_leave_requests_screen.dart';
 import '../hr/screens/recruitment_screen.dart';
 import '../hr/screens/appraisal_screen.dart';
 import '../hr/screens/exit_management_screen.dart';
+import '../hr/screens/hiring_pipeline_screen.dart';
+import '../hr/screens/onboarding_screen.dart';
+import '../hr/screens/payroll_runs_screen.dart';
 
 class HRDashboard extends StatefulWidget {
   const HRDashboard({super.key});
@@ -496,6 +499,46 @@ class _HRDashboardState extends State<HRDashboard>
                           context,
                           MaterialPageRoute(
                             builder: (context) => const ExitManagementScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _HRManagementCard(
+                      icon: Icons.account_tree,
+                      label: "Hiring Pipeline",
+                      color: const Color(0xFF0891B2),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HiringPipelineScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _HRManagementCard(
+                      icon: Icons.badge,
+                      label: "Onboarding",
+                      color: const Color(0xFF059669),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const EmployeeOnboardingScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _HRManagementCard(
+                      icon: Icons.payments,
+                      label: "Payroll Runs",
+                      color: const Color(0xFF7C3AED),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PayrollRunsScreen(),
                           ),
                         );
                       },

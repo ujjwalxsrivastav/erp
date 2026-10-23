@@ -72,6 +72,21 @@ import '../features/hr/screens/exit_management_screen.dart';
 import '../features/finance/screens/budget_management_screen.dart';
 import '../features/finance/screens/purchase_management_screen.dart';
 import '../features/finance/screens/grant_management_screen.dart';
+// Teacher Lifecycle + Payroll imports
+import '../features/hr/screens/hiring_pipeline_screen.dart';
+import '../features/hr/screens/onboarding_screen.dart';
+import '../features/hr/screens/subject_allotment_screen.dart';
+import '../features/hr/screens/payroll_runs_screen.dart';
+import '../features/hr/screens/my_payslips_screen.dart';
+// Superadmin + User Management imports
+import '../features/admin/screens/institute_setup_screen.dart';
+import '../features/admin/screens/manage_users_screen.dart';
+// Fee Insights import
+import '../features/finance/screens/fee_insights_screen.dart';
+// Admission Flow imports
+import '../features/leads/screens/lead_capture_form_screen.dart';
+import '../features/leads/screens/admission_form_screen.dart';
+import '../features/leads/screens/admission_review_screen.dart';
 
 final router = GoRouter(
   routes: [
@@ -402,6 +417,66 @@ final router = GoRouter(
     GoRoute(
       path: '/hr/exit-management',
       builder: (context, state) => const ExitManagementScreen(),
+    ),
+    // ============================================================================
+    // TEACHER LIFECYCLE + PAYROLL ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/hr/hiring-pipeline',
+      builder: (context, state) => const HiringPipelineScreen(),
+    ),
+    GoRoute(
+      path: '/hr/onboarding',
+      builder: (context, state) => const EmployeeOnboardingScreen(),
+    ),
+    GoRoute(
+      path: '/hr/payroll-runs',
+      builder: (context, state) => const PayrollRunsScreen(),
+    ),
+    GoRoute(
+      path: '/hod/subject-allotment',
+      builder: (context, state) => const SubjectAllotmentScreen(),
+    ),
+    GoRoute(
+      path: '/teacher/my-payslips',
+      builder: (context, state) {
+        final username = state.uri.queryParameters['username'] ?? '';
+        return MyPayslipsScreen(username: username);
+      },
+    ),
+    // ============================================================================
+    // SUPERADMIN + USER MANAGEMENT ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/admin/institute-setup',
+      builder: (context, state) => const InstituteSetupScreen(),
+    ),
+    GoRoute(
+      path: '/admin/manage-users',
+      builder: (context, state) => const ManageUsersScreen(),
+    ),
+    GoRoute(
+      path: '/finance/fee-insights',
+      builder: (context, state) => const FeeInsightsScreen(),
+    ),
+    // ============================================================================
+    // ADMISSION FLOW ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/leads/capture-form',
+      builder: (context, state) => const LeadCaptureFormScreen(),
+    ),
+    GoRoute(
+      path: '/admissions/apply',
+      builder: (context, state) {
+        final leadId = state.uri.queryParameters['leadId'];
+        final leadName = state.uri.queryParameters['leadName'];
+        return AdmissionFormScreen(leadId: leadId, leadName: leadName);
+      },
+    ),
+    GoRoute(
+      path: '/admissions/review',
+      builder: (context, state) => const AdmissionReviewScreen(),
     ),
   ],
 );
