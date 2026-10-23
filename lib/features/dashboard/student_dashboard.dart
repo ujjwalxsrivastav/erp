@@ -1609,6 +1609,24 @@ class _StudentDashboardState extends State<StudentDashboard>
                     },
                   ),
                   _buildSleekSidebarItem(
+                    Icons.badge_outlined,
+                    "Hall Ticket",
+                    () {
+                      Navigator.pop(context);
+                      context.push(
+                          '/student/hall-ticket?studentId=${_studentData?['student_id'] ?? ''}');
+                    },
+                  ),
+                  _buildSleekSidebarItem(
+                    Icons.assessment_outlined,
+                    "My Results",
+                    () {
+                      Navigator.pop(context);
+                      context.push(
+                          '/student/results?studentId=${_studentData?['student_id'] ?? ''}');
+                    },
+                  ),
+                  _buildSleekSidebarItem(
                     Icons.local_library_outlined,
                     "Library",
                     () {

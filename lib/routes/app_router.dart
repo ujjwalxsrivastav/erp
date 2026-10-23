@@ -52,6 +52,26 @@ import '../features/finance/screens/scholarship_management_screen.dart';
 import '../features/finance/screens/financial_reports_screen.dart';
 import '../features/finance/screens/audit_log_screen.dart';
 import '../features/finance/screens/financial_year_screen.dart';
+// Examination (COE) Module imports
+import '../features/examination/screens/coe_dashboard.dart';
+import '../features/examination/screens/exam_sessions_screen.dart';
+import '../features/examination/screens/result_management_screen.dart';
+import '../features/examination/screens/tabulation_screen.dart';
+import '../features/examination/screens/revaluation_screen.dart';
+import '../features/examination/screens/student_hall_ticket_screen.dart';
+import '../features/examination/screens/student_result_screen.dart';
+// Admin Workflow imports (No-Dues, Certificates, Grievance)
+import '../features/admin/screens/nodues_management_screen.dart';
+import '../features/admin/screens/certificate_management_screen.dart';
+import '../features/admin/screens/grievance_management_screen.dart';
+// HR Workflow imports (Recruitment, Appraisal, Exit)
+import '../features/hr/screens/recruitment_screen.dart';
+import '../features/hr/screens/appraisal_screen.dart';
+import '../features/hr/screens/exit_management_screen.dart';
+// Finance Extension imports (Budget, Purchase, Grants)
+import '../features/finance/screens/budget_management_screen.dart';
+import '../features/finance/screens/purchase_management_screen.dart';
+import '../features/finance/screens/grant_management_screen.dart';
 
 final router = GoRouter(
   routes: [
@@ -303,6 +323,85 @@ final router = GoRouter(
     GoRoute(
       path: '/finance/financial-year',
       builder: (context, state) => const FinancialYearScreen(),
+    ),
+    GoRoute(
+      path: '/finance/budgets',
+      builder: (context, state) => const BudgetManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/purchase',
+      builder: (context, state) => const PurchaseManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/grants',
+      builder: (context, state) => const GrantManagementScreen(),
+    ),
+    // ============================================================================
+    // EXAMINATION (COE) MODULE ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/examination',
+      builder: (context, state) => const COEDashboard(),
+    ),
+    GoRoute(
+      path: '/examination/sessions',
+      builder: (context, state) => const ExamSessionsScreen(),
+    ),
+    GoRoute(
+      path: '/examination/results',
+      builder: (context, state) => const ResultManagementScreen(),
+    ),
+    GoRoute(
+      path: '/examination/tabulation',
+      builder: (context, state) => const TabulationScreen(),
+    ),
+    GoRoute(
+      path: '/examination/revaluation',
+      builder: (context, state) => const RevaluationScreen(),
+    ),
+    GoRoute(
+      path: '/student/hall-ticket',
+      builder: (context, state) {
+        final studentId = state.uri.queryParameters['studentId'] ?? '';
+        return StudentHallTicketScreen(studentId: studentId);
+      },
+    ),
+    GoRoute(
+      path: '/student/results',
+      builder: (context, state) {
+        final studentId = state.uri.queryParameters['studentId'] ?? '';
+        return StudentResultScreen(studentId: studentId);
+      },
+    ),
+    // ============================================================================
+    // ADMIN WORKFLOW ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/admin/nodues',
+      builder: (context, state) => const NoDuesManagementScreen(),
+    ),
+    GoRoute(
+      path: '/admin/certificates',
+      builder: (context, state) => const CertificateManagementScreen(),
+    ),
+    GoRoute(
+      path: '/admin/grievances',
+      builder: (context, state) => const GrievanceManagementScreen(),
+    ),
+    // ============================================================================
+    // HR WORKFLOW ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/hr/recruitment',
+      builder: (context, state) => const RecruitmentScreen(),
+    ),
+    GoRoute(
+      path: '/hr/appraisal',
+      builder: (context, state) => const AppraisalScreen(),
+    ),
+    GoRoute(
+      path: '/hr/exit-management',
+      builder: (context, state) => const ExitManagementScreen(),
     ),
   ],
 );

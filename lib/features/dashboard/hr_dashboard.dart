@@ -8,6 +8,9 @@ import '../hr/hr_payroll_management_screen.dart';
 import '../leave/hr_holiday_controls_screen.dart';
 import '../leave/holiday_calendar_screen.dart';
 import '../leave/hr_leave_requests_screen.dart';
+import '../hr/screens/recruitment_screen.dart';
+import '../hr/screens/appraisal_screen.dart';
+import '../hr/screens/exit_management_screen.dart';
 
 class HRDashboard extends StatefulWidget {
   const HRDashboard({super.key});
@@ -454,6 +457,45 @@ class _HRDashboardState extends State<HRDashboard>
                             builder: (context) => const HolidayCalendarScreen(
                               isHRMode: true,
                             ),
+                          ),
+                        );
+                      },
+                    ),
+                    _HRManagementCard(
+                      icon: Icons.work_outline,
+                      label: "Recruitment",
+                      color: const Color(0xFF0EA5E9),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const RecruitmentScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _HRManagementCard(
+                      icon: Icons.star_rate,
+                      label: "Appraisal (PBAS)",
+                      color: const Color(0xFF7C3AED),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AppraisalScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _HRManagementCard(
+                      icon: Icons.exit_to_app,
+                      label: "Exit & FnF",
+                      color: const Color(0xFFDC2626),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ExitManagementScreen(),
                           ),
                         );
                       },
