@@ -70,8 +70,16 @@ CREATE TABLE IF NOT EXISTS academic_years (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Reconcile a pre-existing legacy academic_years table (an older
+-- experiment with a different shape may already exist in the DB):
+-- add the columns this module needs, without touching existing data.
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS label TEXT;
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS end_date DATE;
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS is_current BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
 COMMENT ON TABLE academic_years IS 'SuperAdmin master: academic years (label like 2026-27). Exactly one row should have is_current = true; the app enforces this when switching.';
-COMMENT ON COLUMN academic_years.label IS 'Display label, e.g. 2026-27.';
 
 -- ------------------------------------------------------------
 -- 4. INSTITUTE SETTINGS (key/value store)
