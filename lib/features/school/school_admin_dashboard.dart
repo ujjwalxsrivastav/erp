@@ -394,6 +394,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
       {'icon': Icons.how_to_reg_outlined, 'label': 'Attendance', 'color': const Color(0xFF10B981), 'route': '/school/attendance'},
       {'icon': Icons.local_library_outlined, 'label': 'Library', 'color': const Color(0xFF7C3AED), 'route': '/school/library'},
       {'icon': Icons.card_membership_outlined, 'label': 'Certificates', 'color': const Color(0xFF059669), 'route': '/school/certificates'},
+      {'icon': Icons.trending_up_rounded, 'label': 'Promotion', 'color': const Color(0xFF0D9488), 'route': '/school/promotion'},
       {'icon': Icons.assignment_outlined, 'label': 'Homework', 'color': const Color(0xFFEC4899), 'route': '/school/homework'},
       {'icon': Icons.manage_accounts_outlined, 'label': 'Manage Users', 'color': const Color(0xFF6366F1), 'route': '/admin/manage-users'},
     ];
@@ -614,6 +615,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
                   _buildDrawerItem(Icons.how_to_reg, 'Attendance', () => context.go('/school/attendance')),
                   _buildDrawerItem(Icons.local_library_outlined, 'Library', () => context.go('/school/library')),
                   _buildDrawerItem(Icons.card_membership_outlined, 'Certificates', () => context.go('/school/certificates')),
+                  _buildDrawerItem(Icons.trending_up_rounded, 'Promotion', () => context.go('/school/promotion')),
                   _buildDrawerItem(Icons.assignment_outlined, 'Homework', () => context.go('/school/homework')),
                   _buildDrawerItem(Icons.analytics_outlined, 'Reports Hub', () => context.go('/school/reports')),
                   _buildDrawerItem(Icons.manage_accounts_outlined, 'Manage Users', () => context.go('/admin/manage-users')),

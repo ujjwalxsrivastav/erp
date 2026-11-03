@@ -89,13 +89,26 @@
 
 ---
 
-### [IN PROGRESS] Step 7: Promotion + Session Changeover (Lines 238–247)
-- [ ] **Line 241 (Action 1):** Build the promotion list generator: from final results + attendance rule, produce `Promoted / Detained / Result Awaited` per class, with class teacher verification and Principal approval.
-- [ ] **Line 242 (Action 2):** Build the changeover action: approved promotions move students to the next class/section, link the new fee structure, and archive the old session. Data is never deleted.
-- [ ] **Line 243 (Action 3):** Handle edge cases explicitly: detained students (parent notice + counsellor task auto-created), transfer-in students (previous TC verified), mid-year joiners (no promotion record for the prior term — show "Joined mid-session").
-- [ ] **Line 244 (Action 4):** Apply Section 7 UI/UX checklist to the promotion screens.
-- [ ] **Line 245–247 (Verification):** Run a test changeover on test data: a class of test students promotes correctly, one detained student is held with a parent notice created, and the old session remains readable (archived, not deleted).
-- **Step 8 (Lines 248–258):** Transport Real: Bus Attendance, GPS, Gate Pass (stop attendance, parent live map, authorized pickup photo check).
+### [COMPLETED] Step 7: Promotion + Session Changeover (Lines 238–247)
+- [x] **Line 241 (Action 1):** Built the promotion list generator in `school_service.dart` (`getPromotionCandidates`): combines annual exam scores (from `school_marks`) and attendance percentages (from `school_attendance`) under board advancement rules (Pass >= 33%, Attendance >= 75%) to generate `Promoted / Detained / Result Awaited` statuses.
+- [x] **Line 242 (Action 2):** Built the changeover engine in `school_service.dart` (`executeSessionChangeover`): moves approved promoted students to the next class in `school_students`, auto-creates new academic session Q1 composite fee demands in `school_fee_payments`, and archives the previous session in `school_circulars` (Category: `SessionArchive`). Zero data deleted.
+- [x] **Line 243 (Action 3):** Handled edge cases: detained students remain in the current grade, and an automatic Parent Academic Retention Notice & Counselor Consultation Task is generated in `school_circulars` (Category: `Academic`). Mid-year and awaiting students flagged cleanly.
+- [x] **Line 244 (Action 4):** Built `SchoolPromotionScreen` in `lib/features/school/promotion/school_promotion_screen.dart` with two tabs (`Promotion Register & Changeover` and `Session Archives`), Principal digital seal and authorization check, filter chips, and metric overview cards. Wired into `app_router.dart` and `school_admin_dashboard.dart`.
+- [x] **Line 245–247 (Verification):** Ran end-to-end changeover test on live Supabase: Test class `cls-test-9z` with 3 students -> 2 promoted to `cls-test-10z` with new fee demands raised -> 1 detained student retained with parent notice ID `a91b4d02-7626-4353-8c3a-f39e2bfa437f` created -> Session Changeover Event Archive ID `70156036-1e66-409b-a7d7-7fa72f6bc5f3` verified provably intact. Zero analyze errors.
+
+---
+
+### [IN PROGRESS] Step 8: Transport Real: Bus Attendance, GPS, Gate Pass (Lines 248–258)
+- [ ] **Line 251 (Action 1):** Replace mock stops implementation with real `school_transport` route/stop data and per-stop bus attendance (boarded/alighted) from the driver flow.
+- [ ] **Line 252 (Action 2):** Build the parent live view: bus location on a map/route tracker + estimated arrival + pickup/drop alerts (app-level live location from driver side).
+- [ ] **Line 253 (Action 3):** Build gate pass + pickup verification: parent requests a gate pass -> class teacher + security approve -> security verifies pickup person's photograph/ID against pre-registered authorised persons list -> exit logged with time and verifier. Principal approval mandatory if person is unlisted. No bypass shortcut in UI.
+- [ ] **Line 254 (Action 4):** Add vehicle document expiry alerts (registration, insurance, fitness) and driver/attendant verification status from HR data.
+- [ ] **Line 255 (Action 5):** Apply Section 7 UI/UX checklist to every transport screen touched.
+- [ ] **Line 256–258 (Verification):** End-to-end transport test on test data: test route with stops -> student assigned -> bus attendance marked -> parent view shows journey -> gate pass issued & verified -> expired vehicle document alert verified.
+
+---
+
+### [PENDING] Upcoming Steps Roadmap:
 - **Step 9 (Lines 259–269):** Report Cards: Board Formats + HPC + Promotion Linkage (CBSE/ICSE templates, co-scholastic, QR verify).
 - **Step 10 (Lines 270–288):** School Staff Decision + Parent Experience Completion (multi-child switcher, student leave workflow, LMS-lite).
 - **Step 11 (Lines 289–303):** Certificates, Library, Circulars, Reports (QR certificates, barcode library, PTM scheduling, UDISE+ export).

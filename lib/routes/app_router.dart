@@ -106,6 +106,7 @@ import '../features/school/admissions/admissions_screen.dart';
 import '../features/school/reports/school_reports_screen.dart';
 import '../features/school/library/school_library_screen.dart';
 import '../features/school/certificates/school_certificates_screen.dart';
+import '../features/school/promotion/school_promotion_screen.dart';
 
 final router = GoRouter(
   routes: [
@@ -277,6 +278,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/certificates',
       builder: (context, state) => const SchoolCertificatesScreen(),
+    ),
+    GoRoute(
+      path: '/school/promotion',
+      builder: (context, state) => const SchoolPromotionScreen(),
     ),
 
     // ===== SCHOOL - PARENT =====

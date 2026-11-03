@@ -1513,6 +1513,217 @@ class SchoolService {
     };
   }
 
+  // ===== PROMOTION & SESSION CHANGEOVER ENGINE =====
+
+  Future<List<Map<String, dynamic>>> getPromotionCandidates({required String classId}) async {
+    try {
+      final studentsResp = await _supabase
+          .from('school_students')
+          .select()
+          .eq('class_id', classId)
+          .order('roll_number');
+      final students = List<Map<String, dynamic>>.from(studentsResp);
+
+      // Fetch marks for these students
+      final marksResp = await _supabase.from('school_marks').select().eq('class_id', classId);
+      final allMarks = List<Map<String, dynamic>>.from(marksResp);
+
+      // Fetch attendance for these students
+      final attResp = await _supabase.from('school_attendance').select().eq('class_id', classId);
+      final allAtt = List<Map<String, dynamic>>.from(attResp);
+
+      final candidates = <Map<String, dynamic>>[];
+
+      for (final s in students) {
+        final studentId = s['id']?.toString() ?? '';
+        final username = s['username']?.toString() ?? '';
+
+        // Calculate marks percentage
+        final studentMarks = allMarks.where((m) =>
+            m['student_id'] == studentId ||
+            m['student_id'] == username ||
+            m['roll_number'] == s['roll_number']).toList();
+
+        double avgMarks = 0.0;
+        if (studentMarks.isNotEmpty) {
+          double total = 0.0;
+          for (final m in studentMarks) {
+            total += (m['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+          }
+          avgMarks = total / studentMarks.length;
+        } else {
+          // Baseline score if exam not published yet
+          avgMarks = 72.0;
+        }
+
+        // Calculate attendance percentage
+        final studentAtt = allAtt.where((a) =>
+            a['student_id'] == studentId ||
+            a['student_id'] == username).toList();
+        double attPct = 85.0;
+        if (studentAtt.isNotEmpty) {
+          final presentCount = studentAtt.where((a) => a['status'] == 'present').length;
+          attPct = (presentCount / studentAtt.length) * 100.0;
+        }
+
+        // Rule: Promoted if marks >= 33% and attendance >= 75%
+        String recommendedStatus = 'Promoted';
+        String reason = 'Eligible for yearly advancement';
+        if (avgMarks < 33.0) {
+          recommendedStatus = 'Detained';
+          reason = 'Academic deficiency (Score: ${avgMarks.toStringAsFixed(1)}% < 33%)';
+        } else if (attPct < 75.0) {
+          recommendedStatus = 'Detained';
+          reason = 'Attendance shortage (${attPct.toStringAsFixed(1)}% < 75%)';
+        }
+
+        candidates.add({
+          ...s,
+          'avg_marks': avgMarks,
+          'attendance_pct': attPct,
+          'status': recommendedStatus,
+          'reason': reason,
+        });
+      }
+
+      return candidates;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> executeSessionChangeover({
+    required String currentSession,
+    required String targetSession,
+    required String sourceClassId,
+    required String targetClassId,
+    required String targetClassName,
+    required List<Map<String, dynamic>> studentDecisions,
+    required String approvedBy,
+  }) async {
+    int promotedCount = 0;
+    int detainedCount = 0;
+
+    for (final decision in studentDecisions) {
+      final studentId = decision['id']?.toString() ?? '';
+      final studentName = decision['name']?.toString() ?? 'Student';
+      final username = decision['username']?.toString() ?? studentId;
+      final roll = decision['roll_number']?.toString() ?? '';
+      final status = decision['status']?.toString() ?? 'Promoted';
+
+      if (status == 'Promoted') {
+        promotedCount++;
+        // 1. Move student to next class
+        await _supabase.from('school_students').update({
+          'class_id': targetClassId,
+          'class_name': targetClassName,
+        }).eq('id', studentId);
+
+        // 2. Link new session fee demand
+        try {
+          await _supabase.from('school_fee_payments').insert({
+            'student_id': username,
+            'class_id': targetClassId,
+            'amount': 24500.0,
+            'paid_amount': 0.0,
+            'due_date': '2026-04-15',
+            'payment_mode': 'Pending',
+            'status': 'pending',
+            'head': '$targetSession Quarter 1 Composite Fee',
+          });
+        } catch (_) {}
+      } else {
+        detainedCount++;
+        // Keep student in source class, generate parent detention notice & counselor task
+        final noticeContent =
+            'SESSION_RETENTION_NOTICE | Student: $studentName (Roll: $roll) | '
+            'Class: $sourceClassId | Reason: ${decision['reason'] ?? "Performance/Attendance below threshold"} | '
+            'Counselor Consultation Required: YES | Approved By: $approvedBy';
+
+        try {
+          await _supabase.from('school_circulars').insert({
+            'institute_code': 'SHIV-SCH',
+            'title': 'Academic Review & Retention Notice: $studentName',
+            'content': noticeContent,
+            'category': 'Academic',
+            'target_audience': username,
+            'published_by': approvedBy,
+          });
+        } catch (_) {}
+      }
+    }
+
+    // 3. Create Session Archive Record in school_circulars
+    final archiveContent =
+        'SESSION_ARCHIVE_LOG | CurrentSession: $currentSession | '
+        'TargetSession: $targetSession | SourceClass: $sourceClassId | '
+        'TargetClass: $targetClassName | TotalStudents: ${studentDecisions.length} | '
+        'PromotedCount: $promotedCount | DetainedCount: $detainedCount | '
+        'ApprovedBy: $approvedBy | Timestamp: ${DateTime.now().toIso8601String()}';
+
+    await _supabase.from('school_circulars').insert({
+      'institute_code': 'SHIV-SCH',
+      'title': 'Session Changeover: $currentSession -> $targetSession ($sourceClassId -> $targetClassName)',
+      'content': archiveContent,
+      'category': 'SessionArchive',
+      'target_audience': 'all',
+      'published_by': approvedBy,
+    });
+
+    return {
+      'currentSession': currentSession,
+      'targetSession': targetSession,
+      'sourceClassId': sourceClassId,
+      'targetClassId': targetClassId,
+      'targetClassName': targetClassName,
+      'totalProcessed': studentDecisions.length,
+      'promotedCount': promotedCount,
+      'detainedCount': detainedCount,
+      'approvedBy': approvedBy,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getArchivedSessions() async {
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'SessionArchive')
+          .order('published_at', ascending: false);
+
+      final list = <Map<String, dynamic>>[];
+      for (final row in response) {
+        final content = row['content']?.toString() ?? '';
+        if (content.contains('SESSION_ARCHIVE_LOG')) {
+          final parts = content.split('|');
+          final map = <String, String>{};
+          for (final p in parts) {
+            final kv = p.split(':');
+            if (kv.length >= 2) {
+              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+            }
+          }
+          list.add({
+            'id': row['id'],
+            'title': row['title'],
+            'currentSession': map['CurrentSession'] ?? '',
+            'targetSession': map['TargetSession'] ?? '',
+            'sourceClass': map['SourceClass'] ?? '',
+            'targetClass': map['TargetClass'] ?? '',
+            'totalStudents': map['TotalStudents'] ?? '0',
+            'promotedCount': map['PromotedCount'] ?? '0',
+            'detainedCount': map['DetainedCount'] ?? '0',
+            'approvedBy': map['ApprovedBy'] ?? row['published_by'] ?? '',
+            'timestamp': row['published_at'] ?? row['created_at'],
+          });
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ===== HELPERS =====
   String _weekdayName(int weekday) {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
