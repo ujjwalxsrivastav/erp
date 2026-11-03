@@ -841,8 +841,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   }
 
   Widget _buildLeaveCard(Map<String, dynamic> l) {
-    final status = l['status']?.toString() ?? 'Pending Review';
+    final status = l['status']?.toString() ?? 'pending';
     final isApproved = status.toLowerCase().contains('approved');
+    final isRejected = status.toLowerCase().contains('rejected');
+    final statusColor = isApproved
+        ? const Color(0xFF059669)
+        : isRejected
+            ? const Color(0xFFDC2626)
+            : const Color(0xFFD97706);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -857,12 +863,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isApproved ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
+              color: isApproved
+                  ? const Color(0xFFECFDF5)
+                  : isRejected
+                      ? const Color(0xFFFEF2F2)
+                      : const Color(0xFFFEF3C7),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              isApproved ? Icons.check_circle : Icons.hourglass_top,
-              color: isApproved ? const Color(0xFF059669) : const Color(0xFFD97706),
+              isApproved
+                  ? Icons.check_circle
+                  : isRejected
+                      ? Icons.cancel
+                      : Icons.hourglass_top,
+              color: statusColor,
               size: 20,
             ),
           ),
@@ -885,15 +899,23 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: isApproved ? const Color(0xFFDCFCE7) : const Color(0xFFFEF9C3),
+              color: isApproved
+                  ? const Color(0xFFDCFCE7)
+                  : isRejected
+                      ? const Color(0xFFFEE2E2)
+                      : const Color(0xFFFEF9C3),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              isApproved ? 'Approved' : 'Pending',
+              isApproved
+                  ? 'Approved'
+                  : isRejected
+                      ? 'Rejected'
+                      : 'Pending',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: isApproved ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                color: statusColor,
               ),
             ),
           ),

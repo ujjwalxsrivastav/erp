@@ -2729,7 +2729,19 @@ class SchoolService {
       if (assigned.isNotEmpty) return assigned == teacherUsername;
 
       final leaveClassId = leave['class_id']?.toString() ?? '';
-      if (leaveClassId.isNotEmpty && classIds.contains(leaveClassId)) return true;
+      if (leaveClassId.isNotEmpty) {
+        if (classIds.contains(leaveClassId)) return true;
+        // Legacy rows may carry an app-level id such as 'cls-10a'.
+        final raw = leaveClassId.replaceFirst(
+            RegExp(r'^cls-', caseSensitive: false), '');
+        final match = RegExp(r'^(\d+)([a-zA-Z]?)$').firstMatch(raw);
+        if (match != null) {
+          final section = (match.group(2) ?? '').toLowerCase();
+          final derived =
+              'class ${match.group(1)}${section.isEmpty ? '' : '-$section'}';
+          if (classKeys.contains(derived)) return true;
+        }
+      }
 
       final className = (leave['class_name']?.toString() ?? '').toLowerCase();
       final section = (leave['section']?.toString() ?? '').toLowerCase();
