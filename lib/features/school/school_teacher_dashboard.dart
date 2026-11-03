@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
+import '../../services/school_service.dart';
 import '../../core/widgets/erp_stat_card.dart';
 import '../../core/widgets/erp_section_header.dart';
 
@@ -14,19 +15,20 @@ class SchoolTeacherDashboard extends StatefulWidget {
 class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
     with TickerProviderStateMixin {
   final _authService = AuthService();
+  final _schoolService = SchoolService();
   late AnimationController _fadeController;
 
   String _teacherName = 'Teacher';
-  final String _teacherClass = 'Class Teacher - 10A';
+  String _teacherClass = 'Class Teacher - 10A';
 
   // Stats
-  final int _totalStudents = 42;
-  final int _presentToday = 38;
-  final int _pendingAssignments = 5;
-  final int _upcomingClasses = 3;
+  int _totalStudents = 42;
+  int _presentToday = 38;
+  int _pendingAssignments = 5;
+  int _upcomingClasses = 3;
 
   // Today's classes
-  final List<Map<String, dynamic>> _todaySchedule = [
+  List<Map<String, dynamic>> _todaySchedule = [
     {'time': '08:00 - 09:00', 'subject': 'Mathematics', 'class': 'Class 10-A', 'room': 'Room 201'},
     {'time': '09:00 - 10:00', 'subject': 'Mathematics', 'class': 'Class 10-B', 'room': 'Room 301'},
     {'time': '11:00 - 12:00', 'subject': 'Mathematics', 'class': 'Class 9-A', 'room': 'Room 101'},
@@ -46,6 +48,20 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
         _teacherName = username ?? 'Teacher';
       });
     }
+
+    try {
+      final schedule = await _schoolService.getTeacherTimetable(username ?? '');
+      final pendingHw = await _schoolService.getPendingHomeworkToGrade(username ?? '');
+      if (mounted) {
+        setState(() {
+          if (schedule.isNotEmpty) {
+            _todaySchedule = schedule;
+            _upcomingClasses = schedule.length;
+          }
+          _pendingAssignments = pendingHw;
+        });
+      }
+    } catch (_) {}
   }
 
   @override

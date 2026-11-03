@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
+import '../../services/school_service.dart';
 import '../../core/widgets/erp_stat_card.dart';
 import '../../core/widgets/erp_section_header.dart';
 
@@ -16,11 +17,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
   final _authService = AuthService();
   late AnimationController _fadeController;
 
+  final _schoolService = SchoolService();
   String _adminName = 'Principal';
-  final int _totalStudents = 1250;
-  final int _totalTeachers = 68;
-  final int _totalClasses = 24;
-  final double _attendanceToday = 91.5;
+  int _totalStudents = 1250;
+  int _totalTeachers = 68;
+  int _totalClasses = 24;
+  double _attendanceToday = 91.5;
+  int _pendingFeesCount = 18;
+  bool _isLoadingStats = true;
 
   @override
   void initState() {
@@ -32,6 +36,22 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
   Future<void> _loadData() async {
     final username = await _authService.getCurrentUsername();
     if (mounted) setState(() => _adminName = username ?? 'Principal');
+
+    try {
+      final stats = await _schoolService.getSchoolStats(null);
+      if (mounted) {
+        setState(() {
+          _totalStudents = (stats['total_students'] as num?)?.toInt() ?? 1250;
+          _totalTeachers = (stats['total_teachers'] as num?)?.toInt() ?? 68;
+          _totalClasses = (stats['total_classes'] as num?)?.toInt() ?? 24;
+          _attendanceToday = (stats['attendance_today'] as num?)?.toDouble() ?? 91.5;
+          _pendingFeesCount = (stats['pending_fees_count'] as num?)?.toInt() ?? 18;
+          _isLoadingStats = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingStats = false);
+    }
   }
 
   @override
@@ -201,12 +221,15 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
 
   Widget _buildManagementModules() {
     final modules = [
+      {'icon': Icons.analytics_outlined, 'label': 'Reports Hub', 'color': const Color(0xFF7C3AED), 'route': '/school/reports'},
       {'icon': Icons.person_add_outlined, 'label': 'Admissions', 'color': const Color(0xFF3B82F6), 'route': '/school/admissions'},
       {'icon': Icons.campaign_outlined, 'label': 'Circulars', 'color': const Color(0xFF10B981), 'route': '/school/circulars'},
       {'icon': Icons.payment_outlined, 'label': 'Fees', 'color': const Color(0xFFF59E0B), 'route': '/school/fees'},
       {'icon': Icons.directions_bus_outlined, 'label': 'Transport', 'color': const Color(0xFF8B5CF6), 'route': '/school/transport'},
       {'icon': Icons.calendar_month_outlined, 'label': 'Timetable', 'color': const Color(0xFFFF6B6B), 'route': '/school/timetable'},
       {'icon': Icons.description_outlined, 'label': 'Report Cards', 'color': const Color(0xFF06B6D4), 'route': '/school/report-card'},
+      {'icon': Icons.how_to_reg_outlined, 'label': 'Attendance', 'color': const Color(0xFF10B981), 'route': '/school/attendance'},
+      {'icon': Icons.manage_accounts_outlined, 'label': 'Manage Users', 'color': const Color(0xFFEC4899), 'route': '/admin/manage-users'},
     ];
 
     return Column(
@@ -356,12 +379,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
               ),
               const Divider(color: Colors.white24),
               _buildDrawerItem(Icons.dashboard, 'Dashboard', () => Navigator.pop(context)),
+              _buildDrawerItem(Icons.analytics_outlined, 'Reports Hub', () => context.go('/school/reports')),
+              _buildDrawerItem(Icons.how_to_reg, 'Attendance', () => context.go('/school/attendance')),
               _buildDrawerItem(Icons.person_add_outlined, 'Admissions', () => context.go('/school/admissions')),
               _buildDrawerItem(Icons.payment_outlined, 'Fees', () => context.go('/school/fees')),
               _buildDrawerItem(Icons.campaign_outlined, 'Circulars', () => context.go('/school/circulars')),
               _buildDrawerItem(Icons.directions_bus_outlined, 'Transport', () => context.go('/school/transport')),
               _buildDrawerItem(Icons.description_outlined, 'Report Cards', () => context.go('/school/report-card')),
-              _buildDrawerItem(Icons.how_to_reg, 'Attendance', () => context.go('/school/attendance')),
+              _buildDrawerItem(Icons.manage_accounts_outlined, 'Manage Users', () => context.go('/admin/manage-users')),
               const Spacer(),
               const Divider(color: Colors.white24),
               _buildDrawerItem(Icons.logout, 'Logout', () async {

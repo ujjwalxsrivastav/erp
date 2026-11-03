@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/school_service.dart';
 import '../../../core/widgets/erp_stat_card.dart';
 import '../../../core/widgets/erp_section_header.dart';
 
@@ -14,24 +15,25 @@ class SchoolParentDashboard extends StatefulWidget {
 class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     with TickerProviderStateMixin {
   final _authService = AuthService();
+  final _schoolService = SchoolService();
   late AnimationController _fadeController;
 
   String _parentName = 'Parent';
-  final String _childName = 'Aarav Sharma';
-  final String _childClass = 'Class 9-A';
-  final String _admissionNo = 'SCH2024001';
+  String _childName = 'Aarav Sharma';
+  String _childClass = 'Class 10-A';
+  String _admissionNo = 'SCH2026001';
 
   // Child stats
-  final double _attendance = 92.0;
-  final String _pendingFees = '₹5,000';
-  final int _pendingHomework = 2;
-  final String _lastResult = 'A (85%)';
+  double _attendance = 94.2;
+  String _pendingFees = '₹0';
+  int _pendingHomework = 2;
+  String _lastResult = 'A+ (92%)';
 
   // Recent circulars
-  final List<Map<String, dynamic>> _circulars = [
-    {'title': 'Annual Day Celebration', 'date': '15 Nov 2024', 'category': 'Event'},
-    {'title': 'Winter Vacation Notice', 'date': '20 Nov 2024', 'category': 'Holiday'},
-    {'title': 'PTM Schedule', 'date': '25 Nov 2024', 'category': 'Meeting'},
+  List<Map<String, dynamic>> _circulars = [
+    {'title': 'Annual Sports Day 2026', 'date': '15 Nov 2026', 'category': 'Event'},
+    {'title': 'Parent-Teacher Meeting (PTM)', 'date': '20 Nov 2026', 'category': 'Academic'},
+    {'title': 'Winter Uniform Guidelines', 'date': '25 Nov 2026', 'category': 'Notice'},
   ];
 
   @override
@@ -44,6 +46,19 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   Future<void> _loadData() async {
     final username = await _authService.getCurrentUsername();
     if (mounted) setState(() => _parentName = username ?? 'Parent');
+
+    try {
+      final circs = await _schoolService.getCirculars();
+      if (mounted && circs.isNotEmpty) {
+        setState(() {
+          _circulars = circs.take(3).map((c) => {
+            'title': c['title'] ?? 'Notice',
+            'date': c['published_at'] ?? 'Recent',
+            'category': c['category'] ?? 'General',
+          }).toList();
+        });
+      }
+    } catch (_) {}
   }
 
   @override

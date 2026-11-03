@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
+import '../../services/school_service.dart';
 import '../../core/widgets/erp_stat_card.dart';
 import '../../core/widgets/erp_section_header.dart';
 
@@ -14,6 +15,7 @@ class SchoolStudentDashboard extends StatefulWidget {
 class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
     with TickerProviderStateMixin {
   final _authService = AuthService();
+  final _schoolService = SchoolService();
   late AnimationController _fadeController;
 
   String _studentName = 'Student';
@@ -21,13 +23,13 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
   String _admissionNo = '';
 
   // Quick stats
-  final double _attendancePercent = 88.0;
-  final int _pendingHomework = 3;
-  final String _pendingFees = '₹2,500';
-  final int _upcomingTests = 2;
+  double _attendancePercent = 94.2;
+  int _pendingHomework = 3;
+  String _pendingFees = '₹0';
+  int _upcomingTests = 2;
 
   // Recent homework
-  final List<Map<String, dynamic>> _homework = [
+  List<Map<String, dynamic>> _homework = [
     {
       'subject': 'Mathematics',
       'title': 'Chapter 5 Exercise 5.3',
@@ -70,9 +72,28 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
     if (mounted) {
       setState(() {
         _studentName = username ?? 'Student';
-        _admissionNo = 'SCH2024${username?.toUpperCase() ?? "001"}';
+        _admissionNo = 'SCH2026${username?.toUpperCase() ?? "001"}';
       });
     }
+
+    try {
+      final hw = await _schoolService.getHomework(classId: _studentClass);
+      final attPct = await _schoolService.getStudentAttendancePercent(username ?? '');
+      if (mounted) {
+        setState(() {
+          if (hw.isNotEmpty) {
+            _homework = hw.take(3).map((h) => {
+              'subject': h['subject'] ?? 'General',
+              'title': h['title'] ?? 'Homework Assignment',
+              'due': h['due_date'] ?? 'Upcoming',
+              'color': const Color(0xFF3B82F6),
+            }).toList();
+            _pendingHomework = hw.where((h) => h['status'] == 'pending').length;
+          }
+          _attendancePercent = attPct;
+        });
+      }
+    } catch (_) {}
   }
 
   @override

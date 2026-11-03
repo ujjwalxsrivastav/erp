@@ -128,6 +128,11 @@ class AuthService {
       return _cachedIpAddress!;
     }
 
+    if (kIsWeb) {
+      _cachedIpAddress = '127.0.0.1';
+      return '127.0.0.1';
+    }
+
     try {
       final response = await http
           .get(Uri.parse('https://api.ipify.org?format=json'))
