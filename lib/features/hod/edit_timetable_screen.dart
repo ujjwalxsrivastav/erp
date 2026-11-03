@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/arrangement_service.dart';
 
 class EditTimetableScreen extends StatefulWidget {
   final Map<String, dynamic> classData;
@@ -12,10 +13,13 @@ class EditTimetableScreen extends StatefulWidget {
 
 class _EditTimetableScreenState extends State<EditTimetableScreen>
     with SingleTickerProviderStateMixin {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
+  final _arrangementService = ArrangementService();
   Map<String, List<Map<String, dynamic>>> _timetableByDay = {};
   List<Map<String, dynamic>> _subjects = [];
   List<Map<String, dynamic>> _teachers = [];
+  Map<String, bool> _teacherLeaveStatus =
+      {}; // Track which teachers are on leave today
   bool _isLoading = true;
   late TabController _tabController;
 
@@ -27,7 +31,8 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
     'Friday'
   ];
 
-  final List<Map<String, String>> _timeSlots = [
+  // Mutable time slots list - can add more slots
+  List<Map<String, String>> _timeSlots = [
     {'slot': '1', 'start': '09:00', 'end': '10:30'},
     {'slot': '2', 'start': '10:45', 'end': '12:15'},
     {'slot': '3', 'start': '13:00', 'end': '14:30'},
@@ -57,6 +62,14 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
           .select('*, subjects(subject_name), teacher_details(name)')
           .eq('class_id', widget.classData['id']);
 
+      // Check teacher leave status for today
+      final teachersOnLeave =
+          await _arrangementService.getTeachersOnLeave(DateTime.now());
+      Map<String, bool> leaveStatus = {};
+      for (var leave in teachersOnLeave) {
+        leaveStatus[leave['teacher_id']] = true;
+      }
+
       Map<String, List<Map<String, dynamic>>> grouped = {};
       for (var day in _days) {
         grouped[day] = timetableData
@@ -72,6 +85,7 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
           _subjects = List<Map<String, dynamic>>.from(subjectsData);
           _teachers = List<Map<String, dynamic>>.from(teachersData);
           _timetableByDay = grouped;
+          _teacherLeaveStatus = leaveStatus;
           _isLoading = false;
         });
       }
@@ -79,6 +93,53 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
       print('Error loading timetable: $e');
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // Add new time slot
+  void _addNewTimeSlot() {
+    final lastSlot = _timeSlots.last;
+    final lastEndTime = lastSlot['end']!;
+
+    // Parse last end time and add 15 min break
+    final parts = lastEndTime.split(':');
+    var hour = int.parse(parts[0]);
+    var minute = int.parse(parts[1]) + 15; // 15 min break
+
+    if (minute >= 60) {
+      hour++;
+      minute -= 60;
+    }
+
+    final newStart =
+        '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+
+    // Add 1.5 hours for class duration
+    minute += 30;
+    hour += 1;
+    if (minute >= 60) {
+      hour++;
+      minute -= 60;
+    }
+
+    final newEnd =
+        '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+    final newSlotNumber = (_timeSlots.length + 1).toString();
+
+    setState(() {
+      _timeSlots.add({
+        'slot': newSlotNumber,
+        'start': newStart,
+        'end': newEnd,
+      });
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('✓ Added Slot $newSlotNumber ($newStart - $newEnd)'),
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _editSlot(String day, Map<String, String> timeSlot) async {
@@ -177,7 +238,7 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: selectedSubjectId,
+                            initialValue: selectedSubjectId,
                             decoration: InputDecoration(
                               hintText: 'Select subject',
                               border: OutlineInputBorder(
@@ -226,7 +287,7 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: selectedTeacherId,
+                            initialValue: selectedTeacherId,
                             decoration: InputDecoration(
                               hintText: 'Select teacher',
                               border: OutlineInputBorder(
@@ -337,7 +398,9 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                                 roomNumber: roomNumber,
                                 existingId: existingEntry?['id'],
                               );
-                              Navigator.pop(context);
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                              }
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -380,7 +443,7 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
     required String subjectId,
     required String teacherId,
     required String roomNumber,
-    String? existingId,
+    dynamic existingId,
   }) async {
     try {
       if (existingId != null) {
@@ -390,7 +453,8 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
           'room_number': roomNumber,
         }).eq('id', existingId);
       } else {
-        await _supabase.from('timetable').insert({
+        // Use upsert to handle duplicates
+        await _supabase.from('timetable').upsert({
           'class_id': widget.classData['id'],
           'day_of_week': day,
           'time_slot': 'Slot ${timeSlot['slot']}',
@@ -399,26 +463,30 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
           'subject_id': subjectId,
           'teacher_id': teacherId,
           'room_number': roomNumber,
-        });
+        }, onConflict: 'class_id,day_of_week,time_slot');
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✓ Timetable updated'),
-          backgroundColor: Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ Timetable updated'),
+            backgroundColor: Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
 
       _loadData();
     } catch (e) {
       print('Error saving slot: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -496,6 +564,13 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
               controller: _tabController,
               children: _days.map((day) => _buildDayView(day)).toList(),
             ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addNewTimeSlot,
+        backgroundColor: const Color(0xFF0891B2),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Slot'),
+      ),
     );
   }
 
@@ -587,12 +662,46 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Teacher absent warning
+                            if (_teacherLeaveStatus[entry['teacher_id']] ==
+                                true)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                margin: const EdgeInsets.only(bottom: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border:
+                                      Border.all(color: Colors.red.shade200),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.warning_amber_rounded,
+                                        size: 14, color: Colors.red.shade700),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'ABSENT - Needs Arrangement',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.red.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             Text(
                               entry['subjects']?['subject_name'] ?? 'Unknown',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF0F172A),
+                                color:
+                                    _teacherLeaveStatus[entry['teacher_id']] ==
+                                            true
+                                        ? Colors.red.shade700
+                                        : const Color(0xFF0F172A),
                               ),
                             ),
                             const SizedBox(height: 6),

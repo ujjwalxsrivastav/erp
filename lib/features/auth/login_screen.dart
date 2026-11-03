@@ -1,5 +1,6 @@
 // Login Screen with Beautiful UI
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/gradient_button.dart';
@@ -105,6 +106,29 @@ class _LoginScreenState extends State<LoginScreen>
             case 'hod':
               context.go('/hod-dashboard');
               break;
+            case 'admissiondean':
+              context.go('/leads/dean?username=${_usernameController.text.trim()}');
+              break;
+            case 'counsellor':
+              context.go('/leads/counsellor?username=${_usernameController.text.trim()}');
+              break;
+            case 'temp_student':
+              context.go('/temp-student-dashboard?tempId=${_usernameController.text.trim()}');
+              break;
+            case 'warden':
+              context.go('/warden-dashboard');
+              break;
+            case 'transport_officer':
+              context.go('/transport-dashboard');
+              break;
+            case 'conductor':
+              context.go('/conductor-dashboard');
+              break;
+            case 'accountant':
+              context.go('/accountant-dashboard');
+              break;
+            default:
+              context.go('/student-dashboard');
           }
         }
       } else {
@@ -160,15 +184,10 @@ class _LoginScreenState extends State<LoginScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo and Title
                       _buildHeader(),
                       const SizedBox(height: AppTheme.xxl),
-
-                      // Login Form
                       _buildLoginForm(),
                       const SizedBox(height: AppTheme.xl),
-
-                      // Quick Login Hints
                       _buildQuickLoginHints(),
                     ],
                   ),
@@ -184,7 +203,6 @@ class _LoginScreenState extends State<LoginScreen>
   Widget _buildHeader() {
     return Column(
       children: [
-        // Logo with glow effect
         Container(
           width: 100,
           height: 100,
@@ -200,8 +218,6 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
         const SizedBox(height: AppTheme.lg),
-
-        // Title
         ShaderMask(
           shaderCallback: (bounds) => AppTheme.studentGradient.createShader(
             Rect.fromLTWH(0, 0, bounds.width, bounds.height),
@@ -217,7 +233,6 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
         const SizedBox(height: AppTheme.sm),
-
         Text(
           'Welcome Back!',
           style: AppTheme.bodyLarge.copyWith(
@@ -244,8 +259,6 @@ class _LoginScreenState extends State<LoginScreen>
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppTheme.lg),
-
-            // Username Field
             TextFormField(
               controller: _usernameController,
               decoration: InputDecoration(
@@ -263,8 +276,6 @@ class _LoginScreenState extends State<LoginScreen>
               },
             ),
             const SizedBox(height: AppTheme.md),
-
-            // Password Field
             TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
@@ -293,8 +304,6 @@ class _LoginScreenState extends State<LoginScreen>
               },
             ),
             const SizedBox(height: AppTheme.xl),
-
-            // Login Button
             GradientButton(
               text: 'Sign In',
               onPressed: _handleLogin,
@@ -328,19 +337,34 @@ class _LoginScreenState extends State<LoginScreen>
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              const Spacer(),
+              Tooltip(
+                message: 'Auto-rate limited to 5 attempts per device',
+                child: Text(
+                  '🔒 Secure Mode',
+                  style: AppTheme.bodySmall.copyWith(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppTheme.sm),
-          // College
+          // College credentials
           _buildCredentialRow('College Student', 'BT24CSE154', AppTheme.studentPrimary),
           _buildCredentialRow('College Teacher', 'teacher1', AppTheme.teacherPrimary),
           _buildCredentialRow('Admin', 'admin1', AppTheme.adminPrimary),
           _buildCredentialRow('HR', 'hr1', const Color(0xFF059669)),
           _buildCredentialRow('HOD', 'hod1', const Color(0xFF0891B2)),
-          const SizedBox(height: 4),
+          _buildCredentialRow('Warden', 'warden1', const Color(0xFF1E293B)),
+          _buildCredentialRow('Transport', 'transportofficer1', const Color(0xFF0C4A6E)),
+          _buildCredentialRow('Conductor', 'conductor1', const Color(0xFFD97706)),
+          _buildCredentialRow('Accountant', 'accountant1', const Color(0xFF8B5CF6)),
+          const SizedBox(height: 6),
           Divider(color: AppTheme.extraLightGray, height: 1),
-          const SizedBox(height: 4),
-          // School
+          const SizedBox(height: 6),
+          // School credentials
           _buildCredentialRow('School Student', 'sstudent1', const Color(0xFFFF6B6B)),
           _buildCredentialRow('School Teacher', 'steacher1', const Color(0xFFFF8E53)),
           _buildCredentialRow('School Admin', 'sadmin1', const Color(0xFF9B59B6)),

@@ -20,6 +20,73 @@ import '../features/timetable/timetable_screen.dart';
 import '../features/admin/add_user_screen.dart';
 import '../features/admin/add_teacher_screen.dart';
 import '../features/admin/add_student_screen.dart';
+import '../debug/database_debug_screen.dart';
+// Lead Management imports
+import '../features/leads/screens/dean_dashboard.dart';
+import '../features/leads/screens/counsellor_dashboard.dart';
+import '../features/leads/screens/lead_detail_screen.dart';
+import '../features/leads/screens/lead_capture_screen.dart';
+import '../features/leads/screens/counsellor_profile_screen.dart';
+// Admission Flow imports
+import '../features/admission/screens/temp_student_dashboard.dart';
+import '../features/admission/screens/offer_letter_screen.dart';
+import '../features/admission/screens/dead_admissions_screen.dart';
+import '../features/admission/screens/hostel_management_screen.dart';
+import '../features/admission/screens/transport_management_screen.dart';
+// Hostel Module imports
+import '../features/hostel/screens/warden_dashboard.dart';
+import '../features/hostel/screens/student_hostel_screen.dart';
+// Transport Module imports
+import '../features/transport/screens/transport_dashboard.dart';
+import '../features/transport/screens/student_transport_screen.dart';
+import '../features/transport/screens/conductor_dashboard.dart';
+import '../features/transport/screens/conductor_attendance_screen.dart';
+// Finance Module imports
+import '../features/finance/screens/accountant_dashboard.dart';
+import '../features/finance/screens/fee_head_management_screen.dart';
+import '../features/finance/screens/chart_of_accounts_screen.dart';
+import '../features/finance/screens/journal_entry_screen.dart';
+import '../features/finance/screens/receipt_management_screen.dart';
+import '../features/finance/screens/student_ledger_screen.dart';
+import '../features/finance/screens/scholarship_management_screen.dart';
+import '../features/finance/screens/financial_reports_screen.dart';
+import '../features/finance/screens/audit_log_screen.dart';
+import '../features/finance/screens/financial_year_screen.dart';
+// Examination (COE) Module imports
+import '../features/examination/screens/coe_dashboard.dart';
+import '../features/examination/screens/exam_sessions_screen.dart';
+import '../features/examination/screens/result_management_screen.dart';
+import '../features/examination/screens/tabulation_screen.dart';
+import '../features/examination/screens/revaluation_screen.dart';
+import '../features/examination/screens/student_hall_ticket_screen.dart';
+import '../features/examination/screens/student_result_screen.dart';
+// Admin Workflow imports (No-Dues, Certificates, Grievance)
+import '../features/admin/screens/nodues_management_screen.dart';
+import '../features/admin/screens/certificate_management_screen.dart';
+import '../features/admin/screens/grievance_management_screen.dart';
+// HR Workflow imports (Recruitment, Appraisal, Exit)
+import '../features/hr/screens/recruitment_screen.dart';
+import '../features/hr/screens/appraisal_screen.dart';
+import '../features/hr/screens/exit_management_screen.dart';
+// Finance Extension imports (Budget, Purchase, Grants)
+import '../features/finance/screens/budget_management_screen.dart';
+import '../features/finance/screens/purchase_management_screen.dart';
+import '../features/finance/screens/grant_management_screen.dart';
+// Teacher Lifecycle + Payroll imports
+import '../features/hr/screens/hiring_pipeline_screen.dart';
+import '../features/hr/screens/onboarding_screen.dart';
+import '../features/hr/screens/subject_allotment_screen.dart';
+import '../features/hr/screens/payroll_runs_screen.dart';
+import '../features/hr/screens/my_payslips_screen.dart';
+// Superadmin + User Management imports
+import '../features/admin/screens/institute_setup_screen.dart';
+import '../features/admin/screens/manage_users_screen.dart';
+// Fee Insights import
+import '../features/finance/screens/fee_insights_screen.dart';
+// Admission Flow imports
+import '../features/leads/screens/lead_capture_form_screen.dart';
+import '../features/leads/screens/admission_form_screen.dart';
+import '../features/leads/screens/admission_review_screen.dart';
 
 // School imports
 import '../features/school/school_student_dashboard.dart';
@@ -201,6 +268,317 @@ final router = GoRouter(
     GoRoute(
       path: '/school/parent-dashboard',
       builder: (context, state) => const SchoolParentDashboard(),
+    ),
+
+    // ===== DEBUG =====
+    GoRoute(
+      path: '/debug',
+      builder: (context, state) => const DatabaseDebugScreen(),
+    ),
+
+    // ============================================================================
+    // LEAD MANAGEMENT ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/leads/dean',
+      builder: (context, state) {
+        final username =
+            state.uri.queryParameters['username'] ?? 'admissiondean1';
+        return DeanDashboard(username: username);
+      },
+    ),
+    GoRoute(
+      path: '/leads/counsellor',
+      builder: (context, state) {
+        final username = state.uri.queryParameters['username'] ?? 'counsellor1';
+        return CounsellorDashboard(username: username);
+      },
+    ),
+    GoRoute(
+      path: '/leads/detail/:id',
+      builder: (context, state) {
+        final leadId = state.pathParameters['id'] ?? '';
+        final username = state.uri.queryParameters['username'] ?? 'unknown';
+        return LeadDetailScreen(leadId: leadId, username: username);
+      },
+    ),
+    GoRoute(
+      path: '/leads/counsellor-profile/:id',
+      builder: (context, state) {
+        final counsellorId = state.pathParameters['id'] ?? '';
+        return CounsellorProfileScreen(counsellorId: counsellorId);
+      },
+    ),
+    GoRoute(
+      path: '/leads/capture',
+      builder: (context, state) => const LeadCaptureScreen(),
+    ),
+
+    // ============================================================================
+    // ADMISSION FLOW ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/temp-student-dashboard',
+      builder: (context, state) {
+        final tempId = state.uri.queryParameters['tempId'] ?? '';
+        return TempStudentDashboard(tempId: tempId);
+      },
+    ),
+    GoRoute(
+      path: '/offer-letter/:tempId',
+      builder: (context, state) {
+        final tempId = state.pathParameters['tempId'] ?? '';
+        return OfferLetterScreen(tempId: tempId);
+      },
+    ),
+    GoRoute(
+      path: '/dead-admissions',
+      builder: (context, state) {
+        final counsellorId = state.uri.queryParameters['counsellor'];
+        return DeadAdmissionsScreen(counsellorId: counsellorId);
+      },
+    ),
+    GoRoute(
+      path: '/hostel-management',
+      builder: (context, state) => const HostelManagementScreen(),
+    ),
+    GoRoute(
+      path: '/transport-management',
+      builder: (context, state) => const TransportManagementScreen(),
+    ),
+
+    // ============================================================================
+    // HOSTEL MODULE ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/warden-dashboard',
+      builder: (context, state) => const WardenDashboard(),
+    ),
+    GoRoute(
+      path: '/student/hostel',
+      builder: (context, state) {
+        final studentId = state.uri.queryParameters['studentId'] ?? '';
+        return StudentHostelScreen(studentId: studentId);
+      },
+    ),
+
+    // ============================================================================
+    // TRANSPORT MODULE ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/transport-dashboard',
+      builder: (context, state) => const TransportDashboard(),
+    ),
+    GoRoute(
+      path: '/student/transport',
+      builder: (context, state) {
+        final studentId = state.uri.queryParameters['studentId'] ?? '';
+        final studentName = state.uri.queryParameters['studentName'] ?? 'Student';
+        return StudentTransportScreen(studentId: studentId, studentName: studentName);
+      },
+    ),
+    GoRoute(
+      path: '/conductor-dashboard',
+      builder: (context, state) => const ConductorDashboard(),
+    ),
+    GoRoute(
+      path: '/conductor-attendance',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>? ?? {};
+        return ConductorAttendanceScreen(
+          bus: extra['bus'] ?? {},
+          conductorUsername: extra['conductorUsername'] ?? '',
+        );
+      },
+    ),
+
+    // ============================================================================
+    // FINANCE MODULE ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/accountant-dashboard',
+      builder: (context, state) => const AccountantDashboard(),
+    ),
+    GoRoute(
+      path: '/finance/fee-heads',
+      builder: (context, state) => const FeeHeadManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/chart-of-accounts',
+      builder: (context, state) => const ChartOfAccountsScreen(),
+    ),
+    GoRoute(
+      path: '/finance/journal-entries',
+      builder: (context, state) => const JournalEntryScreen(),
+    ),
+    GoRoute(
+      path: '/finance/receipts',
+      builder: (context, state) => const ReceiptManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/student-ledger',
+      builder: (context, state) => const StudentLedgerScreen(),
+    ),
+    GoRoute(
+      path: '/finance/scholarships',
+      builder: (context, state) => const ScholarshipManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/reports',
+      builder: (context, state) => const FinancialReportsScreen(),
+    ),
+    GoRoute(
+      path: '/finance/audit-logs',
+      builder: (context, state) => const AuditLogScreen(),
+    ),
+    GoRoute(
+      path: '/finance/financial-year',
+      builder: (context, state) => const FinancialYearScreen(),
+    ),
+    GoRoute(
+      path: '/finance/budgets',
+      builder: (context, state) => const BudgetManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/purchase',
+      builder: (context, state) => const PurchaseManagementScreen(),
+    ),
+    GoRoute(
+      path: '/finance/grants',
+      builder: (context, state) => const GrantManagementScreen(),
+    ),
+
+    // ============================================================================
+    // EXAMINATION (COE) MODULE ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/examination',
+      builder: (context, state) => const COEDashboard(),
+    ),
+    GoRoute(
+      path: '/examination/sessions',
+      builder: (context, state) => const ExamSessionsScreen(),
+    ),
+    GoRoute(
+      path: '/examination/results',
+      builder: (context, state) => const ResultManagementScreen(),
+    ),
+    GoRoute(
+      path: '/examination/tabulation',
+      builder: (context, state) => const TabulationScreen(),
+    ),
+    GoRoute(
+      path: '/examination/revaluation',
+      builder: (context, state) => const RevaluationScreen(),
+    ),
+    GoRoute(
+      path: '/student/hall-ticket',
+      builder: (context, state) {
+        final studentId = state.uri.queryParameters['studentId'] ?? '';
+        return StudentHallTicketScreen(studentId: studentId);
+      },
+    ),
+    GoRoute(
+      path: '/student/results',
+      builder: (context, state) {
+        final studentId = state.uri.queryParameters['studentId'] ?? '';
+        return StudentResultScreen(studentId: studentId);
+      },
+    ),
+
+    // ============================================================================
+    // ADMIN WORKFLOW ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/admin/nodues',
+      builder: (context, state) => const NoDuesManagementScreen(),
+    ),
+    GoRoute(
+      path: '/admin/certificates',
+      builder: (context, state) => const CertificateManagementScreen(),
+    ),
+    GoRoute(
+      path: '/admin/grievances',
+      builder: (context, state) => const GrievanceManagementScreen(),
+    ),
+
+    // ============================================================================
+    // HR WORKFLOW ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/hr/recruitment',
+      builder: (context, state) => const RecruitmentScreen(),
+    ),
+    GoRoute(
+      path: '/hr/appraisal',
+      builder: (context, state) => const AppraisalScreen(),
+    ),
+    GoRoute(
+      path: '/hr/exit-management',
+      builder: (context, state) => const ExitManagementScreen(),
+    ),
+
+    // ============================================================================
+    // TEACHER LIFECYCLE + PAYROLL ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/hr/hiring-pipeline',
+      builder: (context, state) => const HiringPipelineScreen(),
+    ),
+    GoRoute(
+      path: '/hr/onboarding',
+      builder: (context, state) => const EmployeeOnboardingScreen(),
+    ),
+    GoRoute(
+      path: '/hr/payroll-runs',
+      builder: (context, state) => const PayrollRunsScreen(),
+    ),
+    GoRoute(
+      path: '/hod/subject-allotment',
+      builder: (context, state) => const SubjectAllotmentScreen(),
+    ),
+    GoRoute(
+      path: '/teacher/my-payslips',
+      builder: (context, state) {
+        final username = state.uri.queryParameters['username'] ?? '';
+        return MyPayslipsScreen(username: username);
+      },
+    ),
+
+    // ============================================================================
+    // SUPERADMIN + USER MANAGEMENT ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/admin/institute-setup',
+      builder: (context, state) => const InstituteSetupScreen(),
+    ),
+    GoRoute(
+      path: '/admin/manage-users',
+      builder: (context, state) => const ManageUsersScreen(),
+    ),
+    GoRoute(
+      path: '/finance/fee-insights',
+      builder: (context, state) => const FeeInsightsScreen(),
+    ),
+
+    // ============================================================================
+    // ADMISSION FLOW ROUTES
+    // ============================================================================
+    GoRoute(
+      path: '/leads/capture-form',
+      builder: (context, state) => const LeadCaptureFormScreen(),
+    ),
+    GoRoute(
+      path: '/admissions/apply',
+      builder: (context, state) {
+        final leadId = state.uri.queryParameters['leadId'];
+        final leadName = state.uri.queryParameters['leadName'];
+        return AdmissionFormScreen(leadId: leadId, leadName: leadName);
+      },
+    ),
+    GoRoute(
+      path: '/admissions/review',
+      builder: (context, state) => const AdmissionReviewScreen(),
     ),
   ],
 );

@@ -6,6 +6,8 @@ import '../teacher/subject_classes_screen.dart';
 import '../leave/teacher_leave_apply_screen.dart';
 import '../leave/holiday_calendar_screen.dart';
 import '../teacher/teacher_payroll_screen.dart';
+import '../teacher/teacher_events_screen.dart';
+import '../hr/screens/my_payslips_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -289,6 +291,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
                                   builder: (context) => TeacherLeaveApplyScreen(
                                     teacherId: _teacherData!['teacher_id'] ??
                                         'teacher1',
+                                    employeeId: _teacherData!['employee_id'] ??
+                                        'EMP001',
                                     teacherName:
                                         _teacherData!['name'] ?? 'Teacher',
                                     department:
@@ -433,6 +437,96 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+
+                  // My Payslips Button
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MyPayslipsScreen(
+                            username: _teacherData?['teacher_id'] ?? '',
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0D9488), Color(0xFF0F766E)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0D9488).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.receipt_long, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'My Payslips',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Events Button
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TeacherEventsScreen(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF3B82F6).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.event, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Campus Events',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
                   // My Subjects Section
@@ -520,6 +614,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
               title:
                   const Text('Profile', style: TextStyle(color: Colors.white)),
               onTap: () => context.go('/teacher-profile'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bug_report, color: Colors.orange),
+              title: const Text('Debug Database',
+                  style: TextStyle(color: Colors.orange)),
+              onTap: () => context.go('/debug'),
             ),
             const Spacer(),
             ListTile(

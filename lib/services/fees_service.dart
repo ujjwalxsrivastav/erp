@@ -17,10 +17,6 @@ class FeesService {
           .eq('academic_year', academicYear)
           .maybeSingle();
 
-      if (feeData == null) {
-        throw Exception('No fee record found for student');
-      }
-
       // Check bus enrollment
       final busData = await supabase
           .from('bus_fee_enrollment')
@@ -34,6 +30,26 @@ class FeesService {
           .select()
           .eq('student_id', studentId)
           .maybeSingle();
+
+      if (feeData == null) {
+        print('⚠️ No fee record found for student in student_fees, using defaults');
+        double bFee = busData != null ? (busData['bus_fee'] as num).toDouble() : 0.0;
+        double hFee = hostelData != null ? (hostelData['hostel_fee'] as num).toDouble() : 0.0;
+        
+        return {
+          'student_id': studentId,
+          'base_fee': 0.0,
+          'bus_fee': bFee,
+          'hostel_fee': hFee,
+          'total_fee': bFee + hFee,
+          'paid_amount': 0.0,
+          'pending_amount': bFee + hFee,
+          'uses_bus': busData != null,
+          'uses_hostel': hostelData != null,
+          'last_payment_date': null,
+        };
+      }
+
 
       final result = {
         'student_id': studentId,

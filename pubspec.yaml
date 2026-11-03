@@ -29,6 +29,7 @@ dependencies:
   
   # Security
   crypto: ^3.0.6
+  device_info_plus: ^10.1.0
   
   # Image Handling
   cached_network_image: ^3.3.0

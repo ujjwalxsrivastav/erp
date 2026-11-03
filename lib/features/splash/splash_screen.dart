@@ -19,68 +19,89 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuthAndNavigate() async {
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Wait for splash animation
+      await Future.delayed(const Duration(seconds: 2));
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    final isLoggedIn = await _authService.isLoggedIn();
+      final isLoggedIn = await _authService.isLoggedIn();
 
-    if (isLoggedIn) {
-      final isValid = await _authService.verifySession();
+      if (isLoggedIn) {
+        final isValid = await _authService.verifySession();
 
-      if (isValid) {
-        final role = await _authService.getCurrentUserRole();
-        final instituteType = await _authService.getCurrentInstituteType();
-        final isSchool = instituteType == 'school';
+        if (isValid) {
+          final role = await _authService.getCurrentUserRole();
+          final instituteType = await _authService.getCurrentInstituteType();
+          final isSchool = instituteType == 'school';
 
-        if (!mounted) return;
+          if (!mounted) return;
 
-        if (isSchool) {
-          switch (role) {
-            case 'student':
-              context.go('/school/student-dashboard');
-              break;
-            case 'teacher':
-              context.go('/school/teacher-dashboard');
-              break;
-            case 'admin':
-              context.go('/school/admin-dashboard');
-              break;
-            case 'parent':
-              context.go('/school/parent-dashboard');
-              break;
-            default:
-              context.go('/school/admin-dashboard');
+          if (isSchool) {
+            switch (role?.toLowerCase()) {
+              case 'student':
+                context.go('/school/student-dashboard');
+                break;
+              case 'teacher':
+                context.go('/school/teacher-dashboard');
+                break;
+              case 'admin':
+                context.go('/school/admin-dashboard');
+                break;
+              case 'parent':
+                context.go('/school/parent-dashboard');
+                break;
+              default:
+                context.go('/school/admin-dashboard');
+            }
+          } else {
+            switch (role?.toLowerCase()) {
+              case 'student':
+                context.go('/student-dashboard');
+                break;
+              case 'teacher':
+                context.go('/teacher-dashboard');
+                break;
+              case 'admin':
+                context.go('/admin-dashboard');
+                break;
+              case 'hr':
+                context.go('/hr-dashboard');
+                break;
+              case 'hod':
+                context.go('/hod-dashboard');
+                break;
+              case 'warden':
+                context.go('/warden-dashboard');
+                break;
+              case 'transport_officer':
+              case 'transportofficer':
+                context.go('/transport-dashboard');
+                break;
+              case 'conductor':
+                context.go('/conductor-dashboard');
+                break;
+              case 'accountant':
+                context.go('/accountant-dashboard');
+                break;
+              default:
+                context.go('/login');
+            }
           }
         } else {
-          switch (role) {
-            case 'student':
-              context.go('/student-dashboard');
-              break;
-            case 'teacher':
-              context.go('/teacher-dashboard');
-              break;
-            case 'admin':
-              context.go('/admin-dashboard');
-              break;
-            case 'HR':
-              context.go('/hr-dashboard');
-              break;
-            case 'hod':
-              context.go('/hod-dashboard');
-              break;
-            default:
-              context.go('/login');
-          }
+          await _authService.logout();
+          if (!mounted) return;
+          context.go('/login');
         }
       } else {
-        await _authService.logout();
         if (!mounted) return;
         context.go('/login');
       }
-    } else {
-      if (!mounted) return;
-      context.go('/login');
+    } catch (e) {
+      print('⚠️ Error during auth check: $e');
+      if (mounted) {
+        context.go('/login');
+      }
     }
   }
 

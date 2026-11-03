@@ -8,15 +8,38 @@ class TeacherService {
   // Get teacher details by teacher_id
   Future<Map<String, dynamic>?> getTeacherDetails(String teacherId) async {
     try {
+      print('🔍 Fetching teacher details for: $teacherId');
+
       final response = await _supabase
           .from('teacher_details')
           .select()
           .eq('teacher_id', teacherId)
-          .single();
+          .maybeSingle();
 
+      if (response == null) {
+        print('⚠️ No teacher details found for: $teacherId');
+        print('💡 Checking if data exists without filter...');
+
+        // Try to get all records to see if table is accessible
+        try {
+          final allRecords = await _supabase
+              .from('teacher_details')
+              .select('teacher_id')
+              .limit(5);
+          print('📊 Found ${allRecords.length} teacher records in table');
+          print(
+              '👥 Teacher IDs: ${allRecords.map((r) => r['teacher_id']).toList()}');
+        } catch (e) {
+          print('❌ Cannot access teacher_details table: $e');
+        }
+
+        return null;
+      }
+
+      print('✅ Teacher details found: ${response['name']}');
       return response;
     } catch (e) {
-      print('Error fetching teacher details: $e');
+      print('❌ Error fetching teacher details: $e');
       return null;
     }
   }
@@ -229,25 +252,7 @@ class TeacherService {
   }
 
   // Upload Marks
-  /// Helper function to get table name based on year, section, and exam type
-  String _getMarksTableName(String year, String section, String examType) {
-    // Normalize exam type: remove spaces and convert to lowercase
-    final normalizedExamType = examType.toLowerCase().replaceAll(' ', '');
-    final normalizedSection = section.toLowerCase();
-
-    // Map exam types to table suffixes
-    final examTypeMap = {
-      'midterm': 'midterm',
-      'endsemester': 'endsem',
-      'quiz': 'quiz',
-      'assignment': 'assignment',
-    };
-
-    final tableSuffix = examTypeMap[normalizedExamType] ?? normalizedExamType;
-
-    return 'marks_year${year}_section${normalizedSection}_$tableSuffix';
-  }
-
+  /// Upload marks to unified student_marks table
   Future<bool> uploadMarks({
     required String studentId,
     required String subjectId,
@@ -259,22 +264,34 @@ class TeacherService {
     required String section,
   }) async {
     try {
-      // Get the appropriate table name
-      final tableName = _getMarksTableName(year, section, examType);
+      // Normalize exam type for storage
+      final normalizedExamType = examType.toLowerCase().replaceAll(' ', '');
+      final examTypeMap = {
+        'midterm': 'midterm',
+        'mid term': 'midterm',
+        'endsemester': 'endsem',
+        'end semester': 'endsem',
+        'quiz': 'quiz',
+        'assignment': 'assignment',
+      };
+      final dbExamType = examTypeMap[normalizedExamType] ?? normalizedExamType;
 
-      print('📊 Uploading marks to table: $tableName');
+      print('📊 Uploading marks to student_marks table');
 
-      // Insert or update marks in the specific table
-      await _supabase.from(tableName).upsert({
+      // Insert or update marks in the unified table
+      await _supabase.from('student_marks').upsert({
         'student_id': studentId,
         'subject_id': subjectId,
         'teacher_id': teacherId,
+        'year': int.parse(year),
+        'section': section.toUpperCase(),
+        'exam_type': dbExamType,
         'marks_obtained': marks,
         'total_marks': totalMarks,
         'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'student_id, subject_id');
+      }, onConflict: 'student_id, subject_id, exam_type');
 
-      print('✅ Marks uploaded successfully to $tableName');
+      print('✅ Marks uploaded successfully');
       return true;
     } catch (e) {
       print('❌ Error uploading marks: $e');
@@ -382,6 +399,7 @@ class TeacherService {
   }
 
   /// Get submissions for a specific assignment
+  /// OPTIMIZED: Uses batch query for student details instead of N+1 pattern
   Future<List<Map<String, dynamic>>> getAssignmentSubmissions(
     String assignmentId,
   ) async {
@@ -393,25 +411,45 @@ class TeacherService {
           .eq('assignment_id', assignmentId)
           .order('submitted_at', ascending: false);
 
-      // Then fetch student details for each submission
-      final enrichedSubmissions = <Map<String, dynamic>>[];
+      if (submissions.isEmpty) return [];
 
-      for (var submission in submissions) {
-        final studentId = submission['student_id'];
+      // OPTIMIZATION: Collect all student IDs and batch fetch
+      final studentIds = (submissions as List)
+          .map((s) => s['student_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
 
-        // Fetch student details
-        final studentDetails = await _supabase
+      // Batch fetch all student details in ONE query
+      Map<String, Map<String, dynamic>> studentMap = {};
+      if (studentIds.isNotEmpty) {
+        final studentsData = await _supabase
             .from('student_details')
-            .select('name, student_id')
-            .eq('student_id', studentId)
-            .maybeSingle();
+            .select('student_id, name')
+            .filter('student_id', 'in', studentIds);
 
-        // Add student details to submission
+        for (var s in studentsData) {
+          studentMap[s['student_id'].toString()] = {
+            'student_id': s['student_id'],
+            'name': s['name'],
+          };
+        }
+      }
+
+      // Enrich submissions using map (O(1) lookups)
+      final enrichedSubmissions = <Map<String, dynamic>>[];
+      for (var submission in submissions) {
         final enrichedSubmission = Map<String, dynamic>.from(submission);
-        enrichedSubmission['student_details'] = studentDetails;
+        final studentId = submission['student_id']?.toString();
+
+        if (studentId != null && studentMap.containsKey(studentId)) {
+          enrichedSubmission['student_details'] = studentMap[studentId];
+        }
+
         enrichedSubmissions.add(enrichedSubmission);
       }
 
+      print('✅ Fetched ${enrichedSubmissions.length} submissions (optimized)');
       return enrichedSubmissions;
     } catch (e) {
       print('Error fetching submissions: $e');

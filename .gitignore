@@ -46,3 +46,39 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Sensitive config files
+lib/core/config/app_config.dart
+
+# Database exports with sensitive data
+
+db_backup/
+
+# Supabase temp files
+supabase/.temp/
+supabase/
+
+# SQL files with credentials
+*_credentials.sql
+*_secrets.sql
+*.backup.sql
+*RESTORE*.sql
+EMERGENCY_*.sql
+
+# Local database scripts with credentials
+db_backup.sh
+
+# Keys and secrets
+*.pem
+*.key
+*.keystore
+*.jks
+secrets.json
+credentials.json
+
+# Keychain/keystore
+*.p12
+*.mobileprovision
+
+# Supabase config for demo page
+supabase_config.js
+demo/config.js

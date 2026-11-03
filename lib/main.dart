@@ -4,16 +4,37 @@ import 'core/theme/app_theme.dart';
 import 'core/providers/erp_provider.dart';
 import 'routes/app_router.dart';
 import 'services/supabase_service.dart';
+import 'services/offline_service.dart';
 
 void main() async {
+  // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Try to load .env file (for mobile), but don't fail if it doesn't exist (web)
   try {
     await dotenv.load(fileName: ".env");
+    print('✅ .env file loaded successfully');
   } catch (e) {
-    print('Warning: Could not load .env file: $e');
+    print('ℹ️ .env file not found (expected for web builds): $e');
   }
-  await SupabaseService.initialize();
-  await ERPProvider().loadFromPrefs();
+
+  // Initialize Supabase & Core Services
+  try {
+    await SupabaseService.initialize();
+    print('✅ Supabase initialization complete');
+
+    // Initialize offline service for connectivity monitoring
+    OfflineService().initialize();
+    print('✅ Offline service initialized');
+
+    // Initialize Dual-Mode ERP provider
+    await ERPProvider().loadFromPrefs();
+    print('✅ ERP Provider initialized');
+  } catch (e) {
+    print('⚠️ Error during initialization: $e');
+  }
+
+  // Run the app
   runApp(const MyERPApp());
 }
 

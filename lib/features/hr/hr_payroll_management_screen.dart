@@ -12,7 +12,7 @@ class HRPayrollManagementScreen extends StatefulWidget {
 }
 
 class _HRPayrollManagementScreenState extends State<HRPayrollManagementScreen> {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   List<Map<String, dynamic>> _teachers = [];
   bool _isLoading = true;
   String _searchQuery = '';
@@ -393,7 +393,7 @@ class TeacherPayrollDetailScreen extends StatefulWidget {
 
 class _TeacherPayrollDetailScreenState
     extends State<TeacherPayrollDetailScreen> {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   Map<String, dynamic>? _salaryData;
   List<Map<String, dynamic>> _leaveDeductions = [];
   bool _isLoading = true;

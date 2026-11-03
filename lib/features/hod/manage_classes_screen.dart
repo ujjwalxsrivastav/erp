@@ -10,7 +10,7 @@ class ManageClassesScreen extends StatefulWidget {
 }
 
 class _ManageClassesScreenState extends State<ManageClassesScreen> {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
   List<Map<String, dynamic>> _classes = [];
   bool _isLoading = true;
 

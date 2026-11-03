@@ -2,20 +2,40 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HRService {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
-  // Fetch all staff members
-  Future<List<Map<String, dynamic>>> getAllStaff() async {
+  // Fetch all staff members with pagination
+  Future<List<Map<String, dynamic>>> getAllStaff({
+    int page = 0,
+    int limit = 25,
+  }) async {
     try {
+      final offset = page * limit;
       final response = await _supabase
           .from('teacher_details')
           .select()
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
 
+      print('📄 Fetched staff page $page (${response.length} items)');
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print('Error fetching staff: $e');
       return [];
+    }
+  }
+
+  // Get total count of staff (for pagination)
+  Future<int> getStaffCount() async {
+    try {
+      final response = await _supabase
+          .from('teacher_details')
+          .select('teacher_id')
+          .count(CountOption.exact);
+      return response.count;
+    } catch (e) {
+      print('Error counting staff: $e');
+      return 0;
     }
   }
 
@@ -350,12 +370,36 @@ class HRService {
     }
   }
 
-  // Create new staff member
-  Future<bool> createStaff({
+  // Create new staff member (SECURE - uses hashed passwords)
+  Future<Map<String, dynamic>> createStaff({
     required Map<String, dynamic> staffData,
     required String createdBy,
   }) async {
     try {
+      final teacherId = staffData['teacher_id'] as String?;
+
+      if (teacherId == null || teacherId.isEmpty) {
+        return {'success': false, 'message': 'Teacher ID is required'};
+      }
+
+      // 1. First create auth user using secure function (password auto-hashed)
+      final authResult = await _supabase.rpc('secure_add_user_v2', params: {
+        'p_username': teacherId,
+        'p_password': teacherId, // Default password = username
+        'p_role': 'teacher',
+        'p_created_by': createdBy,
+      });
+
+      final result = Map<String, dynamic>.from(authResult);
+
+      if (result['success'] != true) {
+        return {
+          'success': false,
+          'message': result['message'] ?? 'Failed to create user account',
+        };
+      }
+
+      // 2. Then add to teacher_details table
       await _supabase.from('teacher_details').insert({
         ...staffData,
         'created_by': createdBy,
@@ -371,10 +415,10 @@ class HRService {
         'performed_by': createdBy,
       });
 
-      return true;
+      return {'success': true, 'message': 'Staff created successfully'};
     } catch (e) {
       print('Error creating staff: $e');
-      return false;
+      return {'success': false, 'message': e.toString()};
     }
   }
 
