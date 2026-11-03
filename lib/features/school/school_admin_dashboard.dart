@@ -46,11 +46,11 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
       final stats = await _schoolService.getSchoolStats(null);
       if (mounted) {
         setState(() {
-          _totalStudents = (stats['total_students'] as num?)?.toInt() ?? 1250;
-          _totalTeachers = (stats['total_teachers'] as num?)?.toInt() ?? 68;
-          _totalClasses = (stats['total_classes'] as num?)?.toInt() ?? 24;
-          _attendanceToday = (stats['attendance_today'] as num?)?.toDouble() ?? 91.5;
-          _pendingFeesCount = (stats['pending_fees_count'] as num?)?.toInt() ?? 18;
+          _totalStudents = (stats['total_students'] as num?)?.toInt() ?? 0;
+          _totalTeachers = (stats['total_teachers'] as num?)?.toInt() ?? 0;
+          _totalClasses = (stats['total_classes'] as num?)?.toInt() ?? 0;
+          _attendanceToday = (stats['attendance_today'] as num?)?.toDouble() ?? 0.0;
+          _pendingFeesCount = (stats['pending_fees_count'] as num?)?.toInt() ?? 0;
           _isLoadingStats = false;
         });
       }

@@ -30,30 +30,6 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
     'Computer', 'Reference', 'Fiction', 'Sports'
   ];
 
-  // Mock library data (fallback)
-  List<Map<String, dynamic>> get _defaultBooks => [
-    {'id': 'BK-001', 'title': 'Mathematics Textbook Grade 10', 'author': 'R.D. Sharma', 'category': 'Mathematics', 'isbn': '978-81-131-0234-5', 'copies': 15, 'available': 8, 'location': 'Shelf A-2'},
-    {'id': 'BK-002', 'title': 'Physics: Concepts and Principles', 'author': 'H.C. Verma', 'category': 'Science', 'isbn': '978-81-239-1819-2', 'copies': 12, 'available': 5, 'location': 'Shelf B-1'},
-    {'id': 'BK-003', 'title': 'Indian History: Medieval Period', 'author': 'Bipin Chandra', 'category': 'History', 'isbn': '978-81-250-1759-3', 'copies': 8, 'available': 8, 'location': 'Shelf C-3'},
-    {'id': 'BK-004', 'title': 'English Grammar and Composition', 'author': 'Wren & Martin', 'category': 'Literature', 'isbn': '978-93-5097-026-3', 'copies': 20, 'available': 12, 'location': 'Shelf A-5'},
-    {'id': 'BK-005', 'title': 'Introduction to Computer Science', 'author': 'Sumita Arora', 'category': 'Computer', 'isbn': '978-93-5057-555-4', 'copies': 10, 'available': 3, 'location': 'Shelf D-1'},
-    {'id': 'BK-006', 'title': 'Chemistry: Modern Approach', 'author': 'P. Bahadur', 'category': 'Science', 'isbn': '978-93-5027-109-0', 'copies': 9, 'available': 9, 'location': 'Shelf B-3'},
-    {'id': 'BK-007', 'title': 'The Discovery of India', 'author': 'Jawaharlal Nehru', 'category': 'History', 'isbn': '978-81-7223-064-7', 'copies': 5, 'available': 2, 'location': 'Shelf C-1'},
-    {'id': 'BK-008', 'title': 'Social & Political Life', 'author': 'NCERT', 'category': 'Social Studies', 'isbn': '978-81-7450-630-5', 'copies': 30, 'available': 20, 'location': 'Shelf E-2'},
-    {'id': 'BK-009', 'title': 'Wings of Fire', 'author': 'A.P.J. Abdul Kalam', 'category': 'Reference', 'isbn': '978-81-7371-146-6', 'copies': 7, 'available': 4, 'location': 'Shelf F-1'},
-    {'id': 'BK-010', 'title': 'A Brief History of Time', 'author': 'Stephen Hawking', 'category': 'Reference', 'isbn': '978-0-553-38016-3', 'copies': 4, 'available': 1, 'location': 'Shelf F-3'},
-    {'id': 'BK-011', 'title': 'The Alchemist', 'author': 'Paulo Coelho', 'category': 'Fiction', 'isbn': '978-0-06-112241-5', 'copies': 6, 'available': 6, 'location': 'Shelf G-1'},
-    {'id': 'BK-012', 'title': 'Sports Science & Nutrition', 'author': 'Dr. R. Kumar', 'category': 'Sports', 'isbn': '978-81-900-0023-1', 'copies': 3, 'available': 3, 'location': 'Shelf H-2'},
-  ];
-
-  List<Map<String, dynamic>> get _defaultIssuedBooks => [
-    {'id': 'ISS-001', 'book_id': 'BK-002', 'book_title': 'Physics: Concepts and Principles', 'student_name': 'Arjun Sharma', 'class': '10-A', 'issued_date': '2026-10-20', 'due_date': '2026-11-03', 'status': 'Overdue', 'fine': 0},
-    {'id': 'ISS-002', 'book_id': 'BK-001', 'book_title': 'Mathematics Textbook Grade 10', 'student_name': 'Priya Patel', 'class': '10-B', 'issued_date': '2026-10-25', 'due_date': '2026-11-08', 'status': 'Active', 'fine': 0},
-    {'id': 'ISS-003', 'book_id': 'BK-005', 'book_title': 'Introduction to Computer Science', 'student_name': 'Rohit Kumar', 'class': '11-A', 'issued_date': '2026-10-15', 'due_date': '2026-10-29', 'status': 'Overdue', 'fine': 10},
-    {'id': 'ISS-004', 'book_id': 'BK-009', 'book_title': 'Wings of Fire', 'student_name': 'Sneha Singh', 'class': '9-A', 'issued_date': '2026-10-28', 'due_date': '2026-11-11', 'status': 'Active', 'fine': 0},
-    {'id': 'ISS-005', 'book_id': 'BK-007', 'book_title': 'The Discovery of India', 'student_name': 'Vikash Gupta', 'class': '12-A', 'issued_date': '2026-10-18', 'due_date': '2026-11-01', 'status': 'Overdue', 'fine': 4},
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -88,9 +64,6 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
         issued = List<Map<String, dynamic>>.from(issuedRes);
       } catch (_) {}
 
-      if (books.isEmpty) books = _defaultBooks;
-      if (issued.isEmpty) issued = _defaultIssuedBooks;
-
       final overdue = issued.where((i) => i['status'] == 'Overdue').toList();
 
       if (mounted) {
@@ -105,9 +78,9 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _books = _defaultBooks;
-          _issuedBooks = _defaultIssuedBooks;
-          _overdueBooks = _defaultIssuedBooks.where((i) => i['status'] == 'Overdue').toList();
+          _books = [];
+          _issuedBooks = [];
+          _overdueBooks = [];
           _isLoading = false;
         });
       }

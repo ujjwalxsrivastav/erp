@@ -32,65 +32,6 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
     'School Leaving Certificate',
   ];
 
-  // Mock requests
-  List<Map<String, dynamic>> get _defaultRequests => [
-    {
-      'id': 'CERT-001',
-      'student_name': 'Priya Sharma',
-      'class': '10-A',
-      'cert_type': 'Bonafide Certificate',
-      'reason': 'Required for bank account opening',
-      'status': 'Ready for Collection',
-      'requested_date': '2026-10-28',
-      'processed_date': '2026-10-31',
-      'username': 'sstudent1',
-    },
-    {
-      'id': 'CERT-002',
-      'student_name': 'Arjun Kumar',
-      'class': '12-A',
-      'cert_type': 'Transfer Certificate (TC)',
-      'reason': 'Shifting to another school',
-      'status': 'Under Review',
-      'requested_date': '2026-11-01',
-      'processed_date': null,
-      'username': 'student2',
-    },
-    {
-      'id': 'CERT-003',
-      'student_name': 'Meera Joshi',
-      'class': '9-B',
-      'cert_type': 'Character Certificate',
-      'reason': 'Required for scholarship application',
-      'status': 'Issued',
-      'requested_date': '2026-10-20',
-      'processed_date': '2026-10-23',
-      'username': 'student3',
-    },
-    {
-      'id': 'CERT-004',
-      'student_name': 'Rohit Verma',
-      'class': '11-A',
-      'cert_type': 'Study Certificate',
-      'reason': 'Part-time job requirement',
-      'status': 'Under Review',
-      'requested_date': '2026-11-02',
-      'processed_date': null,
-      'username': 'student4',
-    },
-    {
-      'id': 'CERT-005',
-      'student_name': 'Sanya Patel',
-      'class': '8-A',
-      'cert_type': 'Bonafide Certificate',
-      'reason': 'Railway concession pass',
-      'status': 'Approved',
-      'requested_date': '2026-10-30',
-      'processed_date': '2026-11-01',
-      'username': 'student5',
-    },
-  ];
-
   final List<String> _statusFilters = ['All', 'Under Review', 'Approved', 'Ready for Collection', 'Issued', 'Rejected'];
 
   @override
@@ -121,8 +62,6 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
         requests = List<Map<String, dynamic>>.from(res);
       } catch (_) {}
 
-      if (requests.isEmpty) requests = _defaultRequests;
-
       if (mounted) {
         setState(() {
           _userRole = role;
@@ -139,7 +78,7 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _requests = _defaultRequests;
+          _requests = [];
           _isLoading = false;
         });
       }

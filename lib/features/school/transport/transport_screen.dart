@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
@@ -404,7 +405,7 @@ class _TransportScreenState extends State<TransportScreen>
                   _detailRow(Icons.place_outlined, 'Total Stops', '${route['stops'] ?? 0} stops', color),
                   const SizedBox(height: 14),
 
-                  // Stops timeline (mock stops based on route name)
+                  // Stops timeline (from route stops data)
                   const Text(
                     'Route Stops',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151)),
@@ -467,18 +468,19 @@ class _TransportScreenState extends State<TransportScreen>
   }
 
   List<String> _getStopsForRoute(Map<String, dynamic> route) {
-    final name = route['name']?.toString() ?? '';
-    final stopsCount = (route['stops'] as num?)?.toInt() ?? 5;
-    if (name.contains('City Center')) {
-      return ['School', 'Janpath', 'Connaught Place', 'ITO', 'City Center'];
-    } else if (name.contains('Green Park')) {
-      return ['School', 'Hauz Khas', 'Green Park Main', 'Green Park Market'];
-    } else if (name.contains('South')) {
-      return ['School', 'Lajpat Nagar', 'Defence Colony', 'South Extension', 'Saket'];
-    } else if (name.contains('Dwarka')) {
-      return ['School', 'Dwarka Mor', 'Dwarka Sec-7', 'Dwarka Sec-10', 'Dwarka Sec-12'];
+    final rawStops = route['stops'];
+    if (rawStops is List) {
+      return rawStops.map((s) => s.toString()).toList();
+    } else if (rawStops is String && rawStops.trim().isNotEmpty) {
+      if (rawStops.startsWith('[')) {
+        try {
+          final decoded = jsonDecode(rawStops);
+          if (decoded is List) return decoded.map((s) => s.toString()).toList();
+        } catch (_) {}
+      }
+      return rawStops.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
     }
-    return List.generate(stopsCount, (i) => i == 0 ? 'School' : 'Stop ${i + 1}');
+    return ['School Campus'];
   }
 
   Widget _buildStopRow(int index, String stop, int total, Color color) {

@@ -73,21 +73,10 @@ class SchoolService {
           .select()
           .or('class_id.eq.$classId,class_name.eq.$classId')
           .order('roll_number');
-      final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Standard mock students for rich demo if DB not seeded
-    return [
-      {'id': 'SCH-01', 'username': 'sstudent1', 'name': 'Aarav Sharma', 'roll_number': '01', 'admission_no': 'ADM202601', 'parent_name': 'Rajesh Sharma', 'contact': '9876543210'},
-      {'id': 'SCH-02', 'username': 'student2', 'name': 'Priya Patel', 'roll_number': '02', 'admission_no': 'ADM202602', 'parent_name': 'Sanjay Patel', 'contact': '9876543211'},
-      {'id': 'SCH-03', 'username': 'student3', 'name': 'Rohan Gupta', 'roll_number': '03', 'admission_no': 'ADM202603', 'parent_name': 'Manoj Gupta', 'contact': '9876543212'},
-      {'id': 'SCH-04', 'username': 'student4', 'name': 'Sneha Singh', 'roll_number': '04', 'admission_no': 'ADM202604', 'parent_name': 'Vikram Singh', 'contact': '9876543213'},
-      {'id': 'SCH-05', 'username': 'student5', 'name': 'Vikram Kumar', 'roll_number': '05', 'admission_no': 'ADM202605', 'parent_name': 'Alok Kumar', 'contact': '9876543214'},
-      {'id': 'SCH-06', 'username': 'student6', 'name': 'Ananya Verma', 'roll_number': '06', 'admission_no': 'ADM202606', 'parent_name': 'Sunil Verma', 'contact': '9876543215'},
-      {'id': 'SCH-07', 'username': 'student7', 'name': 'Mohit Joshi', 'roll_number': '07', 'admission_no': 'ADM202607', 'parent_name': 'Devendra Joshi', 'contact': '9876543216'},
-      {'id': 'SCH-08', 'username': 'student8', 'name': 'Kavya Nair', 'roll_number': '08', 'admission_no': 'ADM202608', 'parent_name': 'Radhakrishnan Nair', 'contact': '9876543217'},
-    ];
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<Map<String, dynamic>>> getStudentsByClass(String classId) async {
@@ -101,27 +90,19 @@ class SchoolService {
         query = query.eq('class_id', classId);
       }
       final response = await query.order('name');
-      final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    return [
-      {'id': 'sub-1', 'name': 'Mathematics', 'code': 'MATH10'},
-      {'id': 'sub-2', 'name': 'Science', 'code': 'SCI10'},
-      {'id': 'sub-3', 'name': 'English', 'code': 'ENG10'},
-      {'id': 'sub-4', 'name': 'Social Studies', 'code': 'SST10'},
-      {'id': 'sub-5', 'name': 'Hindi', 'code': 'HIN10'},
-      {'id': 'sub-6', 'name': 'Computer Science', 'code': 'CS10'},
-    ];
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
   }
 
   // ===== SCHOOL STATS (Admin Dashboard) =====
   Future<Map<String, dynamic>> getSchoolStats(String? instituteId) async {
-    int totalStudents = 1250;
-    int totalTeachers = 68;
-    int totalClasses = 24;
-    double attendancePercent = 92.4;
-    int pendingFeesCount = 18;
+    int totalStudents = 0;
+    int totalTeachers = 0;
+    int totalClasses = 0;
+    double attendancePercent = 0.0;
+    int pendingFeesCount = 0;
 
     try {
       final res = await _supabase
@@ -393,27 +374,10 @@ class SchoolService {
           .gte('date', fromStr)
           .lte('date', toStr)
           .order('date');
-      final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Generate realistic monthly report data if DB empty
-    final mock = <Map<String, dynamic>>[];
-    var curr = from;
-    while (!curr.isAfter(to)) {
-      if (curr.weekday != DateTime.sunday) {
-        final dStr = curr.toIso8601String().substring(0, 10);
-        mock.addAll([
-          {'date': dStr, 'class_id': classId, 'student_id': 'SCH-01', 'status': 'present'},
-          {'date': dStr, 'class_id': classId, 'student_id': 'SCH-02', 'status': 'present'},
-          {'date': dStr, 'class_id': classId, 'student_id': 'SCH-03', 'status': curr.weekday == 2 ? 'absent' : 'present'},
-          {'date': dStr, 'class_id': classId, 'student_id': 'SCH-04', 'status': 'present'},
-          {'date': dStr, 'class_id': classId, 'student_id': 'SCH-05', 'status': curr.weekday == 5 ? 'late' : 'present'},
-        ]);
-      }
-      curr = curr.add(const Duration(days: 1));
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
     }
-    return mock;
   }
 
   Future<Map<String, dynamic>> getAttendanceSummary({
