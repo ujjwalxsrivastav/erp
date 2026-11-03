@@ -299,25 +299,61 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
-        title: const Text('School Reports & Analytics', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
-        backgroundColor: _primary,
+        title: const Text(
+          'Analytics & Institutional Reports',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3, color: Colors.white),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorWeight: 3,
-          tabs: const [
-            Tab(icon: Icon(Icons.dashboard_outlined, size: 18), text: 'Morning Briefing'),
-            Tab(icon: Icon(Icons.how_to_reg, size: 18), text: 'Attendance'),
-            Tab(icon: Icon(Icons.payment, size: 18), text: 'Fees'),
-            Tab(icon: Icon(Icons.bar_chart, size: 18), text: 'Marks'),
-            Tab(icon: Icon(Icons.assignment, size: 18), text: 'Homework'),
-            Tab(icon: Icon(Icons.verified_user, size: 18), text: 'UDISE+ Compliance'),
-          ],
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF14B8A6)],
+            ),
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicator: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: const Color(0xFF134E4A),
+              unselectedLabelColor: Colors.white,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+              tabs: const [
+                Tab(icon: Icon(Icons.dashboard_outlined, size: 16), text: 'Morning Briefing'),
+                Tab(icon: Icon(Icons.how_to_reg, size: 16), text: 'Attendance'),
+                Tab(icon: Icon(Icons.payment, size: 16), text: 'Fees'),
+                Tab(icon: Icon(Icons.bar_chart, size: 16), text: 'Marks'),
+                Tab(icon: Icon(Icons.assignment, size: 16), text: 'Homework'),
+                Tab(icon: Icon(Icons.verified_user, size: 16), text: 'UDISE+'),
+              ],
+            ),
+          ),
         ),
       ),
       body: TabBarView(

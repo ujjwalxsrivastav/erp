@@ -156,40 +156,55 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isTeacher = _role == 'teacher';
+    final isTeacher = _role == 'teacher' || _role == 'steacher' || _role == 'admin' || _role == 'sadmin';
+
+    final effectiveSelectedClass = _classes.contains(_selectedClass)
+        ? _selectedClass
+        : (_classes.isNotEmpty ? _classes.first : null);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Homework', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: const Color(0xFF3B82F6),
+        title: const Text(
+          'Homework & Assignments',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1E40AF), Color(0xFF2563EB), Color(0xFF3B82F6)],
+            ),
+          ),
+        ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(96),
+          preferredSize: const Size.fromHeight(102),
           child: Column(
             children: [
               // Class selector dropdown
               if (_classes.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: DropdownButton<Map<String, dynamic>>(
-                      value: _selectedClass,
+                      value: effectiveSelectedClass,
                       isExpanded: true,
                       underline: const SizedBox.shrink(),
-                      dropdownColor: const Color(0xFF2563EB),
-                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                      dropdownColor: const Color(0xFF1E40AF),
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                       icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                       items: _classes.map((c) => DropdownMenuItem(
                         value: c,
                         child: Text(
-                          c['name']?.toString() ?? c['id']?.toString() ?? 'Unknown',
+                          c['name']?.toString() ?? c['id']?.toString() ?? 'Unknown Class',
                           style: const TextStyle(color: Colors.white),
                         ),
                       )).toList(),
@@ -200,15 +215,37 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                     ),
                   ),
                 ),
-              TabBar(
-                controller: _tabController,
-                indicatorColor: Colors.white,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white70,
-                tabs: [
-                  Tab(text: 'Active (${_active.length})'),
-                  Tab(text: 'Past/Submitted (${_past.length})'),
-                ],
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  indicator: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  labelColor: const Color(0xFF1E40AF),
+                  unselectedLabelColor: Colors.white,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                  tabs: [
+                    Tab(text: 'Active (${_active.length})'),
+                    Tab(text: 'Completed (${_past.length})'),
+                  ],
+                ),
               ),
             ],
           ),
@@ -217,13 +254,15 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       floatingActionButton: isTeacher
           ? FloatingActionButton.extended(
               onPressed: () => context.go('/school/homework/upload'),
-              backgroundColor: const Color(0xFF3B82F6),
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Assign', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              elevation: 4,
+              icon: const Icon(Icons.add),
+              label: const Text('Assign Homework', style: TextStyle(fontWeight: FontWeight.bold)),
             )
           : null,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))
+          ? _buildLoadingSkeleton()
           : TabBarView(
               controller: _tabController,
               children: [
@@ -521,6 +560,21 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 4,
+      itemBuilder: (context, index) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        height: 140,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
+        ),
       ),
     );
   }

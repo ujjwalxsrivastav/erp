@@ -747,21 +747,55 @@ class _SchoolPromotionScreenState extends State<SchoolPromotionScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Promotion & Session Changeover', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: const Color(0xFF0F766E),
+        title: const Text(
+          'Promotion & Session Changeover',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.school, size: 20), text: 'Promotion Register'),
-            Tab(icon: Icon(Icons.history, size: 20), text: 'Session Archives'),
-          ],
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF14B8A6)],
+            ),
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: const Color(0xFF134E4A),
+              unselectedLabelColor: Colors.white,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              tabs: const [
+                Tab(icon: Icon(Icons.school, size: 16), text: 'Register & Changeover'),
+                Tab(icon: Icon(Icons.history, size: 16), text: 'Session Archives'),
+              ],
+            ),
+          ),
         ),
       ),
       body: TabBarView(
@@ -774,3 +808,4 @@ class _SchoolPromotionScreenState extends State<SchoolPromotionScreen>
     );
   }
 }
+

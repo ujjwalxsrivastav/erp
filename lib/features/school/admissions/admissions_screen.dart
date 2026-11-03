@@ -117,37 +117,56 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Admissions', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: _primaryColor,
+        title: const Text(
+          'Admissions Management',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF3B82F6)],
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Reload',
             onPressed: _loadData,
           ),
         ],
       ),
       floatingActionButton: (_userRole == 'admin' || _userRole == 'sadmin')
           ? FloatingActionButton.extended(
-              backgroundColor: _primaryColor,
+              backgroundColor: const Color(0xFF2563EB),
               icon: const Icon(Icons.person_add, color: Colors.white),
-              label: const Text('New Application', style: TextStyle(color: Colors.white)),
+              label: const Text('New Application', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              elevation: 4,
               onPressed: _showNewApplicationDialog,
             )
           : null,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _primaryColor))
+          ? _buildLoadingSkeleton()
           : RefreshIndicator(
-              color: _primaryColor,
+              color: const Color(0xFF2563EB),
               onRefresh: _loadData,
               child: Column(
                 children: [
                   // Summary Bar
                   Container(
-                    color: _primaryColor,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF3B82F6)],
+                      ),
+                    ),
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: Column(
                       children: [
@@ -270,7 +289,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))
         ],
       ),
       child: Material(
@@ -291,7 +310,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: _primaryColor.withOpacity(0.1),
+                        color: _primaryColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -321,7 +340,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.1),
+                                  color: statusColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Row(
@@ -559,7 +578,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                         width: 60,
                         height: 60,
                         decoration: BoxDecoration(
-                          color: _primaryColor.withOpacity(0.1),
+                          color: _primaryColor.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: Center(
@@ -582,7 +601,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: _statusColor(status).withOpacity(0.1),
+                                color: _statusColor(status).withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(status,
@@ -827,6 +846,21 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     );
   }
 
+  Widget _buildLoadingSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 5,
+      itemBuilder: (context, index) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        height: 120,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmpty() {
     return Center(
       child: Column(
@@ -857,7 +891,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: _primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+              decoration: BoxDecoration(color: _primaryColor.withValues(alpha: 0.1), shape: BoxShape.circle),
               child: const Icon(Icons.school, color: _primaryColor),
             ),
             const SizedBox(width: 12),
@@ -992,7 +1026,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: selectedGrade,
+                    initialValue: selectedGrade,
                     decoration: const InputDecoration(
                       labelText: 'Applying for Grade *',
                       border: OutlineInputBorder(),

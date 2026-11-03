@@ -83,13 +83,19 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
     try {
       final classes = await _service.getSchoolClasses();
-      _classes = classes.isNotEmpty
+      final resolved = classes.isNotEmpty
           ? classes
           : [
               {'id': 'cls-10a', 'name': 'Class 10', 'section': 'A'},
               {'id': 'cls-9a', 'name': 'Class 9', 'section': 'A'},
               {'id': 'cls-10b', 'name': 'Class 10', 'section': 'B'},
             ];
+      _classes = resolved;
+      if (!_classes.any((c) => c['id']?.toString() == _selectedClassId)) {
+        if (_classes.isNotEmpty) {
+          _selectedClassId = _classes.first['id']?.toString() ?? 'cls-10a';
+        }
+      }
 
       final entries = await _service.getTimetableForClass(
         _selectedClassId,
@@ -752,33 +758,48 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   const Text('Class:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedClassId,
-                          dropdownColor: const Color(0xFF0F766E),
-                          icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          items: _classes.map((c) {
-                            final name = '${c['name']} - ${c['section']}';
-                            return DropdownMenuItem<String>(
-                              value: c['id']?.toString() ?? 'cls-10a',
+                    child: Builder(
+                      builder: (context) {
+                        final items = <DropdownMenuItem<String>>[];
+                        final seen = <String>{};
+                        for (final c in _classes) {
+                          final id = c['id']?.toString() ?? '';
+                          if (id.isNotEmpty && !seen.contains(id)) {
+                            seen.add(id);
+                            final name = '${c['name'] ?? 'Class'} - ${c['section'] ?? ''}'.trim();
+                            items.add(DropdownMenuItem<String>(
+                              value: id,
                               child: Text(name),
-                            );
-                          }).toList(),
-                          onChanged: (v) {
-                            if (v != null) {
-                              setState(() => _selectedClassId = v);
-                              _loadClassesAndTimetable();
-                            }
-                          },
-                        ),
-                      ),
+                            ));
+                          }
+                        }
+                        final effectiveValue = seen.contains(_selectedClassId)
+                            ? _selectedClassId
+                            : (seen.isNotEmpty ? seen.first : null);
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: effectiveValue,
+                              dropdownColor: const Color(0xFF0F766E),
+                              icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              items: items,
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setState(() => _selectedClassId = v);
+                                  _loadClassesAndTimetable();
+                                }
+                              },
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1432,23 +1453,56 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('School Timetable & Coverage',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: const Color(0xFF0F766E),
+        title: const Text(
+          'Timetable & Morning Coverage',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.calendar_month, size: 20), text: 'Timetable Grid'),
-            Tab(icon: Icon(Icons.swap_horiz, size: 20), text: 'Morning Coverage'),
-            Tab(icon: Icon(Icons.menu_book, size: 20), text: 'Syllabus Tracker'),
-          ],
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF14B8A6)],
+            ),
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: const Color(0xFF134E4A),
+              unselectedLabelColor: Colors.white,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+              tabs: const [
+                Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Timetable Grid'),
+                Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Coverage'),
+                Tab(icon: Icon(Icons.menu_book, size: 16), text: 'Syllabus Tracker'),
+              ],
+            ),
+          ),
         ),
       ),
       body: TabBarView(

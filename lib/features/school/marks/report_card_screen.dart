@@ -148,23 +148,35 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Holistic Progress Card (HPC)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: const Color(0xFF0F766E),
+        title: const Text(
+          'Holistic Progress Card (HPC)',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF14B8A6)],
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.print_outlined),
+            icon: const Icon(Icons.print_outlined, color: Colors.white),
             onPressed: _showPrintPreviewDialog,
             tooltip: 'Print / Official Preview',
           ),
           IconButton(
-            icon: const Icon(Icons.share_outlined),
+            icon: const Icon(Icons.share_outlined, color: Colors.white),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Report Card verification link generated!'),
                   backgroundColor: Color(0xFF0F766E),
+                  behavior: SnackBarBehavior.floating,
                 ),
               );
             },
@@ -173,7 +185,7 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F766E)))
+          ? _buildLoadingSkeleton()
           : RefreshIndicator(
               color: const Color(0xFF0F766E),
               onRefresh: _loadMarks,
@@ -984,6 +996,29 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          height: 120,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 280,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -16,6 +16,7 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
   late TabController _tabController;
 
   bool _isLoading = true;
+  String? _errorMessage;
   List<Map<String, dynamic>> _books = [];
   List<Map<String, dynamic>> _issuedBooks = [];
   List<Map<String, dynamic>> _overdueBooks = [];
@@ -44,11 +45,13 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final role = await _authService.getCurrentUserRole() ?? 'student';
 
-      // Try loading from DB, fallback to defaults
       List<Map<String, dynamic>> books = [];
       List<Map<String, dynamic>> issued = [];
       try {
@@ -82,6 +85,7 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
           _issuedBooks = [];
           _overdueBooks = [];
           _isLoading = false;
+          _errorMessage = 'Could not load library catalogue. Tap retry.';
         });
       }
     }
@@ -100,60 +104,163 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Library', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: _primaryColor,
+        title: const Text(
+          'Library Catalogue',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF4C1D95), Color(0xFF6D28D9), Color(0xFF7C3AED)],
+            ),
+          ),
+        ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Reload',
+            onPressed: _loadData,
+          ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: [
-            const Tab(text: 'Books'),
-            Tab(text: 'Issued (${_issuedBooks.length})'),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Overdue'),
-                  if (_overdueBooks.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                      child: Text('${_overdueBooks.length}', style: const TextStyle(fontSize: 10, color: Colors.white)),
-                    ),
-                  ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
                 ],
               ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: const Color(0xFF6D28D9),
+              unselectedLabelColor: Colors.white,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+              tabs: [
+                const Tab(text: 'Books'),
+                Tab(text: 'Issued (${_issuedBooks.length})'),
+                Tab(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Overdue'),
+                      if (_overdueBooks.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                          child: Text('${_overdueBooks.length}', style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
       floatingActionButton: (_userRole == 'admin' || _userRole == 'sadmin' || _userRole == 'librarian')
           ? FloatingActionButton.extended(
-              backgroundColor: _primaryColor,
+              backgroundColor: const Color(0xFF7C3AED),
               icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Add Book', style: TextStyle(color: Colors.white)),
+              label: const Text('Add Book', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              elevation: 4,
               onPressed: _showAddBookDialog,
             )
           : null,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _primaryColor))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildBooksTab(),
-                _buildIssuedTab(),
-                _buildOverdueTab(),
-              ],
+          ? _buildLoadingSkeleton()
+          : _errorMessage != null
+              ? _buildErrorView()
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildBooksTab(),
+                    _buildIssuedTab(),
+                    _buildOverdueTab(),
+                  ],
+                ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 4,
+      itemBuilder: (context, index) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        height: 110,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
             ),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to Load Library Data',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage ?? 'Unable to connect to the library database.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _loadData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7C3AED),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

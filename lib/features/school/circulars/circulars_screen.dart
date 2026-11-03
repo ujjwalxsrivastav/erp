@@ -15,6 +15,7 @@ class _CircularsScreenState extends State<CircularsScreen> {
   String _selectedCategory = 'All';
   String? _userRole;
   bool _isLoading = true;
+  String? _errorMessage;
   final List<String> _categories = ['All', 'General', 'Academic', 'Exam', 'Fee', 'Events', 'Holiday'];
 
   List<Map<String, dynamic>> _circulars = [];
@@ -26,15 +27,27 @@ class _CircularsScreenState extends State<CircularsScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    final role = await _authService.getCurrentUserRole();
-    final list = await _schoolService.getCirculars();
-    if (mounted) {
-      setState(() {
-        _userRole = role;
-        _circulars = list;
-        _isLoading = false;
-      });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final role = await _authService.getCurrentUserRole();
+      final list = await _schoolService.getCirculars();
+      if (mounted) {
+        setState(() {
+          _userRole = role;
+          _circulars = list;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Unable to load notices. Please check your network and tap retry.';
+        });
+      }
     }
   }
 
@@ -162,26 +175,44 @@ class _CircularsScreenState extends State<CircularsScreen> {
     final canPublish = _userRole == 'admin' || _userRole == 'teacher';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Circulars & Announcements', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: const Color(0xFF8B5CF6),
+        title: const Text(
+          'Notices & Circulars',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF581C87), Color(0xFF6D28D9), Color(0xFF7C3AED)],
+            ),
+          ),
+        ),
       ),
       floatingActionButton: canPublish
           ? FloatingActionButton.extended(
               onPressed: _showCreateDialog,
-              backgroundColor: const Color(0xFF8B5CF6),
+              backgroundColor: const Color(0xFF7C3AED),
               foregroundColor: Colors.white,
+              elevation: 4,
               icon: const Icon(Icons.add),
-              label: const Text('New Circular'),
+              label: const Text('New Notice', style: TextStyle(fontWeight: FontWeight.bold)),
             )
           : null,
       body: Column(
         children: [
           Container(
-            color: const Color(0xFF8B5CF6),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF581C87), Color(0xFF6D28D9), Color(0xFF7C3AED)],
+              ),
+            ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -190,18 +221,28 @@ class _CircularsScreenState extends State<CircularsScreen> {
                   final isSelected = cat == _selectedCategory;
                   return GestureDetector(
                     onTap: () => setState(() => _selectedCategory = cat),
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.15),
+                        color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(20),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.12),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
                       ),
                       child: Text(
                         cat,
                         style: TextStyle(
-                          color: isSelected ? const Color(0xFF8B5CF6) : Colors.white,
-                          fontWeight: FontWeight.w600,
+                          color: isSelected ? const Color(0xFF6D28D9) : Colors.white,
+                          fontWeight: FontWeight.w700,
                           fontSize: 13,
                         ),
                       ),
@@ -213,116 +254,245 @@ class _CircularsScreenState extends State<CircularsScreen> {
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF8B5CF6)))
-                : _filtered.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.campaign_outlined, size: 60, color: Colors.grey.shade400),
-                            const SizedBox(height: 12),
-                            Text('No circulars in $_selectedCategory', style: TextStyle(color: Colors.grey.shade600)),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadData,
-                        color: const Color(0xFF8B5CF6),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _filtered.length,
-                          itemBuilder: (context, index) {
-                            final c = _filtered[index];
-                            final cat = c['category']?.toString() ?? 'General';
-                            Color catColor = const Color(0xFF8B5CF6);
-                            IconData catIcon = Icons.notifications_outlined;
-                            if (cat.contains('Exam')) {
-                              catColor = const Color(0xFFEF4444);
-                              catIcon = Icons.quiz_outlined;
-                            } else if (cat.contains('Fee')) {
-                              catColor = const Color(0xFFF59E0B);
-                              catIcon = Icons.payment_outlined;
-                            } else if (cat.contains('Holiday')) {
-                              catColor = const Color(0xFF10B981);
-                              catIcon = Icons.beach_access_outlined;
-                            } else if (cat.contains('Event')) {
-                              catColor = const Color(0xFF3B82F6);
-                              catIcon = Icons.celebration_outlined;
-                            }
-
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
+                ? _buildLoadingSkeleton()
+                : _errorMessage != null
+                    ? _buildErrorView()
+                    : _filtered.isEmpty
+                        ? _buildEmptyView(canPublish)
+                        : RefreshIndicator(
+                            onRefresh: _loadData,
+                            color: const Color(0xFF7C3AED),
+                            child: ListView.builder(
                               padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.04),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: catColor.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Icon(catIcon, color: catColor, size: 20),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              c['title']?.toString() ?? 'Notice',
-                                              style: const TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.bold,
-                                                color: Color(0xFF1F2937),
-                                              ),
-                                            ),
-                                            Text(
-                                              'Published: ${c['published_at'] ?? c['date'] ?? 'Recent'} • By: ${c['author'] ?? 'Admin'}',
-                                              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: catColor.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          cat,
-                                          style: TextStyle(fontSize: 11, color: catColor, fontWeight: FontWeight.w600),
-                                        ),
+                              itemCount: _filtered.length,
+                              itemBuilder: (context, index) {
+                                final c = _filtered[index];
+                                final cat = c['category']?.toString() ?? 'General';
+                                Color catColor = const Color(0xFF7C3AED);
+                                IconData catIcon = Icons.notifications_outlined;
+                                if (cat.contains('Exam')) {
+                                  catColor = const Color(0xFFEF4444);
+                                  catIcon = Icons.quiz_outlined;
+                                } else if (cat.contains('Fee')) {
+                                  catColor = const Color(0xFFF59E0B);
+                                  catIcon = Icons.payment_outlined;
+                                } else if (cat.contains('Holiday')) {
+                                  catColor = const Color(0xFF10B981);
+                                  catIcon = Icons.beach_access_outlined;
+                                } else if (cat.contains('Event')) {
+                                  catColor = const Color(0xFF3B82F6);
+                                  catIcon = Icons.celebration_outlined;
+                                }
+
+                                final publishedAt = c['published_at']?.toString() ?? '';
+                                final audience = c['target_audience']?.toString() ?? 'All';
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.04),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    c['content']?.toString() ?? '',
-                                    style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563), height: 1.4),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: catColor.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(catIcon, size: 14, color: catColor),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  cat,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: catColor,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const Spacer(),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF1F5F9),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              'Audience: $audience',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        c['title'] ?? 'Notice',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      if ((c['content'] ?? '').toString().isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          c['content'] ?? '',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Color(0xFF475569),
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.schedule, size: 14, color: Color(0xFF94A3B8)),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            publishedAt.length >= 10 ? publishedAt.substring(0, 10) : 'Recent',
+                                            style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                                );
+                              },
+                            ),
+                          ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 4,
+      itemBuilder: (context, index) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        height: 120,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to Load Notices',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage ?? 'Unable to connect to the server.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _loadData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7C3AED),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyView(bool canPublish) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.campaign_outlined, size: 48, color: Color(0xFF94A3B8)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No $_selectedCategory Circulars Found',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'New circulars and announcements will appear here once published.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+            ),
+            if (canPublish) ...[
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _showCreateDialog,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Publish First Notice', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

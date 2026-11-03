@@ -143,12 +143,23 @@ class _UploadHomeworkScreenState extends State<UploadHomeworkScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Assign Homework', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: const Color(0xFF3B82F6),
+        title: const Text(
+          'Assign Homework',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1E40AF), Color(0xFF2563EB), Color(0xFF3B82F6)],
+            ),
+          ),
+        ),
       ),
       body: _isInitialising
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))

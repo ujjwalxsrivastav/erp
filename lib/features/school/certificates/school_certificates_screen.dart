@@ -16,6 +16,7 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
   late TabController _tabController;
 
   bool _isLoading = true;
+  String? _errorMessage;
   List<Map<String, dynamic>> _requests = [];
   String _userRole = 'student';
   String _userName = '';
@@ -48,7 +49,10 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final role = await _authService.getCurrentUserRole() ?? 'student';
       final username = await _authService.getCurrentUsername() ?? '';
@@ -80,6 +84,7 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
         setState(() {
           _requests = [];
           _isLoading = false;
+          _errorMessage = 'Could not load certificate requests. Please tap retry.';
         });
       }
     }
@@ -131,35 +136,137 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Certificates', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: _primaryColor,
+        title: const Text(
+          'Official Certificates',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF064E3B), Color(0xFF047857), Color(0xFF059669)],
+            ),
+          ),
+        ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Reload',
+            onPressed: _loadData,
+          ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Requests'),
-            Tab(text: 'Apply Now'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: const Color(0xFF065F46),
+              unselectedLabelColor: Colors.white,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              tabs: const [
+                Tab(text: 'Requests & Status'),
+                Tab(text: 'Apply for Certificate'),
+              ],
+            ),
+          ),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _primaryColor))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildRequestsTab(),
-                _buildApplyTab(),
-              ],
+          ? _buildLoadingSkeleton()
+          : _errorMessage != null
+              ? _buildErrorView()
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildRequestsTab(),
+                    _buildApplyTab(),
+                  ],
+                ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 4,
+      itemBuilder: (context, index) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        height: 120,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
             ),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to Load Certificates',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage ?? 'Unable to connect to the certificates service.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _loadData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

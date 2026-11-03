@@ -16,6 +16,7 @@ class _TransportScreenState extends State<TransportScreen>
 
   late TabController _tabController;
   bool _isLoading = true;
+  String? _errorMessage;
   List<Map<String, dynamic>> _routes = [];
   Map<String, dynamic>? _myTransport;
   String _userRole = 'admin';
@@ -51,7 +52,10 @@ class _TransportScreenState extends State<TransportScreen>
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final username = await _authService.getCurrentUsername() ?? '';
       final role = await _authService.getCurrentUserRole() ?? 'admin';
@@ -82,7 +86,12 @@ class _TransportScreenState extends State<TransportScreen>
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Could not load transport & fleet details. Tap retry.';
+        });
+      }
     }
   }
 
@@ -1274,47 +1283,143 @@ class _TransportScreenState extends State<TransportScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('School Transport & Safety',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: _primaryColor,
+        title: const Text(
+          'Transport & Safety Hub',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF14B8A6)],
+            ),
+          ),
+        ),
         actions: [
           if (_userRole == 'admin' || _userRole == 'sadmin')
             IconButton(
-              icon: const Icon(Icons.add_circle_outline),
+              icon: const Icon(Icons.add_circle_outline, color: Colors.white),
               tooltip: 'Add Route',
               onPressed: _showAddRouteDialog,
             ),
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Reload',
             onPressed: _loadData,
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.directions_bus, size: 20), text: 'Fleet & Routes'),
-            Tab(icon: Icon(Icons.gps_fixed, size: 20), text: 'Live Journey'),
-            Tab(icon: Icon(Icons.badge, size: 20), text: 'Gate Pass'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: const Color(0xFF134E4A),
+              unselectedLabelColor: Colors.white,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+              tabs: const [
+                Tab(icon: Icon(Icons.directions_bus, size: 16), text: 'Fleet'),
+                Tab(icon: Icon(Icons.gps_fixed, size: 16), text: 'Journey'),
+                Tab(icon: Icon(Icons.badge, size: 16), text: 'Gate Pass'),
+              ],
+            ),
+          ),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _primaryColor))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildRoutesTab(),
-                _buildLiveJourneyTab(),
-                _buildGatePassTab(),
-              ],
+          ? _buildLoadingSkeleton()
+          : _errorMessage != null
+              ? _buildErrorView()
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildRoutesTab(),
+                    _buildLiveJourneyTab(),
+                    _buildGatePassTab(),
+                  ],
+                ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 4,
+      itemBuilder: (context, index) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        height: 130,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
             ),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to Load Transport Data',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage ?? 'Unable to connect to the fleet telematics server.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _loadData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F766E),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

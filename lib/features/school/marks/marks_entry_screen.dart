@@ -231,40 +231,63 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Marks Entry', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: const Color(0xFF8B5CF6),
+        title: const Text(
+          'Assessment & Marks Entry',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF4C1D95), Color(0xFF6D28D9), Color(0xFF7C3AED)],
+            ),
+          ),
+        ),
         actions: [
-          TextButton.icon(
-            onPressed: _isSaving ? null : _saveMarks,
-            icon: _isSaving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.save, color: Colors.white, size: 20),
-            label: Text(
-              _isSaving ? 'Saving...' : 'Save',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w600),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: ElevatedButton.icon(
+              onPressed: _isSaving ? null : _saveMarks,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF6D28D9),
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D28D9)),
+                    )
+                  : const Icon(Icons.check, size: 18),
+              label: Text(
+                _isSaving ? 'Saving...' : 'Save Marks',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
             ),
           ),
         ],
       ),
       body: _isInitialising
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF8B5CF6)))
+          ? _buildLoadingSkeleton()
           : Column(
               children: [
                 // ── Filter Header ──
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF8B5CF6),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF4C1D95), Color(0xFF6D28D9), Color(0xFF7C3AED)],
+                    ),
                     borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(24),
                       bottomRight: Radius.circular(24),
@@ -326,7 +349,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
+                                color: Colors.white.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Row(
@@ -364,7 +387,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
@@ -440,7 +463,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                                     boxShadow: [
                                       BoxShadow(
                                           color:
-                                              Colors.black.withOpacity(0.04),
+                                              Colors.black.withValues(alpha: 0.04),
                                           blurRadius: 8,
                                           offset: const Offset(0, 3))
                                     ],
@@ -543,7 +566,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
       ),
       child: DropdownButton<T>(
@@ -564,6 +587,21 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 ))
             .toList(),
         onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6,
+      itemBuilder: (context, index) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        height: 64,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(14),
+        ),
       ),
     );
   }

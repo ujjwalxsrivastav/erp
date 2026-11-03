@@ -16,6 +16,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   final _authService = AuthService();
 
   bool _isLoading = true;
+  String? _errorMessage;
   String _userRole = 'student';
   String _studentUsername = 'sstudent1';
   String _studentName = 'Aarav Sharma';
@@ -53,7 +54,10 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   }
 
   Future<void> _loadFeeData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final role = await _authService.getCurrentUserRole() ?? 'student';
       final username = await _authService.getCurrentUsername() ?? 'sstudent1';
@@ -72,7 +76,12 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Could not load fee records. Please check your connection and retry.';
+        });
+      }
     }
   }
 
@@ -265,37 +274,148 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
           _userRole == 'admin' ? 'Fee Management & Accounts' : 'Fee Details & Payments',
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
         ),
-        backgroundColor: const Color(0xFFF59E0B),
         foregroundColor: Colors.white,
         elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Summary & Structure'),
-            Tab(text: 'History & Receipts'),
-            Tab(text: 'Defaulters & Ageing'),
-          ],
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF92400E), Color(0xFFD97706), Color(0xFFF59E0B)],
+            ),
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: const Color(0xFF92400E),
+              unselectedLabelColor: Colors.white,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+              tabs: const [
+                Tab(text: 'Summary'),
+                Tab(text: 'Receipts'),
+                Tab(text: 'Defaulters'),
+              ],
+            ),
+          ),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF59E0B)))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildSummaryTab(),
-                _buildHistoryTab(),
-                _buildDefaultersTab(),
-              ],
+          ? _buildLoadingSkeleton()
+          : _errorMessage != null
+              ? _buildErrorView()
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildSummaryTab(),
+                    _buildHistoryTab(),
+                    _buildDefaultersTab(),
+                  ],
+                ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          height: 180,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 90,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 240,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
             ),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to Load Fee Details',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage ?? 'An error occurred while loading fees.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _loadFeeData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD97706),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

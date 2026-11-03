@@ -287,21 +287,57 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Attendance', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: const Color(0xFF10B981),
+        title: const Text(
+          'Daily Attendance',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Daily', icon: Icon(Icons.list_alt, size: 18)),
-            Tab(text: 'Monthly', icon: Icon(Icons.calendar_month, size: 18)),
-          ],
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF064E3B), Color(0xFF047857), Color(0xFF10B981)],
+            ),
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: const Color(0xFF064E3B),
+              unselectedLabelColor: Colors.white,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              tabs: const [
+                Tab(text: 'Daily Register', icon: Icon(Icons.list_alt, size: 16)),
+                Tab(text: 'Monthly View', icon: Icon(Icons.calendar_month, size: 16)),
+              ],
+            ),
+          ),
         ),
         actions: [
           if (_isEditable && _tabController.index == 0)
@@ -315,13 +351,13 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
                   )
                 : TextButton.icon(
                     onPressed: _saveAttendance,
-                    icon: const Icon(Icons.save, color: Colors.white, size: 20),
-                    label: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    icon: const Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
+                    label: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
         ],
       ),
       body: _loadingClasses
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
+          ? _buildLoadingSkeleton()
           : _classesError != null
               ? _buildErrorView(_classesError!, _loadClasses)
               : TabBarView(
@@ -331,6 +367,21 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
                     _buildMonthlyTab(),
                   ],
                 ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6,
+      itemBuilder: (context, index) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        height: 72,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
     );
   }
 
@@ -364,7 +415,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
               _buildStatChip('Absent', _absentCount, const Color(0xFFFEE2E2), const Color(0xFFEF4444)),
               _buildStatChip('Late', _lateCount, const Color(0xFFFEF3C7), const Color(0xFFF59E0B)),
               _buildStatChip('Leave', _leaveCount, const Color(0xFFEDE9FE), const Color(0xFF6366F1)),
-              _buildStatChip('Total', _students.length, Colors.white.withOpacity(0.2), Colors.white),
+              _buildStatChip('Total', _students.length, Colors.white.withValues(alpha: 0.2), Colors.white),
             ],
           ),
           const SizedBox(height: 12),
@@ -374,7 +425,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -398,7 +449,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: DropdownButton<Map<String, dynamic>>(
@@ -476,9 +527,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: statusColor.withOpacity(0.25), width: 1.5),
+        border: Border.all(color: statusColor.withValues(alpha: 0.25), width: 1.5),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
         ],
       ),
       child: Row(
@@ -488,7 +539,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.12),
+              color: statusColor.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -535,15 +586,27 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
 
   Widget _buildStatusButton(String studentId, String status, Color color, IconData icon) {
     final isSelected = _attendanceMap[studentId] == status;
-    return GestureDetector(
+    return InkWell(
       onTap: () => setState(() => _attendanceMap[studentId] = status),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(6),
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? color : color.withOpacity(0.1),
+          color: isSelected ? color : color.withValues(alpha: 0.12),
           shape: BoxShape.circle,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
-        child: Icon(icon, size: 16, color: isSelected ? Colors.white : color),
+        child: Icon(icon, size: 18, color: isSelected ? Colors.white : color),
       ),
     );
   }
@@ -627,7 +690,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       child: Column(
         children: [
           Text('$count', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
-          Text(label, style: TextStyle(fontSize: 10, color: textColor.withOpacity(0.8))),
+          Text(label, style: TextStyle(fontSize: 10, color: textColor.withValues(alpha: 0.8))),
         ],
       ),
     );
@@ -730,7 +793,7 @@ class _MonthlyAttendanceView extends StatelessWidget {
                 color: idx.isEven ? Colors.white : const Color(0xFFF9FAFB),
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 4, offset: const Offset(0, 2)),
                 ],
               ),
               child: Row(
