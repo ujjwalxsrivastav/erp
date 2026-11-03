@@ -163,7 +163,7 @@ class _UploadHomeworkScreenState extends State<UploadHomeworkScreen> {
                     _buildLabel('Class *'),
                     _buildCard(
                       child: DropdownButtonFormField<Map<String, dynamic>>(
-                        value: _selectedClass,
+                        initialValue: _selectedClass,
                         decoration: const InputDecoration(
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -187,7 +187,7 @@ class _UploadHomeworkScreenState extends State<UploadHomeworkScreen> {
                     _buildLabel('Subject *'),
                     _buildCard(
                       child: DropdownButtonFormField<Map<String, dynamic>>(
-                        value: _selectedSubject,
+                        initialValue: _selectedSubject,
                         decoration: const InputDecoration(
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -363,7 +363,7 @@ class _UploadHomeworkScreenState extends State<UploadHomeworkScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF3B82F6),
                           disabledBackgroundColor:
-                              const Color(0xFF3B82F6).withOpacity(0.6),
+                              const Color(0xFF3B82F6).withValues(alpha: 0.6),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14)),
@@ -399,7 +399,7 @@ class _UploadHomeworkScreenState extends State<UploadHomeworkScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 3))
         ],
