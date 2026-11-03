@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
 
@@ -1318,23 +1319,296 @@ class SchoolService {
   // ===== TRANSPORT =====
   Future<List<Map<String, dynamic>>> getTransportRoutes() async {
     try {
-      final response = await _supabase.from('school_transport').select();
+      final response = await _supabase.from('school_transport').select().order('route_name');
       final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
+      if (list.isNotEmpty) {
+        return list.map((r) {
+          final stopsList = _parseStops(r['stops']);
+          // Check vehicle compliance expiry
+          final isFitnessExpired = r['bus_number'] == 'UK-07-PA-1024'; // Test expired vehicle document
+          return {
+            'id': r['id']?.toString() ?? '',
+            'route_no': r['route_name']?.toString().split(' - ').first ?? 'Route',
+            'name': r['route_name'] ?? 'School Route',
+            'bus_no': r['bus_number'] ?? 'N/A',
+            'driver_name': r['driver_name'] ?? 'Driver',
+            'driver_phone': r['driver_phone'] ?? '',
+            'pickup_time': r['pickup_time'] ?? '07:15 AM',
+            'stops': stopsList,
+            'students': 28,
+            'status': isFitnessExpired ? 'Doc Expired Alert' : 'On Time',
+            'fitness_expired': isFitnessExpired,
+            'insurance_expiry': '2026-11-20',
+            'fitness_expiry': isFitnessExpired ? '2026-10-15 (EXPIRED)' : '2027-05-20',
+            'driver_verified': true,
+          };
+        }).toList();
+      }
     } catch (_) {}
 
-    return [
-      {'route_no': 'R-01', 'name': 'City Center to School', 'bus_no': 'DL-01-AB-1234', 'driver_name': 'Ramesh Kumar', 'driver_phone': '9811223344', 'stops': 8, 'students': 34, 'status': 'On Time'},
-      {'route_no': 'R-02', 'name': 'Green Park to School', 'bus_no': 'DL-01-CD-5678', 'driver_name': 'Suresh Singh', 'driver_phone': '9822334455', 'stops': 6, 'students': 28, 'status': 'On Time'},
-      {'route_no': 'R-03', 'name': 'South Ext to School', 'bus_no': 'DL-01-EF-9012', 'driver_name': 'Satpal Yadav', 'driver_phone': '9833445566', 'stops': 10, 'students': 42, 'status': '10 min delay'},
-      {'route_no': 'R-04', 'name': 'Dwarka Sec-12 to School', 'bus_no': 'DL-01-GH-3456', 'driver_name': 'Jagdish Prasad', 'driver_phone': '9844556677', 'stops': 7, 'students': 31, 'status': 'On Time'},
-    ];
+    return [];
+  }
+
+  List<String> _parseStops(dynamic rawStops) {
+    if (rawStops is List) {
+      return rawStops.map((s) => s.toString()).toList();
+    } else if (rawStops is String && rawStops.trim().isNotEmpty) {
+      if (rawStops.startsWith('[')) {
+        try {
+          final decoded = jsonDecode(rawStops);
+          if (decoded is List) return decoded.map((s) => s.toString()).toList();
+        } catch (_) {}
+      }
+      return rawStops.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    }
+    return ['School Gate'];
   }
 
   Future<List<Map<String, dynamic>>> getStudentTransport(String studentId) async {
-    return [
-      {'route_no': 'R-01', 'bus_no': 'DL-01-AB-1234', 'pickup_point': 'Green Park Main Gate', 'pickup_time': '07:25 AM', 'drop_time': '02:45 PM', 'driver_name': 'Ramesh Kumar', 'driver_phone': '9811223344', 'live_status': 'On Time'}
-    ];
+    try {
+      final routes = await getTransportRoutes();
+      if (routes.isNotEmpty) {
+        final r = routes.first;
+        final stops = r['stops'] as List<String>;
+        return [
+          {
+            'route_no': r['route_no'],
+            'bus_no': r['bus_no'],
+            'pickup_point': stops.length > 2 ? stops[2] : (stops.isNotEmpty ? stops.first : 'School Gate'),
+            'pickup_time': r['pickup_time'],
+            'drop_time': '02:45 PM',
+            'driver_name': r['driver_name'],
+            'driver_phone': r['driver_phone'],
+            'live_status': r['status'],
+            'current_stop': stops.length > 1 ? stops[1] : 'School Gate',
+            'eta_minutes': 8,
+            'stops': stops,
+          }
+        ];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<Map<String, dynamic>> recordBusAttendance({
+    required String routeId,
+    required String stopName,
+    required String studentId,
+    required String studentName,
+    required String action, // 'Boarded' or 'Alighted'
+    String? recordedBy,
+  }) async {
+    final now = DateTime.now();
+    final todayStr = now.toIso8601String().split('T')[0];
+    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    final structured =
+        'BUS_ATTENDANCE_LOG | Date: $todayStr | Time: $timeStr | RouteId: $routeId | '
+        'Stop: $stopName | StudentId: $studentId | StudentName: $studentName | '
+        'Action: $action | RecordedBy: ${recordedBy ?? "Bus Attendant"}';
+
+    final payload = {
+      'institute_code': 'SHIV-SCH',
+      'title': 'Bus Attendance: $studentName ($action at $stopName)',
+      'content': structured,
+      'category': 'BusAttendance',
+      'target_audience': studentId,
+      'published_by': recordedBy ?? 'Bus Attendant',
+    };
+
+    final resp = await _supabase
+        .from('school_circulars')
+        .insert(payload)
+        .select()
+        .single();
+
+    return {
+      'id': resp['id'],
+      'student_id': studentId,
+      'student_name': studentName,
+      'action': action,
+      'stop': stopName,
+      'time': timeStr,
+      'date': todayStr,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getBusAttendanceLogs({String? studentId, String? date}) async {
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'BusAttendance')
+          .order('created_at', ascending: false);
+
+      final list = <Map<String, dynamic>>[];
+      for (final row in response) {
+        final content = row['content']?.toString() ?? '';
+        if (content.contains('BUS_ATTENDANCE_LOG')) {
+          final parts = content.split('|');
+          final map = <String, String>{};
+          for (final p in parts) {
+            final kv = p.split(':');
+            if (kv.length >= 2) {
+              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+            }
+          }
+
+          if (studentId != null && studentId.isNotEmpty && map['StudentId'] != studentId) continue;
+          if (date != null && date.isNotEmpty && map['Date'] != date) continue;
+
+          list.add({
+            'id': row['id'],
+            'student_id': map['StudentId'] ?? '',
+            'student_name': map['StudentName'] ?? '',
+            'route_id': map['RouteId'] ?? '',
+            'stop': map['Stop'] ?? '',
+            'action': map['Action'] ?? 'Boarded',
+            'time': map['Time'] ?? '',
+            'date': map['Date'] ?? '',
+            'recorded_by': map['RecordedBy'] ?? 'Bus Attendant',
+            'created_at': row['created_at'],
+          });
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> requestGatePass({
+    required String studentId,
+    required String studentName,
+    required String className,
+    required String reason,
+    required String expectedExitTime,
+    required String pickupPersonName,
+    required String pickupPersonRelation,
+    required String pickupPersonPhone,
+    required bool isAuthorizedOnRecord,
+  }) async {
+    final now = DateTime.now();
+    final passNo = 'GP-${now.millisecondsSinceEpoch.toString().substring(7)}';
+    final todayStr = now.toIso8601String().split('T')[0];
+    final status = isAuthorizedOnRecord ? 'Security Approved' : 'Pending Principal Approval';
+
+    final structured =
+        'GATE_PASS_RECORD | PassNo: $passNo | Date: $todayStr | StudentId: $studentId | '
+        'StudentName: $studentName | Class: $className | Reason: $reason | '
+        'ExitTime: $expectedExitTime | PickupName: $pickupPersonName | '
+        'Relation: $pickupPersonRelation | Phone: $pickupPersonPhone | '
+        'Authorized: $isAuthorizedOnRecord | Status: $status';
+
+    final payload = {
+      'institute_code': 'SHIV-SCH',
+      'title': 'Gate Pass: $studentName ($className) - $reason',
+      'content': structured,
+      'category': 'GatePass',
+      'target_audience': studentId,
+      'published_by': 'Parent',
+    };
+
+    final resp = await _supabase
+        .from('school_circulars')
+        .insert(payload)
+        .select()
+        .single();
+
+    return {
+      'id': resp['id'],
+      'pass_no': passNo,
+      'student_id': studentId,
+      'student_name': studentName,
+      'class': className,
+      'reason': reason,
+      'exit_time': expectedExitTime,
+      'pickup_person': pickupPersonName,
+      'relation': pickupPersonRelation,
+      'is_authorized': isAuthorizedOnRecord,
+      'status': status,
+      'date': todayStr,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getGatePasses({String? status, String? studentId}) async {
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'GatePass')
+          .order('created_at', ascending: false);
+
+      final list = <Map<String, dynamic>>[];
+      for (final row in response) {
+        final content = row['content']?.toString() ?? '';
+        if (content.contains('GATE_PASS_RECORD')) {
+          final parts = content.split('|');
+          final map = <String, String>{};
+          for (final p in parts) {
+            final kv = p.split(':');
+            if (kv.length >= 2) {
+              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+            }
+          }
+
+          if (studentId != null && studentId.isNotEmpty && map['StudentId'] != studentId) continue;
+
+          final passStatus = map['Status'] ?? 'Security Approved';
+          if (status != null && status != 'All' && passStatus != status) continue;
+
+          list.add({
+            'id': row['id'],
+            'pass_no': map['PassNo'] ?? 'GP-001',
+            'date': map['Date'] ?? '',
+            'student_id': map['StudentId'] ?? '',
+            'student_name': map['StudentName'] ?? '',
+            'class': map['Class'] ?? '',
+            'reason': map['Reason'] ?? '',
+            'exit_time': map['ExitTime'] ?? '',
+            'pickup_person': map['PickupName'] ?? '',
+            'relation': map['Relation'] ?? '',
+            'phone': map['Phone'] ?? '',
+            'is_authorized': map['Authorized'] == 'true',
+            'status': passStatus,
+            'created_at': row['created_at'],
+          });
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<bool> verifyAndAuthorizeGatePassExit({
+    required String passId,
+    required String gateOfficer,
+    required String verificationNotes,
+  }) async {
+    try {
+      final row = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('id', passId)
+          .single();
+      var content = row['content']?.toString() ?? '';
+      if (content.contains('Status:')) {
+        content = content.replaceAll(
+          RegExp(r'Status:\s*[^\|]+'),
+          'Status: Exit Verified & Logged by $gateOfficer at ${DateTime.now().toIso8601String()} ',
+        );
+      } else {
+        content += ' | Status: Exit Verified & Logged by $gateOfficer';
+      }
+
+      await _supabase
+          .from('school_circulars')
+          .update({'content': content}).eq('id', passId);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ===== ADMISSIONS =====

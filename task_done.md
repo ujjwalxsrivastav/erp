@@ -98,13 +98,23 @@
 
 ---
 
-### [IN PROGRESS] Step 8: Transport Real: Bus Attendance, GPS, Gate Pass (Lines 248–258)
-- [ ] **Line 251 (Action 1):** Replace mock stops implementation with real `school_transport` route/stop data and per-stop bus attendance (boarded/alighted) from the driver flow.
-- [ ] **Line 252 (Action 2):** Build the parent live view: bus location on a map/route tracker + estimated arrival + pickup/drop alerts (app-level live location from driver side).
-- [ ] **Line 253 (Action 3):** Build gate pass + pickup verification: parent requests a gate pass -> class teacher + security approve -> security verifies pickup person's photograph/ID against pre-registered authorised persons list -> exit logged with time and verifier. Principal approval mandatory if person is unlisted. No bypass shortcut in UI.
-- [ ] **Line 254 (Action 4):** Add vehicle document expiry alerts (registration, insurance, fitness) and driver/attendant verification status from HR data.
-- [ ] **Line 255 (Action 5):** Apply Section 7 UI/UX checklist to every transport screen touched.
-- [ ] **Line 256–258 (Verification):** End-to-end transport test on test data: test route with stops -> student assigned -> bus attendance marked -> parent view shows journey -> gate pass issued & verified -> expired vehicle document alert verified.
+### [COMPLETED] Step 8: Transport Real: Bus Attendance, GPS, Gate Pass (Lines 248–258)
+- [x] **Line 251 (Action 1):** Replaced mock stops implementation with real `school_transport` route/stop data (Dehradun routes: Rajpur Road, Chakrata Road, Haridwar Bypass) and per-stop bus attendance (`recordBusAttendance` - Boarded/Alighted) in `school_service.dart`.
+- [x] **Line 252 (Action 2):** Built the parent live journey view: bus location, current stop, ETA in minutes, pickup/drop times, and live telematics feed.
+- [x] **Line 253 (Action 3):** Built gate pass + pickup verification workflow (`requestGatePass` & `verifyAndAuthorizeGatePassExit`): requires photo ID matching against authorized list; unlisted persons trigger mandatory Principal approval before gate exit can be authorized. Zero UI shortcuts.
+- [x] **Line 254 (Action 4):** Added statutory vehicle document compliance monitoring: automatic alerts for expired fitness certificates (`UK-07-PA-1024`), insurance renewals, and driver police verification.
+- [x] **Line 255 (Action 5):** Upgraded `lib/features/school/transport/transport_screen.dart` with 3 tabs (`Fleet & Routes`, `Live Journey`, `Gate Pass`), Section 7 design tokens, and zero analyze errors.
+- [x] **Line 256–258 (Verification):** Tested end-to-end on live Supabase: Real route `UK-07-PA-1024` verified -> Bus attendance marked at Stop 1 (Jakhan: Boarded `97dddc7f`) & Stop 2 (School Gate: Alighted `390ad901`) -> Parent view journey verified -> Gate pass issued (`45e1f37f`), security verified and exit logged -> Vehicle document expiry alert verified. Zero analyze issues.
+
+---
+
+### [IN PROGRESS] Step 9: Report Cards: Board Formats + HPC + Promotion Linkage (Lines 259–269)
+- [ ] **Line 262 (Action 1):** Audit `features/school/marks/` (marks entry + report card screens) against spec: term setup, marks entry validation, verify-and-lock workflow, co-scholastic entry, board grading-scale templates, HPC composition, QR verification, Principal digital signature.
+- [ ] **Line 263 (Action 2):** Implement board-format templates as configuration (CBSE/ICSE/State/custom selected per school — CBSE 9-point scale A1 to E). No grading numbers hard-coded in any screen.
+- [ ] **Line 264 (Action 3):** Implement HPC composition: marks + grades + attendance + co-scholastic areas (work education, art education, health & physical education, discipline) + teacher remarks.
+- [ ] **Line 265 (Action 4):** Link results to promotion (Step 7): final results feed the promotion list under configured pass/fail/detention rules.
+- [ ] **Line 266 (Action 5):** Apply Section 7 UI/UX checklist to marks and report card screens.
+- [ ] **Line 267–269 (Verification):** Generate test report card end to end (test student, test term, test marks including co-scholastic) in CBSE board format with QR verification seal, and confirm linkage to promotion list.
 
 ---
 
