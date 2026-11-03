@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'cache_manager.dart';
@@ -47,15 +48,31 @@ class OfflineService {
   /// Check if we can reach Supabase
   Future<bool> checkConnectivity() async {
     try {
-      // Try a simple query to check connectivity
+      if (kIsWeb) {
+        if (!_isOnline) {
+          _isOnline = true;
+          _cache.setOfflineMode(false);
+          _connectivityController.add(true);
+        }
+        return true;
+      }
+
+      // Try a lightweight query
       await Supabase.instance.client
-          .from('users')
-          .select('username')
+          .from('institutes')
+          .select('id')
           .limit(1)
           .timeout(const Duration(seconds: 5));
 
       if (!_isOnline) {
-        print('📶 Back online!');
+        _isOnline = true;
+        _cache.setOfflineMode(false);
+        _connectivityController.add(true);
+      }
+      return true;
+    } on PostgrestException catch (_) {
+      // Server is online and responding even if table/permissions are restricted
+      if (!_isOnline) {
         _isOnline = true;
         _cache.setOfflineMode(false);
         _connectivityController.add(true);
@@ -63,7 +80,6 @@ class OfflineService {
       return true;
     } catch (e) {
       if (_isOnline) {
-        print('📴 Gone offline: $e');
         _isOnline = false;
         _cache.setOfflineMode(true);
         _connectivityController.add(false);
@@ -92,8 +108,7 @@ class OfflineService {
         await _cache.saveToCache(cacheKey, result);
         return result;
       } catch (e) {
-        print('⚠️ Online query failed, trying cache: $e');
-        // Fall through to offline fallback
+        // Fall through to offline fallback silently
       }
     }
 

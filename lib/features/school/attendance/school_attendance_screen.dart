@@ -108,19 +108,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       _classesError = null;
     });
     try {
-      List<Map<String, dynamic>> classes = [];
-      if (_instituteId != null) {
-        classes = await _schoolService.getSchoolClasses(_instituteId!);
-      }
+      final classes = await _schoolService.getSchoolClasses(_instituteId);
       if (!mounted) return;
-      if (classes.isEmpty && _instituteId != null) {
-        setState(() {
-          _loadingClasses = false;
-          _classesError = null;
-          _classes = [];
-        });
-        return;
-      }
       setState(() {
         _classes = classes;
         _loadingClasses = false;

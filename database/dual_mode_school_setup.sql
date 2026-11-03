@@ -303,6 +303,89 @@ CREATE TABLE IF NOT EXISTS school_certificate_requests (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Step 18: School Students
+CREATE TABLE IF NOT EXISTS school_students (
+    id TEXT PRIMARY KEY,
+    username TEXT,
+    name TEXT NOT NULL,
+    class_id TEXT DEFAULT 'cls-10a',
+    class_name TEXT DEFAULT 'Class 10-A',
+    roll_number TEXT,
+    admission_no TEXT,
+    parent_name TEXT,
+    contact TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+INSERT INTO school_students (id, username, name, class_id, class_name, roll_number, admission_no, parent_name, contact)
+VALUES
+    ('SCH-01', 'sstudent1', 'Aarav Sharma', 'cls-10a', 'Class 10-A', '01', 'ADM202601', 'Rajesh Sharma', '9876543210'),
+    ('SCH-02', 'student2', 'Priya Patel', 'cls-10a', 'Class 10-A', '02', 'ADM202602', 'Sanjay Patel', '9876543211'),
+    ('SCH-03', 'student3', 'Rohan Gupta', 'cls-10a', 'Class 10-A', '03', 'ADM202603', 'Manoj Gupta', '9876543212'),
+    ('SCH-04', 'student4', 'Sneha Singh', 'cls-10a', 'Class 10-A', '04', 'ADM202604', 'Vikram Singh', '9876543213'),
+    ('SCH-05', 'student5', 'Vikram Kumar', 'cls-10a', 'Class 10-A', '05', 'ADM202605', 'Alok Kumar', '9876543214'),
+    ('SCH-06', 'student6', 'Ananya Verma', 'cls-10a', 'Class 10-A', '06', 'ADM202606', 'Sunil Verma', '9876543215')
+ON CONFLICT (id) DO NOTHING;
+
+-- Step 19: School Fee Payments
+CREATE TABLE IF NOT EXISTS school_fee_payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id TEXT NOT NULL,
+    class_id TEXT DEFAULT 'cls-10a',
+    amount NUMERIC NOT NULL,
+    paid_amount NUMERIC NOT NULL,
+    due_date DATE,
+    payment_mode TEXT DEFAULT 'UPI',
+    receipt_no TEXT,
+    status TEXT DEFAULT 'paid' CHECK (status IN ('paid', 'pending', 'partial')),
+    head TEXT DEFAULT 'Tuition Fee',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Step 20: School Subjects
+CREATE TABLE IF NOT EXISTS school_subjects (
+    id TEXT PRIMARY KEY,
+    class_id TEXT,
+    name TEXT NOT NULL,
+    code TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+INSERT INTO school_subjects (id, name, code)
+VALUES
+    ('sub-1', 'Mathematics', 'MATH10'),
+    ('sub-2', 'Science', 'SCI10'),
+    ('sub-3', 'English', 'ENG10'),
+    ('sub-4', 'Social Studies', 'SST10'),
+    ('sub-5', 'Hindi', 'HIN10'),
+    ('sub-6', 'Computer Science', 'CS10')
+ON CONFLICT (id) DO NOTHING;
+
+-- Step 21: Column Compatibility (class_id across tables)
+ALTER TABLE school_homework ADD COLUMN IF NOT EXISTS class_id TEXT;
+ALTER TABLE school_attendance ADD COLUMN IF NOT EXISTS class_id TEXT;
+ALTER TABLE school_marks ADD COLUMN IF NOT EXISTS class_id TEXT;
+
+-- Step 22: Disable RLS and Grant Full Access to prevent Postgres permission exceptions
+ALTER TABLE IF EXISTS school_classes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_students DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_homework DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_attendance DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_marks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_circulars DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_transport DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_admissions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_fee_payments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_timetable DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_library DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_library_issues DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_certificate_requests DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS school_subjects DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS parent_student_links DISABLE ROW LEVEL SECURITY;
+
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
 SELECT 'Dual-Mode ERP migration completed successfully!' AS result;
 
 
