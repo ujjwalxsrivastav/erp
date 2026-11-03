@@ -930,7 +930,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  c['title'] as String,
+                  (c['title']?.toString() ?? 'Notice'),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -939,7 +939,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  c['date'] as String,
+                  (c['date']?.toString() ?? 'Recent'),
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                 ),
               ],
@@ -953,7 +953,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.18)),
             ),
             child: Text(
-              c['category'] as String,
+              (c['category']?.toString() ?? 'General'),
               style: const TextStyle(
                 fontSize: 11,
                 color: Color(0xFF3B82F6),

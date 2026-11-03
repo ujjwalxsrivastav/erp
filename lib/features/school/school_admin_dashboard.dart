@@ -506,7 +506,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(
-                    a['text'] as String,
+                    (a['text']?.toString() ?? ''),
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -515,7 +515,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
                   ),
                 ),
                 Text(
-                  a['time'] as String,
+                  (a['time']?.toString() ?? ''),
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],

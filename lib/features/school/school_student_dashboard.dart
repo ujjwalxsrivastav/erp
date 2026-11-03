@@ -779,7 +779,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  hw['title'] as String,
+                  (hw['title']?.toString() ?? 'Homework'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -790,7 +790,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  hw['subject'] as String,
+                  (hw['subject']?.toString() ?? 'Subject'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -810,7 +810,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               border: Border.all(color: color.withValues(alpha: 0.18)),
             ),
             child: Text(
-              hw['due'] as String,
+              (hw['due']?.toString() ?? hw['due_date']?.toString() ?? 'Due soon'),
               style: TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
@@ -899,7 +899,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           ),
           const SizedBox(height: 10),
           Text(
-            result['grade'] as String,
+            (result['grade']?.toString() ?? 'A'),
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
@@ -909,7 +909,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           ),
           const SizedBox(height: 2),
           Text(
-            result['marks'] as String,
+            (result['marks']?.toString() ?? '0/100'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -919,7 +919,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           ),
           const SizedBox(height: 2),
           Text(
-            result['subject'] as String,
+            (result['subject']?.toString() ?? 'Subject'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(

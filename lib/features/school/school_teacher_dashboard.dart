@@ -523,7 +523,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  s['subject'] as String,
+                  (s['subject']?.toString() ?? 'Subject'),
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -532,7 +532,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${s['class']} • ${s['room']}',
+                  '${s['class'] ?? s['class_name'] ?? s['class_id'] ?? 'Class'} • ${s['room'] ?? 'Room'}',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],
@@ -546,7 +546,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
               border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.20)),
             ),
             child: Text(
-              s['time'] as String,
+              (s['time'] ?? (s['start_time'] != null && s['end_time'] != null ? '${s['start_time']} - ${s['end_time']}' : (s['start_time']?.toString() ?? 'Scheduled'))).toString(),
               style: const TextStyle(
                 fontSize: 11,
                 color: Color(0xFF0F766E),
@@ -770,3 +770,4 @@ class _GlassPanel extends StatelessWidget {
     );
   }
 }
+
