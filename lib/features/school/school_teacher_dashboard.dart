@@ -394,16 +394,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
         'route': '/school/leave',
       },
       {
-        'label': 'Upload Homework',
-        'icon': Icons.upload_file,
+        'label': 'Add Homework',
+        'icon': Icons.assignment_add,
         'gradient': [const Color(0xFF10B981), const Color(0xFF34D399)],
-        'route': '/school/homework/upload',
-      },
-      {
-        'label': 'Enter Marks',
-        'icon': Icons.edit_note,
-        'gradient': [const Color(0xFF8B5CF6), const Color(0xFFA78BFA)],
-        'route': '/school/marks-entry',
+        'route': '/school/homework/add',
       },
       {
         'label': 'Report Card',
@@ -648,7 +642,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
                   _buildDrawerItem(Icons.dashboard, 'Dashboard', () => Navigator.pop(context)),
                   _buildDrawerItem(Icons.how_to_reg, 'Attendance', () => context.go('/school/attendance')),
                   _buildDrawerItem(Icons.assignment_outlined, 'Homework', () => context.go('/school/homework')),
-                  _buildDrawerItem(Icons.edit_note, 'Enter Marks', () => context.go('/school/marks-entry')),
+                  _buildDrawerItem(Icons.assignment_add, 'Add Homework', () => context.go('/school/homework/add')),
                   _buildDrawerItem(Icons.description_outlined, 'Report Card', () => context.go('/school/report-card')),
                   _buildDrawerItem(Icons.event_busy_outlined, 'Leave Requests', () => context.go('/school/leave')),
                   _buildDrawerItem(Icons.calendar_today_outlined, 'Timetable', () => context.go('/school/timetable')),

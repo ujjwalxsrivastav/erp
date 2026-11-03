@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/report_card_pdf.dart';
 
 class ReportCardScreen extends StatefulWidget {
   const ReportCardScreen({super.key});
@@ -14,115 +15,168 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
   final _authService = AuthService();
 
   bool _isLoading = true;
+  bool _isLoadingCard = false;
+  bool _isAdmin = false;
+  bool _isStaff = false;
   String _userRole = 'student';
   String _currentUsername = '';
 
+  List<String> _examSessions = ['Half Yearly', 'Final'];
+  String _selectedExam = 'Half Yearly';
+
   List<Map<String, dynamic>> _classes = [];
   Map<String, dynamic>? _selectedClass;
-
   List<Map<String, dynamic>> _students = [];
   Map<String, dynamic>? _selectedStudent;
 
-  final List<String> _exams = [
-    'Annual',
-    'Mid Term',
-    'Unit Test 1',
-    'Unit Test 2',
-    'Half Yearly',
-  ];
-  String _selectedExam = 'Annual';
-
   List<Map<String, dynamic>> _marks = [];
-  double _studentAttendance = 94.5;
-  Map<String, dynamic>? _hpcData;
+  Map<String, dynamic> _analytics = {};
+  double _attendance = 0;
+  List<Map<String, dynamic>> _coScholastic = [];
+  Map<String, dynamic> _meta = {};
 
   @override
   void initState() {
     super.initState();
-    _initData();
+    _init();
   }
 
-  Future<void> _initData() async {
+  Future<void> _init() async {
     setState(() => _isLoading = true);
     try {
       _currentUsername = await _authService.getCurrentUsername() ?? '';
       _userRole = await _authService.getCurrentUserRole() ?? 'student';
+      _isAdmin = _userRole == 'admin' || _userRole == 'sadmin';
+      _isStaff = _userRole != 'student' && _userRole != 'parent';
+      _examSessions = await _schoolService.getExamSessions();
+      if (_examSessions.isNotEmpty) _selectedExam = _examSessions.first;
 
-      _classes = await _schoolService.getSchoolClasses();
-      if (_classes.isNotEmpty) {
+      if (_isStaff) {
+        _classes = await _schoolService.getSchoolClasses();
+        _classes = [
+          {'id': '__all__', 'name': 'All classes', 'section': ''},
+          ..._classes,
+        ];
         _selectedClass = _classes.first;
+        await _loadStudentsForClass();
+      } else {
+        await _loadOwnStudent();
       }
-
-      await _loadStudentsForSelectedClass();
-    } catch (e) {
-      // Handle error cleanly
+    } catch (_) {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+    await _loadCard();
   }
 
-  Future<void> _loadStudentsForSelectedClass() async {
+  /// Students (and parents) only ever see their own card — never a picker.
+  Future<void> _loadOwnStudent() async {
+    if (_userRole != 'student' || _currentUsername.isEmpty) return;
+    final me = await _schoolService.getSchoolStudentProfile(_currentUsername);
+    _selectedStudent = me ??
+        {
+          'username': _currentUsername,
+          'name': _currentUsername,
+          'class_name': '',
+        };
+  }
+
+  Future<void> _loadStudentsForClass() async {
     if (_selectedClass == null) return;
+    final isAll = _selectedClass!['id']?.toString() == '__all__';
     try {
-      final classId = _selectedClass!['id']?.toString() ?? 'cls-10a';
-      final students = await _schoolService.getStudentsInClass(classId);
-
-      if (mounted) {
-        setState(() {
-          _students = students;
-          if (_students.isNotEmpty) {
-            if (_userRole == 'student' && _currentUsername.isNotEmpty) {
-              final match = _students.firstWhere(
-                (s) => s['username'] == _currentUsername,
-                orElse: () => _students.first,
-              );
-              _selectedStudent = match;
-            } else {
-              _selectedStudent = _students.first;
-            }
-          } else {
-            _selectedStudent = null;
-          }
-        });
-        await _loadMarks();
-      }
+      final students = isAll
+          ? await _schoolService.getAllSchoolStudents()
+          : await _schoolService.getStudentsInClass(
+              _selectedClass!['id']?.toString() ?? '',
+              className: _selectedClass!['name']?.toString(),
+              section: _selectedClass!['section']?.toString(),
+            );
+      if (!mounted) return;
+      setState(() {
+        _students = students;
+        final currentId = _selectedStudent?['id']?.toString();
+        if (_students.isEmpty) {
+          _selectedStudent = null;
+        } else {
+          _selectedStudent = _students.firstWhere(
+            (s) => s['id']?.toString() == currentId,
+            orElse: () => _students.first,
+          );
+        }
+      });
     } catch (_) {}
   }
 
-  Future<void> _loadMarks() async {
-    if (_selectedStudent == null) return;
-    final studentId = _selectedStudent!['username'] ?? _selectedStudent!['id'] ?? 'sstudent1';
+  String get _studentKey =>
+      _selectedStudent?['username']?.toString() ??
+      _selectedStudent?['id']?.toString() ??
+      '';
 
-    try {
-      final marks = await _schoolService.getStudentMarks(studentId.toString(), examType: _selectedExam);
-      final att = await _schoolService.getStudentAttendancePercent(studentId.toString());
-      final hpc = await _schoolService.getHolisticProgressCard(studentId: studentId.toString(), examType: _selectedExam);
-
-      if (mounted) {
-        setState(() {
-          _marks = marks;
-          _studentAttendance = att;
-          _hpcData = hpc;
-        });
-      }
-    } catch (_) {}
+  Future<void> _loadCard() async {
+    final student = _selectedStudent;
+    if (student == null || _studentKey.isEmpty) {
+      if (mounted) setState(() => _marks = []);
+      return;
+    }
+    setState(() => _isLoadingCard = true);
+    final key = _studentKey;
+    final marks = await _schoolService.getStudentMarks(
+      key,
+      examType: _selectedExam,
+      studentName: student['name']?.toString(),
+    );
+    final analytics = _schoolService.buildReportAnalytics(marks);
+    final attendance = await _schoolService.getStudentAttendancePercent(key);
+    final coScholastic = await _schoolService.getCoScholastic(
+      studentId: key,
+      examType: _selectedExam,
+    );
+    final meta = await _schoolService.getReportCardMeta(
+      studentId: key,
+      examType: _selectedExam,
+    );
+    if (!mounted) return;
+    setState(() {
+      _marks = marks;
+      _analytics = analytics;
+      _attendance = attendance;
+      _coScholastic = coScholastic;
+      _meta = meta;
+      _isLoadingCard = false;
+    });
   }
 
-  int get _totalObtained => _marks.fold<int>(
-        0,
-        (sum, m) => sum + ((m['obtained'] ?? m['marks_obtained'] ?? 0) as num).toInt(),
-      );
+  double get _percentage => (_analytics['percentage'] as num?)?.toDouble() ?? 0;
+  String get _overallGrade => (_analytics['grade'] ?? '-').toString();
+  int get _totalObtained => (_analytics['obtained'] as num?)?.toInt() ?? 0;
+  int get _totalMax => (_analytics['max'] as num?)?.toInt() ?? 0;
+  int get _subjectsPassed =>
+      (_analytics['subjects_passed'] as num?)?.toInt() ?? 0;
 
-  int get _totalMax => _marks.fold<int>(
-        0,
-        (sum, m) => sum + ((m['total'] ?? m['total_marks'] ?? 100) as num).toInt(),
-      );
+  bool get _isPromoted => _percentage >= 33 && _attendance >= 75;
 
-  double get _percentage => _totalMax > 0 ? (_totalObtained / _totalMax) * 100 : 86.5;
+  String get _teacherRemark {
+    final saved = _meta['teacher_remark']?.toString() ?? '';
+    if (saved.isNotEmpty) return saved;
+    if (_marks.isEmpty) return '';
+    if (_percentage >= 80) {
+      return 'Very good performance. Deep understanding of core subjects and high diligence.';
+    }
+    if (_percentage >= 50) {
+      return 'Satisfactory. Regular revision and problem-solving practice recommended.';
+    }
+    return 'Needs substantial improvement and dedicated parent-teacher counselling support.';
+  }
 
-  Map<String, dynamic> get _cbseGradeInfo => SchoolService.calculateCbseGrade(_percentage);
-
-  String get _overallGrade => _cbseGradeInfo['grade'] ?? 'A2';
+  String get _promotionVerdict {
+    final saved = _meta['promotion_verdict']?.toString() ?? '';
+    if (saved.isNotEmpty) return saved;
+    if (_marks.isEmpty) return 'Awaiting result publication';
+    return _isPromoted
+        ? 'ELIGIBLE FOR PROMOTION (Subject to Final Examination)'
+        : 'ACADEMIC RETENTION / REMEDIAL REQUIRED';
+  }
 
   Color get _gradeColor {
     final g = _overallGrade;
@@ -132,24 +186,35 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
     return const Color(0xFFDC2626);
   }
 
-  String get _teacherRemark {
-    final p = _percentage;
-    if (p >= 90) return 'Outstanding academic consistency and high intellectual curiosity. Exemplary student.';
-    if (p >= 80) return 'Very good performance. Demonstrates deep understanding of core subjects and high diligence.';
-    if (p >= 70) return 'Good progress shown. Capable of scoring in higher percentiles with structured practice.';
-    if (p >= 50) return 'Satisfactory. Regular revision and problem-solving practice recommended in science.';
-    return 'Needs substantial improvement and dedicated parent-teacher counseling support.';
+  String get _studentName =>
+      _selectedStudent?['name']?.toString() ?? _currentUsername;
+
+  String get _className {
+    final fromStudent = _selectedStudent?['class_name']?.toString() ?? '';
+    if (fromStudent.isNotEmpty) return fromStudent;
+    final c = _selectedClass;
+    if (c != null && c['id']?.toString() != '__all__') {
+      return _schoolService.classDisplayName(
+        classId: c['id']?.toString(),
+        className: c['name']?.toString(),
+        section: c['section']?.toString(),
+      );
+    }
+    return '-';
   }
+
+  String get _rollNo => _selectedStudent?['roll_number']?.toString() ?? '-';
+
+  String get _admissionNo =>
+      _selectedStudent?['admission_no']?.toString() ?? '-';
 
   @override
   Widget build(BuildContext context) {
-    final isStudentOrParent = _userRole == 'student' || _userRole == 'parent';
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
-          'Holistic Progress Card (HPC)',
+          'Report Card',
           style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
         ),
         foregroundColor: Colors.white,
@@ -165,206 +230,161 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.print_outlined, color: Colors.white),
-            onPressed: _showPrintPreviewDialog,
-            tooltip: 'Print / Official Preview',
+            icon: const Icon(Icons.download_rounded, color: Colors.white),
+            onPressed: _marks.isEmpty ? null : _downloadPdf,
+            tooltip: 'Download Report Card',
           ),
-          IconButton(
-            icon: const Icon(Icons.share_outlined, color: Colors.white),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Report Card verification link generated!'),
-                  backgroundColor: Color(0xFF0F766E),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            tooltip: 'Share Card',
-          ),
+          if (_isAdmin)
+            IconButton(
+              icon: const Icon(Icons.edit_note_rounded, color: Colors.white),
+              onPressed: _marks.isEmpty ? null : _showEditRemarkDialog,
+              tooltip: 'Edit Remarks (Admin)',
+            ),
         ],
       ),
-      body: _isLoading
-          ? _buildLoadingSkeleton()
-          : RefreshIndicator(
-              color: const Color(0xFF0F766E),
-              onRefresh: _loadMarks,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Controls: Class, Student, Exam selector
-                    if (!isStudentOrParent) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildSelector<Map<String, dynamic>>(
-                              label: 'Class',
-                              items: _classes,
-                              itemLabel: (c) => '${c['name']} - ${c['section']}',
-                              value: _selectedClass,
-                              onChanged: (c) {
-                                if (c != null) {
-                                  setState(() => _selectedClass = c);
-                                  _loadStudentsForSelectedClass();
-                                }
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildSelector<Map<String, dynamic>>(
-                              label: 'Student',
-                              items: _students,
-                              itemLabel: (s) => s['name'] ?? s['username'] ?? '',
-                              value: _selectedStudent,
-                              onChanged: (s) {
-                                if (s != null) {
-                                  setState(() => _selectedStudent = s);
-                                  _loadMarks();
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+      body: _isLoading ? _buildLoadingSkeleton() : _buildBody(),
+    );
+  }
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildSelector<String>(
-                            label: 'Assessment Session',
-                            items: _exams,
-                            itemLabel: (e) => e,
-                            value: _selectedExam,
-                            onChanged: (e) {
-                              if (e != null) {
-                                setState(() => _selectedExam = e);
-                                _loadMarks();
-                              }
-                            },
-                          ),
-                        ),
-                        if (isStudentOrParent && _selectedStudent != null) ...[
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Student', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _selectedStudent!['name'] ?? _currentUsername,
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+  Widget _buildBody() {
+    if (_selectedStudent == null) {
+      return _buildEmptyState(
+        _isStaff
+            ? 'No students found. Add students from Admissions to generate report cards.'
+            : 'Your student profile could not be linked to a report card. Please contact the school office.',
+      );
+    }
+    return RefreshIndicator(
+      color: const Color(0xFF0F766E),
+      onRefresh: _loadCard,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (_isStaff) ...[
+            _buildStaffPickers(),
+            const SizedBox(height: 12),
+          ],
+          _buildExamTabs(),
+          const SizedBox(height: 16),
+          if (_isLoadingCard)
+            _buildCardSkeleton()
+          else if (_marks.isEmpty)
+            _buildEmptyState(
+              'No $_selectedExam results published yet for $_studentName.',
+            )
+          else ...[
+            _buildOverallBanner(),
+            const SizedBox(height: 16),
+            _buildPromotionVerdictCard(),
+            const SizedBox(height: 16),
+            _buildSummaryMetrics(),
+            const SizedBox(height: 16),
+            _buildAnalyticsSection(),
+            const SizedBox(height: 16),
+            _buildRemarksCard(),
+            const SizedBox(height: 20),
+            _buildSectionHeader(
+                'Scholastic Subjects', '${_marks.length} Subjects'),
+            const SizedBox(height: 10),
+            ..._marks.map(_buildSubjectRow),
+            const SizedBox(height: 20),
+            _buildCoScholasticSection(),
+            const SizedBox(height: 20),
+            _buildGradingScaleCard(),
+          ],
+        ],
+      ),
+    );
+  }
 
-                    const SizedBox(height: 16),
+  Widget _buildStaffPickers() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildSelector<Map<String, dynamic>>(
+            label: 'Class',
+            items: _classes,
+            itemLabel: (c) => [
+              c['name']?.toString() ?? '',
+              if ((c['section']?.toString() ?? '').isNotEmpty)
+                c['section'].toString(),
+            ].where((v) => v.isNotEmpty).join(' · '),
+            value: _selectedClass,
+            onChanged: (c) async {
+              if (c == null) return;
+              setState(() => _selectedClass = c);
+              await _loadStudentsForClass();
+              await _loadCard();
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildSelector<Map<String, dynamic>>(
+            label: 'Student',
+            items: _students,
+            itemLabel: (s) {
+              final name = s['name'] ?? s['username'] ?? '';
+              final cls = s['class_name']?.toString() ?? '';
+              return cls.isEmpty ? '$name' : '$name · $cls';
+            },
+            value: _selectedStudent,
+            onChanged: (s) async {
+              if (s == null) return;
+              setState(() => _selectedStudent = s);
+              await _loadCard();
+            },
+          ),
+        ),
+      ],
+    );
+  }
 
-                    // Official Board Header Banner
-                    _buildOverallBanner(),
-
-                    const SizedBox(height: 16),
-
-                    // Promotion Linkage Verdict Card
-                    _buildPromotionVerdictCard(),
-
-                    const SizedBox(height: 16),
-
-                    // Key Summary Metrics
-                    _buildSummaryMetrics(),
-
-                    const SizedBox(height: 16),
-
-                    // Teacher Remarks & Conduct
-                    _buildRemarksCard(),
-
-                    const SizedBox(height: 20),
-
-                    // Part 1: Scholastic Evaluation
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Part 1: Scholastic Subjects (CBSE 9-Point Scale)',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                        Text(
-                          '${_marks.length} Subjects',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-
-                    if (_marks.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'No marks uploaded for this exam session yet.',
-                            style: TextStyle(color: Color(0xFF64748B)),
-                          ),
-                        ),
-                      )
-                    else
-                      ..._marks.map((m) => _buildSubjectRow(m)),
-
-                    const SizedBox(height: 20),
-
-                    // Part 2: Co-Scholastic & HPC Areas
-                    _buildCoScholasticSection(),
-
-                    const SizedBox(height: 20),
-
-                    // Part 3: QR Code Verification Seal
-                    _buildQrVerificationSeal(),
-
-                    const SizedBox(height: 20),
-
-                    // Grading Key
-                    _buildGradingScaleCard(),
-                  ],
+  Widget _buildExamTabs() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: _examSessions.map((exam) {
+          final selected = exam == _selectedExam;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () async {
+                if (selected) return;
+                setState(() => _selectedExam = exam);
+                await _loadCard();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color:
+                      selected ? const Color(0xFF0F766E) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  exam,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : const Color(0xFF64748B),
+                  ),
                 ),
               ),
             ),
+          );
+        }).toList(),
+      ),
     );
   }
 
   Widget _buildOverallBanner() {
-    final studentName = _selectedStudent?['name'] ?? _currentUsername;
-    final className = _selectedClass != null
-        ? '${_selectedClass!['name']} - ${_selectedClass!['section']}'
-        : (_selectedStudent?['class_name'] ?? 'Class 10-A');
-    final rollNo = _selectedStudent?['roll_number'] ?? _selectedStudent?['roll_no'] ?? '01';
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -391,41 +411,62 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        'Roll No: $rollNo',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        'Roll No: $_rollNo',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      className,
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13, fontWeight: FontWeight.w600),
+                    Flexible(
+                      child: Text(
+                        _className,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  studentName,
-                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                  _studentName,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'CBSE Affiliated • Session 2024-2025 • $_selectedExam Examination',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12),
+                  'CBSE Affiliated · Session ${SchoolService.reportCardAcademicYear} · $_selectedExam Examination',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 12),
                 ),
                 const SizedBox(height: 14),
                 Text(
                   '$_totalObtained / $_totalMax',
-                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900),
                 ),
                 Text(
-                  '${_percentage.toStringAsFixed(1)}% • Grade: $_overallGrade (GP: ${_cbseGradeInfo['point']})',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 13, fontWeight: FontWeight.w600),
+                  '${_percentage.toStringAsFixed(1)}% • Grade: $_overallGrade (GP: ${_analytics['grade_point']})',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -436,7 +477,8 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.2),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 3),
+              border:
+                  Border.all(color: Colors.white.withValues(alpha: 0.6), width: 3),
             ),
             child: Center(
               child: Column(
@@ -444,11 +486,17 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
                 children: [
                   Text(
                     _overallGrade,
-                    style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold),
                   ),
                   Text(
                     'CBSE GRADE',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 8, letterSpacing: 0.8),
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 8,
+                        letterSpacing: 0.8),
                   ),
                 ],
               ),
@@ -460,19 +508,19 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
   }
 
   Widget _buildPromotionVerdictCard() {
-    final isPromoted = _percentage >= 33.0 && _studentAttendance >= 75.0;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isPromoted ? Colors.green.shade50 : Colors.red.shade50,
+        color: _isPromoted ? Colors.green.shade50 : Colors.red.shade50,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isPromoted ? Colors.green.shade300 : Colors.red.shade300),
+        border: Border.all(
+            color: _isPromoted ? Colors.green.shade300 : Colors.red.shade300),
       ),
       child: Row(
         children: [
           Icon(
-            isPromoted ? Icons.military_tech_rounded : Icons.warning_rounded,
-            color: isPromoted ? Colors.green.shade700 : Colors.red.shade700,
+            _isPromoted ? Icons.military_tech_rounded : Icons.warning_rounded,
+            color: _isPromoted ? Colors.green.shade700 : Colors.red.shade700,
             size: 26,
           ),
           const SizedBox(width: 12),
@@ -481,18 +529,23 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Annual Promotion Recommendation (Linked to Module 2)',
-                  style: TextStyle(fontSize: 11, color: isPromoted ? Colors.green.shade800 : Colors.red.shade800, fontWeight: FontWeight.bold),
+                  'Promotion Recommendation',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: _isPromoted
+                          ? Colors.green.shade800
+                          : Colors.red.shade800,
+                      fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isPromoted
-                      ? 'PROMOTED TO CLASS 11 (Session 2025-2026)'
-                      : 'ACADEMIC RETENTION / REMEDIAL REQUIRED (Score/Attendance below threshold)',
+                  _promotionVerdict,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: isPromoted ? const Color(0xFF065F46) : Colors.red.shade900,
+                    color: _isPromoted
+                        ? const Color(0xFF065F46)
+                        : Colors.red.shade900,
                   ),
                 ),
               ],
@@ -506,11 +559,14 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
   Widget _buildSummaryMetrics() {
     return Row(
       children: [
-        _metricTile('Attendance', '${_studentAttendance.toStringAsFixed(1)}%', Icons.check_circle_outline, const Color(0xFF0F766E)),
+        _metricTile('Attendance', '${_attendance.toStringAsFixed(1)}%',
+            Icons.check_circle_outline, const Color(0xFF0F766E)),
         const SizedBox(width: 10),
-        _metricTile('Subjects Passed', '${_marks.where((m) => ((m['obtained'] ?? m['marks_obtained'] ?? 0) as num) >= 33).length}/${_marks.length}', Icons.fact_check_outlined, const Color(0xFF2563EB)),
+        _metricTile('Subjects Passed', '$_subjectsPassed/${_marks.length}',
+            Icons.fact_check_outlined, const Color(0xFF2563EB)),
         const SizedBox(width: 10),
-        _metricTile('Grade Point', '${_cbseGradeInfo['point']}', Icons.star_border_rounded, const Color(0xFF7C3AED)),
+        _metricTile('Grade Point', '${_analytics['grade_point'] ?? '-'}',
+            Icons.star_border_rounded, const Color(0xFF7C3AED)),
       ],
     );
   }
@@ -529,16 +585,161 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
           children: [
             Icon(icon, size: 20, color: color),
             const SizedBox(height: 6),
-            Text(
-              val,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color),
-            ),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-            ),
+            Text(val,
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+            Text(title,
+                style:
+                    const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAnalyticsSection() {
+    final strongest = _analytics['strongest'] as Map<String, dynamic>?;
+    final weakest = _analytics['weakest'] as Map<String, dynamic>?;
+    final breakdown = (_analytics['breakdown'] as List<dynamic>?) ?? [];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.insights_rounded,
+                  size: 20, color: Color(0xFF0F766E)),
+              const SizedBox(width: 8),
+              const Text('Result Analytics',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B))),
+              const Spacer(),
+              Text(_selectedExam,
+                  style: const TextStyle(
+                      fontSize: 11, color: Color(0xFF64748B))),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _analyticsTile(
+                  'Strongest',
+                  strongest == null
+                      ? '-'
+                      : '${strongest['subject']} · ${(strongest['percentage'] as num).toStringAsFixed(0)}%',
+                  const Color(0xFF0F766E),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _analyticsTile(
+                  'Needs Focus',
+                  weakest == null
+                      ? '-'
+                      : '${weakest['subject']} · ${(weakest['percentage'] as num).toStringAsFixed(0)}%',
+                  const Color(0xFFDC2626),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Text('Subject-wise performance',
+              style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+          const SizedBox(height: 8),
+          ...breakdown.map((row) {
+            final m = row as Map<String, dynamic>;
+            final pct = (m['percentage'] as num).toDouble();
+            final grade = m['grade']?.toString() ?? '';
+            final color = pct >= 81
+                ? const Color(0xFF0F766E)
+                : pct >= 61
+                    ? const Color(0xFF2563EB)
+                    : pct >= 33
+                        ? const Color(0xFFD97706)
+                        : const Color(0xFFDC2626);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 110,
+                    child: Text(
+                      m['subject']?.toString() ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF334155)),
+                    ),
+                  ),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (pct / 100).clamp(0.0, 1.0),
+                        backgroundColor: Colors.grey.shade100,
+                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                        minHeight: 7,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 34,
+                    child: Text('${pct.toStringAsFixed(0)}%',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 24,
+                    child: Text(grade,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: color)),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _analyticsTile(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 11, color: color)),
+          const SizedBox(height: 4),
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+        ],
       ),
     );
   }
@@ -558,26 +759,44 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
             children: [
               Icon(Icons.edit_note_rounded, size: 20, color: Color(0xFF0F766E)),
               SizedBox(width: 8),
-              Text(
-                'Class Teacher Narrative Evaluation & Conduct',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-              ),
+              Text('Class Teacher Remark',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B))),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            _teacherRemark,
-            style: const TextStyle(fontSize: 13, color: Color(0xFF334155), height: 1.4),
+            _teacherRemark.isEmpty ? '-' : _teacherRemark,
+            style: const TextStyle(
+                fontSize: 13, color: Color(0xFF334155), height: 1.4),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildSectionHeader(String title, String trailing) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title,
+            style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1E293B))),
+        Text(trailing,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+      ],
+    );
+  }
+
   Widget _buildSubjectRow(Map<String, dynamic> m) {
     final subject = m['subject']?.toString() ?? 'Subject';
-    final obtained = ((m['obtained'] ?? m['marks_obtained'] ?? 0) as num).toInt();
-    final total = ((m['total'] ?? m['total_marks'] ?? 100) as num).toInt();
+    final obtained =
+        ((m['marks_obtained'] ?? m['obtained'] ?? 0) as num).toInt();
+    final total = ((m['total_marks'] ?? m['total'] ?? 100) as num).toInt();
     final pct = total > 0 ? (obtained / total) * 100 : 0.0;
     final gradeInfo = SchoolService.calculateCbseGrade(pct);
     final grade = m['grade']?.toString() ?? gradeInfo['grade'];
@@ -610,28 +829,32 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      subject,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                    ),
+                    Text(subject,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B))),
                     const SizedBox(height: 2),
                     Text(
                       'Score: $obtained/$total  •  ${pct.toStringAsFixed(0)}%  •  GP: ${gradeInfo['point']}',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF64748B)),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: gradeColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  grade,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: gradeColor),
-                ),
+                child: Text(grade,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: gradeColor)),
               ),
             ],
           ),
@@ -651,13 +874,6 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
   }
 
   Widget _buildCoScholasticSection() {
-    final coScholastic = (_hpcData?['co_scholastic'] as List<dynamic>?) ?? [
-      {'area': 'Work Education (ICT / Craft)', 'grade': 'A', 'descriptor': 'Exemplary problem-solving in digital projects'},
-      {'area': 'Art Education (Visual & Performing)', 'grade': 'A', 'descriptor': 'High creative expression and aesthetic appreciation'},
-      {'area': 'Health & Physical Education (Sports)', 'grade': 'A', 'descriptor': 'High teamwork, stamina, and track participation'},
-      {'area': 'Discipline & Value Inculcation', 'grade': 'A', 'descriptor': 'Outstanding punctuality, respect, and peer collaboration'},
-    ];
-
     return Card(
       elevation: 0,
       color: Colors.white,
@@ -671,100 +887,63 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Part 2: Co-Scholastic & Life Skills (3-Point Scale: A, B, C)',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+              'Co-Scholastic & Life Skills (A, B, C)',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B)),
             ),
             const SizedBox(height: 12),
-            ...coScholastic.map((cs) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: Colors.teal.shade50,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          cs['grade']!,
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800, fontSize: 13),
+            if (_coScholastic.isEmpty)
+              const Text('Co-scholastic grades have not been published yet.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)))
+            else
+              ..._coScholastic.map((cs) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.teal.shade50,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            cs['grade']?.toString() ?? '-',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.teal.shade800,
+                                fontSize: 13),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(cs['area']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          Text(cs['descriptor']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                        ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(cs['area']?.toString() ?? '',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13)),
+                            if ((cs['descriptor']?.toString() ?? '')
+                                .isNotEmpty)
+                              Text(cs['descriptor'].toString(),
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade600)),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+                    ],
+                  ),
+                );
+              }),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildQrVerificationSeal() {
-    final studentId = _selectedStudent?['id'] ?? 'sstudent1';
-    final admNo = _selectedStudent?['admission_no'] ?? 'ADM202601';
-    final qrUrl = 'https://shivalikschool.edu.in/verify/report-card?id=$studentId&adm=$admNo&auth=cbse_seal_verified';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: const Icon(Icons.qr_code_2_rounded, size: 48, color: Color(0xFF0F766E)),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.verified, size: 16, color: Color(0xFF0F766E)),
-                    SizedBox(width: 4),
-                    Text('CBSE Digital Verification Seal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Authenticity verified via school portal. Scan QR to validate marks tampering or duplicate credentials.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  qrUrl,
-                  style: const TextStyle(fontSize: 10, color: Color(0xFF0F766E), fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -780,7 +959,11 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('CBSE 9-Point Grading Scale Reference', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+          const Text('CBSE 9-Point Grading Scale Reference',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF64748B))),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -818,13 +1001,22 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+          Text(label,
+              style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
           DropdownButton<T>(
-            value: value,
+            value: items.contains(value) ? value : null,
             isExpanded: true,
             underline: const SizedBox.shrink(),
-            style: const TextStyle(color: Color(0xFF1E293B), fontSize: 13, fontWeight: FontWeight.w600),
-            items: items.map((i) => DropdownMenuItem(value: i, child: Text(itemLabel(i), overflow: TextOverflow.ellipsis))).toList(),
+            style: const TextStyle(
+                color: Color(0xFF1E293B),
+                fontSize: 13,
+                fontWeight: FontWeight.w600),
+            items: items
+                .map((i) => DropdownMenuItem(
+                    value: i,
+                    child:
+                        Text(itemLabel(i), overflow: TextOverflow.ellipsis)))
+                .toList(),
             onChanged: onChanged,
           ),
         ],
@@ -832,170 +1024,133 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
     );
   }
 
-  void _showPrintPreviewDialog() {
-    final studentName = _selectedStudent?['name'] ?? _currentUsername;
-    final className = _selectedClass?['name'] ?? 'Class 10';
-    final rollNo = _selectedStudent?['roll_number'] ?? '01';
+  Future<void> _downloadPdf() async {
+    if (_selectedStudent == null) return;
+    try {
+      await ReportCardPdf.share(
+        studentName: _studentName,
+        studentUsername: _studentKey,
+        className: _className,
+        rollNo: _rollNo,
+        admissionNo: _admissionNo,
+        examType: _selectedExam,
+        academicYear: SchoolService.reportCardAcademicYear,
+        marks: _marks,
+        analytics: _analytics,
+        attendancePct: _attendance,
+        coScholastic: _coScholastic,
+        teacherRemark: _teacherRemark,
+        promotionVerdict: _promotionVerdict,
+        isPromoted: _isPromoted,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not generate report card PDF: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
-    showDialog(
+  Future<void> _showEditRemarkDialog() async {
+    final remarkCtrl = TextEditingController(text: _teacherRemark);
+    final verdictCtrl = TextEditingController(text: _promotionVerdict);
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Dialog(
+      builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          width: 520,
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.school, color: Color(0xFF0F766E), size: 30),
-                    SizedBox(width: 8),
-                    Text(
-                      'SHIVALIK INTERNATIONAL SCHOOL',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.8),
-                    ),
-                  ],
+        title: Text('Edit Remarks · $_selectedExam',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: remarkCtrl,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Class Teacher Remark',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Affiliated to CBSE • Affiliation Code: 3530128 • School Code: 84021\nHOLISTIC PROGRESS REPORT (CBSE FORMAT)',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: verdictCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Promotion Verdict',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 14),
-                const Divider(),
-                const SizedBox(height: 10),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Student: $studentName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        Text('Roll No: $rollNo • Class: $className', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text('Exam: $_selectedExam', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        const Text('Session: 2024-2025', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                Table(
-                  border: TableBorder.all(color: Colors.grey.shade300),
-                  columnWidths: const {
-                    0: FlexColumnWidth(2.5),
-                    1: FlexColumnWidth(1),
-                    2: FlexColumnWidth(1),
-                    3: FlexColumnWidth(1),
-                  },
-                  children: [
-                    TableRow(
-                      decoration: BoxDecoration(color: Colors.grey.shade100),
-                      children: const [
-                        Padding(padding: EdgeInsets.all(6), child: Text('Subject', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Max', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Obt', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                        Padding(padding: EdgeInsets.all(6), child: Text('Grade', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                      ],
-                    ),
-                    ..._marks.map((m) {
-                      final s = m['subject']?.toString() ?? '';
-                      final obt = ((m['obtained'] ?? m['marks_obtained'] ?? 0) as num).toInt();
-                      final tot = ((m['total'] ?? m['total_marks'] ?? 100) as num).toInt();
-                      final pct = tot > 0 ? (obt / tot) * 100 : 0.0;
-                      final g = m['grade']?.toString() ?? SchoolService.calculateCbseGrade(pct)['grade'];
-                      return TableRow(
-                        children: [
-                          Padding(padding: const EdgeInsets.all(6), child: Text(s, style: const TextStyle(fontSize: 12))),
-                          Padding(padding: const EdgeInsets.all(6), child: Text('$tot', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12))),
-                          Padding(padding: const EdgeInsets.all(6), child: Text('$obt', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                          Padding(padding: const EdgeInsets.all(6), child: Text(g, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                        ],
-                      );
-                    }),
-                    TableRow(
-                      decoration: BoxDecoration(color: Colors.grey.shade50),
-                      children: [
-                        const Padding(padding: EdgeInsets.all(6), child: Text('GRAND TOTAL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                        Padding(padding: const EdgeInsets.all(6), child: Text('$_totalMax', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                        Padding(padding: const EdgeInsets.all(6), child: Text('$_totalObtained', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                        Padding(padding: const EdgeInsets.all(6), child: Text(_overallGrade, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0F766E)))),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Percentage: ${_percentage.toStringAsFixed(1)}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    Text('Attendance: ${_studentAttendance.toStringAsFixed(1)}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  ],
-                ),
-                const SizedBox(height: 18),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Column(
-                      children: [
-                        Text('___________________', style: TextStyle(color: Colors.grey)),
-                        SizedBox(height: 4),
-                        Text('Class Teacher', style: TextStyle(fontSize: 11)),
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        Text('Dr. Meenakshi Srivastav', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                        SizedBox(height: 2),
-                        Text('Principal Digital Seal', style: TextStyle(fontSize: 10, color: Color(0xFF0F766E))),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.print, size: 16),
-                        label: const Text('Print Now'),
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Sent to printer!'), backgroundColor: Colors.green),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F766E),
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Close'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F766E),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
       ),
+    );
+    if (saved != true || !mounted) return;
+    final ok = await _schoolService.saveReportCardMeta(
+      studentId: _studentKey,
+      examType: _selectedExam,
+      teacherRemark: remarkCtrl.text.trim(),
+      promotionVerdict: verdictCtrl.text.trim(),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? 'Remarks saved.'
+            : _schoolService.lastMarksError ?? 'Could not save remarks.'),
+        backgroundColor: ok ? const Color(0xFF0F766E) : const Color(0xFFEF4444),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    if (ok) await _loadCard();
+  }
+
+  Widget _buildEmptyState(String message) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(32),
+      children: [
+        const SizedBox(height: 60),
+        const Icon(Icons.description_outlined,
+            size: 56, color: Color(0xFF94A3B8)),
+        const SizedBox(height: 12),
+        Text(message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+      ],
+    );
+  }
+
+  Widget _buildCardSkeleton() {
+    Widget box(double height) => Container(
+          height: height,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        );
+    return Column(
+      children: [
+        box(180),
+        const SizedBox(height: 16),
+        box(220),
+      ],
     );
   }
 
@@ -1038,7 +1193,8 @@ class _GradePill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }

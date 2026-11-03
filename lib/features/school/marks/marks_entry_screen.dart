@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
 
 class MarksEntryScreen extends StatefulWidget {
@@ -35,6 +36,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   bool _isInitialising = true;
   bool _isLoadingStudents = false;
   bool _isSaving = false;
+  bool _isRestricted = false;
 
   double? _classAverage;
 
@@ -45,6 +47,18 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   }
 
   Future<void> _init() async {
+    // Adding/editing report-card marks is an administrator action.
+    final role = await AuthService().getCurrentUserRole();
+    if (role != 'admin' && role != 'sadmin') {
+      if (mounted) {
+        setState(() {
+          _isRestricted = true;
+          _isInitialising = false;
+        });
+      }
+      return;
+    }
+
     final classes = await _schoolService.getSchoolClasses();
     if (!mounted) return;
     setState(() {
@@ -75,7 +89,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     _marksControllers.clear();
 
     for (final s in students) {
-      final sid = s['id']?.toString() ?? s['username']?.toString() ?? '';
+      final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
       _marksControllers[sid] = TextEditingController();
     }
 
@@ -106,12 +120,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
     for (final m in existing) {
       final sid = m['student_id']?.toString() ?? '';
-      final obtained = m['obtained_marks']?.toString() ?? m['marks']?.toString() ?? '';
+      final obtained = m['marks_obtained']?.toString() ??
+          m['obtained_marks']?.toString() ??
+          m['marks']?.toString() ??
+          '';
       if (_marksControllers.containsKey(sid)) {
         _marksControllers[sid]!.text = obtained;
       }
       // Also read max marks from DB if present
-      final max = m['max_marks'];
+      final max = m['total_marks'] ?? m['max_marks'];
       if (max != null) {
         final maxInt = int.tryParse(max.toString());
         if (maxInt != null && maxInt != _maxMarks) {
@@ -128,7 +145,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     // Validate
     bool hasError = false;
     for (final s in _students) {
-      final sid = s['id']?.toString() ?? s['username']?.toString() ?? '';
+      final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
       final text = _marksControllers[sid]?.text.trim() ?? '';
       if (text.isEmpty) continue; // empty = not entered yet, skip
       final val = int.tryParse(text);
@@ -156,19 +173,24 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     setState(() => _isSaving = true);
 
     final classId = _selectedClass?['id']?.toString() ?? '';
+    final className = _selectedClass?['name']?.toString() ?? '';
     final subject = _selectedSubject?['name']?.toString() ??
         _selectedSubject?['id']?.toString() ?? '';
 
     final marksList = <Map<String, dynamic>>[];
     for (final s in _students) {
-      final sid = s['id']?.toString() ?? s['username']?.toString() ?? '';
+      // Controllers are keyed by username (DB marks store student_id = username).
+      final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
       final text = _marksControllers[sid]?.text.trim() ?? '';
       if (text.isEmpty) continue;
       final val = int.tryParse(text);
       if (val == null) continue;
       marksList.add({
         'student_id': sid,
+        'student_name': s['name'],
         'class_id': classId,
+        'class_name': className,
+        'section': _selectedClass?['section'],
         'subject': subject,
         'exam_type': _selectedExam,
         'obtained_marks': val,
@@ -210,9 +232,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to save marks. Please try again.'),
-          backgroundColor: Color(0xFFEF4444),
+        SnackBar(
+          content: Text(_schoolService.lastMarksError ??
+              'Failed to save marks. Please try again.'),
+          backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -230,6 +253,43 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isRestricted) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          title: const Text(
+            'Marks Entry',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          foregroundColor: Colors.white,
+          backgroundColor: const Color(0xFF6D28D9),
+        ),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline, size: 56, color: Color(0xFF94A3B8)),
+                SizedBox(height: 12),
+                Text(
+                  'Administrator only',
+                  style:
+                      TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Report card marks can only be added by an administrator.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -440,8 +500,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                               itemCount: _students.length,
                               itemBuilder: (context, index) {
                                 final student = _students[index];
-                                final sid = student['id']?.toString() ??
-                                    student['username']?.toString() ??
+                                final sid = student['username']?.toString() ??
+                                    student['id']?.toString() ??
                                     '';
                                 final roll = student['roll_number']?.toString() ??
                                     student['roll']?.toString() ??

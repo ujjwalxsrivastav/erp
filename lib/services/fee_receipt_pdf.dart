@@ -32,6 +32,100 @@ class FeeReceiptPdf {
     String? paymentDate,
     String title = 'FEE RECEIPT',
   }) async {
+    final doc = pw.Document();
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(36),
+        build: (context) => _page(
+          studentName: studentName,
+          className: className,
+          admissionNo: admissionNo,
+          studentUsername: studentUsername,
+          ledger: ledger,
+          receiptNo: receiptNo,
+          paymentMode: paymentMode,
+          paymentAmount: paymentAmount,
+          paymentDate: paymentDate,
+          title: title,
+        ),
+      ),
+    );
+
+    await Printing.sharePdf(
+      bytes: await doc.save(),
+      filename: receiptNo == null
+          ? 'shivalik_fee_statement_${studentUsername}.pdf'
+          : 'shivalik_fee_receipt_$receiptNo.pdf',
+    );
+  }
+
+  /// One A4 page per payment receipt — lets the student download EVERY
+  /// receipt of the payments they have made in a single PDF.
+  static Future<void> shareAll({
+    required String studentName,
+    required String className,
+    required String admissionNo,
+    required String studentUsername,
+    required List<Map<String, dynamic>> ledger,
+    required List<Map<String, dynamic>> receipts,
+  }) async {
+    if (receipts.isEmpty) {
+      // Nothing paid yet → hand over the statement instead.
+      await share(
+        studentName: studentName,
+        className: className,
+        admissionNo: admissionNo,
+        studentUsername: studentUsername,
+        ledger: ledger,
+        title: 'FEE STATEMENT',
+      );
+      return;
+    }
+
+    final doc = pw.Document();
+    for (final r in receipts) {
+      final receiptNo = r['receipt_no']?.toString();
+      final paidOn = r['paid_on']?.toString() ?? r['created_at']?.toString() ?? '';
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(36),
+          build: (context) => _page(
+            studentName: studentName,
+            className: className,
+            admissionNo: admissionNo,
+            studentUsername: studentUsername,
+            ledger: ledger,
+            receiptNo: receiptNo,
+            paymentMode: r['payment_mode']?.toString() ?? 'Online',
+            paymentAmount: (r['amount'] as num?)?.toDouble() ?? 0.0,
+            paymentDate: paidOn.length >= 10 ? paidOn.substring(0, 10) : paidOn,
+            title: 'FEE RECEIPT',
+          ),
+        ),
+      );
+    }
+
+    await Printing.sharePdf(
+      bytes: await doc.save(),
+      filename: 'shivalik_fee_receipts_$studentUsername.pdf',
+    );
+  }
+
+  /// A single receipt/statement page with the school watermark behind it.
+  static pw.Widget _page({
+    required String studentName,
+    required String className,
+    required String admissionNo,
+    required String studentUsername,
+    required List<Map<String, dynamic>> ledger,
+    required String? receiptNo,
+    required String? paymentMode,
+    required double? paymentAmount,
+    required String? paymentDate,
+    required String title,
+  }) {
     double total = 0, paid = 0;
     for (final f in ledger) {
       final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
@@ -41,7 +135,6 @@ class FeeReceiptPdf {
     }
     final outstanding = (total - paid).clamp(0.0, double.infinity);
 
-    final doc = pw.Document();
     final now = DateTime.now();
     final generated =
         '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} '
@@ -51,273 +144,255 @@ class FeeReceiptPdf {
     const ink = PdfColor.fromInt(0xFF111827);
     const grey = PdfColor.fromInt(0xFF6B7280);
 
-    doc.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(36),
-        build: (context) {
-          return pw.Stack(
-            children: [
-              // ── Watermark (behind everything) ──
-              pw.Positioned.fill(
-                child: pw.Center(
-                  child: pw.Opacity(
-                    opacity: 0.07,
-                    child: pw.Transform.rotate(
-                      angle: -0.45,
-                      child: pw.Text(
-                        'SHIVALIK SCHOOL',
-                        style: pw.TextStyle(
-                          fontSize: 52,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.grey700,
-                        ),
-                      ),
-                    ),
+    return pw.Stack(
+      children: [
+        // ── Watermark (behind everything) ──
+        pw.Positioned.fill(
+          child: pw.Center(
+            child: pw.Opacity(
+              opacity: 0.07,
+              child: pw.Transform.rotate(
+                angle: -0.45,
+                child: pw.Text(
+                  'SHIVALIK SCHOOL',
+                  style: pw.TextStyle(
+                    fontSize: 52,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.grey700,
                   ),
                 ),
               ),
+            ),
+          ),
+        ),
 
-              // ── Content ──
-              pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  pw.Row(
+        // ── Content ──
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // Header
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Container(
+                  width: 46,
+                  height: 46,
+                  alignment: pw.Alignment.center,
+                  decoration: pw.BoxDecoration(
+                    color: teal,
+                    borderRadius: pw.BorderRadius.circular(10),
+                  ),
+                  child: pw.Text(
+                    'S',
+                    style: pw.TextStyle(
+                      fontSize: 26,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.white,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 12),
+                pw.Expanded(
+                  child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Container(
-                        width: 46,
-                        height: 46,
-                        alignment: pw.Alignment.center,
-                        decoration: pw.BoxDecoration(
+                      pw.Text(
+                        'SHIVALIK SCHOOL',
+                        style: pw.TextStyle(
+                          fontSize: 20,
+                          fontWeight: pw.FontWeight.bold,
                           color: teal,
-                          borderRadius: pw.BorderRadius.circular(10),
-                        ),
-                        child: pw.Text(
-                          'S',
-                          style: pw.TextStyle(
-                            fontSize: 26,
-                            fontWeight: pw.FontWeight.bold,
-                            color: PdfColors.white,
-                          ),
+                          letterSpacing: 1.2,
                         ),
                       ),
-                      pw.SizedBox(width: 12),
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text(
-                              'SHIVALIK SCHOOL',
-                              style: pw.TextStyle(
-                                fontSize: 20,
-                                fontWeight: pw.FontWeight.bold,
-                                color: teal,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            pw.SizedBox(height: 2),
-                            pw.Text(
-                              'Knowledge · Character · Excellence   |   Academic Year 2026-27',
-                              style: pw.TextStyle(fontSize: 8.5, color: grey),
-                            ),
-                          ],
-                        ),
-                      ),
-                      pw.Container(
-                        padding: const pw.EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: pw.BoxDecoration(
-                          border: pw.Border.all(color: teal, width: 1),
-                          borderRadius: pw.BorderRadius.circular(6),
-                        ),
-                        child: pw.Text(
-                          'OFFICIAL RECEIPT',
-                          style: pw.TextStyle(
-                            fontSize: 8,
-                            fontWeight: pw.FontWeight.bold,
-                            color: teal,
-                          ),
-                        ),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        'Knowledge · Character · Excellence   |   Academic Year 2026-27',
+                        style: pw.TextStyle(fontSize: 8.5, color: grey),
                       ),
                     ],
                   ),
-                  pw.Divider(color: teal, thickness: 1.4, height: 18),
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: teal, width: 1),
+                    borderRadius: pw.BorderRadius.circular(6),
+                  ),
+                  child: pw.Text(
+                    'OFFICIAL RECEIPT',
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                      color: teal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            pw.Divider(color: teal, thickness: 1.4, height: 18),
 
-                  // Title
-                  pw.Center(
-                    child: pw.Text(
-                      title,
-                      style: pw.TextStyle(
-                        fontSize: 15,
-                        fontWeight: pw.FontWeight.bold,
-                        color: ink,
-                        letterSpacing: 2,
-                      ),
+            // Title
+            pw.Center(
+              child: pw.Text(
+                title,
+                style: pw.TextStyle(
+                  fontSize: 15,
+                  fontWeight: pw.FontWeight.bold,
+                  color: ink,
+                  letterSpacing: 2,
+                ),
+              ),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Center(
+              child: pw.Text(
+                receiptNo == null
+                    ? 'Student Fee Statement'
+                    : 'Receipt No. $receiptNo',
+                style: pw.TextStyle(
+                  fontSize: 9.5,
+                  color: receiptNo == null ? grey : teal,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+            pw.SizedBox(height: 16),
+
+            // Student block
+            _infoBox([
+              ['Student Name', studentName],
+              ['Class', className],
+              ['Admission No.', admissionNo],
+              ['Username', studentUsername],
+            ], teal, ink, grey),
+
+            // Payment block (payment receipts only)
+            if (receiptNo != null) ...[
+              pw.SizedBox(height: 10),
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  color: PdfColor.fromInt(0xFFECFDF5),
+                  borderRadius: pw.BorderRadius.circular(8),
+                  border: pw.Border.all(
+                      color: PdfColor.fromInt(0xFF10B981), width: 0.8),
+                ),
+                child: pw.Row(
+                  children: [
+                    pw.Expanded(
+                      child: _kv('Amount Paid',
+                          _rs(paymentAmount ?? 0), ink, teal),
+                    ),
+                    pw.Expanded(
+                      child: _kv('Payment Mode', paymentMode ?? '-',
+                          ink, teal),
+                    ),
+                    pw.Expanded(
+                      child: _kv('Payment Date', paymentDate ?? '-',
+                          ink, teal),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            pw.SizedBox(height: 16),
+
+            // Ledger table
+            pw.Text(
+              'FEE DEMAND LEDGER',
+              style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: teal,
+                  letterSpacing: 0.8),
+            ),
+            pw.SizedBox(height: 6),
+            _tableHeader(teal),
+            ...ledger.map((f) {
+              final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
+              final p = (f['paid_amount'] as num?)?.toDouble() ?? 0.0;
+              final settled = (p >= amount - 0.01);
+              final status =
+                  (f['status']?.toString() ?? 'pending').toUpperCase();
+              final due = f['due_date']?.toString() ?? '-';
+              return _tableRow(
+                head: f['head']?.toString() ?? 'Fee',
+                due: due.length >= 10 ? due.substring(0, 10) : due,
+                amount: _num(amount),
+                paid: _num(p < amount ? p : amount),
+                status: status,
+                settled: settled,
+                teal: teal,
+                grey: grey,
+                ink: ink,
+              );
+            }),
+            pw.Divider(color: PdfColors.grey400, thickness: 0.6),
+
+            // Totals
+            _totalRow('Total Demanded', _rs(total), ink, false),
+            _totalRow('Total Paid', _rs(paid), teal, false),
+            _totalRow(
+              outstanding > 0 ? 'Outstanding' : 'Balance',
+              _rs(outstanding),
+              outstanding > 0
+                  ? PdfColor.fromInt(0xFFEF4444)
+                  : PdfColor.fromInt(0xFF10B981),
+              true,
+            ),
+
+            pw.SizedBox(height: 18),
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                color: PdfColor.fromInt(0xFFF8FAFC),
+                borderRadius: pw.BorderRadius.circular(6),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    outstanding > 0
+                        ? 'Status: OUTSTANDING — please clear the balance at the earliest.'
+                        : 'Status: NO DUES — all fee demands are fully settled.',
+                    style: pw.TextStyle(
+                      fontSize: 9,
+                      fontWeight: pw.FontWeight.bold,
+                      color: outstanding > 0
+                          ? PdfColor.fromInt(0xFFB45309)
+                          : PdfColor.fromInt(0xFF047857),
                     ),
                   ),
                   pw.SizedBox(height: 4),
-                  pw.Center(
-                    child: pw.Text(
-                      receiptNo == null
-                          ? 'Student Fee Statement'
-                          : 'Receipt No. $receiptNo',
-                      style: pw.TextStyle(
-                        fontSize: 9.5,
-                        color: receiptNo == null ? grey : teal,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  pw.SizedBox(height: 16),
-
-                  // Student block
-                  _infoBox([
-                    ['Student Name', studentName],
-                    ['Class', className],
-                    ['Admission No.', admissionNo],
-                    ['Username', studentUsername],
-                  ], teal, ink, grey),
-
-                  // Payment block (payment receipts only)
-                  if (receiptNo != null) ...[
-                    pw.SizedBox(height: 10),
-                    pw.Container(
-                      width: double.infinity,
-                      padding: const pw.EdgeInsets.all(12),
-                      decoration: pw.BoxDecoration(
-                        color: PdfColor.fromInt(0xFFECFDF5),
-                        borderRadius: pw.BorderRadius.circular(8),
-                        border: pw.Border.all(
-                            color: PdfColor.fromInt(0xFF10B981), width: 0.8),
-                      ),
-                      child: pw.Row(
-                        children: [
-                          pw.Expanded(
-                            child: _kv('Amount Paid',
-                                _rs(paymentAmount ?? 0), ink, teal),
-                          ),
-                          pw.Expanded(
-                            child: _kv('Payment Mode', paymentMode ?? '-',
-                                ink, teal),
-                          ),
-                          pw.Expanded(
-                            child: _kv('Payment Date', paymentDate ?? '-',
-                                ink, teal),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  pw.SizedBox(height: 16),
-
-                  // Ledger table
                   pw.Text(
-                    'FEE DEMAND LEDGER',
-                    style: pw.TextStyle(
-                        fontSize: 10,
-                        fontWeight: pw.FontWeight.bold,
-                        color: teal,
-                        letterSpacing: 0.8),
-                  ),
-                  pw.SizedBox(height: 6),
-                  _tableHeader(teal),
-                  ...ledger.map((f) {
-                    final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
-                    final p = (f['paid_amount'] as num?)?.toDouble() ?? 0.0;
-                    final settled = (p >= amount - 0.01);
-                    final status =
-                        (f['status']?.toString() ?? 'pending').toUpperCase();
-                    return _tableRow(
-                      head: f['head']?.toString() ?? 'Fee',
-                      due: (f['due_date']?.toString() ?? '-').substring(
-                          0,
-                          (f['due_date']?.toString() ?? '').length >= 10
-                              ? 10
-                              : (f['due_date']?.toString() ?? '').length),
-                      amount: _num(amount),
-                      paid: _num(p < amount ? p : amount),
-                      status: status,
-                      settled: settled,
-                      teal: teal,
-                      grey: grey,
-                      ink: ink,
-                    );
-                  }),
-                  pw.Divider(color: PdfColors.grey400, thickness: 0.6),
-
-                  // Totals
-                  _totalRow('Total Demanded', _rs(total), ink, false),
-                  _totalRow('Total Paid', _rs(paid), teal, false),
-                  _totalRow(
-                    outstanding > 0 ? 'Outstanding' : 'Balance',
-                    _rs(outstanding),
-                    outstanding > 0
-                        ? PdfColor.fromInt(0xFFEF4444)
-                        : PdfColor.fromInt(0xFF10B981),
-                    true,
-                  ),
-
-                  pw.SizedBox(height: 18),
-                  pw.Container(
-                    width: double.infinity,
-                    padding: const pw.EdgeInsets.all(10),
-                    decoration: pw.BoxDecoration(
-                      color: PdfColor.fromInt(0xFFF8FAFC),
-                      borderRadius: pw.BorderRadius.circular(6),
-                      border: pw.Border.all(color: PdfColors.grey300),
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          outstanding > 0
-                              ? 'Status: OUTSTANDING — please clear the balance at the earliest.'
-                              : 'Status: NO DUES — all fee demands are fully settled.',
-                          style: pw.TextStyle(
-                            fontSize: 9,
-                            fontWeight: pw.FontWeight.bold,
-                            color: outstanding > 0
-                                ? PdfColor.fromInt(0xFFB45309)
-                                : PdfColor.fromInt(0xFF047857),
-                          ),
-                        ),
-                        pw.SizedBox(height: 4),
-                        pw.Text(
-                          'This is a computer-generated receipt and does not require a '
-                          'physical signature. Verify using the receipt number above. '
-                          'Generated on $generated.',
-                          style: pw.TextStyle(fontSize: 7.5, color: grey),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  pw.Spacer(),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('Accounts Office',
-                          style: pw.TextStyle(fontSize: 8.5, color: grey)),
-                      pw.Text('Shivalik School · Fees & Accounts',
-                          style: pw.TextStyle(fontSize: 8.5, color: grey)),
-                    ],
+                    'This is a computer-generated receipt and does not require a '
+                    'physical signature. Verify using the receipt number above. '
+                    'Generated on $generated.',
+                    style: pw.TextStyle(fontSize: 7.5, color: grey),
                   ),
                 ],
               ),
-            ],
-          );
-        },
-      ),
-    );
+            ),
 
-    await Printing.sharePdf(
-      bytes: await doc.save(),
-      filename: receiptNo == null
-          ? 'shivalik_fee_statement_${studentUsername}.pdf'
-          : 'shivalik_fee_receipt_$receiptNo.pdf',
+            pw.Spacer(),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('Accounts Office',
+                    style: pw.TextStyle(fontSize: 8.5, color: grey)),
+                pw.Text('Shivalik School · Fees & Accounts',
+                    style: pw.TextStyle(fontSize: 8.5, color: grey)),
+              ],
+            ),
+          ],
+        ),
+      ],
     );
   }
 

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /Users/sitanshunayan/Documents/klinixy/erp/lib/services/school_service.dart; grep -n \"getStudentMarks\\\\|getHolisticProgressCard\\\\|getStudentAttendancePercent\\\\|getClassPerformanceSummary\\\\|getAllSchoolStudents\\\\|calculateCbseGrade\\\\|class SchoolService\\\\|_supabase\\\\|Future<\" /Users/sitanshunayan/Documents/klinixy/erp/lib/services/school_service.dart | head -120)"
+    ]
+  }
+}

@@ -68,13 +68,93 @@ class SchoolService {
     ];
   }
 
-  Future<List<Map<String, dynamic>>> getStudentsInClass(String classId) async {
+  String _compactClassKey(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  /// Every comparable identity for a class: its database id, its app id
+  /// ("cls-10a"), its name ("Class 10-A") and its grade-only name ("Class 10").
+  ///
+  /// Live school data mixes all of these: `school_classes` uses UUID ids with
+  /// `name = 'Class 10'` and a NULL section, while students, timetable and
+  /// attendance still carry `class_id = 'cls-10a'` / `class_name = 'Class 10-A'`.
+  Set<String> classAliases({
+    String? classId,
+    String? className,
+    String? section,
+  }) {
+    final keys = <String>{};
+    final id = (classId ?? '').trim();
+    final name = (className ?? '').trim();
+    final sec = _compactClassKey(section ?? '');
+
+    if (id.isNotEmpty) {
+      keys.add(id.toLowerCase());
+      final appId =
+          id.toLowerCase().replaceFirst(RegExp(r'^cls-?'), '');
+      final match = RegExp(r'^(\d+)([a-z]?)$').firstMatch(appId);
+      if (match != null) {
+        final grade = match.group(1)!;
+        keys.add('class$grade');
+        if ((match.group(2) ?? '').isNotEmpty) {
+          keys.add('class$grade${match.group(2)}');
+        }
+      }
+    }
+
+    final gradeMatch = RegExp(r'(\d+)').firstMatch(name);
+    if (name.isNotEmpty) {
+      keys.add(_compactClassKey(name));
+      final dash = name.lastIndexOf('-');
+      if (dash > 0) keys.add(_compactClassKey(name.substring(0, dash)));
+      if (gradeMatch != null) keys.add('class${gradeMatch.group(1)}');
+    }
+
+    if (gradeMatch != null && sec.isNotEmpty) {
+      keys.add('class${gradeMatch.group(1)}$sec');
+    }
+
+    keys.remove('');
+    return keys;
+  }
+
+  bool _classMatches(
+    Map<String, dynamic> row,
+    Set<String> aliases,
+  ) {
+    final rowAliases = classAliases(
+      classId: row['class_id']?.toString(),
+      className: row['class_name']?.toString(),
+      section: row['section']?.toString(),
+    );
+    return rowAliases.any(aliases.contains);
+  }
+
+  /// Students of a class. [className] matters: live `school_classes` rows use
+  /// UUID ids that students/timetable do not reference directly.
+  Future<List<Map<String, dynamic>>> getStudentsInClass(
+    String classId, {
+    String? className,
+    String? section,
+  }) async {
+    final aliases =
+        classAliases(classId: classId, className: className, section: section);
+    try {
+      final response = await _supabase.from('school_students').select();
+      final rows = List<Map<String, dynamic>>.from(response);
+      final matches =
+          rows.where((row) => _classMatches(row, aliases)).toList();
+      if (matches.isNotEmpty) {
+        matches.sort((a, b) => (a['roll_number']?.toString() ?? '')
+            .compareTo(b['roll_number']?.toString() ?? ''));
+        return matches;
+      }
+    } catch (_) {}
+
     try {
       final response = await _supabase
           .from('school_students')
           .select()
-          .or('class_id.eq.$classId,class_name.eq.$classId')
-          .order('roll_number');
+          .eq('class_id', classId);
       return List<Map<String, dynamic>>.from(response);
     } catch (_) {
       return [];
@@ -216,9 +296,32 @@ class SchoolService {
 
   // ===== TIMETABLE MANAGEMENT, CLASH DETECTION & LOAD CAPS =====
 
-  Future<List<Map<String, dynamic>>> getTimetableForClass(String classId, {String? day}) async {
+  Future<List<Map<String, dynamic>>> getTimetableForClass(
+    String classId, {
+    String? day,
+    String? className,
+    String? section,
+  }) async {
+    final aliases =
+        classAliases(classId: classId, className: className, section: section);
+
+    // Match by class identity first: timetable rows still use 'cls-10a'
+    // while the class picker is driven by UUID rows from `school_classes`.
     try {
-      var query = _supabase.from('school_timetable').select().eq('class_id', classId);
+      var query = _supabase.from('school_timetable').select();
+      if (day != null && day.isNotEmpty) {
+        query = query.eq('day', day);
+      }
+      final response = await query.order('period');
+      final rows = List<Map<String, dynamic>>.from(response);
+      final matches =
+          rows.where((row) => _classMatches(row, aliases)).toList();
+      if (matches.isNotEmpty) return matches;
+    } catch (_) {}
+
+    try {
+      var query =
+          _supabase.from('school_timetable').select().eq('class_id', classId);
       if (day != null && day.isNotEmpty) {
         query = query.eq('day', day);
       }
@@ -227,6 +330,57 @@ class SchoolService {
     } catch (_) {
       return [];
     }
+  }
+
+  /// Distinct class + subject pairs from the timetable for one teacher — the
+  /// choices a teacher may raise homework against.
+  Future<List<Map<String, dynamic>>> getTeacherAssignments(
+      String teacherUsername) async {
+    if (teacherUsername.isEmpty) return [];
+    final options = <Map<String, dynamic>>[];
+    final seen = <String>{};
+
+    try {
+      final response = await _supabase
+          .from('school_timetable')
+          .select()
+          .eq('teacher_username', teacherUsername);
+      for (final row in List<Map<String, dynamic>>.from(response)) {
+        final classId = row['class_id']?.toString() ?? '';
+        final subject = row['subject']?.toString() ?? '';
+        if (classId.isEmpty || subject.isEmpty) continue;
+        if (!seen.add('$classId|$subject')) continue;
+        options.add({
+          'class_id': classId,
+          'class_name': row['class_name']?.toString() ?? '',
+          'section': row['section']?.toString() ?? '',
+          'subject': subject,
+        });
+      }
+    } catch (_) {}
+
+    // A class teacher who does not appear on the timetable falls back to their
+    // own class + that class's subjects.
+    if (options.isEmpty) {
+      final classes = await getClassTeacherClasses(teacherUsername);
+      for (final c in classes) {
+        final classId = c['id']?.toString() ?? '';
+        final subjects = await getSchoolSubjects(classId: classId);
+        for (final s in subjects) {
+          final subject = s['name']?.toString() ?? '';
+          if (subject.isEmpty) continue;
+          if (!seen.add('$classId|$subject')) continue;
+          options.add({
+            'class_id': classId,
+            'class_name': c['name']?.toString() ?? '',
+            'section': c['section']?.toString() ?? '',
+            'subject': subject,
+          });
+        }
+      }
+    }
+
+    return options;
   }
 
   Future<List<Map<String, dynamic>>> getAllTimetableEntries({String? day}) async {
@@ -782,8 +936,17 @@ class SchoolService {
           .lte('date', lastDay);
       final records = List<Map<String, dynamic>>.from(response);
       if (records.isNotEmpty) {
-        final present = records.where((r) => r['status'] == 'present').length;
-        return (present / records.length) * 100;
+        // Excused leave is not an absence; late attendance still counts.
+        final counted = records
+            .where((r) =>
+                r['status'] != 'excused' && r['status'] != 'leave')
+            .toList();
+        if (counted.isEmpty) return 100;
+        final present = counted
+            .where((r) =>
+                r['status'] == 'present' || r['status'] == 'late')
+            .length;
+        return (present / counted.length) * 100;
       }
     } catch (_) {}
 
@@ -845,64 +1008,130 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getAttendance({
     required String classId,
     required DateTime date,
+    String? className,
+    String? section,
   }) async {
     final dateStr = date.toIso8601String().substring(0, 10);
     final key = '${classId}_$dateStr';
-
-    // First check memory cache
-    if (_attendanceStore.containsKey(key)) {
-      return _attendanceStore[key]!;
-    }
+    final aliases =
+        classAliases(classId: classId, className: className, section: section);
 
     try {
       final response = await _supabase
           .from('school_attendance')
           .select()
-          .or('class_id.eq.$classId,class_name.eq.$classId')
           .eq('date', dateStr);
-      final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) {
-        _attendanceStore[key] = list;
-        return list;
+      final rows = List<Map<String, dynamic>>.from(response);
+      final matches =
+          rows.where((row) => _classMatches(row, aliases)).toList();
+      if (matches.isNotEmpty) {
+        _attendanceStore[key] = matches;
+        return matches;
       }
     } catch (_) {}
 
+    if (_attendanceStore.containsKey(key)) {
+      return _attendanceStore[key]!;
+    }
     return [];
   }
 
+  /// Persist one attendance row per student for the selected date.
+  /// Returns false when nothing could be written, so the UI never claims a
+  /// silent success.
   Future<bool> markAttendance(List<Map<String, dynamic>> records) async {
-    if (records.isNotEmpty) {
-      final first = records.first;
-      final classId = first['class_id']?.toString() ?? 'cls-10a';
-      final dateStr = first['date']?.toString() ?? DateTime.now().toIso8601String().substring(0, 10);
-      final key = '${classId}_$dateStr';
-      _attendanceStore[key] = List<Map<String, dynamic>>.from(records);
-    }
+    if (records.isEmpty) return false;
+
+    final first = records.first;
+    final classId = first['class_id']?.toString() ?? '';
+    final dateStr =
+        first['date']?.toString() ?? DateTime.now().toIso8601String().substring(0, 10);
+    final key = '${classId}_$dateStr';
+
+    final studentIds = records
+        .map((r) => r['student_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    if (studentIds.isEmpty) return false;
+
+    // A register that is already complete for this date is final.
+    try {
+      final existing = await _supabase
+          .from('school_attendance')
+          .select('id')
+          .eq('date', dateStr)
+          .inFilter('student_id', studentIds);
+      if (existing.length >= studentIds.length) return false;
+    } catch (_) {}
 
     try {
-      await _supabase.from('school_attendance').upsert(records);
-    } catch (_) {
-      // Graceful fallback to memory store
+      await _supabase
+          .from('school_attendance')
+          .upsert(records, onConflict: 'student_id,date');
+      _attendanceStore[key] = List<Map<String, dynamic>>.from(records);
+      return true;
+    } catch (_) {}
+
+    // Fallback: update existing rows one by one, insert the rest.
+    var saved = 0;
+    for (final record in records) {
+      final studentId = record['student_id']?.toString() ?? '';
+      if (studentId.isEmpty) continue;
+      try {
+        final existing = await _supabase
+            .from('school_attendance')
+            .select('id')
+            .eq('student_id', studentId)
+            .eq('date', dateStr)
+            .maybeSingle();
+        if (existing != null) {
+          await _supabase
+              .from('school_attendance')
+              .update({
+                'status': record['status'],
+                'class_id': record['class_id'],
+                'class_name': record['class_name'],
+                'student_name': record['student_name'],
+                'marked_by': record['marked_by'],
+              })
+              .eq('id', existing['id']);
+        } else {
+          await _supabase.from('school_attendance').insert(record);
+        }
+        saved++;
+      } catch (_) {}
     }
-    return true;
+
+    if (saved > 0) {
+      _attendanceStore[key] = List<Map<String, dynamic>>.from(records);
+      return true;
+    }
+    return false;
   }
 
   Future<List<Map<String, dynamic>>> getAttendanceReport({
     required String classId,
     required DateTime from,
     required DateTime to,
+    String? className,
+    String? section,
   }) async {
+    final matchAll = classId == '__all__';
+    final aliases =
+        classAliases(classId: classId, className: className, section: section);
     try {
       final fromStr = from.toIso8601String().substring(0, 10);
       final toStr = to.toIso8601String().substring(0, 10);
       final response = await _supabase
           .from('school_attendance')
           .select()
-          .or('class_id.eq.$classId,class_name.eq.$classId')
           .gte('date', fromStr)
           .lte('date', toStr)
           .order('date');
-      return List<Map<String, dynamic>>.from(response);
+      final rows = List<Map<String, dynamic>>.from(response);
+      return rows
+          .where((row) => matchAll || _classMatches(row, aliases))
+          .toList();
     } catch (_) {
       return [];
     }
@@ -1035,10 +1264,29 @@ class SchoolService {
     };
     _homeworkStore.insert(0, entry);
 
+    // Only send columns that exist on school_homework; extra keys make the
+    // whole insert fail and the homework silently never reaches the backend.
+    final payload = <String, dynamic>{
+      'institute_code': 'SHIV-SCH',
+      'class_id': data['class_id'],
+      'class_name': data['class_name'],
+      'section': data['section'],
+      'subject': data['subject'],
+      'title': data['title'],
+      'description': data['description'],
+      'due_date': data['due_date'],
+      'teacher_username':
+          data['teacher_username'] ?? data['teacher'] ?? '',
+      'attachment_url': data['attachment_url'],
+    };
+    payload.removeWhere((_, value) => value == null);
+
     try {
-      await _supabase.from('school_homework').insert(data);
-    } catch (_) {}
-    return true;
+      await _supabase.from('school_homework').insert(payload);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> updateHomeworkStatus(String homeworkId, String status) async {
@@ -1182,34 +1430,364 @@ class SchoolService {
     return [];
   }
 
-  Future<List<Map<String, dynamic>>> getStudentMarks(String studentId, {String? examType}) async {
+  /// Every school student, ordered by class then roll number. Staff-facing
+  /// report card pickers use this so a teacher can open any student's card.
+  Future<List<Map<String, dynamic>>> getAllSchoolStudents() async {
     try {
-      var query = _supabase.from('school_marks').select().eq('student_id', studentId);
-      if (examType != null && examType != 'All') {
-        query = query.eq('exam_type', examType);
-      }
-      final response = await query;
-      return List<Map<String, dynamic>>.from(response);
+      final response = await _supabase.from('school_students').select();
+      final rows = List<Map<String, dynamic>>.from(response);
+      rows.sort((a, b) {
+        final aClass = (a['class_name'] ?? a['class_id'] ?? '').toString();
+        final bClass = (b['class_name'] ?? b['class_id'] ?? '').toString();
+        final byClass = aClass.compareTo(bClass);
+        if (byClass != 0) return byClass;
+        return (a['roll_number']?.toString() ?? '')
+            .compareTo(b['roll_number']?.toString() ?? '');
+      });
+      return rows;
     } catch (_) {
       return [];
     }
   }
 
+  /// Class-level academic + attendance analytics for one exam session.
+  /// Pass classId `__all__` to aggregate every class.
+  Future<Map<String, dynamic>> getClassPerformanceSummary({
+    required String classId,
+    String? className,
+    String? section,
+    String? examType,
+  }) async {
+    final matchAll = classId == '__all__';
+    final aliases =
+        classAliases(classId: classId, className: className, section: section);
+
+    try {
+      final response = await _supabase.from('school_marks').select();
+      final rows = List<Map<String, dynamic>>.from(response).where((row) {
+        if (!matchAll && !_classMatches(row, aliases)) return false;
+        if (examType != null && examType.isNotEmpty) {
+          final rowExam = row['exam_type']?.toString() ?? '';
+          if (rowExam.isNotEmpty && rowExam != examType) return false;
+        }
+        return true;
+      }).toList();
+
+      final totals = <String, List<double>>{};
+      for (final row in rows) {
+        final sid = row['student_id']?.toString() ?? '';
+        if (sid.isEmpty) continue;
+        final obtained = (row['marks_obtained'] ?? row['obtained'] ?? 0) as num;
+        final max = (row['total_marks'] ?? row['total'] ?? 100) as num;
+        final entry = totals.putIfAbsent(sid, () => [0, 0]);
+        entry[0] += obtained.toDouble();
+        entry[1] += max.toDouble();
+      }
+
+      final percentages = totals.values
+          .where((v) => v[1] > 0)
+          .map((v) => (v[0] / v[1]) * 100)
+          .toList();
+      final average = percentages.isEmpty
+          ? 0.0
+          : percentages.reduce((a, b) => a + b) / percentages.length;
+      final highest = percentages.isEmpty
+          ? 0.0
+          : percentages.reduce((a, b) => a > b ? a : b);
+
+      final now = DateTime.now();
+      final attendance = await getAttendanceReport(
+        classId: matchAll ? '__all__' : classId,
+        className: className,
+        section: section,
+        from: DateTime(now.year, now.month, 1),
+        to: DateTime(now.year, now.month + 1, 0),
+      );
+      final presentLike = attendance.where((r) {
+        final status = r['status']?.toString() ?? '';
+        return status == 'present' || status == 'late';
+      }).length;
+      final attendancePct =
+          attendance.isEmpty ? 0.0 : presentLike / attendance.length * 100;
+
+      return {
+        'students': totals.length,
+        'average': average,
+        'highest': highest,
+        'attendance': attendancePct,
+      };
+    } catch (_) {
+      return {'students': 0, 'average': 0.0, 'highest': 0.0, 'attendance': 0.0};
+    }
+  }
+
+  /// Marks for one student. Rows may be stored against the login username OR
+  /// the `school_students.id`, so both are queried and merged.
+  Future<List<Map<String, dynamic>>> getStudentMarks(
+    String studentId, {
+    String? examType,
+    String? studentName,
+  }) async {
+    final keys = <String>{studentId};
+    if (studentName != null && studentName.isNotEmpty) keys.add(studentName);
+    final rowsById = <String, Map<String, dynamic>>{};
+
+    Future<void> fetch(String key, bool byName) async {
+      if (key.isEmpty) return;
+      try {
+        var query = _supabase.from('school_marks').select();
+        query = byName ? query.eq('student_name', key) : query.eq('student_id', key);
+        if (examType != null && examType != 'All' && examType.isNotEmpty) {
+          query = query.eq('exam_type', examType);
+        }
+        for (final row in List<Map<String, dynamic>>.from(await query)) {
+          final id = row['id']?.toString() ??
+              '${row['student_id']}_${row['subject']}_${row['exam_type']}';
+          rowsById[id] = row;
+        }
+      } catch (_) {}
+    }
+
+    for (final key in keys) {
+      await fetch(key, false);
+    }
+
+    final rows = rowsById.values.toList()
+      ..sort((a, b) =>
+          (a['subject']?.toString() ?? '').compareTo(b['subject']?.toString() ?? ''));
+    return rows;
+  }
+
+  /// Report card sessions (Half Yearly, Final, ...) in display order.
+  Future<List<String>> getExamSessions() async {
+    const fallback = ['Half Yearly', 'Final'];
+    try {
+      final response = await _supabase
+          .from('school_exam_sessions')
+          .select('name, display_order')
+          .eq('is_published', true)
+          .order('display_order');
+      final names = List<Map<String, dynamic>>.from(response)
+          .map((r) => r['name']?.toString() ?? '')
+          .where((n) => n.isNotEmpty)
+          .toList();
+      if (names.isNotEmpty) return names;
+    } catch (_) {}
+    return fallback;
+  }
+
+  /// Per-subject analytics for one exam session: strongest / weakest subject,
+  /// grade spread, pass count and a per-subject breakdown for charting.
+  Map<String, dynamic> buildReportAnalytics(List<Map<String, dynamic>> marks) {
+    final breakdown = <Map<String, dynamic>>[];
+    final gradeCounts = <String, int>{};
+    int obtained = 0;
+    int max = 0;
+    int passed = 0;
+
+    for (final m in marks) {
+      final subject = m['subject']?.toString() ?? 'Subject';
+      final obt = (m['marks_obtained'] ?? m['obtained'] ?? 0) as num;
+      final tot = (m['total_marks'] ?? m['total'] ?? 100) as num;
+      if (tot <= 0) continue;
+      final pct = (obt / tot) * 100;
+      final grade = SchoolService.calculateCbseGrade(pct.toDouble())['grade'] as String;
+      obtained += obt.toInt();
+      max += tot.toInt();
+      if (pct >= 33) passed++;
+      gradeCounts[grade] = (gradeCounts[grade] ?? 0) + 1;
+      breakdown.add({
+        'subject': subject,
+        'obtained': obt.toInt(),
+        'total': tot.toInt(),
+        'percentage': pct,
+        'grade': grade,
+      });
+    }
+    breakdown.sort(
+        (a, b) => (b['percentage'] as num).compareTo(a['percentage'] as num));
+
+    final overallPct = max > 0 ? (obtained / max) * 100 : 0.0;
+    return {
+      'obtained': obtained,
+      'max': max,
+      'percentage': overallPct,
+      'subjects_passed': passed,
+      'subjects_total': breakdown.length,
+      'grade': SchoolService.calculateCbseGrade(overallPct.toDouble())['grade'],
+      'grade_point': SchoolService.calculateCbseGrade(overallPct.toDouble())['point'],
+      'strongest': breakdown.isEmpty ? null : breakdown.first,
+      'weakest': breakdown.isEmpty ? null : breakdown.last,
+      'grade_counts': gradeCounts,
+      'breakdown': breakdown,
+    };
+  }
+
+  /// Co-scholastic grades (A/B/C) for one student + session. Falls back to
+  /// an empty list so the UI can show a "pending" state instead of fake data.
+  Future<List<Map<String, dynamic>>> getCoScholastic({
+    required String studentId,
+    required String examType,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('school_co_scholastic')
+          .select()
+          .eq('student_id', studentId)
+          .eq('exam_type', examType);
+      final rows = List<Map<String, dynamic>>.from(response);
+      rows.sort(
+          (a, b) => (a['area']?.toString() ?? '').compareTo(b['area']?.toString() ?? ''));
+      return rows;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Admin-written teacher remark + promotion verdict for one session.
+  Future<Map<String, dynamic>> getReportCardMeta({
+    required String studentId,
+    required String examType,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('school_report_card_meta')
+          .select()
+          .eq('student_id', studentId)
+          .eq('exam_type', examType)
+          .maybeSingle();
+      return response == null ? {} : Map<String, dynamic>.from(response);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// ADMIN ONLY: save the narrative remark + promotion verdict for a card.
+  Future<bool> saveReportCardMeta({
+    required String studentId,
+    required String examType,
+    required String teacherRemark,
+    required String promotionVerdict,
+  }) async {
+    lastMarksError = null;
+    final role = await AuthService().getCurrentUserRole();
+    if (role != 'admin' && role != 'sadmin') {
+      lastMarksError = 'Only the admin can update the report card.';
+      return false;
+    }
+    try {
+      await _supabase.from('school_report_card_meta').upsert({
+        'student_id': studentId,
+        'exam_type': examType,
+        'academic_year': reportCardAcademicYear,
+        'teacher_remark': teacherRemark,
+        'promotion_verdict': promotionVerdict,
+        'updated_by': await AuthService().getCurrentUsername(),
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'student_id,exam_type,academic_year');
+      return true;
+    } catch (e) {
+      lastMarksError = 'Could not save remark: $e';
+      return false;
+    }
+  }
+
+  static const String reportCardAcademicYear = '2026-2027';
+
+  /// ADMIN ONLY (for the time being): save / update report card marks.
+  /// Students, parents and teachers can never change marks — only the admin.
+  ///
+  /// Rows are normalised to the `school_marks` schema (obtained_marks /
+  /// max_marks aliases from the entry screen are mapped to marks_obtained /
+  /// total_marks) and upserted on (student_id, subject, exam_type) so editing
+  /// a mark updates the existing row instead of duplicating it.
   Future<bool> saveMarks(List<Map<String, dynamic>> marksList) async {
-    if (marksList.isNotEmpty) {
-      final first = marksList.first;
-      final classId = first['class_id']?.toString() ?? 'cls-10a';
-      final subject = first['subject']?.toString() ?? 'Mathematics';
-      final examType = first['exam_type']?.toString() ?? 'Mid Term';
-      final key = '${classId}_${subject}_$examType';
-      _marksStore[key] = List<Map<String, dynamic>>.from(marksList);
+    lastMarksError = null;
+    if (marksList.isEmpty) return false;
+
+    final role = await AuthService().getCurrentUserRole();
+    if (role != 'admin' && role != 'sadmin') {
+      lastMarksError = 'Only the admin can update the report card.';
+      return false;
+    }
+
+    final rows = <Map<String, dynamic>>[];
+    for (final raw in marksList) {
+      final obtained = (raw['marks_obtained'] ?? raw['obtained_marks'] ??
+              raw['obtained'] ?? 0)
+          as num;
+      final total = (raw['total_marks'] ?? raw['max_marks'] ?? raw['total'] ?? 100)
+          as num;
+      final pct = total > 0 ? (obtained.toDouble() / total.toDouble()) * 100 : 0.0;
+      final row = <String, dynamic>{
+        if (raw['id'] != null) 'id': raw['id'],
+        'student_id': raw['student_id']?.toString() ?? '',
+        if (raw['student_name'] != null) 'student_name': raw['student_name'],
+        if (raw['class_id'] != null) 'class_id': raw['class_id'],
+        if (raw['class_name'] != null) 'class_name': raw['class_name'],
+        if (raw['section'] != null) 'section': raw['section'],
+        'subject': raw['subject']?.toString() ?? '',
+        'exam_type': raw['exam_type']?.toString() ?? 'Mid Term',
+        'marks_obtained': obtained.toDouble(),
+        'total_marks': total.toDouble(),
+        'grade': raw['grade'] ?? calculateCbseGrade(pct)['grade'],
+        if (raw['remarks'] != null) 'remarks': raw['remarks'],
+      };
+      if (row['student_id'].toString().isEmpty ||
+          row['subject'].toString().isEmpty) {
+        continue;
+      }
+      rows.add(row);
+    }
+    if (rows.isEmpty) {
+      lastMarksError = 'Nothing valid to save.';
+      return false;
     }
 
     try {
-      await _supabase.from('school_marks').upsert(marksList);
+      final first = rows.first;
+      final key =
+          '${first['student_id']}_${first['subject']}_${first['exam_type']}';
+      _marksStore[key] = List<Map<String, dynamic>>.from(rows);
     } catch (_) {}
-    return true;
+
+    // Preferred path: one upsert keyed on (student, subject, exam) — requires
+    // the unique index created by database/03_report_card_seed.sql.
+    try {
+      await _supabase
+          .from('school_marks')
+          .upsert(rows, onConflict: 'student_id,subject,exam_type');
+      return true;
+    } catch (_) {}
+
+    // Fallback (unique index not created yet): update existing row per key,
+    // otherwise insert — still avoids duplicates.
+    try {
+      for (final row in rows) {
+        final existing = await _supabase
+            .from('school_marks')
+            .select('id')
+            .eq('student_id', row['student_id'].toString())
+            .eq('subject', row['subject'].toString())
+            .eq('exam_type', row['exam_type'].toString())
+            .limit(1);
+        final list = List<Map<String, dynamic>>.from(existing);
+        if (list.isNotEmpty) {
+          row['id'] = list.first['id'];
+          await _supabase.from('school_marks').update(row).eq('id', row['id'].toString());
+        } else {
+          await _supabase.from('school_marks').insert(row);
+        }
+      }
+      return true;
+    } catch (e) {
+      lastMarksError = 'Could not save marks: $e';
+      return false;
+    }
   }
+
+  /// Reason the last [saveMarks] call failed (null when it succeeded).
+  String? lastMarksError;
 
   Future<List<Map<String, dynamic>>> getMarksReport({
     required String classId,
@@ -1453,6 +2031,8 @@ class SchoolService {
       return aDue.compareTo(bDue);
     });
 
+    final settledHeads = <String>[];
+    double applied = 0.0;
     for (final d in demands) {
       if (remaining <= 0) break;
       final demandAmount = (d['amount'] as num?)?.toDouble() ?? 0.0;
@@ -1462,8 +2042,13 @@ class SchoolService {
 
       final pay = outstanding <= remaining ? outstanding : remaining;
       remaining -= pay;
+      applied += pay;
       final newPaid = alreadyPaid + pay;
       final newStatus = newPaid >= demandAmount - 0.01 ? 'paid' : 'partial';
+      final headName = d['head']?.toString() ?? '';
+      if (headName.isNotEmpty && !settledHeads.contains(headName)) {
+        settledHeads.add(headName);
+      }
 
       try {
         await _supabase.from('school_fee_payments').update({
@@ -1479,7 +2064,93 @@ class SchoolService {
     // never a leftover amount to insert as an extra "paid" row. This is what
     // keeps the total fee stable once everything is settled.
 
+    // Keep this payment as its OWN receipt row so every payment the student
+    // has ever made stays downloadable (the demand ledger only remembers the
+    // latest receipt number per row). Non-fatal if the receipts table hasn't
+    // been created yet — the app falls back to ledger-derived receipts.
+    try {
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final row = <String, dynamic>{
+        'receipt_no': receiptNo,
+        'student_id': studentId,
+        'class_id': data['class_id'],
+        'amount': applied > 0 ? applied : (data['amount'] as num?)?.toDouble() ?? 0.0,
+        'payment_mode': paymentMode,
+        'head': settledHeads.isNotEmpty
+            ? settledHeads.join(', ')
+            : (paymentHead.isNotEmpty ? paymentHead : null),
+        'note': data['note'],
+        'paid_on': today,
+        'created_at': DateTime.now().toIso8601String(),
+      };
+      row.removeWhere((_, v) => v == null);
+      await _supabase.from('school_fee_receipts').insert(row);
+    } catch (_) {}
+
     return receiptNo;
+  }
+
+  /// Every payment receipt the student has made, newest first.
+  ///
+  /// Reads `school_fee_receipts` (one row per payment). When that table is
+  /// empty or missing (SQL file not run yet), falls back to deriving receipts
+  /// from the demand ledger's `receipt_no` values so the Receipts section
+  /// still works.
+  Future<List<Map<String, dynamic>>> getStudentReceipts(
+      String studentId) async {
+    try {
+      final resp = await _supabase
+          .from('school_fee_receipts')
+          .select()
+          .eq('student_id', studentId)
+          .order('created_at', ascending: false);
+      final rows = List<Map<String, dynamic>>.from(resp);
+      if (rows.isNotEmpty) return rows;
+    } catch (_) {}
+
+    // Fallback: derive receipts from the ledger (one per stamped receipt_no).
+    try {
+      final resp = await _supabase
+          .from('school_fee_payments')
+          .select()
+          .eq('student_id', studentId);
+      final ledger = List<Map<String, dynamic>>.from(resp);
+      final byReceipt = <String, Map<String, dynamic>>{};
+      for (final f in ledger) {
+        final no = f['receipt_no']?.toString() ?? '';
+        if (no.isEmpty) continue;
+        final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
+        final paid = (f['paid_amount'] as num?)?.toDouble() ?? 0.0;
+        final applied = paid < amount ? paid : amount;
+        if (applied <= 0) continue;
+        final existing = byReceipt[no];
+        if (existing != null) {
+          existing['amount'] =
+              ((existing['amount'] as num?)?.toDouble() ?? 0.0) + applied;
+          final heads = (existing['head'] ?? '').toString();
+          final head = f['head']?.toString() ?? '';
+          if (head.isNotEmpty && !heads.contains(head)) {
+            existing['head'] = heads.isEmpty ? head : '$heads, $head';
+          }
+        } else {
+          byReceipt[no] = {
+            'receipt_no': no,
+            'student_id': studentId,
+            'amount': applied,
+            'payment_mode': f['payment_mode'],
+            'head': f['head'],
+            'paid_on': f['due_date'] ?? f['created_at'],
+            'created_at': f['created_at'],
+          };
+        }
+      }
+      final list = byReceipt.values.toList()
+        ..sort((a, b) => (b['created_at']?.toString() ?? '')
+            .compareTo(a['created_at']?.toString() ?? ''));
+      return list;
+    } catch (_) {
+      return [];
+    }
   }
 
   /// ADMIN ONLY: create or update the total fee demand (the "total fees to be
@@ -2537,19 +3208,26 @@ class SchoolService {
         final base = className.contains('-')
             ? className.substring(0, className.lastIndexOf('-'))
             : className;
-        var query = _supabase
-            .from('school_classes')
-            .select('class_teacher_id')
-            .eq('name', base);
         final resolvedSection = (section != null && section.isNotEmpty)
             ? section
             : (className.contains('-')
                 ? className.substring(className.lastIndexOf('-') + 1)
                 : null);
+        // Live classes usually store section = NULL, so try the section filter
+        // first and then fall back to matching the class name alone.
         if (resolvedSection != null && resolvedSection.isNotEmpty) {
-          query = query.eq('section', resolvedSection);
+          rows = List<Map<String, dynamic>>.from(await _supabase
+              .from('school_classes')
+              .select('class_teacher_id')
+              .eq('name', base)
+              .eq('section', resolvedSection));
         }
-        rows = List<Map<String, dynamic>>.from(await query);
+        if (rows.isEmpty) {
+          rows = List<Map<String, dynamic>>.from(await _supabase
+              .from('school_classes')
+              .select('class_teacher_id')
+              .eq('name', base));
+        }
       } catch (_) {}
     }
 
@@ -2665,89 +3343,189 @@ class SchoolService {
   }
 
   /// Leave applications, optionally scoped to one student or one class.
+  ///
+  /// Reads the dedicated `school_student_leaves` table *and* the legacy
+  /// `school_circulars` records, then merges them, so an application is never
+  /// invisible whichever storage path handled it (including databases where
+  /// the setup script has not been run yet). Filtering happens in Dart because
+  /// the two sources have different shapes.
   Future<List<Map<String, dynamic>>> getStudentLeaves({
     String? studentId,
     String? classId,
     String? status,
   }) async {
-    try {
-      var query = _supabase.from('school_student_leaves').select();
-      if (studentId != null && studentId.isNotEmpty) {
-        query = query
-            .or('student_username.eq.$studentId,student_id.eq.$studentId');
+    final merged = _mergeLeaveLists(
+      await _fetchTableLeaves(),
+      await _getLegacyStudentLeaves(),
+    );
+
+    final student = (studentId ?? '').trim().toLowerCase();
+    final classNeedle = (classId ?? '').trim();
+    final statusNeedle = (status ?? '').trim().toLowerCase();
+
+    return merged.where((leave) {
+      if (student.isNotEmpty) {
+        final username =
+            (leave['student_username']?.toString() ?? '').toLowerCase();
+        final id = (leave['student_id']?.toString() ?? '').toLowerCase();
+        if (username != student && id != student) return false;
       }
-      if (classId != null && classId.isNotEmpty) {
-        query = query.eq('class_id', classId);
+      if (classNeedle.isNotEmpty &&
+          (leave['class_id']?.toString() ?? '') != classNeedle) {
+        return false;
       }
-      if (status != null && status.isNotEmpty) {
-        query = query.eq('status', status);
+      if (statusNeedle.isNotEmpty &&
+          (leave['status']?.toString() ?? '') != statusNeedle) {
+        return false;
       }
-      final response = await query.order('created_at', ascending: false);
-      return List<Map<String, dynamic>>.from(response)
-          .map(_normaliseLeaveRow)
-          .toList();
-    } catch (_) {
-      return _getLegacyStudentLeaves(studentId: studentId);
-    }
+      return true;
+    }).toList();
   }
 
-  /// Every leave application that belongs to a class the teacher is in charge
-  /// of (matched by class teacher, class id, or class name + section).
-  Future<List<Map<String, dynamic>>> getLeaveRequestsForClassTeacher(
-      String teacherUsername) async {
-    if (teacherUsername.isEmpty) return [];
-
-    List<Map<String, dynamic>> all;
+  /// Rows from the dedicated leave table; empty when the setup script has not
+  /// been run or the query fails.
+  Future<List<Map<String, dynamic>>> _fetchTableLeaves() async {
     try {
       final response = await _supabase
           .from('school_student_leaves')
           .select()
           .order('created_at', ascending: false);
-      all = List<Map<String, dynamic>>.from(response)
+      return List<Map<String, dynamic>>.from(response)
           .map(_normaliseLeaveRow)
           .toList();
     } catch (_) {
-      all = await _getLegacyStudentLeaves();
+      return [];
+    }
+  }
+
+  /// Newest first, de-duplicated by id, table rows winning over legacy rows.
+  List<Map<String, dynamic>> _mergeLeaveLists(
+    List<Map<String, dynamic>> primary,
+    List<Map<String, dynamic>> secondary,
+  ) {
+    final byId = <String, Map<String, dynamic>>{};
+    for (final row in [...primary, ...secondary]) {
+      final id = row['id']?.toString() ?? '';
+      final key = id.isNotEmpty
+          ? id
+          : '${row['student_username']}|${row['start_date']}|${row['type']}';
+      byId.putIfAbsent(key, () => row);
+    }
+    final merged = byId.values.toList();
+    merged.sort((a, b) {
+      final aTime = DateTime.tryParse(
+          (a['created_at'] ?? a['published_at'] ?? '').toString());
+      final bTime = DateTime.tryParse(
+          (b['created_at'] ?? b['published_at'] ?? '').toString());
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return bTime.compareTo(aTime);
+    });
+    return merged;
+  }
+
+  /// Class keys a leave could belong to, e.g. "Class 10-A" and "Class 10"
+  /// for a legacy row that only carries class_id "cls-10a".
+  Set<String> _leaveClassKeys(Map<String, dynamic> leave) {
+    final keys = <String>{};
+    final className =
+        (leave['class_name']?.toString() ?? '').trim().toLowerCase();
+    final section = (leave['section']?.toString() ?? '').trim().toLowerCase();
+    final classId = (leave['class_id']?.toString() ?? '').trim();
+
+    if (className.isNotEmpty) {
+      keys.add(className);
+      if (section.isNotEmpty) keys.add('$className-$section');
+      final dash = className.lastIndexOf('-');
+      if (dash > 0) keys.add(className.substring(0, dash));
     }
 
-    final classes = await getClassTeacherClasses(teacherUsername);
-    final classIds = classes
-        .map((c) => c['id']?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toSet();
-    final classKeys = <String>{};
-    for (final c in classes) {
-      final name = (c['name']?.toString() ?? '').toLowerCase();
-      final section = (c['section']?.toString() ?? '').toLowerCase();
-      if (name.isEmpty) continue;
-      classKeys.add(name);
-      classKeys.add('$name-$section');
-    }
-
-    return all.where((leave) {
-      final assigned = leave['class_teacher_id']?.toString() ?? '';
-      if (assigned.isNotEmpty) return assigned == teacherUsername;
-
-      final leaveClassId = leave['class_id']?.toString() ?? '';
-      if (leaveClassId.isNotEmpty) {
-        if (classIds.contains(leaveClassId)) return true;
-        // Legacy rows may carry an app-level id such as 'cls-10a'.
-        final raw = leaveClassId.replaceFirst(
-            RegExp(r'^cls-', caseSensitive: false), '');
-        final match = RegExp(r'^(\d+)([a-zA-Z]?)$').firstMatch(raw);
-        if (match != null) {
-          final section = (match.group(2) ?? '').toLowerCase();
-          final derived =
-              'class ${match.group(1)}${section.isEmpty ? '' : '-$section'}';
-          if (classKeys.contains(derived)) return true;
+    if (classId.isNotEmpty) {
+      keys.add(classId.toLowerCase());
+      final raw = classId
+          .replaceFirst(RegExp(r'^cls-', caseSensitive: false), '')
+          .toLowerCase();
+      final match = RegExp(r'^(\d+)([a-z]?)$').firstMatch(raw);
+      if (match != null) {
+        final grade = match.group(1)!;
+        final section = match.group(2) ?? '';
+        keys.add('class $grade');
+        if (section.isNotEmpty) {
+          keys.add('class $grade$section');
+          keys.add('class $grade-$section');
         }
       }
+    }
 
-      final className = (leave['class_name']?.toString() ?? '').toLowerCase();
-      final section = (leave['section']?.toString() ?? '').toLowerCase();
-      if (className.isEmpty) return false;
-      if (classKeys.contains(className)) return true;
-      return section.isNotEmpty && classKeys.contains('$className-$section');
+    keys.remove('');
+    return keys;
+  }
+
+  String _classNameFromAppId(String appId) {
+    final match = RegExp(r'^cls-(\d+)([a-zA-Z]?)$', caseSensitive: false)
+        .firstMatch(appId.trim());
+    if (match == null) return '';
+    return 'Class ${match.group(1)}';
+  }
+
+  String _sectionFromAppId(String appId) {
+    final match = RegExp(r'^cls-\d+([a-zA-Z])$', caseSensitive: false)
+        .firstMatch(appId.trim());
+    return (match?.group(1) ?? '').toUpperCase();
+  }
+
+  /// A readable class label for any of the id/name shapes used across school
+  /// tables, e.g. "Class 10 · A" for class_id "cls-10a".
+  String classDisplayName({String? classId, String? className, String? section}) {
+    var name = (className ?? '').trim();
+    if (name.isEmpty) name = _classNameFromAppId((classId ?? '').trim());
+    if (name.isEmpty) name = (classId ?? '').trim();
+    final sec = (section ?? '').trim();
+    if (sec.isEmpty) return name;
+    if (name.toLowerCase().endsWith('-${sec.toLowerCase()}')) return name;
+    return '$name · $sec';
+  }
+
+  /// Every leave application that belongs to a class the teacher is in charge
+  /// of (matched by class teacher, class id, or class name).
+  Future<List<Map<String, dynamic>>> getLeaveRequestsForClassTeacher(
+      String teacherUsername) async {
+    if (teacherUsername.isEmpty) return [];
+    final teacher = teacherUsername.trim().toLowerCase();
+
+    final merged = _mergeLeaveLists(
+      await _fetchTableLeaves(),
+      await _getLegacyStudentLeaves(),
+    );
+
+    final classes = await getClassTeacherClasses(teacherUsername);
+    final teacherClassIds = <String>{};
+    final teacherClassKeys = <String>{};
+    for (final c in classes) {
+      final id = (c['id']?.toString() ?? '').trim();
+      if (id.isNotEmpty) teacherClassIds.add(id);
+      final name = (c['name']?.toString() ?? '').trim().toLowerCase();
+      final section = (c['section']?.toString() ?? '').trim().toLowerCase();
+      if (name.isEmpty) continue;
+      teacherClassKeys.add(name);
+      if (section.isNotEmpty) {
+        teacherClassKeys.add('$name-$section');
+        teacherClassKeys.add('$name $section');
+      }
+    }
+
+    return merged.where((leave) {
+      final assigned =
+          (leave['class_teacher_id']?.toString() ?? '').trim().toLowerCase();
+      if (assigned.isNotEmpty) return assigned == teacher;
+
+      final leaveClassId = (leave['class_id']?.toString() ?? '').trim();
+      if (leaveClassId.isNotEmpty && teacherClassIds.contains(leaveClassId)) {
+        return true;
+      }
+
+      return _leaveClassKeys(leave).any(teacherClassKeys.contains);
     }).toList();
   }
 
@@ -2774,11 +3552,12 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> _getLegacyStudentLeaves(
       {String? studentId}) async {
     try {
+      // `school_circulars` exposes `published_at`; `created_at` does not exist
+      // in every deployment, so no server-side ordering is requested here.
       final response = await _supabase
           .from('school_circulars')
           .select()
-          .eq('category', 'StudentLeave')
-          .order('created_at', ascending: false);
+          .eq('category', 'StudentLeave');
 
       final list = <Map<String, dynamic>>[];
       for (final row in response) {
@@ -2788,17 +3567,21 @@ class SchoolService {
         final legacyStudent = map['StudentId'] ?? '';
         if (studentId != null &&
             studentId.isNotEmpty &&
-            legacyStudent != studentId) {
+            legacyStudent.toLowerCase() != studentId.toLowerCase()) {
           continue;
         }
 
         final rawStatus = map['Status'] ?? 'Pending Teacher Review';
+        final status = _legacyLeaveStatus(rawStatus);
+        final legacyClassId = map['ClassId'] ?? '';
         list.add({
           'id': row['id'],
           'student_id': legacyStudent,
           'student_username': legacyStudent,
           'student_name': map['StudentName'] ?? '',
-          'class_id': map['ClassId'] ?? '',
+          'class_id': legacyClassId,
+          'class_name': map['ClassName'] ?? _classNameFromAppId(legacyClassId),
+          'section': map['Section'] ?? _sectionFromAppId(legacyClassId),
           'leave_type': map['Type'] ?? 'Casual Leave',
           'type': map['Type'] ?? 'Casual Leave',
           'start_date': map['StartDate'] ?? '',
@@ -2807,10 +3590,11 @@ class SchoolService {
               map['StartDate'] ?? '', map['EndDate'] ?? ''),
           'reason': map['Reason'] ?? '',
           'document_url': map['Doc'] ?? '',
-          'status': _legacyLeaveStatus(rawStatus),
-          'review_remarks': rawStatus,
+          'status': status,
+          'review_remarks': status == 'pending' ? '' : rawStatus,
           'class_teacher_id': null,
-          'created_at': row['created_at'],
+          'created_at': row['published_at'] ?? row['created_at'],
+          'published_at': row['published_at'],
           'legacy': true,
         });
       }

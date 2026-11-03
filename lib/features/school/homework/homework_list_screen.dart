@@ -564,7 +564,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       ),
       floatingActionButton: isTeacher
           ? FloatingActionButton.extended(
-              onPressed: () => context.go('/school/homework/upload'),
+              onPressed: () => context.go('/school/homework/add'),
               backgroundColor: const Color(0xFF2563EB),
               foregroundColor: Colors.white,
               elevation: 4,

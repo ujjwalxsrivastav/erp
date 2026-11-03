@@ -42,23 +42,26 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
 
   // Monthly summary
   Map<String, Map<String, dynamic>> _monthlySummary = {}; // date -> counts
+  Map<String, Map<String, dynamic>> _studentMonthly = {}; // student -> counts
   bool _loadingMonthly = false;
 
   // Save state
   bool _saving = false;
+  // A register that already has a row for every student is final.
+  bool _isSubmitted = false;
 
   static const _statusColors = {
     'present': Color(0xFF10B981),
     'absent': Color(0xFFEF4444),
     'late': Color(0xFFF59E0B),
-    'leave': Color(0xFF6366F1),
+    'excused': Color(0xFF6366F1),
   };
 
   static const _statusIcons = {
     'present': Icons.check_circle,
     'absent': Icons.cancel,
     'late': Icons.watch_later,
-    'leave': Icons.beach_access,
+    'excused': Icons.beach_access,
   };
 
   @override
@@ -168,18 +171,27 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
   Future<void> _loadStudentsAndAttendance() async {
     if (_selectedClass == null) return;
     final classId = _selectedClass!['id']?.toString() ?? '';
+    final className = _selectedClass!['name']?.toString() ?? '';
+    final section = _selectedClass!['section']?.toString() ?? '';
 
     setState(() {
       _loadingStudents = true;
       _studentsError = null;
       _students = [];
       _attendanceMap = {};
+      _isSubmitted = false;
     });
 
     try {
-      final students = await _schoolService.getStudentsInClass(classId);
+      final students = await _schoolService.getStudentsInClass(
+        classId,
+        className: className,
+        section: section,
+      );
       final existing = await _schoolService.getAttendance(
         classId: classId,
+        className: className,
+        section: section,
         date: _selectedDate,
       );
 
@@ -191,9 +203,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
         if (sid.isNotEmpty) attMap[sid] = status;
       }
 
-      // Default unrecorded students to 'present'
+      // Default unrecorded students to 'present'. Attendance rows are keyed
+      // by the student's username, which is what the student app reads.
       for (final s in students) {
-        final sid = s['id']?.toString() ?? '';
+        final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
         if (sid.isNotEmpty && !attMap.containsKey(sid)) {
           attMap[sid] = 'present';
         }
@@ -203,6 +216,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       setState(() {
         _students = students;
         _attendanceMap = attMap;
+        _isSubmitted = students.isNotEmpty && existing.length >= students.length;
         _loadingStudents = false;
       });
     } catch (e) {
@@ -217,6 +231,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
   Future<void> _loadMonthlySummary() async {
     if (_selectedClass == null) return;
     final classId = _selectedClass!['id']?.toString() ?? '';
+    final className = _selectedClass!['name']?.toString() ?? '';
+    final section = _selectedClass!['section']?.toString() ?? '';
 
     setState(() => _loadingMonthly = true);
 
@@ -226,26 +242,53 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
 
       final report = await _schoolService.getAttendanceReport(
         classId: classId,
+        className: className,
+        section: section,
         from: from,
         to: to,
       );
 
-      // Group by date
+      // Group by date and by student
       final Map<String, Map<String, dynamic>> summary = {};
+      final Map<String, Map<String, dynamic>> students = {};
       for (final r in report) {
         final date = r['date']?.toString() ?? '';
-        if (date.isEmpty) continue;
-        summary[date] ??= {'present': 0, 'absent': 0, 'late': 0, 'leave': 0, 'total': 0};
         final status = r['status']?.toString() ?? '';
-        if (_statusColors.containsKey(status)) {
-          summary[date]![status] = (summary[date]![status] as int) + 1;
+        if (date.isNotEmpty) {
+          summary[date] ??= {
+            'present': 0,
+            'absent': 0,
+            'late': 0,
+            'excused': 0,
+            'total': 0,
+          };
+          if (_statusColors.containsKey(status)) {
+            summary[date]![status] = (summary[date]![status] as int) + 1;
+          }
+          summary[date]!['total'] = (summary[date]!['total'] as int) + 1;
         }
-        summary[date]!['total'] = (summary[date]!['total'] as int) + 1;
+
+        final sid = r['student_id']?.toString() ?? '';
+        if (sid.isNotEmpty) {
+          students[sid] ??= {
+            'name': r['student_name']?.toString() ?? sid,
+            'present': 0,
+            'absent': 0,
+            'late': 0,
+            'excused': 0,
+            'total': 0,
+          };
+          if (students[sid]!.containsKey(status)) {
+            students[sid]![status] = (students[sid]![status] as int) + 1;
+          }
+          students[sid]!['total'] = (students[sid]!['total'] as int) + 1;
+        }
       }
 
       if (!mounted) return;
       setState(() {
         _monthlySummary = summary;
+        _studentMonthly = students;
         _loadingMonthly = false;
       });
     } catch (_) {
@@ -271,6 +314,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       setState(() {
         _selectedDate = picked;
         _monthlySummary = {};
+        _studentMonthly = {};
       });
       await _loadStudentsAndAttendance();
     }
@@ -278,20 +322,47 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
 
   Future<void> _saveAttendance() async {
     if (_selectedClass == null || _students.isEmpty) return;
+    if (_isSubmitted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Attendance for this date is already submitted and cannot be changed.'),
+          backgroundColor: Color(0xFFF59E0B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     setState(() => _saving = true);
 
     final classId = _selectedClass!['id']?.toString() ?? '';
+    final className = _selectedClass!['name']?.toString() ?? '';
+    final classSection = _selectedClass!['section']?.toString() ?? '';
     final dateStr = _selectedDate.toIso8601String().substring(0, 10);
 
-    final records = _students.map((s) {
-      final sid = s['id']?.toString() ?? '';
-      return {
-        'class_id': classId,
-        'student_id': sid,
-        'date': dateStr,
-        'status': _attendanceMap[sid] ?? 'present',
-      };
-    }).toList();
+    final records = _students
+        .map((s) {
+          final sid =
+              s['username']?.toString() ?? s['id']?.toString() ?? '';
+          final studentSection = s['section']?.toString() ?? '';
+          return <String, dynamic>{
+            'institute_code': 'SHIV-SCH',
+            'class_id': classId,
+            'class_name': className.isNotEmpty
+                ? className
+                : (s['class_name']?.toString() ?? ''),
+            'section': classSection.isNotEmpty ? classSection : studentSection,
+            'student_id': sid,
+            'student_name': s['name']?.toString() ??
+                s['username']?.toString() ??
+                '',
+            'date': dateStr,
+            'status': _attendanceMap[sid] ?? 'present',
+            'marked_by': _username ?? 'teacher',
+          };
+        })
+        .where((r) => (r['student_id'] as String).isNotEmpty)
+        .toList();
 
     final success = await _schoolService.markAttendance(records);
     if (!mounted) return;
@@ -301,8 +372,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       SnackBar(
         content: Text(
           success
-              ? 'Attendance saved: $_presentCount present, $_absentCount absent, $_lateCount late'
-              : 'Failed to save attendance. Please try again.',
+              ? 'Attendance submitted: $_presentCount present, $_absentCount absent, $_lateCount late, $_leaveCount excused'
+              : 'Could not save attendance to the server. Please try again.',
         ),
         backgroundColor: success ? const Color(0xFF10B981) : const Color(0xFFEF4444),
         behavior: SnackBarBehavior.floating,
@@ -310,14 +381,19 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       ),
     );
 
-    if (success) _monthlySummary = {};
+    if (success) {
+      _monthlySummary = {};
+      _studentMonthly = {};
+      setState(() => _isSubmitted = true);
+      await _loadStudentsAndAttendance();
+    }
   }
 
   // ─── Counts ───
   int get _presentCount => _attendanceMap.values.where((s) => s == 'present').length;
   int get _absentCount => _attendanceMap.values.where((s) => s == 'absent').length;
   int get _lateCount => _attendanceMap.values.where((s) => s == 'late').length;
-  int get _leaveCount => _attendanceMap.values.where((s) => s == 'leave').length;
+  int get _leaveCount => _attendanceMap.values.where((s) => s == 'excused').length;
 
   // ─── Build ───
   @override
@@ -400,7 +476,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
           ),
         ),
         actions: [
-          if (_isEditable && _tabController.index == 0)
+          if (_isEditable && !_isSubmitted && _tabController.index == 0)
             _saving
                 ? const Padding(
                     padding: EdgeInsets.all(14),
@@ -459,10 +535,15 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
         monthRecords.where((r) => r['status'] == 'present').length;
     final absent = monthRecords.where((r) => r['status'] == 'absent').length;
     final late = monthRecords.where((r) => r['status'] == 'late').length;
-    final leave = monthRecords.where((r) => r['status'] == 'leave').length;
-    final pct = monthRecords.isEmpty
+    final leave = monthRecords
+        .where((r) => r['status'] == 'excused' || r['status'] == 'leave')
+        .length;
+    final counted = monthRecords
+        .where((r) => r['status'] != 'excused' && r['status'] != 'leave')
+        .toList();
+    final pct = counted.isEmpty
         ? 0.0
-        : ((present + late) / monthRecords.length) * 100;
+        : ((present + late) / counted.length) * 100;
 
     return RefreshIndicator(
       onRefresh: _loadMyAttendance,
@@ -704,6 +785,52 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       children: [
         _buildHeader(),
         Expanded(child: _buildStudentList()),
+        if (_isEditable && _students.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+            color: const Color(0xFFF8FAFC),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed:
+                    (_saving || _isSubmitted) ? null : _saveAttendance,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isSubmitted
+                      ? const Color(0xFFCBD5E1)
+                      : const Color(0xFF10B981),
+                  foregroundColor:
+                      _isSubmitted ? const Color(0xFF475569) : Colors.white,
+                  disabledBackgroundColor: _isSubmitted
+                      ? const Color(0xFFE2E8F0)
+                      : const Color(0xFF10B981).withValues(alpha: 0.6),
+                  disabledForegroundColor: _isSubmitted
+                      ? const Color(0xFF64748B)
+                      : Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : Icon(_isSubmitted
+                        ? Icons.lock_outline
+                        : Icons.cloud_upload_outlined),
+                label: Text(
+                  _saving
+                      ? 'Submitting…'
+                      : _isSubmitted
+                          ? 'Attendance already submitted'
+                          : 'Submit Attendance (${_students.length})',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -792,6 +919,31 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
             )
           else if (!_loadingClasses)
             const Text('No classes found', style: TextStyle(color: Colors.white70)),
+          if (_isSubmitted) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.lock_outline, size: 14, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text(
+                    'Submitted — attendance is locked',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -827,7 +979,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
   }
 
   Widget _buildStudentCard(Map<String, dynamic> student) {
-    final sid = student['id']?.toString() ?? '';
+    final sid =
+        student['username']?.toString() ?? student['id']?.toString() ?? '';
     final status = _attendanceMap[sid] ?? 'present';
     final statusColor = _statusColors[status] ?? Colors.grey;
     final statusIcon = _statusIcons[status] ?? Icons.help;
@@ -877,7 +1030,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
             ),
           ),
           // Status controls or read-only icon
-          if (_isEditable)
+          if (_isEditable && !_isSubmitted)
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -887,7 +1040,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
                 const SizedBox(width: 5),
                 _buildStatusButton(sid, 'late', const Color(0xFFF59E0B), Icons.watch_later_outlined),
                 const SizedBox(width: 5),
-                _buildStatusButton(sid, 'leave', const Color(0xFF6366F1), Icons.beach_access_outlined),
+                _buildStatusButton(sid, 'excused', const Color(0xFF6366F1), Icons.beach_access_outlined),
               ],
             )
           else
@@ -989,7 +1142,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
                         ],
                       ),
                     )
-                  : _MonthlyAttendanceView(summary: _monthlySummary),
+                  : _MonthlyAttendanceView(
+                      summary: _monthlySummary,
+                      students: _studentMonthly,
+                    ),
         ),
       ],
     );
@@ -1054,8 +1210,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
 // ─── Monthly Attendance Table Widget ───
 class _MonthlyAttendanceView extends StatelessWidget {
   final Map<String, Map<String, dynamic>> summary;
+  final Map<String, Map<String, dynamic>> students;
 
-  const _MonthlyAttendanceView({required this.summary});
+  const _MonthlyAttendanceView(
+      {required this.summary, required this.students});
 
   @override
   Widget build(BuildContext context) {
@@ -1154,6 +1312,75 @@ class _MonthlyAttendanceView extends StatelessWidget {
               padding: EdgeInsets.symmetric(vertical: 32),
               child: Text('No attendance records found', style: TextStyle(color: Colors.grey)),
             ),
+          if (students.isNotEmpty) ...[
+            const SizedBox(height: 22),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Student-wise attendance',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1F2937)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...(students.entries.toList()
+              ..sort((a, b) => (a.value['name']?.toString() ?? '')
+                  .compareTo(b.value['name']?.toString() ?? '')))
+                .map((entry) {
+              final data = entry.value;
+              final present = data['present'] as int? ?? 0;
+              final late = data['late'] as int? ?? 0;
+              final total = data['total'] as int? ?? 0;
+              final pct = total == 0 ? 0.0 : (present + late) / total * 100;
+              final color = pct >= 80
+                  ? const Color(0xFF10B981)
+                  : pct >= 60
+                      ? const Color(0xFFF59E0B)
+                      : const Color(0xFFEF4444);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            data['name']?.toString() ?? entry.key,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1F2937)),
+                          ),
+                          Text(
+                            '$present present · ${data['absent']} absent · $late late · ${data['excused']} excused',
+                            style: const TextStyle(
+                                fontSize: 10.5, color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${pct.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: color),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );

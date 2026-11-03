@@ -26,6 +26,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   String _admissionNo = '';
 
   List<Map<String, dynamic>> _feeHistory = [];
+  List<Map<String, dynamic>> _receipts = [];
   Map<String, dynamic> _defaulterData = {};
 
   /// Students/parents see 2 tabs (no other students' dues); staff see 3.
@@ -93,6 +94,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
           : username;
 
       final fees = await _schoolService.getStudentFees(targetUser);
+      final receipts = await _schoolService.getStudentReceipts(targetUser);
       final defaulters = await _schoolService.getDefaultersWithAgeing();
       final profile =
           await _schoolService.getSchoolStudentProfile(targetUser);
@@ -102,6 +104,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
           _userRole = role;
           _studentUsername = targetUser;
           _feeHistory = fees;
+          _receipts = receipts;
           _defaulterData = defaulters;
           if (profile != null) {
             _studentName = profile['name']?.toString() ?? _studentName;
@@ -329,8 +332,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
 
   /// ADMIN ONLY: update the total fee demand from the screen. The service
   /// re-checks the role, so this is a convenience — not the security boundary.
-  void _showSetDemandDialog() {
-    if (!_isAdminRole) return;
+  void _showSetDemandDialog() {    if (!_isAdminRole) return;
     final headCtrl = TextEditingController(text: 'Quarter 4 Tuition Fee');
     final amountCtrl = TextEditingController();
     final dueCtrl = TextEditingController(

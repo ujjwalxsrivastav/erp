@@ -18,6 +18,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
   // Role & student context
   bool _isStudent = false;
+  bool _isTeacher = false;
+  bool _canEdit = false;
   String _studentClassLabel = '';
 
   // Timetable State
@@ -71,7 +73,12 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
   Future<void> _init() async {
     final role = await _authService.getCurrentUserRole();
     if (!mounted) return;
-    setState(() => _isStudent = role == 'student' || role == 'parent');
+    setState(() {
+      _isStudent = role == 'student' || role == 'parent';
+      _isTeacher = role == 'teacher' || role == 'steacher';
+      // Timetable edits are an admin action; teachers get a read-only view.
+      _canEdit = role == 'admin' || role == 'sadmin';
+    });
 
     // Students: resolve their OWN class from the backend — no class picker.
     if (_isStudent) {
@@ -162,6 +169,16 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
           .where((c) => seen.add(c['id']?.toString() ?? ''))
           .toList();
 
+      // Teachers currently look after Class 10 only; admins keep every class.
+      if (_isTeacher) {
+        final tens = _classes
+            .where((c) =>
+                (c['name']?.toString() ?? '').contains('10') ||
+                (c['id']?.toString() ?? '').startsWith('cls-10'))
+            .toList();
+        if (tens.isNotEmpty) _classes = tens;
+      }
+
       // The selected class id must exist in the list, or the dropdown crashes.
       final ids = _classes.map((c) => c['id']?.toString() ?? '').toSet();
       if (!ids.contains(_selectedClassId)) {
@@ -169,9 +186,15 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
       }
       _syncSelectedClassLabel();
 
+      final selected = _classes.firstWhere(
+        (c) => (c['id']?.toString() ?? '') == _selectedClassId,
+        orElse: () => <String, dynamic>{},
+      );
       final entries = await _service.getTimetableForClass(
         _selectedClassId,
         day: _selectedDay,
+        className: selected['name']?.toString(),
+        section: selected['section']?.toString(),
       );
 
       _allTeachers = await _service.getSchoolTeachersList();
@@ -907,7 +930,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         ),
                       ),
                     ),
-                  if (!_isStudent) ...[
+                  if (_canEdit) ...[
                     const SizedBox(width: 8),
                     IconButton(
                       icon: const Icon(Icons.add_circle, color: Colors.white),
@@ -964,7 +987,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                       const SizedBox(height: 12),
                       Text('No classes scheduled for $_selectedDay',
                           style: TextStyle(fontSize: 15, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
-                      if (!_isStudent) ...[
+                      if (_canEdit) ...[
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
@@ -1082,7 +1105,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               const SizedBox(height: 4),
                               Row(
                                 children: [
-                                  if (!_isStudent) ...[
+                                  if (_canEdit) ...[
                                     InkWell(
                                       onTap: () => _showAddEditSlotDialog(existingSlot: p),
                                       child: Icon(Icons.edit_outlined, size: 18, color: Colors.grey.shade500),
