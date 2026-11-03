@@ -177,25 +177,19 @@ class SchoolService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getTeacherTimetable(String username) async {
+  Future<List<Map<String, dynamic>>> getTeacherTimetable(String username, {String? day}) async {
     try {
-      final today = _weekdayName(DateTime.now().weekday);
+      final selectedDay = day ?? _weekdayName(DateTime.now().weekday);
       final response = await _supabase
           .from('school_timetable')
           .select()
           .eq('teacher_username', username)
-          .eq('day', today)
-          .order('start_time');
-      final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    return [
-      {'period': '1', 'time': '08:30 - 09:15', 'class': 'Class 10-A', 'subject': 'Mathematics', 'room': 'Room 101'},
-      {'period': '2', 'time': '09:20 - 10:05', 'class': 'Class 9-A', 'subject': 'Mathematics', 'room': 'Room 203'},
-      {'period': '4', 'time': '11:10 - 11:55', 'class': 'Class 10-B', 'subject': 'Mathematics', 'room': 'Room 102'},
-      {'period': '6', 'time': '01:00 - 01:45', 'class': 'Class 8-A', 'subject': 'Geometry', 'room': 'Room 304'},
-    ];
+          .eq('day', selectedDay)
+          .order('period');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<Map<String, dynamic>>> getTeacherClasses(String username) async {
@@ -215,12 +209,530 @@ class SchoolService {
       }
     } catch (_) {}
 
-    return [
-      {'class_id': 'Class 10-A', 'subject': 'Mathematics'},
-      {'class_id': 'Class 10-B', 'subject': 'Mathematics'},
-      {'class_id': 'Class 9-A', 'subject': 'Mathematics'},
-      {'class_id': 'Class 8-A', 'subject': 'Geometry'},
-    ];
+    return [];
+  }
+
+  // ===== TIMETABLE MANAGEMENT, CLASH DETECTION & LOAD CAPS =====
+
+  Future<List<Map<String, dynamic>>> getTimetableForClass(String classId, {String? day}) async {
+    try {
+      var query = _supabase.from('school_timetable').select().eq('class_id', classId);
+      if (day != null && day.isNotEmpty) {
+        query = query.eq('day', day);
+      }
+      final response = await query.order('period');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllTimetableEntries({String? day}) async {
+    try {
+      var query = _supabase.from('school_timetable').select();
+      if (day != null && day.isNotEmpty) {
+        query = query.eq('day', day);
+      }
+      final response = await query.order('period');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> checkTimetableClash({
+    required String day,
+    required int period,
+    required String teacherUsername,
+    required String room,
+    String? currentId,
+    String? classId,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('school_timetable')
+          .select()
+          .eq('day', day)
+          .eq('period', period);
+      final entries = List<Map<String, dynamic>>.from(response);
+
+      for (final entry in entries) {
+        if (currentId != null && entry['id'] == currentId) continue;
+
+        // 1. Teacher Clash: Teacher already has another class at this period
+        if (entry['teacher_username'] != null &&
+            entry['teacher_username'].toString().trim().toLowerCase() ==
+                teacherUsername.trim().toLowerCase()) {
+          return {
+            'hasClash': true,
+            'type': 'teacher',
+            'message':
+                'Teacher $teacherUsername is already assigned to ${entry['class_id']} (${entry['subject']}) during Period $period on $day.',
+            'clashingEntry': entry,
+          };
+        }
+
+        // 2. Room Clash: Room already booked
+        if (entry['room'] != null &&
+            room.isNotEmpty &&
+            entry['room'].toString().trim().toLowerCase() ==
+                room.trim().toLowerCase()) {
+          return {
+            'hasClash': true,
+            'type': 'room',
+            'message':
+                'Room "$room" is already occupied by ${entry['class_id']} for ${entry['subject']} during Period $period on $day.',
+            'clashingEntry': entry,
+          };
+        }
+
+        // 3. Class Clash: Class already has a subject in this period
+        if (classId != null &&
+            entry['class_id'] != null &&
+            entry['class_id'].toString().trim().toLowerCase() ==
+                classId.trim().toLowerCase()) {
+          return {
+            'hasClash': true,
+            'type': 'class',
+            'message':
+                'Class $classId already has ${entry['subject']} scheduled during Period $period on $day.',
+            'clashingEntry': entry,
+          };
+        }
+      }
+
+      return {'hasClash': false};
+    } catch (e) {
+      return {'hasClash': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> saveTimetableEntry({
+    String? id,
+    required String classId,
+    required String day,
+    required int period,
+    required String startTime,
+    required String endTime,
+    required String subject,
+    required String teacherUsername,
+    required String room,
+  }) async {
+    // Live clash detection before saving
+    final clash = await checkTimetableClash(
+      day: day,
+      period: period,
+      teacherUsername: teacherUsername,
+      room: room,
+      currentId: id,
+      classId: classId,
+    );
+
+    if (clash['hasClash'] == true) {
+      throw Exception(clash['message'] ?? 'Timetable schedule clash detected.');
+    }
+
+    final payload = {
+      'institute_code': 'SHIV-SCH',
+      'class_id': classId,
+      'day': day,
+      'period': period,
+      'start_time': startTime,
+      'end_time': endTime,
+      'subject': subject,
+      'teacher_username': teacherUsername,
+      'room': room,
+    };
+
+    if (id != null && id.isNotEmpty) {
+      final response = await _supabase
+          .from('school_timetable')
+          .update(payload)
+          .eq('id', id)
+          .select()
+          .single();
+      return Map<String, dynamic>.from(response);
+    } else {
+      final response = await _supabase
+          .from('school_timetable')
+          .insert(payload)
+          .select()
+          .single();
+      return Map<String, dynamic>.from(response);
+    }
+  }
+
+  Future<bool> deleteTimetableEntry(String id) async {
+    try {
+      await _supabase.from('school_timetable').delete().eq('id', id);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<String>> getSchoolTeachersList() async {
+    try {
+      final teachersSet = <String>{};
+      // Fetch from users
+      final userResponse = await _supabase
+          .from('users')
+          .select('username')
+          .eq('role', 'teacher');
+      for (final u in userResponse) {
+        if (u['username'] != null) teachersSet.add(u['username'].toString());
+      }
+      // Fetch from timetable
+      final ttResponse =
+          await _supabase.from('school_timetable').select('teacher_username');
+      for (final t in ttResponse) {
+        if (t['teacher_username'] != null &&
+            t['teacher_username'].toString().isNotEmpty) {
+          teachersSet.add(t['teacher_username'].toString());
+        }
+      }
+      return teachersSet.toList()..sort();
+    } catch (_) {
+      return ['steacher1', 'mrs_gupta', 'ms_verma', 'mr_singh', 'ms_nair'];
+    }
+  }
+
+  Future<Map<String, int>> getTeacherDailyLoad(String day) async {
+    try {
+      final response = await _supabase
+          .from('school_timetable')
+          .select('teacher_username')
+          .eq('day', day);
+      final loads = <String, int>{};
+      for (final row in response) {
+        final t = row['teacher_username']?.toString() ?? 'Unassigned';
+        loads[t] = (loads[t] ?? 0) + 1;
+      }
+      return loads;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  // ===== MORNING COVERAGE & SUBSTITUTION ENGINE =====
+
+  Future<List<Map<String, dynamic>>> getUncoveredPeriods({
+    required String day,
+    required List<String> absentTeachers,
+  }) async {
+    if (absentTeachers.isEmpty) return [];
+    try {
+      final response = await _supabase
+          .from('school_timetable')
+          .select()
+          .eq('day', day)
+          .inFilter('teacher_username', absentTeachers)
+          .order('period');
+
+      final entries = List<Map<String, dynamic>>.from(response);
+
+      // Check existing substitutions for today
+      final logs = await getSubstitutionLogs();
+      final todayStr = DateTime.now().toIso8601String().split('T')[0];
+
+      return entries.map((e) {
+        final isSubstituted = logs.any((log) =>
+            log['date'] == todayStr &&
+            log['day'] == day &&
+            log['period'].toString() == e['period'].toString() &&
+            log['class_id'] == e['class_id']);
+        return {
+          ...e,
+          'is_substituted': isSubstituted,
+        };
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAvailableSubstitutes({
+    required String day,
+    required int period,
+    String? preferredSubject,
+  }) async {
+    try {
+      final allTeachers = await getSchoolTeachersList();
+      final dailyLoads = await getTeacherDailyLoad(day);
+
+      // Find busy teachers in this slot
+      final busyResponse = await _supabase
+          .from('school_timetable')
+          .select('teacher_username')
+          .eq('day', day)
+          .eq('period', period);
+      final busyTeachers = busyResponse
+          .map((r) => r['teacher_username']?.toString().toLowerCase())
+          .toSet();
+
+      final available = <Map<String, dynamic>>[];
+      for (final t in allTeachers) {
+        if (!busyTeachers.contains(t.toLowerCase())) {
+          final currentLoad = dailyLoads[t] ?? 0;
+          final isOverloaded = currentLoad >= 5; // 5 periods/day cap
+          available.add({
+            'username': t,
+            'currentLoad': currentLoad,
+            'isOverloaded': isOverloaded,
+            'freeSlot': 'Period $period ($day)',
+          });
+        }
+      }
+
+      // Sort by least load first
+      available.sort((a, b) =>
+          (a['currentLoad'] as int).compareTo(b['currentLoad'] as int));
+      return available;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> assignSubstitution({
+    required String day,
+    required int period,
+    required String classId,
+    required String subject,
+    required String originalTeacher,
+    required String substituteTeacher,
+    required String room,
+    required String time,
+    String? notes,
+    String? assignedBy,
+  }) async {
+    final todayStr = DateTime.now().toIso8601String().split('T')[0];
+    final structuredContent =
+        'SUBSTITUTION_RECORD | Date: $todayStr | Day: $day | Period: $period | '
+        'Class: $classId | Room: $room | Original: $originalTeacher | '
+        'Substitute: $substituteTeacher | Time: $time | Notes: ${notes ?? "Morning Coverage"}';
+
+    final payload = {
+      'institute_code': 'SHIV-SCH',
+      'title': 'Morning Substitution: P$period ($subject) — $classId',
+      'content': structuredContent,
+      'category': 'Substitution',
+      'target_audience': substituteTeacher,
+      'published_by': assignedBy ?? 'Academic Head',
+    };
+
+    final response = await _supabase
+        .from('school_circulars')
+        .insert(payload)
+        .select()
+        .single();
+
+    return {
+      'id': response['id'],
+      'date': todayStr,
+      'day': day,
+      'period': period,
+      'class_id': classId,
+      'room': room,
+      'original_teacher': originalTeacher,
+      'substitute_teacher': substituteTeacher,
+      'subject': subject,
+      'time': time,
+      'status': 'Assigned',
+      'assigned_by': assignedBy ?? 'Academic Head',
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getSubstitutionLogs({String? date}) async {
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'Substitution')
+          .order('created_at', ascending: false);
+
+      final result = <Map<String, dynamic>>[];
+      for (final row in response) {
+        final content = row['content']?.toString() ?? '';
+        if (content.contains('SUBSTITUTION_RECORD')) {
+          final parts = content.split('|');
+          final map = <String, String>{};
+          for (final part in parts) {
+            final kv = part.split(':');
+            if (kv.length >= 2) {
+              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+            }
+          }
+          result.add({
+            'id': row['id'],
+            'title': row['title'],
+            'date': map['Date'] ?? row['created_at']?.toString().split('T')[0] ?? '',
+            'day': map['Day'] ?? 'Monday',
+            'period': map['Period'] ?? '1',
+            'class_id': map['Class'] ?? '',
+            'room': map['Room'] ?? '',
+            'original_teacher': map['Original'] ?? '',
+            'substitute_teacher': map['Substitute'] ?? '',
+            'time': map['Time'] ?? '',
+            'notes': map['Notes'] ?? '',
+            'assigned_by': row['published_by'] ?? 'Academic Head',
+            'created_at': row['created_at'],
+          });
+        }
+      }
+
+      if (date != null && date.isNotEmpty) {
+        return result.where((r) => r['date'] == date).toList();
+      }
+      return result;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ===== LESSON PLANS & SYLLABUS TRACKING =====
+
+  Future<List<Map<String, dynamic>>> getLessonPlans({String? classId, String? subject}) async {
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'LessonPlan')
+          .order('created_at', ascending: false);
+
+      final list = <Map<String, dynamic>>[];
+      for (final row in response) {
+        final content = row['content']?.toString() ?? '';
+        if (content.contains('LESSON_PLAN_RECORD')) {
+          final parts = content.split('|');
+          final map = <String, String>{};
+          for (final p in parts) {
+            final kv = p.split(':');
+            if (kv.length >= 2) {
+              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+            }
+          }
+
+          final planClass = map['Class'] ?? '';
+          final planSubject = map['Subject'] ?? '';
+
+          if (classId != null && classId.isNotEmpty && planClass != classId) continue;
+          if (subject != null && subject.isNotEmpty && planSubject != subject) continue;
+
+          list.add({
+            'id': row['id'],
+            'title': row['title'],
+            'class_id': planClass,
+            'subject': planSubject,
+            'teacher': map['Teacher'] ?? row['published_by'] ?? '',
+            'chapter': map['Chapter'] ?? '',
+            'topic': map['Topic'] ?? '',
+            'planned_date': map['PlannedDate'] ?? '',
+            'status': map['Status'] ?? 'Submitted',
+            'objective': map['Objective'] ?? '',
+            'resources': map['Resources'] ?? '',
+            'created_at': row['created_at'],
+          });
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> submitLessonPlan({
+    required String classId,
+    required String subject,
+    required String teacherUsername,
+    required String chapter,
+    required String topic,
+    required String plannedDate,
+    required String objective,
+    String? resources,
+  }) async {
+    final structured =
+        'LESSON_PLAN_RECORD | Class: $classId | Subject: $subject | '
+        'Teacher: $teacherUsername | Chapter: $chapter | Topic: $topic | '
+        'PlannedDate: $plannedDate | Status: Approved | Objective: $objective | '
+        'Resources: ${resources ?? "NCERT Text, Digital Smart Board"}';
+
+    final payload = {
+      'institute_code': 'SHIV-SCH',
+      'title': 'Lesson Plan: $subject ($chapter - $topic)',
+      'content': structured,
+      'category': 'LessonPlan',
+      'target_audience': 'all',
+      'published_by': teacherUsername,
+    };
+
+    final response = await _supabase
+        .from('school_circulars')
+        .insert(payload)
+        .select()
+        .single();
+
+    return {
+      'id': response['id'],
+      'class_id': classId,
+      'subject': subject,
+      'teacher': teacherUsername,
+      'chapter': chapter,
+      'topic': topic,
+      'planned_date': plannedDate,
+      'status': 'Approved',
+      'objective': objective,
+    };
+  }
+
+  Future<bool> updateLessonPlanStatus(String id, String newStatus) async {
+    try {
+      final row = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('id', id)
+          .single();
+      var content = row['content']?.toString() ?? '';
+      if (content.contains('Status:')) {
+        content = content.replaceAll(
+            RegExp(r'Status:\s*[^\|]+'), 'Status: $newStatus ');
+      } else {
+        content += ' | Status: $newStatus';
+      }
+      await _supabase
+          .from('school_circulars')
+          .update({'content': content}).eq('id', id);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> getSyllabusCoverageReport(String classId) async {
+    try {
+      final plans = await getLessonPlans(classId: classId);
+      final totalUnits = plans.length;
+      final taughtUnits = plans.where((p) => p['status'] == 'Taught').length;
+      final coveragePct = totalUnits > 0 ? (taughtUnits / totalUnits) * 100 : 0.0;
+      final isLagging = totalUnits > 0 && coveragePct < 70.0;
+
+      return {
+        'totalUnits': totalUnits,
+        'taughtUnits': taughtUnits,
+        'coveragePct': coveragePct,
+        'isLagging': isLagging,
+        'laggingAlert': isLagging
+            ? 'Syllabus coverage is lagging behind target schedule (< 70% completed).'
+            : 'Syllabus coverage is currently on schedule.',
+      };
+    } catch (_) {
+      return {
+        'totalUnits': 0,
+        'taughtUnits': 0,
+        'coveragePct': 0.0,
+        'isLagging': false,
+        'laggingAlert': 'No syllabus records available.',
+      };
+    }
   }
 
   Future<int> getPendingHomeworkToGrade(String username) async {

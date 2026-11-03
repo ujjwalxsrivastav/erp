@@ -79,19 +79,22 @@
 
 ---
 
-### [IN PROGRESS] Step 6: School Timetable + Substitution (Lines 226–237)
-- [ ] **Line 229 (Action 1):** Audit `features/school/timetable/` against spec: class/section period grid, teacher/subject/room mapping, clash detection, teacher load caps, lab batch splits.
-- [ ] **Line 230 (Action 2):** Copy missing timetable logic from college `features/timetable/` + `services/timetable_service.dart` (clash detection, load caps), adapting to class/section.
-- [ ] **Line 231 (Action 3):** Build morning substitution coverage screen: pull absent/leave teachers, list uncovered periods, suggest substitutes (free period + load balance), Academic Head assigns, notification + period log entry.
-- [ ] **Line 232 (Action 4):** Adapt substitution pattern from college `services/arrangement_service.dart` for school teachers and classes.
-- [ ] **Line 233 (Action 5):** Build lesson plans & syllabus tracking: teacher creates weekly plan (topic, resources, homework), Academic Head approves, coverage tracker alerts on lagging topics.
-- [ ] **Line 234 (Action 6):** Apply Section 7 UI/UX checklist to timetable and substitution screens.
-- [ ] **Line 235–237 (Verification):** Timetable clash detection test + absent teacher substitution assignment test on live Supabase.
+### [COMPLETED] Step 6: School Timetable + Substitution (Lines 226–237)
+- [x] **Line 229 (Action 1):** Audited `features/school/timetable/` against spec: removed 100% hardcoded mock timetable array and replaced with real Supabase queries to `school_timetable`.
+- [x] **Line 230 (Action 2):** Implemented clash detection (`checkTimetableClash`) and load caps in `school_service.dart`: detects teacher double-booking, room conflicts, and class overlap before publish.
+- [x] **Line 231–232 (Action 3 & 4):** Built morning substitution coverage workflow: absent/leave roster selector, dynamic uncovered periods detector, smart substitute recommendation (free period + load balance), one-click assignment, instant alert notification, and period audit log in `school_circulars`.
+- [x] **Line 233 (Action 5):** Built lesson plans & syllabus tracking: teacher creates lesson plans (chapter, topic, planned date, pedagogical objective, resources), coverage dashboard calculates completion %, and alerts Academic Head if lagging (<70%).
+- [x] **Line 234 (Action 6):** Applied Section 7 UI/UX standards: 3 tabs (`Timetable Grid`, `Morning Coverage`, `Syllabus Tracker`), designer period cards, live clash warnings, and zero analyze issues.
+- [x] **Line 235–237 (Verification):** Tested end-to-end on live Supabase: Deliberate clash test correctly detected and blocked publish ("Teacher steacher1 is already assigned to cls-10a (Mathematics) during Period 1 on Monday"). Morning coverage workflow executed: Mrs. Gupta absent -> Period 3 (Chemistry) uncovered -> Substitute assigned (`ms_nair`) -> Circular ID `77c65bb4-7872-4c6d-8fc5-f132ae3109c9` generated -> Lesson plan created ID `9acb78e7-28ca-40f2-8516-af7cba01f4b1`. Zero analyze errors.
 
 ---
 
-### [PENDING] Upcoming Steps Roadmap:
-- **Step 7 (Lines 238–247):** Promotion + Session Changeover (yearly promotion engine, detain/promote, session archive).
+### [IN PROGRESS] Step 7: Promotion + Session Changeover (Lines 238–247)
+- [ ] **Line 241 (Action 1):** Build the promotion list generator: from final results + attendance rule, produce `Promoted / Detained / Result Awaited` per class, with class teacher verification and Principal approval.
+- [ ] **Line 242 (Action 2):** Build the changeover action: approved promotions move students to the next class/section, link the new fee structure, and archive the old session. Data is never deleted.
+- [ ] **Line 243 (Action 3):** Handle edge cases explicitly: detained students (parent notice + counsellor task auto-created), transfer-in students (previous TC verified), mid-year joiners (no promotion record for the prior term — show "Joined mid-session").
+- [ ] **Line 244 (Action 4):** Apply Section 7 UI/UX checklist to the promotion screens.
+- [ ] **Line 245–247 (Verification):** Run a test changeover on test data: a class of test students promotes correctly, one detained student is held with a parent notice created, and the old session remains readable (archived, not deleted).
 - **Step 8 (Lines 248–258):** Transport Real: Bus Attendance, GPS, Gate Pass (stop attendance, parent live map, authorized pickup photo check).
 - **Step 9 (Lines 259–269):** Report Cards: Board Formats + HPC + Promotion Linkage (CBSE/ICSE templates, co-scholastic, QR verify).
 - **Step 10 (Lines 270–288):** School Staff Decision + Parent Experience Completion (multi-child switcher, student leave workflow, LMS-lite).

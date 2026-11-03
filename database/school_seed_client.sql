@@ -104,12 +104,30 @@ VALUES
 -- 9. TIMETABLE
 INSERT INTO school_timetable (class_id, day, period, start_time, end_time, subject, teacher_username, room)
 VALUES
+    -- Class 10-A
     ('cls-10a', 'Monday', 1, '08:00 AM', '08:45 AM', 'Mathematics', 'steacher1', 'Room 101'),
     ('cls-10a', 'Monday', 2, '08:45 AM', '09:30 AM', 'Physics', 'steacher1', 'Physics Lab'),
-    ('cls-10a', 'Monday', 3, '09:45 AM', '10:30 AM', 'Chemistry', 'steacher1', 'Chem Lab'),
-    ('cls-10a', 'Monday', 4, '10:30 AM', '11:15 AM', 'English', 'steacher1', 'Room 101'),
-    ('cls-10a', 'Monday', 5, '11:45 AM', '12:30 PM', 'Social Science', 'steacher1', 'Room 101'),
-    ('cls-10a', 'Monday', 6, '12:30 PM', '01:15 PM', 'Computer Science', 'steacher1', 'Computer Lab');
+    ('cls-10a', 'Monday', 3, '09:45 AM', '10:30 AM', 'Chemistry', 'mrs_gupta', 'Chem Lab'),
+    ('cls-10a', 'Monday', 4, '10:30 AM', '11:15 AM', 'English', 'ms_verma', 'Room 101'),
+    ('cls-10a', 'Monday', 5, '11:45 AM', '12:30 PM', 'Social Science', 'mr_singh', 'Room 101'),
+    ('cls-10a', 'Monday', 6, '12:30 PM', '01:15 PM', 'Computer Science', 'ms_nair', 'Computer Lab'),
+    ('cls-10a', 'Tuesday', 1, '08:00 AM', '08:45 AM', 'English', 'ms_verma', 'Room 101'),
+    ('cls-10a', 'Tuesday', 2, '08:45 AM', '09:30 AM', 'Mathematics', 'steacher1', 'Room 101'),
+    ('cls-10a', 'Tuesday', 3, '09:45 AM', '10:30 AM', 'Biology', 'mrs_gupta', 'Bio Lab'),
+    ('cls-10a', 'Tuesday', 4, '10:30 AM', '11:15 AM', 'Hindi', 'mr_singh', 'Room 101'),
+    ('cls-10a', 'Tuesday', 5, '11:45 AM', '12:30 PM', 'Social Science', 'mr_singh', 'Room 101'),
+    ('cls-10a', 'Tuesday', 6, '12:30 PM', '01:15 PM', 'Physical Education', 'coach_rana', 'Sports Ground'),
+    ('cls-10a', 'Wednesday', 1, '08:00 AM', '08:45 AM', 'Physics', 'steacher1', 'Physics Lab'),
+    ('cls-10a', 'Wednesday', 2, '08:45 AM', '09:30 AM', 'Mathematics', 'steacher1', 'Room 101'),
+    ('cls-10a', 'Wednesday', 3, '09:45 AM', '10:30 AM', 'English', 'ms_verma', 'Room 101'),
+    ('cls-10a', 'Wednesday', 4, '10:30 AM', '11:15 AM', 'Chemistry', 'mrs_gupta', 'Chem Lab'),
+    ('cls-10a', 'Wednesday', 5, '11:45 AM', '12:30 PM', 'Computer Science', 'ms_nair', 'Computer Lab'),
+    ('cls-10a', 'Wednesday', 6, '12:30 PM', '01:15 PM', 'Art & Music', 'mr_roy', 'Activity Hall'),
+    -- Class 9-A
+    ('cls-9a', 'Monday', 1, '08:00 AM', '08:45 AM', 'English', 'ms_verma', 'Room 102'),
+    ('cls-9a', 'Monday', 2, '08:45 AM', '09:30 AM', 'Social Studies', 'mr_singh', 'Room 102'),
+    ('cls-9a', 'Monday', 3, '09:45 AM', '10:30 AM', 'Mathematics', 'steacher1', 'Room 102'),
+    ('cls-9a', 'Monday', 4, '10:30 AM', '11:15 AM', 'Science', 'mrs_gupta', 'Room 102');
 
 -- 10. ADMISSIONS
 INSERT INTO school_admissions (student_name, parent_name, phone, email, class_applying, status)
