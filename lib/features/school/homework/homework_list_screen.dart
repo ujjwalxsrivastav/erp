@@ -31,6 +31,8 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
   Map<String, Map<String, dynamic>> _mySubmissions = {};
   // homework_id -> real submission count from backend (teacher view)
   Map<String, int> _submissionCounts = {};
+  // teacher username -> display name (shows authors, not logins)
+  Map<String, String> _teacherNames = {};
 
   // Subject colour map (cycles by index)
   static const List<Color> _subjectColors = [
@@ -112,6 +114,9 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
   Future<void> _loadHomework() async {
     setState(() => _isLoading = true);
 
+    // Username -> display name, so students see who actually assigned the work.
+    final teacherNames = await _schoolService.getTeacherNames();
+
     List<Map<String, dynamic>> hw;
     if (_isStudent) {
       final f = _myClassFilter;
@@ -139,6 +144,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     if (!mounted) return;
     setState(() {
       _homework = hw;
+      _teacherNames = teacherNames;
       _isLoading = false;
     });
   }
@@ -651,7 +657,10 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     final title = hw['title'] as String? ?? 'Homework';
     final description = hw['description'] as String? ?? '';
     final className = hw['class_name'] as String? ?? hw['class_id']?.toString() ?? '';
-    final teacherName = hw['teacher_name'] as String? ?? hw['teacher_username'] as String? ?? '';
+    final teacherUsername = hw['teacher_username']?.toString() ?? '';
+    final teacherName = _teacherNames[teacherUsername.toLowerCase()] ??
+        (hw['teacher_name'] as String?) ??
+        teacherUsername;
     final dueDateStr = hw['due_date'] as String? ?? '';
 
     final subjectColor = _colorForSubject(subject);

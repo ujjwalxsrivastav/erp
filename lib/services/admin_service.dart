@@ -148,6 +148,13 @@ class AdminService {
         'updated_at': DateTime.now().toIso8601String(),
       });
 
+      // Keep the account visible under Admin → Manage Users → School.
+      try {
+        await _supabase
+            .from('users')
+            .update({'institution': 'school'}).eq('username', teacherId);
+      } catch (_) {}
+
       return {'success': true, 'message': 'Teacher added successfully'};
     } catch (e) {
       print('Error adding teacher: $e');

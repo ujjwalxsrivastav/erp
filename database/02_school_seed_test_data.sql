@@ -117,7 +117,18 @@ ON CONFLICT (id) DO UPDATE
 
 -- ---------------------------------------------------------------------------
 -- 3. USERS — 22 subject teachers (one class teacher among them)
+--    Also seeds `school_teachers`, the directory the app reads so homework
+--    shows the teacher's name (e.g. "Rakesh Sharma") instead of a login.
 -- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.school_teachers (
+  username   TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  subject    TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+GRANT SELECT ON public.school_teachers TO anon, authenticated;
+
 WITH teachers (i, tname, subject, qualification) AS (
   VALUES
     ( 1, 'Rakesh Sharma',      'Mathematics',       'M.Sc (Mathematics), B.Ed'),
@@ -142,6 +153,15 @@ WITH teachers (i, tname, subject, qualification) AS (
     (20, 'Vidya Shankar',      'Sanskrit',          'M.A (Sanskrit), B.Ed'),
     (21, 'Sunil Bhatia',       'Physical Education','B.P.Ed'),
     (22, 'Priyanka Sen',       'Art & Craft',       'B.F.A')
+),
+directory AS (
+  INSERT INTO public.school_teachers (username, name, subject)
+  SELECT 'steach' || lpad(t.i::text, 2, '0'), t.tname, t.subject
+  FROM teachers t
+  ON CONFLICT (username) DO UPDATE
+    SET name = EXCLUDED.name,
+        subject = EXCLUDED.subject
+  RETURNING username
 )
 INSERT INTO public.users (username, password, role, institute_type)
 SELECT
@@ -153,6 +173,14 @@ ON CONFLICT (username) DO UPDATE
   SET password = EXCLUDED.password,
       role = 'teacher',
       institute_type = 'school';
+
+-- Demo teacher account created by dual_mode_school_setup.sql (owns the older
+-- homework rows) still needs a display name.
+INSERT INTO public.school_teachers (username, name, subject)
+VALUES ('steacher1', 'Vikram Kumar', 'Mathematics')
+ON CONFLICT (username) DO UPDATE
+  SET name = EXCLUDED.name,
+      subject = EXCLUDED.subject;
 
 -- ---------------------------------------------------------------------------
 -- 4. CLASS TEACHER of Class 10 — exactly one (DB constraint in file 01 also

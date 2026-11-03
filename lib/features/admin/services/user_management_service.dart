@@ -1,55 +1,46 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Roles allowed by the `users` table CHECK constraint
-/// (see database_export/schema.sql and update_users_role_constraint.sql).
-/// Note: 'HR' is stored uppercase in the database.
+/// Roles an admin can assign from Manage Users. HR / HOD / Staff accounts are
+/// no longer supported.
 class UserRoles {
-  static const List<String> all = [
-    'student',
-    'teacher',
-    'admin',
-    'staff',
-    'HR',
-    'hod',
-  ];
+  static const String student = 'student';
+  static const String teacher = 'teacher';
+  static const String admin = 'admin';
 
-  static String label(String role) {
-    switch (role) {
-      case 'HR':
-        return 'HR';
-      case 'hod':
-        return 'HOD';
-      default:
-        return role.isEmpty
+  static const List<String> all = [student, teacher, admin];
+
+  static String label(String role) => switch (role) {
+        student => 'Student',
+        teacher => 'Teacher',
+        admin => 'Admin',
+        _ => role.isEmpty
             ? role
-            : '${role[0].toUpperCase()}${role.substring(1)}';
-    }
-  }
+            : '${role[0].toUpperCase()}${role.substring(1)}',
+      };
+
+  /// `users.institution` — decides which dashboard the account lands on.
+  static String institutionFor(String role) =>
+      role == admin ? 'college' : 'school';
+
+  static bool isSupported(String role) => all.contains(role);
 }
 
 /// Admin — Manage Users.
 ///
-/// The `users` table only carries username / password / role (no status
-/// or active flag), so this service intentionally offers listing,
-/// searching and role changes only — no activate/deactivate.
+/// The `users` table only carries username / password / role, so this
+/// service offers listing, role changes and account creation. Display names
+/// are resolved from the profile tables (school_students, teacher_details,
+/// staff) since the login table has no name column.
 class UserManagementService {
   final _supabase = Supabase.instance.client;
 
-  /// All login accounts, optionally filtered by [role] and/or a
-  /// username [search] term. Each row is enriched (where resolvable)
-  /// with `display_name` and `detail` from student_details /
-  /// teacher_details so the UI can show a real name, not just an id.
-  Future<List<Map<String, dynamic>>> getAllUsers({
-    String? role,
-    String? search,
-  }) async {
+  /// [institution] — `school` or `college`; null lists every institution.
+  /// Each row is enriched with `display_name` / `detail` where resolvable.
+  Future<List<Map<String, dynamic>>> getAllUsers({String? institution}) async {
     try {
-      var query = _supabase.from('users').select('username, role');
-      if (role != null && role.isNotEmpty) {
-        query = query.eq('role', role);
-      }
-      if (search != null && search.trim().isNotEmpty) {
-        query = query.ilike('username', '%${search.trim()}%');
+      var query = _supabase.from('users').select('username, role, institution');
+      if (institution != null && institution.isNotEmpty) {
+        query = query.eq('institution', institution);
       }
       final response = await query.order('username', ascending: true);
       final users = List<Map<String, dynamic>>.from(response);
@@ -61,38 +52,41 @@ class UserManagementService {
     }
   }
 
-  /// Resolves display names/details for the given user rows with two
-  /// batched lookups (students by student_id, staff by teacher_id).
+  /// Two batched lookups: school profiles (school_students + teacher_details)
+  /// and college profiles (student_details + staff).
   Future<void> _attachDetails(List<Map<String, dynamic>> users) async {
     if (users.isEmpty) return;
-    final usernames = users.map((u) => u['username'] as String).toList();
+    final ids = users.map((u) => u['username'] as String).toList();
 
     try {
       final students = await _supabase
-          .from('student_details')
-          .select('student_id, name, department, year, semester, section')
-          .inFilter('student_id', usernames);
+          .from('school_students')
+          .select('username, name, class_name, roll_number')
+          .inFilter('username', ids);
       final byId = <String, Map<String, dynamic>>{
         for (final s in List<Map<String, dynamic>>.from(students))
-          s['student_id'] as String: s,
+          s['username'] as String: s,
       };
       for (final u in users) {
         final s = byId[u['username']];
-        if (s != null) {
-          u['display_name'] = s['name'];
-          u['detail'] =
-              '${s['department']} • Year ${s['year']} • Sem ${s['semester']} • Sec ${s['section']}';
-        }
+        if (s == null) continue;
+        u['display_name'] = s['name'];
+        final cls = (s['class_name'] ?? '').toString();
+        final roll = (s['roll_number'] ?? '').toString();
+        u['detail'] = [
+          if (cls.isNotEmpty) cls,
+          if (roll.isNotEmpty) 'Roll $roll',
+        ].join(' • ');
       }
     } catch (e) {
-      print('Error resolving student details for users: $e');
+      print('Error resolving school students for users: $e');
     }
 
     try {
       final teachers = await _supabase
           .from('teacher_details')
           .select('teacher_id, name, department, subject')
-          .inFilter('teacher_id', usernames);
+          .inFilter('teacher_id', ids);
       final byId = <String, Map<String, dynamic>>{
         for (final t in List<Map<String, dynamic>>.from(teachers))
           t['teacher_id'] as String: t,
@@ -100,22 +94,88 @@ class UserManagementService {
       for (final u in users) {
         if (u['display_name'] != null) continue;
         final t = byId[u['username']];
-        if (t != null) {
-          u['display_name'] = t['name'];
-          u['detail'] = '${t['department']} • ${t['subject']}';
-        }
+        if (t == null) continue;
+        u['display_name'] = t['name'];
+        u['detail'] = [t['department'], t['subject']]
+            .where((v) => (v ?? '').toString().isNotEmpty)
+            .join(' • ');
       }
     } catch (e) {
       print('Error resolving teacher details for users: $e');
     }
+
+    try {
+      final students = await _supabase
+          .from('student_details')
+          .select('student_id, name, department, year, semester, section')
+          .inFilter('student_id', ids);
+      final byId = <String, Map<String, dynamic>>{
+        for (final s in List<Map<String, dynamic>>.from(students))
+          s['student_id'] as String: s,
+      };
+      for (final u in users) {
+        if (u['display_name'] != null) continue;
+        final s = byId[u['username']];
+        if (s == null) continue;
+        u['display_name'] = s['name'];
+        u['detail'] =
+            '${s['department']} • Year ${s['year']} • Sem ${s['semester']} • Sec ${s['section']}';
+      }
+    } catch (e) {
+      print('Error resolving college students for users: $e');
+    }
+
+    try {
+      final parents = await _supabase
+          .from('parent_student_links')
+          .select('parent_username, student_username')
+          .inFilter('parent_username', ids);
+      final byId = <String, List<String>>{};
+      for (final p in List<Map<String, dynamic>>.from(parents)) {
+        byId.putIfAbsent(p['parent_username'] as String, () => []).add(
+              (p['student_username'] ?? '').toString(),
+            );
+      }
+      for (final u in users) {
+        if (u['display_name'] != null) continue;
+        final children = byId[u['username']];
+        if (children == null) continue;
+        u['display_name'] = 'Parent of ${children.join(', ')}';
+        u['detail'] = 'Parent account';
+      }
+    } catch (e) {
+      print('Error resolving parents for users: $e');
+    }
+
+    try {
+      final staff = await _supabase
+          .from('staff')
+          .select('staff_code, name, designation')
+          .inFilter('staff_code', ids);
+      final byId = <String, Map<String, dynamic>>{
+        for (final s in List<Map<String, dynamic>>.from(staff))
+          s['staff_code'] as String: s,
+      };
+      for (final u in users) {
+        if (u['display_name'] != null) continue;
+        final s = byId[u['username']];
+        if (s == null) continue;
+        u['display_name'] = s['name'];
+        u['detail'] = (s['designation'] ?? '').toString();
+      }
+    } catch (e) {
+      print('Error resolving staff for users: $e');
+    }
   }
 
-  /// Live count of accounts per role, plus a 'total' key.
-  Future<Map<String, int>> getRoleCounts() async {
+  Future<Map<String, int>> getRoleCounts({String? institution}) async {
     try {
-      final response = await _supabase.from('users').select('role');
+      var query = _supabase.from('users').select('role');
+      if (institution != null && institution.isNotEmpty) {
+        query = query.eq('institution', institution);
+      }
       final counts = <String, int>{'total': 0};
-      for (final row in List<Map<String, dynamic>>.from(response)) {
+      for (final row in List<Map<String, dynamic>>.from(await query)) {
         final role = (row['role'] ?? '').toString();
         counts[role] = (counts[role] ?? 0) + 1;
         counts['total'] = (counts['total'] ?? 0) + 1;
@@ -127,17 +187,100 @@ class UserManagementService {
     }
   }
 
-  /// Changes a user's role. [newRole] must be one of [UserRoles.all]
-  /// (the database CHECK constraint rejects anything else).
   Future<bool> updateUserRole(String username, String newRole) async {
     try {
-      await _supabase
-          .from('users')
-          .update({'role': newRole}).eq('username', username);
+      await _supabase.from('users').update({
+        'role': newRole,
+        'institution': UserRoles.institutionFor(newRole),
+      }).eq('username', username);
       return true;
     } catch (e) {
       print('Error updating role for $username: $e');
       return false;
     }
+  }
+
+  /// Creates a login account and a profile row carrying [name].
+  /// Returns `{success, message, username}`.
+  Future<Map<String, dynamic>> createUser({
+    required String username,
+    required String password,
+    required String name,
+    required String role,
+    String? className,
+    String? rollNumber,
+    String? subject,
+    String? department,
+    String? createdBy,
+  }) async {
+    final cleanUsername = username.trim().toLowerCase();
+    final cleanName = name.trim();
+    if (!UserRoles.isSupported(role)) {
+      return {'success': false, 'message': 'Unsupported role: $role'};
+    }
+
+    try {
+      final authResult = await _supabase.rpc('secure_add_user_v2', params: {
+        'p_username': cleanUsername,
+        'p_password': password,
+        'p_role': role,
+        'p_created_by': createdBy ?? 'admin',
+      });
+      final result = Map<String, dynamic>.from(authResult as Map);
+      if (result['success'] != true) {
+        return {
+          'success': false,
+          'message': result['message'] ?? 'Failed to create user account',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Could not create account: $e'};
+    }
+
+    try {
+      await _supabase.from('users').update({
+        'institution': UserRoles.institutionFor(role),
+      }).eq('username', cleanUsername);
+    } catch (_) {
+      // Column may not exist yet — the account itself already works.
+    }
+
+    try {
+      final now = DateTime.now().toIso8601String();
+      if (role == UserRoles.teacher) {
+        await _supabase.from('teacher_details').insert({
+          'teacher_id': cleanUsername,
+          'name': cleanName,
+          'employee_id': cleanUsername,
+          'subject': (subject ?? '').trim().isEmpty ? '-' : subject!.trim(),
+          'department':
+              (department ?? '').trim().isEmpty ? '-' : department!.trim(),
+          'created_at': now,
+          'updated_at': now,
+        });
+      } else {
+        await _supabase.from('school_students').insert({
+          'username': cleanUsername,
+          'name': cleanName,
+          'class_name': (className ?? '').trim(),
+          'roll_number': (rollNumber ?? '').trim(),
+        });
+      }
+    } catch (e) {
+      // The login exists; surface the profile error so the admin can fix it.
+      return {
+        'success': true,
+        'username': cleanUsername,
+        'message':
+            'Account created, but saving the name failed: $e. '
+                'Role changes are still applied from this screen.',
+      };
+    }
+
+    return {
+      'success': true,
+      'username': cleanUsername,
+      'message': 'Account created for $cleanName',
+    };
   }
 }

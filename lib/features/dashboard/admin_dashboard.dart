@@ -23,7 +23,6 @@ class _AdminDashboardState extends State<AdminDashboard>
   int _totalUsers = 0;
   int _studentCount = 0;
   int _teacherCount = 0;
-  int _staffCount = 0;
   int _adminCount = 0;
   bool _isLoading = true;
 
@@ -74,14 +73,13 @@ class _AdminDashboardState extends State<AdminDashboard>
         _totalUsers = total;
         _studentCount = distribution['students'] ?? 0;
         _teacherCount = distribution['teachers'] ?? 0;
-        _staffCount = distribution['staff'] ?? 0;
         _adminCount = distribution['admins'] ?? 0;
         _isLoading = false;
       });
 
       print('✅ Data loaded successfully!');
       print(
-          '   Total: $_totalUsers, Students: $_studentCount, Teachers: $_teacherCount, Staff: $_staffCount, Admins: $_adminCount');
+          '   Total: $_totalUsers, Students: $_studentCount, Teachers: $_teacherCount, Admins: $_adminCount');
     } catch (e, stackTrace) {
       print('❌ Error loading admin data: $e');
       print('Stack trace: $stackTrace');
@@ -436,9 +434,6 @@ class _AdminDashboardState extends State<AdminDashboard>
                       ),
                       const SizedBox(height: 12),
                       _buildAnalyticsBar(
-                          "Staff", _staffCount, const Color(0xFFF59E0B)),
-                      const SizedBox(height: 12),
-                      _buildAnalyticsBar(
                           "Admins", _adminCount, const Color(0xFF8B5CF6)),
                     ],
                   ),
@@ -515,6 +510,12 @@ class _AdminDashboardState extends State<AdminDashboard>
                       label: "Grievances",
                       color: const Color(0xFFDC2626),
                       onTap: () => context.push('/admin/grievances'),
+                    ),
+                    _ManagementCard(
+                      icon: Icons.calendar_month,
+                      label: "Manage Timetable",
+                      color: const Color(0xFF0F766E),
+                      onTap: () => context.push('/admin/timetable'),
                     ),
                     _ManagementCard(
                       icon: Icons.manage_accounts,

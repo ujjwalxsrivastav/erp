@@ -21,7 +21,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
   late AnimationController _fadeController;
 
   String _teacherName = 'Teacher';
-  String _teacherClass = 'Class Teacher - 10A';
+  String _teacherClass = 'Subject Teacher';
 
   // Stats
   int _totalStudents = 42;
@@ -47,16 +47,30 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
   }
 
   Future<void> _loadData() async {
-    final username = await _authService.getCurrentUsername();
+    final username = await _authService.getCurrentUsername() ?? '';
+
+    // Show the teacher's real name (seeded in `school_teachers`) rather than
+    // their login, plus the class they are class teacher of.
+    final displayName =
+        await _schoolService.getTeacherDisplayName(username);
+    final teacherClasses =
+        await _schoolService.getClassTeacherClasses(username);
+
     if (mounted) {
       setState(() {
-        _teacherName = username ?? 'Teacher';
+        _teacherName = (displayName != null && displayName.isNotEmpty)
+            ? displayName
+            : (username.isEmpty ? 'Teacher' : username);
+        _teacherClass = teacherClasses.isEmpty
+            ? 'Subject Teacher'
+            : 'Class Teacher · ${teacherClasses.first['name'] ?? ''}'.trim();
       });
     }
 
     try {
-      final schedule = await _schoolService.getTeacherTimetable(username ?? '');
-      final pendingHw = await _schoolService.getPendingHomeworkToGrade(username ?? '');
+      final schedule = await _schoolService.getTeacherTimetable(username);
+      final pendingHw =
+          await _schoolService.getPendingHomeworkToGrade(username);
       if (mounted) {
         setState(() {
           if (schedule.isNotEmpty) {
@@ -334,6 +348,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
                 icon: Icons.people_outline,
                 color: const Color(0xFF3B82F6),
                 bgColor: const Color(0xFFEFF6FF),
+                onTap: () => context.go('/school/attendance'),
               ),
             ),
             const SizedBox(width: 12),

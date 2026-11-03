@@ -197,7 +197,7 @@ class SchoolService {
     try {
       final res = await _supabase
           .from('users')
-          .select('id')
+          .select('username')
           .eq('role', 'teacher')
           .eq('institute_type', 'school')
           .count(CountOption.exact);
@@ -525,6 +525,42 @@ class SchoolService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Teacher display names keyed by lower-cased username.
+  ///
+  /// `school_teachers` is a directory table populated by the seed file; it is
+  /// what lets homework cards and the teacher dashboard show "Rakesh Sharma"
+  /// instead of a login like "steach01".
+  Future<Map<String, String>> getTeacherNames() async {
+    final names = <String, String>{};
+    try {
+      final response =
+          await _supabase.from('school_teachers').select('username, name');
+      for (final row in response) {
+        final username = row['username']?.toString().trim() ?? '';
+        final name = row['name']?.toString().trim() ?? '';
+        if (username.isNotEmpty && name.isNotEmpty) {
+          names[username.toLowerCase()] = name;
+        }
+      }
+    } catch (_) {}
+    return names;
+  }
+
+  /// Display name for one teacher username, or null when not in the directory.
+  Future<String?> getTeacherDisplayName(String username) async {
+    if (username.isEmpty) return null;
+    try {
+      final row = await _supabase
+          .from('school_teachers')
+          .select('name')
+          .eq('username', username)
+          .maybeSingle();
+      final name = row?['name']?.toString().trim() ?? '';
+      if (name.isNotEmpty) return name;
+    } catch (_) {}
+    return null;
   }
 
   Future<List<String>> getSchoolTeachersList() async {

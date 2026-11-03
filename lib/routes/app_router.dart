@@ -81,6 +81,7 @@ import '../features/hr/screens/my_payslips_screen.dart';
 // Superadmin + User Management imports
 import '../features/admin/screens/institute_setup_screen.dart';
 import '../features/admin/screens/manage_users_screen.dart';
+import '../features/admin/screens/manage_timetable_screen.dart';
 // Fee Insights import
 import '../features/finance/screens/fee_insights_screen.dart';
 // Admission Flow imports
@@ -97,6 +98,7 @@ import '../features/school/homework/homework_list_screen.dart';
 import '../features/school/homework/add_homework_screen.dart';
 import '../features/school/leave/student_leave_screen.dart';
 import '../features/school/attendance/school_attendance_screen.dart';
+import '../features/school/marks/marks_csv_upload_screen.dart';
 import '../features/school/marks/marks_entry_screen.dart';
 import '../features/school/marks/report_card_screen.dart';
 import '../features/school/timetable/school_timetable_screen.dart';
@@ -194,7 +196,8 @@ final router = GoRouter(
     ),
     GoRoute(
       path: '/admin/add-user',
-      builder: (context, state) => const AddUserScreen(),
+      builder: (context, state) =>
+          AddUserScreen(institution: state.uri.queryParameters['institution']),
     ),
     GoRoute(
       path: '/admin/add-teacher',
@@ -241,6 +244,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/marks-entry',
       builder: (context, state) => const MarksEntryScreen(),
+    ),
+    GoRoute(
+      path: '/school/marks/csv',
+      builder: (context, state) => const MarksCsvUploadScreen(),
     ),
     GoRoute(
       path: '/school/report-card',
@@ -579,7 +586,23 @@ final router = GoRouter(
     ),
     GoRoute(
       path: '/admin/manage-users',
-      builder: (context, state) => const ManageUsersScreen(),
+      builder: (context, state) => ManageUsersScreen(
+        initialInstitution: state.uri.queryParameters['institution'] ??
+            'school',
+      ),
+    ),
+    GoRoute(
+      path: '/admin/manage-users/:institution',
+      builder: (context, state) => ManageUsersScreen(
+        initialInstitution: state.pathParameters['institution'] ?? 'school',
+      ),
+    ),
+    GoRoute(
+      path: '/admin/timetable',
+      builder: (context, state) => ManageTimetableScreen(
+        initialClassId: state.uri.queryParameters['classId'],
+        initialDay: state.uri.queryParameters['day'],
+      ),
     ),
     GoRoute(
       path: '/finance/fee-insights',

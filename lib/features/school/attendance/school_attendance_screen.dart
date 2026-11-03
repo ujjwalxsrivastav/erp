@@ -21,6 +21,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
   String? _instituteId;
   bool _isEditable = false;
   bool _isStudent = false;
+  bool _isTeacher = false;
+  bool _isAdmin = false;
   String _myName = '';
   String _myClass = '';
   List<Map<String, dynamic>> _myRecords = [];
@@ -89,7 +91,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
     setState(() {
       _username = username;
       _isStudent = role == 'student' || role == 'parent';
-      _isEditable = role == 'teacher' || role == 'admin' || role == 'sadmin' || role == 'steacher';
+      _isTeacher = role == 'teacher';
+      _isAdmin = role == 'admin';
+      _isEditable = _isTeacher || _isAdmin;
     });
 
     // Students see THEIR OWN attendance — no class picking, no marking grid.
@@ -122,18 +126,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
   }
 
   Future<void> _resolveInstituteId() async {
-    // Fetch the institute_id from the users table for this user
-    try {
-      if (_username == null) return;
-      final res = await _schoolService.supabase
-          .from('users')
-          .select('institute_id')
-          .eq('username', _username!)
-          .maybeSingle();
-      if (mounted && res != null) {
-        setState(() => _instituteId = res['institute_id']?.toString());
-      }
-    } catch (_) {}
+    // users carries no institute_id / id column — nothing to resolve.
+    return;
   }
 
   Future<void> _loadClasses() async {
@@ -142,7 +136,26 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       _classesError = null;
     });
     try {
-      final classes = await _schoolService.getSchoolClasses(_instituteId);
+      // A class teacher marks the register for their own class only. Admins
+      // keep the full class list.
+      final List<Map<String, dynamic>> classes;
+      if (_isTeacher && !_isAdmin) {
+        classes =
+            await _schoolService.getClassTeacherClasses(_username ?? '');
+        if (classes.isEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _classes = [];
+            _selectedClass = null;
+            _loadingClasses = false;
+            _classesError =
+                'No class is assigned to you as class teacher.';
+          });
+          return;
+        }
+      } else {
+        classes = await _schoolService.getSchoolClasses(_instituteId);
+      }
       if (!mounted) return;
       setState(() {
         _classes = classes;

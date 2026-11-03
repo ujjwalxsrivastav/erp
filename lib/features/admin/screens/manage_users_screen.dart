@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../services/user_management_service.dart';
 
 /// Admin — Manage Users.
 ///
-/// Lists every login account in the `users` table with per-role
-/// counts, search + role filters, resolved display names (from
-/// student_details / teacher_details) and role changes.
-/// The users table has no status/active column, so there is no
-/// activate/deactivate action here.
+/// Lists every login account filtered by institution (school / college), its
+/// role and the person's name. Names come from school_students,
+/// teacher_details and staff; accounts without a profile show their user ID.
 class ManageUsersScreen extends StatefulWidget {
-  const ManageUsersScreen({super.key});
+  final String initialInstitution;
+
+  const ManageUsersScreen({super.key, this.initialInstitution = 'school'});
 
   @override
   State<ManageUsersScreen> createState() => _ManageUsersScreenState();
@@ -24,17 +25,21 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _users = [];
   Map<String, int> _roleCounts = {'total': 0};
+  late String _institution = widget.initialInstitution;
   String _roleFilter = 'all';
   String _search = '';
 
   static const Map<String, Color> _roleColors = {
-    'student': AppTheme.studentPrimary,
-    'teacher': AppTheme.teacherPrimary,
-    'admin': AppTheme.adminPrimary,
-    'staff': AppTheme.accentTeal,
-    'HR': AppTheme.accentPink,
-    'hod': AppTheme.accentOrange,
+    UserRoles.student: AppTheme.studentPrimary,
+    UserRoles.teacher: AppTheme.teacherPrimary,
+    UserRoles.admin: AppTheme.adminPrimary,
+    'parent': AppTheme.accentOrange,
   };
+
+  static const List<MapEntry<String, String>> _institutions = [
+    MapEntry('school', 'School'),
+    MapEntry('college', 'College'),
+  ];
 
   @override
   void initState() {
@@ -51,8 +56,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     final results = await Future.wait([
-      _service.getAllUsers(),
-      _service.getRoleCounts(),
+      _service.getAllUsers(institution: _institution),
+      _service.getRoleCounts(institution: _institution),
     ]);
     if (!mounted) return;
     setState(() {
@@ -77,14 +82,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
 
   Color _roleColor(String role) => _roleColors[role] ?? AppTheme.mediumGray;
 
-  String _initials(Map<String, dynamic> user) {
-    final name = (user['display_name'] ?? user['username'] ?? '')
-        .toString()
-        .trim();
-    if (name.isEmpty) return '?';
-    final parts = name.split(RegExp(r'\s+'));
-    if (parts.length == 1) return parts.first[0].toUpperCase();
-    return (parts.first[0] + parts.last[0]).toUpperCase();
+  Future<void> _addUser() async {
+    final kept = await context.push<String>(
+      '/admin/add-user?institution=$_institution',
+    );
+    if (!mounted) return;
+    if (kept == _institution) await _load();
   }
 
   Future<void> _changeRole(Map<String, dynamic> user) async {
@@ -131,11 +134,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     final ok = await _service.updateUserRole(username, picked);
     if (!mounted) return;
     if (ok) {
-      setState(() {
-        user['role'] = picked;
-        _roleCounts[current] = (_roleCounts[current] ?? 1) - 1;
-        _roleCounts[picked] = (_roleCounts[picked] ?? 0) + 1;
-      });
+      await _load();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('$username is now ${UserRoles.label(picked)}'),
@@ -155,6 +155,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addUser,
+        backgroundColor: AppTheme.adminPrimary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+        label: const Text('Add User'),
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -171,22 +178,20 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               Expanded(
                 child: _isLoading
                     ? const Center(
-                        child:
-                            CircularProgressIndicator(color: AppTheme.adminPrimary),
+                        child: CircularProgressIndicator(
+                            color: AppTheme.adminPrimary),
                       )
                     : RefreshIndicator(
                         color: AppTheme.adminPrimary,
                         onRefresh: _load,
                         child: _filtered.isEmpty
-                            ? ListView(
-                                children: [_buildEmptyState()],
-                              )
+                            ? ListView(children: [_buildEmptyState()])
                             : ListView.builder(
                                 padding: const EdgeInsets.fromLTRB(
                                   AppTheme.md,
                                   AppTheme.sm,
                                   AppTheme.md,
-                                  AppTheme.lg,
+                                  96,
                                 ),
                                 itemCount: _filtered.length,
                                 itemBuilder: (ctx, i) =>
@@ -221,7 +226,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.people_alt_rounded, color: Colors.white, size: 26),
+              const Icon(Icons.people_alt_rounded,
+                  color: Colors.white, size: 26),
               const SizedBox(width: 10),
               Text(
                 'Manage Users',
@@ -232,9 +238,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                  border: Border.all(color: Colors.white.withOpacity(0.35)),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.35)),
                 ),
                 child: Text(
                   '${_roleCounts['total'] ?? 0} accounts',
@@ -252,6 +259,42 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             style: AppTheme.bodySmall.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: AppTheme.md),
+          Row(
+            children: _institutions.map((e) {
+              final selected = _institution == e.key;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () {
+                    if (selected) return;
+                    setState(() {
+                      _institution = e.key;
+                      _roleFilter = 'all';
+                    });
+                    _load();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                    ),
+                    child: Text(
+                      e.value,
+                      style: AppTheme.caption.copyWith(
+                        color: selected ? AppTheme.adminPrimary : Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: AppTheme.sm),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -260,17 +303,17 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                  border: Border.all(color: Colors.white.withOpacity(0.35)),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.35)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       UserRoles.label(role),
-                      style:
-                          AppTheme.caption.copyWith(color: Colors.white70),
+                      style: AppTheme.caption.copyWith(color: Colors.white70),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -304,7 +347,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             controller: _searchController,
             onChanged: (v) => setState(() => _search = v.trim()),
             decoration: InputDecoration(
-              hintText: 'Search username or name…',
+              hintText: 'Search by name or user ID…',
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _search.isEmpty
                   ? null
@@ -359,7 +402,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         label: Text(label),
         selected: selected,
         onSelected: (_) => setState(() => _roleFilter = value),
-        selectedColor: color.withOpacity(0.15),
+        selectedColor: color.withValues(alpha: 0.15),
         labelStyle: TextStyle(
           color: selected ? color : AppTheme.mediumGray,
           fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
@@ -372,8 +415,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   Widget _buildUserCard(Map<String, dynamic> user) {
     final role = (user['role'] ?? '').toString();
     final color = _roleColor(role);
-    final name = (user['display_name'] ?? '').toString();
+    final name = (user['display_name'] ?? '').toString().trim();
+    final username = (user['username'] ?? '').toString();
     final detail = (user['detail'] ?? '').toString();
+    final hasName = name.isNotEmpty;
     return GlassCard(
       margin: const EdgeInsets.only(bottom: AppTheme.sm),
       padding: const EdgeInsets.all(AppTheme.md),
@@ -381,10 +426,16 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: color.withOpacity(0.12),
-            child: Text(
-              _initials(user),
-              style: TextStyle(color: color, fontWeight: FontWeight.w700),
+            backgroundColor: color.withValues(alpha: 0.12),
+            child: Icon(
+              role == UserRoles.student
+                  ? Icons.school_rounded
+                  : role == UserRoles.teacher
+                      ? Icons.person_rounded
+                      : role == 'parent'
+                          ? Icons.family_restroom_rounded
+                          : Icons.shield_rounded,
+              color: color,
             ),
           ),
           const SizedBox(width: AppTheme.md),
@@ -393,7 +444,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name.isNotEmpty ? name : user['username'].toString(),
+                  hasName ? name : username,
                   style: AppTheme.bodyMedium.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppTheme.dark,
@@ -401,7 +452,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '@${user['username']}',
+                  '${UserRoles.label(role)} ID: $username',
                   style:
                       AppTheme.caption.copyWith(color: AppTheme.mediumGray),
                 ),
@@ -414,20 +465,6 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ),
                 ],
               ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-            ),
-            child: Text(
-              UserRoles.label(role),
-              style: AppTheme.caption.copyWith(
-                color: color,
-                fontWeight: FontWeight.w700,
-              ),
             ),
           ),
           IconButton(

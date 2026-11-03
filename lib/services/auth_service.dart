@@ -240,11 +240,16 @@ class AuthService {
           try {
             final userRecord = await _supabase
                 .from('users')
-                .select('institute_type')
+                .select('institute_type, institution')
                 .eq('username', actualUsername)
                 .maybeSingle();
 
-            if (userRecord != null && userRecord['institute_type'] != null) {
+            // users.institution is the source of truth set by Manage Users;
+            // institute_type is the legacy dual-mode flag.
+            if (userRecord != null && userRecord['institution'] != null) {
+              instituteType = userRecord['institution'] as String;
+            } else if (userRecord != null &&
+                userRecord['institute_type'] != null) {
               instituteType = userRecord['institute_type'] as String;
             } else if (actualUsername.startsWith('s') || role == 'parent') {
               instituteType = 'school';
@@ -279,7 +284,7 @@ class AuthService {
         
         final userQuery = await _supabase
             .from('users')
-            .select('username, password, role, institute_type')
+            .select('username, password, role, institute_type, institution')
             .eq('username', sanitizedUsername)
             .maybeSingle();
 
@@ -287,7 +292,8 @@ class AuthService {
 
         if (userQuery != null && userQuery['password'] == password) {
           final role = userQuery['role'] as String;
-          final instituteType = (userQuery['institute_type'] as String?) ??
+          final instituteType = (userQuery['institution'] as String?) ??
+              (userQuery['institute_type'] as String?) ??
               (sanitizedUsername.startsWith('s') || role == 'parent' ? 'school' : 'college');
 
           await _saveSecureSession(sanitizedUsername, role, instituteType: instituteType);
