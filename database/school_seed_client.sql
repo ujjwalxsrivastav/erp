@@ -135,3 +135,19 @@ VALUES
     ('Reyansh Kapoor', 'Varun Kapoor', '9812345678', 'varun.kapoor@gmail.com', 'Class 1', 'approved'),
     ('Myra Joshi', 'Dr. Ashish Joshi', '9823456789', 'ashish.joshi@maxhealthcare.com', 'Class 6', 'pending'),
     ('Devansh Rawat', 'Harish Rawat', '9834567890', 'harish.rawat@gov.in', 'Class 9', 'pending');
+
+-- 11. CBSE SCHOLASTIC MARKS
+INSERT INTO school_marks (institute_code, student_id, student_name, class_id, class_name, section, subject, exam_type, marks_obtained, total_marks, grade, remarks)
+VALUES
+    ('SHIV-SCH', 'sstudent1', 'Aarav Sharma', 'cls-10a', 'Class 10', 'A', 'Mathematics', 'Annual', 92, 100, 'A1', 'Exemplary algebraic problem solving'),
+    ('SHIV-SCH', 'sstudent1', 'Aarav Sharma', 'cls-10a', 'Class 10', 'A', 'Science', 'Annual', 86, 100, 'A2', 'Great laboratory inquiry'),
+    ('SHIV-SCH', 'sstudent1', 'Aarav Sharma', 'cls-10a', 'Class 10', 'A', 'English Language & Lit', 'Annual', 88, 100, 'A2', 'Fluent writing and critical expression'),
+    ('SHIV-SCH', 'sstudent1', 'Aarav Sharma', 'cls-10a', 'Class 10', 'A', 'Social Science', 'Annual', 84, 100, 'A2', 'In-depth historical analysis'),
+    ('SHIV-SCH', 'sstudent1', 'Aarav Sharma', 'cls-10a', 'Class 10', 'A', 'Hindi Course-A', 'Annual', 81, 100, 'A2', 'Good vocabulary and literature appreciation'),
+    ('SHIV-SCH', 'sstudent1', 'Aarav Sharma', 'cls-10a', 'Class 10', 'A', 'Computer Applications', 'Annual', 95, 100, 'A1', 'Superior coding and project implementation'),
+    ('SHIV-SCH', 'sstudent2', 'Priya Patel', 'cls-10a', 'Class 10', 'A', 'Mathematics', 'Annual', 89, 100, 'A2', 'Consistent performance'),
+    ('SHIV-SCH', 'sstudent2', 'Priya Patel', 'cls-10a', 'Class 10', 'A', 'Science', 'Annual', 91, 100, 'A1', 'Outstanding science projects'),
+    ('SHIV-SCH', 'sstudent2', 'Priya Patel', 'cls-10a', 'Class 10', 'A', 'English Language & Lit', 'Annual', 85, 100, 'A2', 'Very good communication'),
+    ('SHIV-SCH', 'sstudent2', 'Priya Patel', 'cls-10a', 'Class 10', 'A', 'Social Science', 'Annual', 87, 100, 'A2', 'Active participant'),
+    ('SHIV-SCH', 'sstudent2', 'Priya Patel', 'cls-10a', 'Class 10', 'A', 'Hindi Course-A', 'Annual', 88, 100, 'A2', 'Great essays'),
+    ('SHIV-SCH', 'sstudent2', 'Priya Patel', 'cls-10a', 'Class 10', 'A', 'Computer Applications', 'Annual', 93, 100, 'A1', 'Proficient programmer');
