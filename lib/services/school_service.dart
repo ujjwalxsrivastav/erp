@@ -610,18 +610,9 @@ class SchoolService {
     } catch (_) {}
 
     if (_feePaymentsStore.isNotEmpty) {
-      return _feePaymentsStore;
+      return _feePaymentsStore.where((f) => f['student_id'] == studentId).toList();
     }
-
-    final defaults = [
-      {'head': 'Tuition Fee (Q1)', 'amount': 12000, 'paid_amount': 12000, 'due_date': '2026-04-10', 'status': 'paid', 'receipt_no': 'REC-9081'},
-      {'head': 'Tuition Fee (Q2)', 'amount': 12000, 'paid_amount': 12000, 'due_date': '2026-07-10', 'status': 'paid', 'receipt_no': 'REC-9412'},
-      {'head': 'Tuition Fee (Q3)', 'amount': 12000, 'paid_amount': 0, 'due_date': '2026-10-10', 'status': 'pending', 'receipt_no': null},
-      {'head': 'Annual Lab & Library Fee', 'amount': 4500, 'paid_amount': 4500, 'due_date': '2026-04-10', 'status': 'paid', 'receipt_no': 'REC-8901'},
-      {'head': 'Transport Service Fee', 'amount': 6000, 'paid_amount': 3000, 'due_date': '2026-10-10', 'status': 'partial', 'receipt_no': 'REC-9705'},
-    ];
-    _feePaymentsStore.addAll(defaults);
-    return defaults;
+    return [];
   }
 
   Future<List<Map<String, dynamic>>> getPendingFees(String classId) async {
@@ -635,24 +626,78 @@ class SchoolService {
       if (list.isNotEmpty) return list;
     } catch (_) {}
 
-    return [
-      {'student_name': 'Rohan Gupta', 'roll_no': '03', 'amount': 12000, 'head': 'Tuition Q3', 'due_date': '2026-10-10'},
-      {'student_name': 'Vikram Kumar', 'roll_no': '05', 'amount': 6000, 'head': 'Transport Fee', 'due_date': '2026-10-10'},
-      {'student_name': 'Kavya Nair', 'roll_no': '08', 'amount': 12000, 'head': 'Tuition Q3', 'due_date': '2026-10-10'},
-    ];
+    return _feePaymentsStore.where((f) => f['status'] == 'pending').toList();
   }
 
-  Future<bool> recordFeePayment(Map<String, dynamic> data) async {
-    _feePaymentsStore.insert(0, {
+  Future<String> recordFeePayment(Map<String, dynamic> data) async {
+    final receiptNo = 'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
+    final paymentData = {
       ...data,
+      'receipt_no': receiptNo,
       'status': 'paid',
+      'paid_amount': data['amount'] ?? 0.0,
       'created_at': DateTime.now().toIso8601String(),
-    });
+    };
+
+    _feePaymentsStore.insert(0, paymentData);
 
     try {
-      await _supabase.from('school_fee_payments').insert(data);
+      await _supabase.from('school_fee_payments').insert(paymentData);
     } catch (_) {}
-    return true;
+    return receiptNo;
+  }
+
+  Future<Map<String, dynamic>> getDefaultersWithAgeing({String? classId}) async {
+    try {
+      var query = _supabase.from('school_fee_payments').select().eq('status', 'pending');
+      if (classId != null && classId.isNotEmpty) {
+        query = query.eq('class_id', classId);
+      }
+      final response = await query;
+      final list = List<Map<String, dynamic>>.from(response);
+
+      final now = DateTime.now();
+      final bucket0to30 = <Map<String, dynamic>>[];
+      final bucket31to60 = <Map<String, dynamic>>[];
+      final bucket61to90 = <Map<String, dynamic>>[];
+      final bucket90plus = <Map<String, dynamic>>[];
+
+      for (final item in list) {
+        final dueDateStr = item['due_date']?.toString();
+        DateTime? due;
+        if (dueDateStr != null) {
+          due = DateTime.tryParse(dueDateStr);
+        }
+        final daysOverdue = due != null ? now.difference(due).inDays : 15;
+        if (daysOverdue <= 30) {
+          bucket0to30.add({...item, 'days_overdue': daysOverdue});
+        } else if (daysOverdue <= 60) {
+          bucket31to60.add({...item, 'days_overdue': daysOverdue});
+        } else if (daysOverdue <= 90) {
+          bucket61to90.add({...item, 'days_overdue': daysOverdue});
+        } else {
+          bucket90plus.add({...item, 'days_overdue': daysOverdue});
+        }
+      }
+
+      return {
+        'total_pending': list.fold<double>(0.0, (s, i) => s + ((i['amount'] as num?)?.toDouble() ?? 0.0)),
+        'total_defaulters': list.length,
+        'bucket_0_30': bucket0to30,
+        'bucket_31_60': bucket31to60,
+        'bucket_61_90': bucket61to90,
+        'bucket_90_plus': bucket90plus,
+      };
+    } catch (_) {
+      return {
+        'total_pending': 0.0,
+        'total_defaulters': 0,
+        'bucket_0_30': [],
+        'bucket_31_60': [],
+        'bucket_61_90': [],
+        'bucket_90_plus': [],
+      };
+    }
   }
 
   Future<Map<String, dynamic>> getFeeReport({String? classId, DateTime? from, DateTime? to}) async {

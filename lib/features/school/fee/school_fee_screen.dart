@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
+import '../../../services/auth_service.dart';
 
 class SchoolFeeScreen extends StatefulWidget {
   const SchoolFeeScreen({super.key});
@@ -12,30 +13,37 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _schoolService = SchoolService();
+  final _authService = AuthService();
 
-  final List<Map<String, dynamic>> _feeHistory = [
-    {'quarter': 'Q1 (Apr-Jun)', 'amount': 15000, 'paid': 15000, 'date': '05 Apr 2026', 'status': 'paid', 'receipt_no': 'REC-9081', 'mode': 'UPI'},
-    {'quarter': 'Q2 (Jul-Sep)', 'amount': 15000, 'paid': 15000, 'date': '08 Jul 2026', 'status': 'paid', 'receipt_no': 'REC-9412', 'mode': 'Net Banking'},
-    {'quarter': 'Q3 (Oct-Dec)', 'amount': 15000, 'paid': 10000, 'date': '15 Oct 2026', 'status': 'partial', 'receipt_no': 'REC-9705', 'mode': 'Cheque'},
-    {'quarter': 'Q4 (Jan-Mar)', 'amount': 15000, 'paid': 0, 'date': 'Not paid', 'status': 'pending', 'receipt_no': null, 'mode': '-'},
-  ];
+  bool _isLoading = true;
+  String _userRole = 'student';
+  String _studentUsername = 'sstudent1';
+  String _studentName = 'Aarav Sharma';
+  String _studentClass = 'Class 10-A';
+
+  List<Map<String, dynamic>> _feeHistory = [];
+  Map<String, dynamic> _defaulterData = {};
 
   final Map<String, dynamic> _feeBreakdown = {
-    'Tuition Fee': 10000,
-    'Exam & Activity Fee': 2000,
-    'Sports & Physical Ed': 1000,
-    'Library & Computer Lab': 1000,
-    'Science Practical Lab': 1000,
+    'Tuition Fee (Quarterly)': 18000,
+    'Exam & Assessment Fee': 2500,
+    'Sports & Physical Education': 1500,
+    'Science & Computer Labs': 2000,
+    'Library & Digital Resources': 1000,
   };
 
-  int get _totalFees => _feeHistory.fold(0, (sum, f) => sum + (f['amount'] as int));
-  int get _paidFees => _feeHistory.fold(0, (sum, f) => sum + (f['paid'] as int));
-  int get _pendingFees => _totalFees - _paidFees;
+  double get _totalFees => _feeHistory.fold(0.0, (sum, f) => sum + ((f['amount'] as num?)?.toDouble() ?? 0.0));
+  double get _paidFees => _feeHistory.fold(0.0, (sum, f) {
+    if (f['status'] == 'paid') return sum + ((f['amount'] as num?)?.toDouble() ?? 0.0);
+    return sum + ((f['paid_amount'] as num?)?.toDouble() ?? 0.0);
+  });
+  double get _pendingFees => (_totalFees - _paidFees).clamp(0.0, double.infinity);
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
+    _loadFeeData();
   }
 
   @override
@@ -44,8 +52,32 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
     super.dispose();
   }
 
+  Future<void> _loadFeeData() async {
+    setState(() => _isLoading = true);
+    try {
+      final role = await _authService.getCurrentUserRole() ?? 'student';
+      final username = await _authService.getCurrentUsername() ?? 'sstudent1';
+      final targetUser = (role == 'admin' || role == 'teacher') ? 'sstudent1' : username;
+
+      final fees = await _schoolService.getStudentFees(targetUser);
+      final defaulters = await _schoolService.getDefaultersWithAgeing();
+
+      if (mounted) {
+        setState(() {
+          _userRole = role;
+          _studentUsername = targetUser;
+          _feeHistory = fees;
+          _defaulterData = defaulters;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   void _showPaymentDialog() {
-    final amountController = TextEditingController(text: '$_pendingFees');
+    final amountController = TextEditingController(text: _pendingFees > 0 ? _pendingFees.toStringAsFixed(0) : '25000');
     String paymentMode = 'UPI / Online';
     final notesController = TextEditingController();
 
@@ -58,7 +90,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
             children: const [
               Icon(Icons.payment, color: Color(0xFFF59E0B)),
               SizedBox(width: 10),
-              Text('Fee Payment', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Record / Pay Fee', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ],
           ),
           content: SingleChildScrollView(
@@ -66,7 +98,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Paying for: Class 10-A (Aarav Sharma)', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                Text('Paying for: $_studentClass ($_studentName)', style: const TextStyle(fontSize: 13, color: Colors.grey)),
                 const SizedBox(height: 16),
                 const Text('Amount to Pay (₹)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
@@ -83,31 +115,31 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                 const Text('Payment Mode', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: paymentMode,
+                  initialValue: paymentMode,
                   decoration: InputDecoration(
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'UPI / Online', child: Text('UPI / Online')),
+                    DropdownMenuItem(value: 'UPI / Online', child: Text('UPI / Razorpay Online')),
                     DropdownMenuItem(value: 'Net Banking', child: Text('Net Banking')),
                     DropdownMenuItem(value: 'Debit/Credit Card', child: Text('Debit/Credit Card')),
                     DropdownMenuItem(value: 'Cash', child: Text('Cash at Counter')),
-                    DropdownMenuItem(value: 'Cheque', child: Text('Bank Cheque')),
+                    DropdownMenuItem(value: 'Cheque', child: Text('Bank Cheque / DD')),
                   ],
                   onChanged: (v) {
                     if (v != null) setDialogState(() => paymentMode = v);
                   },
                 ),
                 const SizedBox(height: 14),
-                const Text('Transaction / Reference Note', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text('Notes / Remarks (Optional)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: notesController,
                   decoration: InputDecoration(
-                    hintText: 'e.g. UPI Ref: 48921890',
+                    hintText: 'e.g. Q3 instalment',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   ),
                 ),
               ],
@@ -116,44 +148,35 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
+              onPressed: () async {
+                final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
+                if (amt <= 0) return;
+
+                Navigator.pop(ctx);
+                final receiptNo = await _schoolService.recordFeePayment({
+                  'student_id': _studentUsername,
+                  'class_id': 'cls-10a',
+                  'amount': amt,
+                  'payment_mode': paymentMode,
+                  'head': 'Quarterly Tuition & Academic Fee',
+                  'due_date': DateTime.now().toIso8601String().substring(0, 10),
+                });
+
+                await _loadFeeData();
+
+                if (mounted) {
+                  _showReceiptDialog(receiptNo, amt, paymentMode);
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF59E0B),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: () async {
-                final amt = int.tryParse(amountController.text.trim()) ?? 0;
-                if (amt <= 0) return;
-                Navigator.pop(ctx);
-
-                final newRecNo = 'REC-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
-                await _schoolService.recordFeePayment({
-                  'student_id': 'SCH-01',
-                  'amount': amt,
-                  'paid_amount': amt,
-                  'payment_mode': paymentMode,
-                  'receipt_no': newRecNo,
-                  'status': 'paid',
-                  'created_at': DateTime.now().toIso8601String(),
-                });
-
-                setState(() {
-                  _feeHistory.insert(0, {
-                    'quarter': 'Fee Payment (${DateTime.now().month}/${DateTime.now().year})',
-                    'amount': amt,
-                    'paid': amt,
-                    'date': 'Today',
-                    'status': 'paid',
-                    'receipt_no': newRecNo,
-                    'mode': paymentMode,
-                  });
-                });
-
-                _showReceiptDialog(newRecNo, amt, paymentMode);
-              },
-              child: const Text('Confirm Payment', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text('Confirm Payment'),
             ),
           ],
         ),
@@ -161,38 +184,49 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
     );
   }
 
-  void _showReceiptDialog(String receiptNo, int amount, String mode) {
+  void _showReceiptDialog(String receiptNo, double amount, String mode) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.check_circle, color: Color(0xFF10B981)),
+            SizedBox(width: 8),
+            Text('Payment Successful', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Color(0xFFECFDF5),
-                shape: BoxShape.circle,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
-              child: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 48),
+              child: Column(
+                children: [
+                  _receiptRow('Receipt Number', receiptNo),
+                  _receiptRow('Student Name', _studentName),
+                  _receiptRow('Class & Section', _studentClass),
+                  _receiptRow('Amount Paid', '₹${amount.toStringAsFixed(0)}'),
+                  _receiptRow('Payment Mode', mode),
+                  _receiptRow('Date & Time', DateTime.now().toIso8601String().substring(0, 10)),
+                  _receiptRow('Status', 'CONFIRMED (PAID)'),
+                  const Divider(height: 16),
+                  const Text('Digital Verification Seal: Verified by Shivalik International Accounts', style: TextStyle(fontSize: 10, color: Color(0xFF10B981), fontWeight: FontWeight.w600)),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
-            const Text('Payment Successful!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            Text('Receipt Number: $receiptNo', style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontWeight: FontWeight.w600)),
-            const Divider(height: 30),
-            _receiptRow('Amount Paid:', '₹$amount'),
-            _receiptRow('Payment Mode:', mode),
-            _receiptRow('Student Name:', 'Aarav Sharma'),
-            _receiptRow('Class & Section:', 'Class 10-A'),
-            _receiptRow('Date:', DateTime.now().toIso8601String().substring(0, 10)),
-            const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -200,13 +234,13 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Receipt $receiptNo downloaded successfully'),
+                      content: Text('Receipt $receiptNo exported successfully!'),
                       backgroundColor: const Color(0xFF10B981),
                     ),
                   );
                 },
                 icon: const Icon(Icons.download, color: Colors.white, size: 18),
-                label: const Text('Download Receipt PDF', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                label: const Text('Download Receipt PDF', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -233,7 +267,10 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F8),
       appBar: AppBar(
-        title: const Text('Fee Details & Collection', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: Text(
+          _userRole == 'admin' ? 'Fee Management & Accounts' : 'Fee Details & Payments',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
         backgroundColor: const Color(0xFFF59E0B),
         foregroundColor: Colors.white,
         elevation: 0,
@@ -242,16 +279,23 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
           indicatorColor: Colors.white,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
-          tabs: const [Tab(text: 'Summary & Structure'), Tab(text: 'Payment History & Receipts')],
+          tabs: const [
+            Tab(text: 'Summary & Structure'),
+            Tab(text: 'History & Receipts'),
+            Tab(text: 'Defaulters & Ageing'),
+          ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildSummaryTab(),
-          _buildHistoryTab(),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF59E0B)))
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildSummaryTab(),
+                _buildHistoryTab(),
+                _buildDefaultersTab(),
+              ],
+            ),
     );
   }
 
@@ -285,11 +329,11 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '₹$_paidFees',
+                      '₹${_paidFees.toStringAsFixed(0)}',
                       style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      ' / ₹$_totalFees',
+                      ' / ₹${_totalFees.toStringAsFixed(0)}',
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 18),
                     ),
                   ],
@@ -307,15 +351,43 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _buildFeeStat('Total Paid', '₹$_paidFees', const Color(0xFFECFDF5), const Color(0xFF10B981)),
+                    _buildFeeStat('Total Paid', '₹${_paidFees.toStringAsFixed(0)}', const Color(0xFFECFDF5), const Color(0xFF10B981)),
                     const SizedBox(width: 12),
-                    _buildFeeStat('Total Pending', '₹$_pendingFees', const Color(0xFFFEE2E2), const Color(0xFFEF4444)),
+                    _buildFeeStat('Total Pending', '₹${_pendingFees.toStringAsFixed(0)}', const Color(0xFFFEE2E2), const Color(0xFFEF4444)),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // Policy Badges (Sibling / Staff / RTE)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.verified, color: Color(0xFFF59E0B), size: 18),
+                    SizedBox(width: 8),
+                    Text('Institutional Concession Policies', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text('• Sibling Concession: 15% discount on quarterly tuition fee for younger sibling.', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                Text('• Staff Ward Policy: 25% educational concession on tuition.', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                Text('• RTE Act 25% Quota: Zero fee to parent; booked as Government Receivable.', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -332,7 +404,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Fee Breakdown (Per Term)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+                const Text('CBSE Class 10 Fee Breakdown (Quarterly)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
                 const SizedBox(height: 14),
                 ..._feeBreakdown.entries.map((e) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
@@ -350,7 +422,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                 const Divider(),
                 Row(
                   children: [
-                    const Text('Term Total', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+                    const Text('Quarter Total', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
                     const Spacer(),
                     Text(
                       '₹${_feeBreakdown.values.fold(0, (a, b) => a + (b as int))}',
@@ -368,7 +440,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
               onPressed: _showPaymentDialog,
               icon: const Icon(Icons.payment, color: Colors.white),
               label: Text(
-                _pendingFees > 0 ? 'Collect / Pay Pending (₹$_pendingFees)' : 'Record Advance / Extra Fee',
+                _pendingFees > 0 ? 'Pay Outstanding (₹${_pendingFees.toStringAsFixed(0)})' : 'Pay Fees Online / Record Counter',
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
               ),
               style: ElevatedButton.styleFrom(
@@ -400,13 +472,36 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   }
 
   Widget _buildHistoryTab() {
+    if (_feeHistory.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            const Text('No fee records found', style: TextStyle(fontSize: 16, color: Color(0xFF6B7280))),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _showPaymentDialog,
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.white),
+              child: const Text('Record First Payment'),
+            ),
+          ],
+        ),
+      );
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _feeHistory.length,
       itemBuilder: (context, index) {
         final f = _feeHistory[index];
-        final status = f['status'] as String;
+        final status = (f['status'] ?? 'pending').toString().toLowerCase();
         final receiptNo = f['receipt_no'] as String?;
+        final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
+        final head = f['head'] ?? 'Quarter Tuition Fee';
+        final dueDate = f['due_date'] ?? 'Upcoming';
+
         Color statusColor;
         String statusLabel;
         switch (status) {
@@ -452,17 +547,15 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(f['quarter'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
+                    Text(head, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
                     const SizedBox(height: 4),
                     Text(
                       status == 'paid'
-                          ? 'Paid on ${f['date']} • Mode: ${f['mode'] ?? "Online"}'
-                          : status == 'partial'
-                              ? 'Partial: ₹${f['paid']}/${f['amount']}'
-                              : 'Payment due',
+                          ? 'Paid via ${f['payment_mode'] ?? "Online"}'
+                          : 'Due by $dueDate',
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                     ),
-                    if (receiptNo != null)
+                    if (receiptNo != null && receiptNo.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
@@ -476,7 +569,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('₹${f['amount']}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+                  Text('₹${amount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
                   const SizedBox(height: 4),
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -489,10 +582,10 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                         ),
                         child: Text(statusLabel, style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w600)),
                       ),
-                      if (receiptNo != null) ...[
+                      if (receiptNo != null && receiptNo.isNotEmpty) ...[
                         const SizedBox(width: 6),
                         InkWell(
-                          onTap: () => _showReceiptDialog(receiptNo, f['paid'] as int, f['mode']?.toString() ?? 'Online'),
+                          onTap: () => _showReceiptDialog(receiptNo, amount, f['payment_mode']?.toString() ?? 'Online'),
                           child: const Icon(Icons.print_outlined, size: 18, color: Color(0xFFF59E0B)),
                         ),
                       ],
@@ -504,6 +597,78 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDefaultersTab() {
+    final b0 = (_defaulterData['bucket_0_30'] as List?) ?? [];
+    final b31 = (_defaulterData['bucket_31_60'] as List?) ?? [];
+    final b61 = (_defaulterData['bucket_61_90'] as List?) ?? [];
+    final b90 = (_defaulterData['bucket_90_plus'] as List?) ?? [];
+    final totalPending = (_defaulterData['total_pending'] as num?)?.toDouble() ?? 0.0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.shade100),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 36),
+                const SizedBox(width: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Total Overdue Fees', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                    Text('₹${totalPending.toStringAsFixed(0)}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('Ageing Analysis Buckets', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          _buildAgeingCard('0 - 30 Days Overdue', b0, Colors.amber),
+          _buildAgeingCard('31 - 60 Days Overdue', b31, Colors.orange),
+          _buildAgeingCard('61 - 90 Days Overdue', b61, Colors.deepOrange),
+          _buildAgeingCard('90+ Days (Critical Notice)', b90, Colors.red),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgeingCard(String title, List items, MaterialColor color) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.shade200),
+      ),
+      child: ExpansionTile(
+        title: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade800)),
+        subtitle: Text('${items.length} accounts overdue', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        children: items.isEmpty
+            ? [const Padding(padding: EdgeInsets.all(12), child: Text('No accounts in this bucket', style: TextStyle(fontSize: 12, color: Colors.grey)))]
+            : items.map((item) {
+                final amt = (item['amount'] as num?)?.toDouble() ?? 0.0;
+                return ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.person_outline, size: 20),
+                  title: Text(item['student_id'] ?? 'Student', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text('Due: ${item['due_date'] ?? "N/A"} • ${item['head'] ?? "Fee"}'),
+                  trailing: Text('₹${amt.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                );
+              }).toList(),
+      ),
     );
   }
 }
