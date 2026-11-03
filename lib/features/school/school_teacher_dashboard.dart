@@ -275,6 +275,18 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
         'gradient': [const Color(0xFFF59E0B), const Color(0xFFFBBF24)],
         'route': '/school/timetable',
       },
+      {
+        'label': 'Library',
+        'icon': Icons.local_library_outlined,
+        'gradient': [const Color(0xFF7C3AED), const Color(0xFFA78BFA)],
+        'route': '/school/library',
+      },
+      {
+        'label': 'Reports Hub',
+        'icon': Icons.analytics_outlined,
+        'gradient': [const Color(0xFF059669), const Color(0xFF34D399)],
+        'route': '/school/reports',
+      },
     ];
 
     return Column(
@@ -431,6 +443,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard>
               _buildDrawerItem(Icons.edit_note, 'Enter Marks', () => context.go('/school/marks-entry')),
               _buildDrawerItem(Icons.description_outlined, 'Report Card', () => context.go('/school/report-card')),
               _buildDrawerItem(Icons.calendar_today_outlined, 'Timetable', () => context.go('/school/timetable')),
+              _buildDrawerItem(Icons.local_library_outlined, 'Library', () => context.go('/school/library')),
+              _buildDrawerItem(Icons.analytics_outlined, 'Reports Hub', () => context.go('/school/reports')),
               _buildDrawerItem(Icons.campaign_outlined, 'Circulars', () => context.go('/school/circulars')),
               const Spacer(),
               const Divider(color: Colors.white24),

@@ -328,9 +328,12 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
       {'icon': Icons.calendar_today_outlined, 'label': 'Timetable', 'color': const Color(0xFF3B82F6), 'route': '/school/timetable'},
       {'icon': Icons.assignment_outlined, 'label': 'Homework', 'color': const Color(0xFFFF6B6B), 'route': '/school/homework'},
       {'icon': Icons.checklist_rtl, 'label': 'Attendance', 'color': const Color(0xFF10B981), 'route': '/school/attendance'},
+      {'icon': Icons.description_outlined, 'label': 'Report Card', 'color': const Color(0xFF06B6D4), 'route': '/school/report-card'},
+      {'icon': Icons.local_library_outlined, 'label': 'Library', 'color': const Color(0xFF7C3AED), 'route': '/school/library'},
+      {'icon': Icons.card_membership_outlined, 'label': 'Certificates', 'color': const Color(0xFF059669), 'route': '/school/certificates'},
       {'icon': Icons.payment_outlined, 'label': 'Fees', 'color': const Color(0xFFF59E0B), 'route': '/school/fees'},
       {'icon': Icons.campaign_outlined, 'label': 'Circulars', 'color': const Color(0xFF8B5CF6), 'route': '/school/circulars'},
-      {'icon': Icons.directions_bus_outlined, 'label': 'Transport', 'color': const Color(0xFF06B6D4), 'route': '/school/transport'},
+      {'icon': Icons.directions_bus_outlined, 'label': 'Transport', 'color': const Color(0xFF3B82F6), 'route': '/school/transport'},
     ];
 
     return Column(
@@ -553,6 +556,9 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               _buildDrawerItem(Icons.assignment_outlined, 'Homework', () => context.go('/school/homework')),
               _buildDrawerItem(Icons.checklist_rtl, 'Attendance', () => context.go('/school/attendance')),
               _buildDrawerItem(Icons.calendar_today_outlined, 'Timetable', () => context.go('/school/timetable')),
+              _buildDrawerItem(Icons.description_outlined, 'Report Card', () => context.go('/school/report-card')),
+              _buildDrawerItem(Icons.local_library_outlined, 'Library', () => context.go('/school/library')),
+              _buildDrawerItem(Icons.card_membership_outlined, 'Certificates', () => context.go('/school/certificates')),
               _buildDrawerItem(Icons.payment_outlined, 'Fees', () => context.go('/school/fees')),
               _buildDrawerItem(Icons.campaign_outlined, 'Circulars', () => context.go('/school/circulars')),
               _buildDrawerItem(Icons.directions_bus_outlined, 'Transport', () => context.go('/school/transport')),

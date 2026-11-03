@@ -16,7 +16,6 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
   final _supabase = SupabaseService.client;
 
   static const Color _primary = Color(0xFF7C3AED);
-  static const Color _primaryLight = Color(0xFF8B5CF6);
   static const Color _bg = Color(0xFFF5F3FF);
 
   // Shared

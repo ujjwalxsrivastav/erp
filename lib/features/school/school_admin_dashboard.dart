@@ -165,6 +165,12 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
   }
 
   Widget _buildStatsGrid() {
+    if (_isLoadingStats) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))),
+      );
+    }
     return Column(
       children: [
         Row(
@@ -215,6 +221,21 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: ERPStatCard(
+                title: 'Pending Fee Defaulters',
+                value: '$_pendingFeesCount Students',
+                icon: Icons.account_balance_wallet_outlined,
+                color: const Color(0xFFEF4444),
+                bgColor: const Color(0xFFFEF2F2),
+                onTap: () => context.go('/school/fees'),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -229,7 +250,10 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
       {'icon': Icons.calendar_month_outlined, 'label': 'Timetable', 'color': const Color(0xFFFF6B6B), 'route': '/school/timetable'},
       {'icon': Icons.description_outlined, 'label': 'Report Cards', 'color': const Color(0xFF06B6D4), 'route': '/school/report-card'},
       {'icon': Icons.how_to_reg_outlined, 'label': 'Attendance', 'color': const Color(0xFF10B981), 'route': '/school/attendance'},
-      {'icon': Icons.manage_accounts_outlined, 'label': 'Manage Users', 'color': const Color(0xFFEC4899), 'route': '/admin/manage-users'},
+      {'icon': Icons.local_library_outlined, 'label': 'Library', 'color': const Color(0xFF7C3AED), 'route': '/school/library'},
+      {'icon': Icons.card_membership_outlined, 'label': 'Certificates', 'color': const Color(0xFF059669), 'route': '/school/certificates'},
+      {'icon': Icons.assignment_outlined, 'label': 'Homework', 'color': const Color(0xFFEC4899), 'route': '/school/homework'},
+      {'icon': Icons.manage_accounts_outlined, 'label': 'Manage Users', 'color': const Color(0xFF6366F1), 'route': '/admin/manage-users'},
     ];
 
     return Column(
@@ -386,6 +410,9 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard>
               _buildDrawerItem(Icons.campaign_outlined, 'Circulars', () => context.go('/school/circulars')),
               _buildDrawerItem(Icons.directions_bus_outlined, 'Transport', () => context.go('/school/transport')),
               _buildDrawerItem(Icons.description_outlined, 'Report Cards', () => context.go('/school/report-card')),
+              _buildDrawerItem(Icons.local_library_outlined, 'Library', () => context.go('/school/library')),
+              _buildDrawerItem(Icons.card_membership_outlined, 'Certificates', () => context.go('/school/certificates')),
+              _buildDrawerItem(Icons.assignment_outlined, 'Homework', () => context.go('/school/homework')),
               _buildDrawerItem(Icons.manage_accounts_outlined, 'Manage Users', () => context.go('/admin/manage-users')),
               const Spacer(),
               const Divider(color: Colors.white24),

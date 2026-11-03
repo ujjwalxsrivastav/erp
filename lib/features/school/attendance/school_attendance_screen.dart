@@ -17,7 +17,6 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
   late TabController _tabController;
 
   // Role & identity
-  String? _role;
   String? _username;
   String? _instituteId;
   bool _isEditable = false;
@@ -81,9 +80,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
     final username = await _authService.getCurrentUsername();
     if (!mounted) return;
     setState(() {
-      _role = role;
       _username = username;
-      _isEditable = role == 'teacher' || role == 'admin';
+      _isEditable = role == 'teacher' || role == 'admin' || role == 'sadmin' || role == 'steacher';
     });
     await _resolveInstituteId();
     await _loadClasses();

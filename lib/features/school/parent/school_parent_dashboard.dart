@@ -389,7 +389,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               _buildDrawerItem(Icons.payment_outlined, 'Fees', () => context.go('/school/fees')),
               _buildDrawerItem(Icons.campaign_outlined, 'Circulars', () => context.go('/school/circulars')),
               _buildDrawerItem(Icons.directions_bus_outlined, 'Transport', () => context.go('/school/transport')),
+              _buildDrawerItem(Icons.calendar_today_outlined, 'Timetable', () => context.go('/school/timetable')),
               _buildDrawerItem(Icons.grade_outlined, 'Results', () => context.go('/school/report-card')),
+              _buildDrawerItem(Icons.card_membership_outlined, 'Certificates', () => context.go('/school/certificates')),
+              _buildDrawerItem(Icons.local_library_outlined, 'Library', () => context.go('/school/library')),
               const Spacer(),
               const Divider(color: Colors.white24),
               _buildDrawerItem(Icons.logout, 'Logout', () async {

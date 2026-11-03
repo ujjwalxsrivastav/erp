@@ -230,6 +230,79 @@ ON CONFLICT DO NOTHING;
 -- Success verification
 
 
+-- Step 14: School Timetable
+CREATE TABLE IF NOT EXISTS school_timetable (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_code TEXT DEFAULT 'SHIV-SCH',
+    class_id TEXT NOT NULL,
+    day TEXT NOT NULL,
+    period INTEGER NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    teacher_username TEXT,
+    room TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+INSERT INTO school_timetable (class_id, day, period, start_time, end_time, subject, teacher_username, room)
+VALUES
+    ('cls-10a', 'Monday', 1, '08:00 AM', '08:45 AM', 'Mathematics', 'steacher1', 'Room 101'),
+    ('cls-10a', 'Monday', 2, '08:45 AM', '09:30 AM', 'Physics', 'steacher1', 'Physics Lab'),
+    ('cls-10a', 'Monday', 3, '09:45 AM', '10:30 AM', 'Chemistry', 'steacher1', 'Chem Lab'),
+    ('cls-10a', 'Monday', 4, '10:30 AM', '11:15 AM', 'English', 'steacher1', 'Room 101')
+ON CONFLICT DO NOTHING;
+
+-- Step 15: School Library Books
+CREATE TABLE IF NOT EXISTS school_library (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    author TEXT NOT NULL,
+    category TEXT NOT NULL,
+    isbn TEXT,
+    copies INTEGER DEFAULT 5,
+    available INTEGER DEFAULT 5,
+    location TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+INSERT INTO school_library (id, title, author, category, isbn, copies, available, location)
+VALUES
+    ('BK-001', 'Mathematics Textbook Grade 10', 'R.D. Sharma', 'Mathematics', '978-81-131-0234-5', 15, 8, 'Shelf A-2'),
+    ('BK-002', 'Physics: Concepts and Principles', 'H.C. Verma', 'Science', '978-81-239-1819-2', 12, 5, 'Shelf B-1'),
+    ('BK-003', 'Indian History: Medieval Period', 'Bipin Chandra', 'History', '978-81-250-1759-3', 8, 8, 'Shelf C-3'),
+    ('BK-004', 'English Grammar and Composition', 'Wren & Martin', 'Literature', '978-93-5097-026-3', 20, 12, 'Shelf A-5'),
+    ('BK-005', 'Introduction to Computer Science', 'Sumita Arora', 'Computer', '978-93-5057-555-4', 10, 3, 'Shelf D-1')
+ON CONFLICT (id) DO NOTHING;
+
+-- Step 16: School Library Book Issues
+CREATE TABLE IF NOT EXISTS school_library_issues (
+    id TEXT PRIMARY KEY,
+    book_id TEXT REFERENCES school_library(id),
+    book_title TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    class TEXT NOT NULL,
+    issued_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    due_date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Returned', 'Overdue')),
+    fine NUMERIC DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Step 17: School Certificate Requests
+CREATE TABLE IF NOT EXISTS school_certificate_requests (
+    id TEXT PRIMARY KEY,
+    student_name TEXT NOT NULL,
+    class TEXT NOT NULL,
+    cert_type TEXT NOT NULL,
+    reason TEXT,
+    status TEXT NOT NULL DEFAULT 'Under Review' CHECK (status IN ('Under Review', 'Approved', 'Ready for Collection', 'Issued', 'Rejected')),
+    requested_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    processed_date DATE,
+    username TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 SELECT 'Dual-Mode ERP migration completed successfully!' AS result;
 
 
