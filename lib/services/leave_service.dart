@@ -65,6 +65,7 @@ class LeaveService {
       final totalDays = endDate.difference(startDate).inDays + 1;
 
       // Get current balance (for reference, not blocking)
+      // ignore: unused_local_variable
       int remainingBalance = 0;
       final balance = await getLeaveBalance(teacherId);
       if (balance != null) {
