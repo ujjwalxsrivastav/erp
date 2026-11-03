@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
 
 class SchoolTimetableScreen extends StatefulWidget {
@@ -12,10 +13,16 @@ class SchoolTimetableScreen extends StatefulWidget {
 class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     with SingleTickerProviderStateMixin {
   final SchoolService _service = SchoolService();
+  final AuthService _authService = AuthService();
   late TabController _tabController;
+
+  // Role & student context
+  bool _isStudent = false;
+  String _studentClassLabel = '';
 
   // Timetable State
   String _selectedClassId = 'cls-10a';
+  String _selectedClassLabel = 'Class 10';
   String _selectedDay = 'Monday';
   final List<String> _days = [
     'Monday',
@@ -58,6 +65,37 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     if (widget.initialClassId != null && widget.initialClassId!.isNotEmpty) {
       _selectedClassId = widget.initialClassId!;
     }
+    _init();
+  }
+
+  Future<void> _init() async {
+    final role = await _authService.getCurrentUserRole();
+    if (!mounted) return;
+    setState(() => _isStudent = role == 'student' || role == 'parent');
+
+    // Students: resolve their OWN class from the backend — no class picker.
+    if (_isStudent) {
+      final username = await _authService.getCurrentUsername() ?? '';
+      final profile = await _service.getSchoolStudentProfile(username);
+      if (profile != null) {
+        final classId = profile['class_id']?.toString();
+        final className = profile['class_name']?.toString() ?? 'Class 10';
+        if (mounted) {
+          setState(() {
+            _studentClassLabel = className;
+            if (classId != null && classId.isNotEmpty) _selectedClassId = classId;
+            _selectedClassLabel = className;
+          });
+        }
+      }
+      if (mounted) {
+        _tabController = TabController(length: 1, vsync: this);
+        setState(() {});
+      }
+      _loadTimetableOnly();
+      return;
+    }
+
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
@@ -65,14 +103,41 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         if (_tabController.index == 2) _loadSyllabusData();
       }
     });
-
+    setState(() {});
     _loadClassesAndTimetable();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  /// Students only need the routine grid — no class list involved.
+  Future<void> _loadTimetableOnly() async {
+    setState(() {
+      _isLoadingTimetable = true;
+      _timetableError = null;
+    });
+    try {
+      final entries = await _service.getTimetableForClass(
+        _selectedClassId,
+        day: _selectedDay,
+      );
+      if (mounted) {
+        setState(() {
+          _periods = entries;
+          _isLoadingTimetable = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _timetableError = 'Failed to load timetable: $e';
+          _isLoadingTimetable = false;
+        });
+      }
+    }
+  }
+
+  /// Day change / refresh — students skip the class-list fetch entirely so
+  /// their auto-resolved class id is never overwritten.
+  Future<void> _reloadTimetable() {
+    return _isStudent ? _loadTimetableOnly() : _loadClassesAndTimetable();
   }
 
   Future<void> _loadClassesAndTimetable() async {
@@ -83,19 +148,26 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
     try {
       final classes = await _service.getSchoolClasses();
-      final resolved = classes.isNotEmpty
+      _classes = classes.isNotEmpty
           ? classes
           : [
-              {'id': 'cls-10a', 'name': 'Class 10', 'section': 'A'},
-              {'id': 'cls-9a', 'name': 'Class 9', 'section': 'A'},
-              {'id': 'cls-10b', 'name': 'Class 10', 'section': 'B'},
+              {'id': 'cls-10', 'name': 'Class 10'},
+              {'id': 'cls-9', 'name': 'Class 9'},
+              {'id': 'cls-8', 'name': 'Class 8'},
             ];
-      _classes = resolved;
-      if (!_classes.any((c) => c['id']?.toString() == _selectedClassId)) {
-        if (_classes.isNotEmpty) {
-          _selectedClassId = _classes.first['id']?.toString() ?? 'cls-10a';
-        }
+
+      // Never offer the same class twice (guard against duplicate backend rows)
+      final seen = <String>{};
+      _classes = _classes
+          .where((c) => seen.add(c['id']?.toString() ?? ''))
+          .toList();
+
+      // The selected class id must exist in the list, or the dropdown crashes.
+      final ids = _classes.map((c) => c['id']?.toString() ?? '').toSet();
+      if (!ids.contains(_selectedClassId)) {
+        _selectedClassId = _classes.first['id']?.toString() ?? _selectedClassId;
       }
+      _syncSelectedClassLabel();
 
       final entries = await _service.getTimetableForClass(
         _selectedClassId,
@@ -118,6 +190,28 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         });
       }
     }
+  }
+
+  /// Keep the header label in sync with the selected class row.
+  void _syncSelectedClassLabel() {    final match = _classes
+        .where((c) => (c['id']?.toString() ?? '') == _selectedClassId)
+        .toList();
+    if (match.isNotEmpty) {
+      final c = match.first;
+      final section = c['section']?.toString();
+      _selectedClassLabel = c['name']?.toString() ??
+          c['id']?.toString() ??
+          _selectedClassId;
+      if (section != null && section.isNotEmpty) {
+        _selectedClassLabel = '$_selectedClassLabel · $section';
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSubstitutionData() async {
@@ -144,30 +238,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
   Future<void> _loadSyllabusData() async {
     setState(() => _isLoadingSyllabus = true);
     try {
-      var plans = await _service.getLessonPlans(classId: _selectedClassId);
-      if (plans.isEmpty) {
-        // Seed initial lesson plans if none exist yet
-        await _service.submitLessonPlan(
-          classId: _selectedClassId,
-          subject: 'Mathematics',
-          teacherUsername: 'steacher1',
-          chapter: 'Chapter 4',
-          topic: 'Quadratic Equations',
-          plannedDate: '2026-11-10',
-          objective: 'Solve quadratic equations using quadratic formula & factoring.',
-        );
-        await _service.submitLessonPlan(
-          classId: _selectedClassId,
-          subject: 'Science',
-          teacherUsername: 'mrs_gupta',
-          chapter: 'Chapter 6',
-          topic: 'Life Processes',
-          plannedDate: '2026-11-08',
-          objective: 'Understand human digestive and circulatory systems.',
-        );
-        plans = await _service.getLessonPlans(classId: _selectedClassId);
-      }
-
+      final plans = await _service.getLessonPlans(classId: _selectedClassId);
       final summary = await _service.getSyllabusCoverageReport(_selectedClassId);
 
       if (mounted) {
@@ -755,59 +826,95 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                 children: [
                   const Icon(Icons.school, color: Colors.white70, size: 20),
                   const SizedBox(width: 8),
-                  const Text('Class:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  Text(
+                    _isStudent ? 'Class:' : 'Class:',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Builder(
-                      builder: (context) {
-                        final items = <DropdownMenuItem<String>>[];
-                        final seen = <String>{};
-                        for (final c in _classes) {
-                          final id = c['id']?.toString() ?? '';
-                          if (id.isNotEmpty && !seen.contains(id)) {
-                            seen.add(id);
-                            final name = '${c['name'] ?? 'Class'} - ${c['section'] ?? ''}'.trim();
-                            items.add(DropdownMenuItem<String>(
-                              value: id,
-                              child: Text(name),
-                            ));
-                          }
-                        }
-                        final effectiveValue = seen.contains(_selectedClassId)
-                            ? _selectedClassId
-                            : (seen.isNotEmpty ? seen.first : null);
-
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: effectiveValue,
-                              dropdownColor: const Color(0xFF0F766E),
-                              icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                              items: items,
-                              onChanged: (v) {
-                                if (v != null) {
-                                  setState(() => _selectedClassId = v);
-                                  _loadClassesAndTimetable();
-                                }
-                              },
+                  // Students: fixed label of their OWN class — the backend
+                  // resolves it; they can never pick another class.
+                  if (_isStudent)
+                    Expanded(
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.lock_outline, color: Colors.white70, size: 14),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _studentClassLabel,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white, fontWeight: FontWeight.bold),
+                              ),
                             ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _classes.any((c) =>
+                                    (c['id']?.toString() ?? '') == _selectedClassId)
+                                ? _selectedClassId
+                                : null,
+                            hint: Text(_selectedClassLabel.isEmpty
+                                ? (_selectedClassId.isEmpty
+                                    ? 'Select class'
+                                    : _selectedClassId)
+                                : _selectedClassLabel),
+                            dropdownColor: const Color(0xFF0F766E),
+                            icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            isExpanded: true,
+                            items: _classes.map((c) {
+                              final section = c['section']?.toString();
+                              final name = c['name']?.toString() ??
+                                  c['id']?.toString() ??
+                                  'Unknown';
+                              return DropdownMenuItem<String>(
+                                value: c['id']?.toString(),
+                                child: Text(
+                                  (section == null || section.isEmpty)
+                                      ? name
+                                      : '$name · $section',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (v) {
+                              if (v != null) {
+                                setState(() => _selectedClassId = v);
+                                _syncSelectedClassLabel();
+                                _loadClassesAndTimetable();
+                              }
+                            },
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle, color: Colors.white),
-                    tooltip: 'Add Timetable Slot',
-                    onPressed: () => _showAddEditSlotDialog(),
-                  ),
+                  if (!_isStudent) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle, color: Colors.white),
+                      tooltip: 'Add Timetable Slot',
+                      onPressed: () => _showAddEditSlotDialog(),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 12),
@@ -820,7 +927,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     return GestureDetector(
                       onTap: () {
                         setState(() => _selectedDay = day);
-                        _loadClassesAndTimetable();
+                        _reloadTimetable();
                       },
                       child: Container(
                         margin: const EdgeInsets.only(right: 8),
@@ -855,18 +962,20 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     children: [
                       Icon(Icons.calendar_today_outlined, size: 56, color: Colors.grey.shade400),
                       const SizedBox(height: 12),
-                      Text('No timetable periods scheduled for $_selectedDay',
+                      Text('No classes scheduled for $_selectedDay',
                           style: TextStyle(fontSize: 15, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F766E),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      if (!_isStudent) ...[
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F766E),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () => _showAddEditSlotDialog(),
+                          icon: const Icon(Icons.add, color: Colors.white),
+                          label: const Text('Add Period Slot', style: TextStyle(color: Colors.white)),
                         ),
-                        onPressed: () => _showAddEditSlotDialog(),
-                        icon: const Icon(Icons.add, color: Colors.white),
-                        label: const Text('Add Period Slot', style: TextStyle(color: Colors.white)),
-                      ),
+                      ],
                     ],
                   ),
                 )
@@ -973,21 +1082,24 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               const SizedBox(height: 4),
                               Row(
                                 children: [
-                                  InkWell(
-                                    onTap: () => _showAddEditSlotDialog(existingSlot: p),
-                                    child: Icon(Icons.edit_outlined, size: 18, color: Colors.grey.shade500),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  InkWell(
-                                    onTap: () async {
-                                      final id = p['id']?.toString();
-                                      if (id != null) {
-                                        await _service.deleteTimetableEntry(id);
-                                        _loadClassesAndTimetable();
-                                      }
-                                    },
-                                    child: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
-                                  ),
+                                  if (!_isStudent) ...[
+                                    InkWell(
+                                      onTap: () => _showAddEditSlotDialog(existingSlot: p),
+                                      child: Icon(Icons.edit_outlined, size: 18, color: Colors.grey.shade500),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    InkWell(
+                                      onTap: () async {
+                                        final id = p['id']?.toString();
+                                        if (id != null) {
+                                          await _service.deleteTimetableEntry(id);
+                                          _reloadTimetable();
+                                        }
+                                      },
+                                      child: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                                    ),
+                                  ] else
+                                    Icon(Icons.verified_outlined, size: 16, color: Colors.grey.shade400),
                                 ],
                               ),
                             ],
@@ -1453,9 +1565,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text(
-          'Timetable & Morning Coverage',
-          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        title: Text(
+          _isStudent ? 'My Routine' : 'Timetable & Morning Coverage',
+          style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
         ),
         foregroundColor: Colors.white,
         elevation: 0,
@@ -1496,22 +1608,30 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
               unselectedLabelColor: Colors.white,
               labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
               unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-              tabs: const [
-                Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Timetable Grid'),
-                Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Coverage'),
-                Tab(icon: Icon(Icons.menu_book, size: 16), text: 'Syllabus Tracker'),
-              ],
+              tabs: _isStudent
+                  ? const [
+                      Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'My Routine'),
+                    ]
+                  : const [
+                      Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Timetable Grid'),
+                      Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Coverage'),
+                      Tab(icon: Icon(Icons.menu_book, size: 16), text: 'Syllabus Tracker'),
+                    ],
             ),
           ),
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildTimetableTab(),
-          _buildSubstitutionTab(),
-          _buildSyllabusTab(),
-        ],
+        children: _isStudent
+            ? [
+                _buildTimetableTab(),
+              ]
+            : [
+                _buildTimetableTab(),
+                _buildSubstitutionTab(),
+                _buildSyllabusTab(),
+              ],
       ),
     );
   }

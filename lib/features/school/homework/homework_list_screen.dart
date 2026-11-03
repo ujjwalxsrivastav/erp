@@ -23,6 +23,15 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
   List<Map<String, dynamic>> _classes = [];
   Map<String, dynamic>? _selectedClass;
 
+  // Student context (resolved from backend — students do NOT pick a class)
+  bool _isStudent = false;
+  String _username = '';
+  Map<String, dynamic>? _myProfile;
+  // homework_id -> my submission record (proof of what/when was submitted)
+  Map<String, Map<String, dynamic>> _mySubmissions = {};
+  // homework_id -> real submission count from backend (teacher view)
+  Map<String, int> _submissionCounts = {};
+
   // Subject colour map (cycles by index)
   static const List<Color> _subjectColors = [
     Color(0xFF3B82F6),
@@ -46,10 +55,30 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     _init();
   }
 
+  bool get _canPickClass => !_isStudent;
+
   Future<void> _init() async {
     final role = await _authService.getCurrentUserRole();
     if (!mounted) return;
-    setState(() => _role = role);
+    setState(() {
+      _role = role;
+      _isStudent = role == 'student' || role == 'parent';
+    });
+
+    // Students: resolve their own class from the backend (no class chooser).
+    if (_isStudent) {
+      final username = await _authService.getCurrentUsername() ?? '';
+      final profile =
+          await _schoolService.getSchoolStudentProfile(username);
+      if (!mounted) return;
+      setState(() {
+        _username = username;
+        _myProfile = profile;
+      });
+      await _loadHomework();
+      return;
+    }
+
     await _loadClasses();
   }
 
@@ -63,15 +92,91 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     await _loadHomework();
   }
 
+  /// Class identifiers for filtering, derived from the student's own profile.
+  ({
+    String? classId,
+    String? className,
+    String? section,
+  }) get _myClassFilter {
+    final classId = _myProfile?['class_id']?.toString();
+    final className = _myProfile?['class_name']?.toString();
+    String? section = _myProfile?['section']?.toString();
+    if ((section == null || section.isEmpty) &&
+        className != null &&
+        className.contains('-')) {
+      section = className.substring(className.lastIndexOf('-') + 1);
+    }
+    return (classId: classId, className: className, section: section);
+  }
+
   Future<void> _loadHomework() async {
     setState(() => _isLoading = true);
-    final classId = _selectedClass?['id']?.toString();
-    final hw = await _schoolService.getHomework(classId: classId);
+
+    List<Map<String, dynamic>> hw;
+    if (_isStudent) {
+      final f = _myClassFilter;
+      hw = await _schoolService.getHomework(
+        classId: f.classId,
+        className: f.className,
+        section: f.section,
+      );
+      // Real submission records for THIS student from the backend
+      final subs = await _schoolService.getHomeworkSubmissions(
+          studentUsername: _username);
+      _mySubmissions = {
+        for (final s in subs)
+          if (s['homework_id'] != null) s['homework_id'].toString(): s,
+      };
+    } else {
+      final classId = _selectedClass?['id']?.toString();
+      hw = await _schoolService.getHomework(classId: classId);
+      // Real submission counts for the whole class (teacher view)
+      final ids = hw.map((h) => h['id']?.toString() ?? '').toList();
+      _submissionCounts =
+          await _schoolService.getHomeworkSubmissionCounts(ids);
+    }
+
     if (!mounted) return;
     setState(() {
       _homework = hw;
       _isLoading = false;
     });
+  }
+
+  bool _isPastDue(Map<String, dynamic> hw) {
+    final dueDateStr = hw['due_date'] as String?;
+    if (dueDateStr == null) return false;
+    try {
+      final due = DateTime.parse(dueDateStr);
+      return due.isBefore(DateTime.now().subtract(const Duration(days: 1)));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _submittedByMe(Map<String, dynamic> hw) =>
+      _mySubmissions.containsKey(hw['id']?.toString());
+
+  /// Active homework for the student = everything I have not submitted yet
+  /// (overdue ones stay here with a red badge until handled).
+  List<Map<String, dynamic>> get _studentActive =>
+      _homework.where((h) => !_submittedByMe(h)).toList()
+        ..sort((a, b) {
+          final aPast = _isPastDue(a) ? 1 : 0;
+          final bPast = _isPastDue(b) ? 1 : 0;
+          if (aPast != bPast) return aPast - bPast;
+          return (a['due_date']?.toString() ?? '')
+              .compareTo(b['due_date']?.toString() ?? '');
+        });
+
+  /// Past/Submitted for the student = everything I HAVE submitted (real
+  /// backend records), plus anything still unsubmitted but past due.
+  List<Map<String, dynamic>> get _studentPast {
+    final submitted = _homework.where(_submittedByMe).toList();
+    final missed = _homework
+        .where((h) => !_submittedByMe(h) && _isPastDue(h))
+        .toList();
+    return [...submitted, ...missed];
   }
 
   List<Map<String, dynamic>> get _active {
@@ -108,13 +213,69 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
 
   Future<void> _markSubmitted(Map<String, dynamic> hw) async {
     final id = hw['id']?.toString();
-    if (id == null) return;
-    final ok = await _schoolService.updateHomeworkStatus(id, 'submitted');
+    if (id == null || !_isStudent) return;
+
+    final noteController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Submit Homework',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(hw['title']?.toString() ?? '',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(hw['subject']?.toString() ?? '',
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: noteController,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'Note to teacher (optional)',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirm Submission'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final ok = await _schoolService.submitHomework(
+      homeworkId: id,
+      studentUsername: _username,
+      studentId: _myProfile?['id']?.toString(),
+      studentName: _myProfile?['name']?.toString(),
+      note: noteController.text,
+    );
+
     if (!mounted) return;
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Marked as submitted!'),
+          content: Text('Homework submitted! Your submission is recorded.'),
           backgroundColor: Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
         ),
@@ -123,7 +284,8 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Failed to update status. Try again.'),
+          content:
+              Text('Could not save submission. Database setup missing — run database/school_homework_submissions_setup.sql in Supabase.'),
           backgroundColor: Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
@@ -131,21 +293,134 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     }
   }
 
-  Future<void> _markReviewed(Map<String, dynamic> hw) async {
+  /// Student: show the real backend record of what was submitted.
+  void _showMySubmission(Map<String, dynamic> hw) {
+    final sub = _mySubmissions[hw['id']?.toString()];
+    if (sub == null) return;
+    final submittedAt = sub['submitted_at']?.toString() ?? '';
+    String dateLabel = submittedAt;
+    try {
+      final dt = DateTime.parse(submittedAt);
+      dateLabel =
+          '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {}
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.task_alt, color: Color(0xFF10B981)),
+            SizedBox(width: 8),
+            Text('My Submission', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detailRow('Homework', hw['title']?.toString() ?? '-'),
+            _detailRow('Subject', hw['subject']?.toString() ?? '-'),
+            _detailRow('Class', hw['class_name']?.toString() ?? '-'),
+            _detailRow('Submitted on', dateLabel),
+            _detailRow('Status',
+                (sub['status']?.toString() ?? 'submitted').toUpperCase()),
+            _detailRow('Note', sub['note']?.toString() ?? '—'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 108,
+            child: Text(label,
+                style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Color(0xFF111827))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Teacher: real backend submission list for a homework item.
+  Future<void> _showTeacherSubmissions(Map<String, dynamic> hw) async {
     final id = hw['id']?.toString();
     if (id == null) return;
-    final ok = await _schoolService.updateHomeworkStatus(id, 'reviewed');
+    final subs = await _schoolService.getHomeworkSubmissions(homeworkId: id);
     if (!mounted) return;
-    if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Homework marked as reviewed!'),
-          backgroundColor: Color(0xFF8B5CF6),
-          behavior: SnackBarBehavior.floating,
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Submissions — ${hw['title']?.toString() ?? ''}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text('${subs.length} student(s) submitted',
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 14),
+            if (subs.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('No submissions yet.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey)),
+              )
+            else
+              ...subs.map((s) {
+                final name = s['student_name']?.toString() ??
+                    s['student_username']?.toString() ??
+                    'Student';
+                String when = s['submitted_at']?.toString() ?? '';
+                try {
+                  final dt = DateTime.parse(when);
+                  when =
+                      '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                } catch (_) {}
+                final note = s['note']?.toString();
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 20),
+                  title: Text(name,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: note != null && note.isNotEmpty
+                      ? Text(note, maxLines: 1, overflow: TextOverflow.ellipsis)
+                      : null,
+                  trailing: Text(when,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                );
+              }),
+          ],
         ),
-      );
-      await _loadHomework();
-    }
+      ),
+    );
   }
 
   @override
@@ -158,9 +433,18 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
   Widget build(BuildContext context) {
     final isTeacher = _role == 'teacher' || _role == 'steacher' || _role == 'admin' || _role == 'sadmin';
 
+    final active = _isStudent ? _studentActive : _active;
+    final past = _isStudent ? _studentPast : _past;
+
+    // Never let the dropdown hold a class that is not in the item list.
     final effectiveSelectedClass = _classes.contains(_selectedClass)
         ? _selectedClass
         : (_classes.isNotEmpty ? _classes.first : null);
+
+    // Header label: student's own class, or the teacher-selected class
+    final headerLabel = _isStudent
+        ? (_myProfile?['class_name']?.toString() ?? 'Class 10')
+        : (_selectedClass?['name']?.toString() ?? _selectedClass?['id']?.toString() ?? '');
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -184,8 +468,8 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
           preferredSize: const Size.fromHeight(102),
           child: Column(
             children: [
-              // Class selector dropdown
-              if (_classes.isNotEmpty)
+              // Students see only their own class — no class chooser.
+              if (_canPickClass && _classes.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: Container(
@@ -212,6 +496,31 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                         setState(() => _selectedClass = v);
                         _loadHomework();
                       },
+                    ),
+                  ),
+                )
+              else if (_isStudent && headerLabel.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.class_outlined, color: Colors.white, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$headerLabel · ${_myProfile?['name']?.toString() ?? _username}',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -242,8 +551,10 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                   labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                   unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
                   tabs: [
-                    Tab(text: 'Active (${_active.length})'),
-                    Tab(text: 'Completed (${_past.length})'),
+                    Tab(text: 'Active (${active.length})'),
+                    Tab(text: _isStudent
+                        ? 'Submitted (${past.length})'
+                        : 'Completed (${past.length})'),
                   ],
                 ),
               ),
@@ -269,12 +580,12 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                 RefreshIndicator(
                   onRefresh: _loadHomework,
                   color: const Color(0xFF3B82F6),
-                  child: _buildHomeworkList(_active, isTeacher: isTeacher),
+                  child: _buildHomeworkList(active, isTeacher: isTeacher, isPast: false),
                 ),
                 RefreshIndicator(
                   onRefresh: _loadHomework,
                   color: const Color(0xFF3B82F6),
-                  child: _buildHomeworkList(_past, isTeacher: isTeacher, isPast: true),
+                  child: _buildHomeworkList(past, isTeacher: isTeacher, isPast: true),
                 ),
               ],
             ),
@@ -302,7 +613,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  isPast ? 'No past homework' : 'No active homework!',
+                  isPast ? ( _isStudent ? 'Nothing submitted yet' : 'No past homework') : 'No active homework!',
                   style: TextStyle(
                     fontSize: 18,
                     color: Colors.grey.shade500,
@@ -311,7 +622,11 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  isPast ? 'Submitted and past-due homework appear here.' : 'All caught up 🎉',
+                  isPast
+                      ? (_isStudent
+                          ? 'Your submitted homework will appear here.'
+                          : 'Submitted and past-due homework appear here.')
+                      : 'All caught up 🎉',
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
                 ),
               ],
@@ -326,27 +641,33 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
       itemBuilder: (context, index) =>
-          _buildHomeworkCard(items[index], isTeacher: isTeacher),
+          _buildHomeworkCard(items[index], isTeacher: isTeacher, isPast: isPast),
     );
   }
 
-  Widget _buildHomeworkCard(Map<String, dynamic> hw, {required bool isTeacher}) {
+  Widget _buildHomeworkCard(Map<String, dynamic> hw,
+      {required bool isTeacher, required bool isPast}) {
     final subject = hw['subject'] as String? ?? 'Subject';
     final title = hw['title'] as String? ?? 'Homework';
     final description = hw['description'] as String? ?? '';
     final className = hw['class_name'] as String? ?? hw['class_id']?.toString() ?? '';
-    final teacherName = hw['teacher_name'] as String? ?? hw['teacher'] as String? ?? '';
+    final teacherName = hw['teacher_name'] as String? ?? hw['teacher_username'] as String? ?? '';
     final dueDateStr = hw['due_date'] as String? ?? '';
-    final status = (hw['status'] as String? ?? 'pending').toLowerCase();
-    final submissionCount = hw['submission_count'] as int? ?? 0;
 
     final subjectColor = _colorForSubject(subject);
-    final isSubmitted = status == 'submitted' || status == 'reviewed';
+    // Student: submitted state comes from the real backend submission record.
+    final mySubmission = _isStudent ? _mySubmissions[hw['id']?.toString()] : null;
+    final isSubmitted = _isStudent ? mySubmission != null : false;
+    final missed = _isStudent && !isSubmitted && _isPastDue(hw);
+    // Teacher: real submission count from backend.
+    final submissionCount = _isStudent
+        ? 0
+        : (_submissionCounts[hw['id']?.toString()] ?? 0);
 
     // Days remaining calculation
     String daysLabel = '';
     Color daysColor = const Color(0xFFEF4444);
-    if (dueDateStr.isNotEmpty) {
+    if (!isSubmitted && dueDateStr.isNotEmpty) {
       try {
         final due = DateTime.parse(dueDateStr);
         final diff = due.difference(DateTime.now()).inDays;
@@ -365,6 +686,16 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       }
     }
 
+    // For submitted items show the backend submission date instead.
+    if (mySubmission != null) {
+      try {
+        final dt = DateTime.parse(
+            (mySubmission['submitted_at'] as String?)?.toString() ?? '');
+        daysLabel = 'Submitted ${dt.day}/${dt.month}/${dt.year}';
+        daysColor = const Color(0xFF10B981);
+      } catch (_) {}
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -378,157 +709,180 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header row with subject colour
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: subjectColor.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: isSubmitted ? () => _showMySubmission(hw) : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row with subject colour
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: subjectColor.withValues(alpha: 0.08),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: subjectColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.book_outlined, color: Colors.white, size: 16),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    subject,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: subjectColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Teacher: real submission count badge from backend
+                  if (isTeacher && submissionCount > 0)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '$submissionCount submitted',
+                        style: const TextStyle(
+                          color: Color(0xFF3B82F6),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  if (isSubmitted)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        '✓ Submitted',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    )
+                  else if (missed)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Missed',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: subjectColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.book_outlined, color: Colors.white, size: 16),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  subject,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: subjectColor,
-                  ),
-                ),
-                const Spacer(),
-                // Teacher: submission count badge
-                if (isTeacher && submissionCount > 0)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '$submissionCount submitted',
-                      style: const TextStyle(
-                        color: Color(0xFF3B82F6),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                if (isSubmitted)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      status == 'reviewed' ? '✓ Reviewed' : '✓ Submitted',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
 
-          // Body
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-                if (description.isNotEmpty) ...[
-                  const SizedBox(height: 6),
+            // Body
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    description,
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F2937),
+                    ),
                   ),
-                ],
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    if (className.isNotEmpty) ...[
-                      Icon(Icons.class_outlined, size: 14, color: Colors.grey.shade400),
-                      const SizedBox(width: 4),
-                      Text(className, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                      const SizedBox(width: 12),
-                    ],
-                    if (teacherName.isNotEmpty) ...[
-                      Icon(Icons.person_outline, size: 14, color: Colors.grey.shade400),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          teacherName,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ] else
-                      const Spacer(),
-                    if (daysLabel.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: daysColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.calendar_today, size: 12, color: daysColor),
-                            const SizedBox(width: 4),
-                            Text(
-                              daysLabel,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: daysColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  if (description.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      description,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
-                ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      if (className.isNotEmpty) ...[
+                        Icon(Icons.class_outlined, size: 14, color: Colors.grey.shade400),
+                        const SizedBox(width: 4),
+                        Text(className, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                        const SizedBox(width: 12),
+                      ],
+                      if (teacherName.isNotEmpty) ...[
+                        Icon(Icons.person_outline, size: 14, color: Colors.grey.shade400),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            teacherName,
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ] else
+                        const Spacer(),
+                      if (daysLabel.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: daysColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(isSubmitted ? Icons.check_circle : Icons.calendar_today,
+                                  size: 12, color: daysColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                daysLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: daysColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
 
-                // Action buttons
-                const SizedBox(height: 12),
-                if (!isSubmitted) ...[
+                  // Action buttons
+                  const SizedBox(height: 12),
                   if (isTeacher)
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () => _markReviewed(hw),
-                        icon: const Icon(Icons.check_circle_outline, size: 16),
-                        label: const Text('Mark Reviewed'),
+                        onPressed: () => _showTeacherSubmissions(hw),
+                        icon: const Icon(Icons.people_outline, size: 16),
+                        label: Text(
+                          submissionCount > 0
+                              ? 'View Submissions ($submissionCount)'
+                              : 'View Submissions',
+                        ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF8B5CF6),
                           side: const BorderSide(color: Color(0xFF8B5CF6)),
@@ -537,7 +891,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                         ),
                       ),
                     )
-                  else
+                  else if (!isSubmitted)
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -554,12 +908,27 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                           padding: const EdgeInsets.symmetric(vertical: 10),
                         ),
                       ),
+                    )
+                  else if (isPast)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showMySubmission(hw),
+                        icon: const Icon(Icons.visibility_outlined, size: 16),
+                        label: const Text('View My Submission'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF10B981),
+                          side: const BorderSide(color: Color(0xFF10B981)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
                     ),
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

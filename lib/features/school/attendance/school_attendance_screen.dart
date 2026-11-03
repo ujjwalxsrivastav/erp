@@ -20,6 +20,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
   String? _username;
   String? _instituteId;
   bool _isEditable = false;
+  bool _isStudent = false;
+  String _myName = '';
+  String _myClass = '';
+  List<Map<String, dynamic>> _myRecords = [];
 
   // Classes
   List<Map<String, dynamic>> _classes = [];
@@ -81,10 +85,42 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
     if (!mounted) return;
     setState(() {
       _username = username;
+      _isStudent = role == 'student' || role == 'parent';
       _isEditable = role == 'teacher' || role == 'admin' || role == 'sadmin' || role == 'steacher';
     });
+
+    // Students see THEIR OWN attendance — no class picking, no marking grid.
+    if (_isStudent) {
+      try {
+        final profile =
+            await _schoolService.getSchoolStudentProfile(username ?? '');
+        if (mounted && profile != null) {
+          setState(() {
+            _myName = profile['name']?.toString() ?? (username ?? 'Student');
+            final className = profile['class_name']?.toString();
+            final section = profile['section']?.toString();
+            _myClass = className ?? 'Class 10';
+            if (section != null && section.isNotEmpty) {
+              _myClass = '$_myClass-$section';
+            }
+          });
+        }
+        await _loadMyAttendance();
+      } catch (_) {}
+      return;
+    }
+
     await _resolveInstituteId();
     await _loadClasses();
+  }
+
+  Future<void> _loadMyAttendance() async {
+    if (_username == null) return;
+    try {
+      final records =
+          await _schoolService.getStudentAttendanceRecords(_username!);
+      if (mounted) setState(() => _myRecords = records);
+    } catch (_) {}
   }
 
   Future<void> _resolveInstituteId() async {
@@ -286,6 +322,30 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
   // ─── Build ───
   @override
   Widget build(BuildContext context) {
+    // Student self-view: their own attendance, never a class-marking grid.
+    if (_isStudent) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          title: const Text(
+            'My Attendance',
+            style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+          ),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF064E3B), Color(0xFF047857), Color(0xFF10B981)],
+              ),
+            ),
+          ),
+        ),
+        body: _buildStudentAttendanceView(),
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -384,6 +444,259 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       ),
     );
   }
+
+  // ─── Student self-view ───
+  Widget _buildStudentAttendanceView() {
+    // Keep only the current month's records
+    final monthRecords = _myRecords.where((r) {
+      final d = DateTime.tryParse(r['date']?.toString() ?? '');
+      return d != null &&
+          d.year == _selectedDate.year &&
+          d.month == _selectedDate.month;
+    }).toList();
+
+    final present =
+        monthRecords.where((r) => r['status'] == 'present').length;
+    final absent = monthRecords.where((r) => r['status'] == 'absent').length;
+    final late = monthRecords.where((r) => r['status'] == 'late').length;
+    final leave = monthRecords.where((r) => r['status'] == 'leave').length;
+    final pct = monthRecords.isEmpty
+        ? 0.0
+        : ((present + late) / monthRecords.length) * 100;
+
+    return RefreshIndicator(
+      onRefresh: _loadMyAttendance,
+      color: const Color(0xFF10B981),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Identity + month header
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF10B981), Color(0xFF34D399)],
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _myName.isNotEmpty ? '$_myName · $_myClass' : 'My Attendance',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(
+                      '${pct.toStringAsFixed(0)}%',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('this month',
+                        style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const Spacer(),
+                    Text(
+                      '${_selectedDate.month}/${_selectedDate.year}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Month navigation
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _selectedDate =
+                        DateTime(_selectedDate.year, _selectedDate.month - 1, 1);
+                  });
+                },
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Text(
+                '${_monthLabel(_selectedDate.month)} ${_selectedDate.year}',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+              IconButton(
+                onPressed: () {
+                  final now = DateTime.now();
+                  final next =
+                      DateTime(_selectedDate.year, _selectedDate.month + 1, 1);
+                  if (next.isBefore(now) ||
+                      (next.year == now.year && next.month == now.month)) {
+                    setState(() {
+                      _selectedDate = next;
+                    });
+                  }
+                },
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          // Month totals
+          Row(
+            children: [
+              _myStatChip('Present', present, const Color(0xFF10B981)),
+              _myStatChip('Absent', absent, const Color(0xFFEF4444)),
+              _myStatChip('Late', late, const Color(0xFFF59E0B)),
+              _myStatChip('Leave', leave, const Color(0xFF6366F1)),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Records for the month
+          if (monthRecords.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Column(
+                children: [
+                  Icon(Icons.event_busy_outlined, size: 56, color: Colors.grey.shade300),
+                  const SizedBox(height: 12),
+                  const Text('No attendance recorded this month',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
+                ],
+              ),
+            )
+          else
+            ...monthRecords.map((r) {
+              final status = (r['status']?.toString() ?? '').toLowerCase();
+              final color =
+                  _statusColors[status] ?? const Color(0xFF64748B);
+              final icon = _statusIcons[status] ?? Icons.help_outline;
+              DateTime? d;
+              try {
+                d = DateTime.parse(r['date'].toString());
+              } catch (_) {}
+              final weekday = d != null
+                  ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                      [d.weekday - 1]
+                  : '';
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            d != null ? '${d.day}' : '-',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: color,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        d != null ? '$weekday, ${d.day}/${d.month}/${d.year}' : '-',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(icon, size: 13, color: color),
+                          const SizedBox(width: 4),
+                          Text(
+                            status.isEmpty ? 'Unknown' :
+                                status[0].toUpperCase() + status.substring(1),
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: color),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _myStatChip(String label, int count, Color color) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Text('$count',
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: color)),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 10.5, color: color.withValues(alpha: 0.8))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _monthLabel(int month) => const [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ][month - 1];
 
   // ─── Daily Tab ───
   Widget _buildDailyTab() {

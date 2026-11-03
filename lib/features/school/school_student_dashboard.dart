@@ -75,29 +75,84 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
   }
 
   Future<void> _loadStudentData() async {
-    final username = await _authService.getCurrentUsername();
-    if (mounted) {
+    final username = await _authService.getCurrentUsername() ?? '';
+
+    // Identity from the backend: display name, class, admission number
+    Map<String, dynamic>? profile;
+    try {
+      profile = await _schoolService.getSchoolStudentProfile(username);
+    } catch (_) {}
+    if (mounted && profile != null) {
+      final className = profile['class_name']?.toString();
+      final section = profile['section']?.toString();
       setState(() {
-        _studentName = username ?? 'Student';
-        _admissionNo = 'SCH2026${username?.toUpperCase() ?? "001"}';
+        _studentName = profile?['name']?.toString() ?? username;
+        _studentClass = className ?? _studentClass;
+        if (className != null && section != null && section.isNotEmpty) {
+          _studentClass = '$_studentClass-$section';
+        }
+        _admissionNo = profile?['admission_no']?.toString() ?? _admissionNo;
       });
     }
 
     try {
-      final hw = await _schoolService.getHomework(classId: _studentClass);
-      final attPct = await _schoolService.getStudentAttendancePercent(username ?? '');
+      // Homework for the student's own class (no class picking anywhere).
+      // Homework rows may store class_id, 'Class 10-A' or 'Class 10' — the
+      // service filter covers all variants.
+      final hw = await _schoolService.getHomework(
+        classId: profile?['class_id']?.toString(),
+        className: profile?['class_name']?.toString(),
+      );
+      final mySubmissions =
+          await _schoolService.getHomeworkSubmissions(studentUsername: username);
+      final submittedIds = mySubmissions
+          .map((s) => s['homework_id']?.toString() ?? '')
+          .toSet();
+      final notSubmitted =
+          hw.where((h) => !submittedIds.contains(h['id']?.toString() ?? ''));
+      final selected = notSubmitted.take(3).toList();
+      final attPct = await _schoolService.getStudentAttendancePercent(username);
+      double feesDue = 0.0;
+      try {
+        final fees = await _schoolService.getStudentFees(username);
+        feesDue = fees.fold(0.0, (sum, f) {
+          final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
+          final paid = (f['paid_amount'] as num?)?.toDouble() ?? 0.0;
+          return sum + (amount - (paid < amount ? paid : amount));
+        });
+      } catch (_) {}
       if (mounted) {
         setState(() {
-          if (hw.isNotEmpty) {
-            _homework = hw.take(3).map((h) => {
-              'subject': h['subject'] ?? 'General',
-              'title': h['title'] ?? 'Homework Assignment',
-              'due': h['due_date'] ?? 'Upcoming',
-              'color': const Color(0xFF3B82F6),
+          if (selected.isNotEmpty) {
+            _homework = selected.map((h) {
+              final dueStr = h['due_date']?.toString() ?? '';
+              String due = 'Upcoming';
+              try {
+                final dueDate = DateTime.parse(dueStr);
+                final diff = dueDate.difference(DateTime.now()).inDays;
+                if (diff < 0) {
+                  due = '${-diff}d overdue';
+                } else if (diff == 0) {
+                  due = 'Due today';
+                } else if (diff == 1) {
+                  due = 'Tomorrow';
+                } else {
+                  due = 'In $diff days';
+                }
+              } catch (_) {
+                due = dueStr.isNotEmpty ? dueStr : 'Upcoming';
+              }
+              return {
+                'subject': h['subject'] ?? 'General',
+                'title': h['title'] ?? 'Homework Assignment',
+                'due': due,
+                'color': const Color(0xFF3B82F6),
+              };
             }).toList();
-            _pendingHomework = hw.where((h) => h['status'] == 'pending').length;
           }
+          _pendingHomework = notSubmitted.length;
           _attendancePercent = attPct;
+          _pendingFees = feesDue > 0 ? '₹${feesDue.toStringAsFixed(0)}' : '₹0';
         });
       }
     } catch (_) {}

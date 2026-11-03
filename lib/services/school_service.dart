@@ -789,8 +789,22 @@ class SchoolService {
     return 94.2;
   }
 
-  Future<int> getPendingHomeworkCount(String classId) async {
+  /// A student's own attendance records (backend truth, newest first).
+  Future<List<Map<String, dynamic>>> getStudentAttendanceRecords(
+      String studentId) async {
     try {
+      final response = await _supabase
+          .from('school_attendance')
+          .select()
+          .eq('student_id', studentId)
+          .order('date', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<int> getPendingHomeworkCount(String classId) async {    try {
       final now = DateTime.now().toIso8601String().substring(0, 10);
       final response = await _supabase
           .from('school_homework')
@@ -914,11 +928,36 @@ class SchoolService {
   }
 
   // ===== HOMEWORK =====
-  Future<List<Map<String, dynamic>>> getHomework({String? classId}) async {
+  /// Build PostgREST `or(...)` filter that matches a class robustly across
+  /// backend formats (class_id like 'cls-10a', class_name 'Class 10-A',
+  /// or base name 'Class 10' + section 'A').
+  String? _homeworkClassFilter(String? classId, String? className, String? section) {
+    final conditions = <String>[];
+    if (classId != null && classId.isNotEmpty) {
+      conditions.add('class_id.eq.$classId');
+    }
+    if (className != null && className.isNotEmpty) {
+      conditions.add('class_name.eq."$className"');
+      // Base class name without the "-section" suffix, e.g. 'Class 10-A' -> 'Class 10'
+      final base = className.contains('-') ? className.substring(0, className.lastIndexOf('-')) : className;
+      if (base != className && base.isNotEmpty) {
+        if (section != null && section.isNotEmpty) {
+          conditions.add('and(class_name.eq."$base",section.eq."$section")');
+        }
+        conditions.add('and(class_name.eq."$base",section.is.null)');
+        conditions.add('and(class_name.eq."$base",section.eq."")');
+      }
+    }
+    if (conditions.isEmpty) return null;
+    return conditions.join(',');
+  }
+
+  Future<List<Map<String, dynamic>>> getHomework({String? classId, String? className, String? section}) async {
+    final filter = _homeworkClassFilter(classId, className, section);
     try {
       var query = _supabase.from('school_homework').select();
-      if (classId != null && classId.isNotEmpty) {
-        query = query.or('class_id.eq.$classId,class_name.eq.$classId');
+      if (filter != null && filter.isNotEmpty) {
+        query = query.or(filter);
       }
       final response = await query.order('created_at', ascending: false);
       final list = List<Map<String, dynamic>>.from(response);
@@ -926,9 +965,17 @@ class SchoolService {
     } catch (_) {}
 
     if (_homeworkStore.isNotEmpty) {
-      if (classId != null && classId.isNotEmpty) {
-        return _homeworkStore.where((h) => h['class_id'] == classId || h['class_name'] == classId).toList();
-      }
+      final matches = _homeworkStore.where((h) {
+        if (filter == null || filter.isEmpty) return true;
+        final hClass = h['class_id']?.toString() ?? '';
+        final hName = h['class_name']?.toString() ?? '';
+        final base = (className != null && className.contains('-'))
+            ? className.substring(0, className.lastIndexOf('-'))
+            : className;
+        return hClass == (classId ?? '') ||
+            (className != null && (hName == className || hName == base));
+      }).toList();
+      if (matches.isNotEmpty) return matches;
       return _homeworkStore;
     }
 
@@ -1019,6 +1066,91 @@ class SchoolService {
       'submitted': submitted,
       'completion_rate': total > 0 ? (submitted / total) * 100 : 0.0,
     };
+  }
+
+  /// Resolve a school student's profile (name, class, section) from the backend.
+  Future<Map<String, dynamic>?> getSchoolStudentProfile(String username) async {
+    if (username.isEmpty) return null;
+    try {
+      final response = await _supabase
+          .from('school_students')
+          .select()
+          .eq('username', username)
+          .maybeSingle();
+      return response == null ? null : Map<String, dynamic>.from(response);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Fetch homework submission records from the backend — optionally all
+  /// submissions of one homework, or all submissions of one student.
+  /// Each row proves *who* submitted *what* and *when*.
+  Future<List<Map<String, dynamic>>> getHomeworkSubmissions({
+    String? homeworkId,
+    String? studentUsername,
+  }) async {
+    try {
+      var query = _supabase.from('school_homework_submissions').select();
+      if (homeworkId != null && homeworkId.isNotEmpty) {
+        query = query.eq('homework_id', homeworkId);
+      }
+      if (studentUsername != null && studentUsername.isNotEmpty) {
+        query = query.eq('student_username', studentUsername);
+      }
+      final response = await query.order('submitted_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Record a student's submission for a homework item in the backend.
+  /// Re-submitting the same homework updates the existing record.
+  Future<bool> submitHomework({
+    required String homeworkId,
+    required String studentUsername,
+    String? studentId,
+    String? studentName,
+    String? note,
+  }) async {
+    final row = {
+      'homework_id': homeworkId,
+      'student_username': studentUsername,
+      if (studentId != null) 'student_id': studentId,
+      if (studentName != null) 'student_name': studentName,
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      'submitted_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+      'status': 'submitted',
+    };
+    try {
+      // Upsert on the (homework_id, student_username) unique pair
+      await _supabase
+          .from('school_homework_submissions')
+          .upsert(row, onConflict: 'homework_id,student_username');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Real submission counts per homework id (teacher dashboard badges).
+  Future<Map<String, int>> getHomeworkSubmissionCounts(
+      List<String> homeworkIds) async {
+    if (homeworkIds.isEmpty) return {};
+    final counts = <String, int>{};
+    try {
+      final response = await _supabase
+          .from('school_homework_submissions')
+          .select('homework_id')
+          .inFilter('homework_id', homeworkIds);
+      for (final row in List<Map<String, dynamic>>.from(response)) {
+        final id = row['homework_id']?.toString() ?? '';
+        if (id.isNotEmpty) counts[id] = (counts[id] ?? 0) + 1;
+      }
+    } catch (_) {}
+    return counts;
   }
 
   // ===== MARKS & REPORT CARDS =====
@@ -1256,21 +1388,101 @@ class SchoolService {
     return _feePaymentsStore.where((f) => f['status'] == 'pending').toList();
   }
 
+  /// Record a fee payment. The payment is *settle-ledger aware*:
+  ///
+  ///  - It is allocated to the student's outstanding demand rows
+  ///    (matched `head` first, then earliest due date), incrementing
+  ///    `paid_amount` and flipping status `pending -> partial -> paid`.
+  ///  - Receipt details are stamped on the demand row that was settled.
+  ///  - Nothing is added to the outstanding total: paying never inflates fees.
+  ///  - If there is no outstanding demand left (e.g. counter-recorded extra
+  ///    income), the payment is inserted as its own paid row.
   Future<String> recordFeePayment(Map<String, dynamic> data) async {
     final receiptNo = 'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
-    final paymentData = {
-      ...data,
-      'receipt_no': receiptNo,
-      'status': 'paid',
-      'paid_amount': data['amount'] ?? 0.0,
-      'created_at': DateTime.now().toIso8601String(),
-    };
+    final studentId = data['student_id']?.toString() ?? '';
+    final paymentMode = data['payment_mode']?.toString() ?? 'Cash';
+    final paymentHead = data['head']?.toString() ?? '';
+    double remaining = (data['amount'] as num?)?.toDouble() ?? 0.0;
+    if (remaining <= 0) {
+      throw Exception('Payment amount must be greater than zero');
+    }
 
-    _feePaymentsStore.insert(0, paymentData);
-
+    // Fetch outstanding demands for this student from the backend
+    List<Map<String, dynamic>> demands = [];
     try {
-      await _supabase.from('school_fee_payments').insert(paymentData);
+      final resp = await _supabase
+          .from('school_fee_payments')
+          .select()
+          .eq('student_id', studentId)
+          .inFilter('status', ['pending', 'partial']);
+      demands = List<Map<String, dynamic>>.from(resp);
     } catch (_) {}
+
+    // Allocate: matching head first, then earliest due date
+    demands.sort((a, b) {
+      final aHead = (a['head']?.toString() ?? '').toLowerCase();
+      final bHead = (b['head']?.toString() ?? '').toLowerCase();
+      final lHead = paymentHead.toLowerCase();
+      final aMatch = lHead.isNotEmpty && aHead.contains(lHead.split(' ').first) ? 0 : 1;
+      final bMatch = lHead.isNotEmpty && bHead.contains(lHead.split(' ').first) ? 0 : 1;
+      if (aMatch != bMatch) return aMatch - bMatch;
+      final aDue = a['due_date']?.toString() ?? '9999-12-31';
+      final bDue = b['due_date']?.toString() ?? '9999-12-31';
+      return aDue.compareTo(bDue);
+    });
+
+    double applied = 0.0;
+    for (final d in demands) {
+      if (remaining <= 0) break;
+      final demandAmount = (d['amount'] as num?)?.toDouble() ?? 0.0;
+      final alreadyPaid = (d['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final outstanding = demandAmount - alreadyPaid;
+      if (outstanding <= 0) continue;
+
+      final pay = outstanding <= remaining ? outstanding : remaining;
+      remaining -= pay;
+      applied += pay;
+      final newPaid = alreadyPaid + pay;
+      final newStatus = newPaid >= demandAmount - 0.01 ? 'paid' : 'partial';
+
+      try {
+        await _supabase.from('school_fee_payments').update({
+          'paid_amount': newPaid,
+          'status': newStatus,
+          'receipt_no': receiptNo,
+          'payment_mode': paymentMode,
+        }).eq('id', d['id']?.toString() ?? '');
+      } catch (_) {}
+    }
+
+    // Payment beyond outstanding demands → record as its own paid row
+    if (remaining > 0.0 && remaining != (data['amount'] as num?)?.toDouble()) {
+      try {
+        await _supabase.from('school_fee_payments').insert({
+          ...data,
+          'amount': remaining,
+          'paid_amount': remaining,
+          'receipt_no': receiptNo,
+          'payment_mode': paymentMode,
+          'status': 'paid',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+    } else if (applied <= 0.0) {
+      // No outstanding demand at all (e.g. first counter charge) → keep old behavior
+      final paymentData = {
+        ...data,
+        'receipt_no': receiptNo,
+        'status': 'paid',
+        'paid_amount': data['amount'] ?? 0.0,
+        'created_at': DateTime.now().toIso8601String(),
+      };
+      try {
+        await _supabase.from('school_fee_payments').insert(paymentData);
+      } catch (_) {}
+      _feePaymentsStore.insert(0, Map<String, dynamic>.from(paymentData));
+    }
+
     return receiptNo;
   }
 

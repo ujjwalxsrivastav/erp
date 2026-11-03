@@ -21,24 +21,38 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   String _studentUsername = 'sstudent1';
   String _studentName = 'Aarav Sharma';
   String _studentClass = 'Class 10-A';
+  String _studentClassId = 'cls-10a';
 
   List<Map<String, dynamic>> _feeHistory = [];
   Map<String, dynamic> _defaulterData = {};
 
-  final Map<String, dynamic> _feeBreakdown = {
-    'Tuition Fee (Quarterly)': 18000,
-    'Exam & Assessment Fee': 2500,
-    'Sports & Physical Education': 1500,
-    'Science & Computer Labs': 2000,
-    'Library & Digital Resources': 1000,
-  };
+  // Totals computed from the real backend ledger.
+  // Every row is a fee demand; `paid_amount` is what has been settled
+  // against it. Paying can never change the outstanding total — it only
+  // moves money from `pending` to `paid`.
+  double get _totalFees =>
+      _feeHistory.fold(0.0, (sum, f) => sum + ((f['amount'] as num?)?.toDouble() ?? 0.0));
 
-  double get _totalFees => _feeHistory.fold(0.0, (sum, f) => sum + ((f['amount'] as num?)?.toDouble() ?? 0.0));
   double get _paidFees => _feeHistory.fold(0.0, (sum, f) {
-    if (f['status'] == 'paid') return sum + ((f['amount'] as num?)?.toDouble() ?? 0.0);
-    return sum + ((f['paid_amount'] as num?)?.toDouble() ?? 0.0);
-  });
-  double get _pendingFees => (_totalFees - _paidFees).clamp(0.0, double.infinity);
+        final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
+        final paid = (f['paid_amount'] as num?)?.toDouble() ?? 0.0;
+        return sum + (paid < amount ? paid : amount);
+      });
+
+  double get _pendingFees => ((_totalFees - _paidFees).clamp(0.0, double.infinity));
+
+  /// Demand rows that still have an outstanding amount (latest first).
+  List<Map<String, dynamic>> get _outstandingDemands {
+    final items = _feeHistory.where((f) {
+      final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
+      final paid = (f['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      return amount - paid > 0.01;
+    }).toList();
+    items.sort((a, b) =>
+        (a['due_date']?.toString() ?? '9999-12-31')
+            .compareTo(b['due_date']?.toString() ?? '9999-12-31'));
+    return items;
+  }
 
   @override
   void initState() {
@@ -65,6 +79,8 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
 
       final fees = await _schoolService.getStudentFees(targetUser);
       final defaulters = await _schoolService.getDefaultersWithAgeing();
+      final profile =
+          await _schoolService.getSchoolStudentProfile(targetUser);
 
       if (mounted) {
         setState(() {
@@ -72,6 +88,11 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
           _studentUsername = targetUser;
           _feeHistory = fees;
           _defaulterData = defaulters;
+          if (profile != null) {
+            _studentName = profile['name']?.toString() ?? _studentName;
+            _studentClass = profile['class_name']?.toString() ?? _studentClass;
+            _studentClassId = profile['class_id']?.toString() ?? _studentClassId;
+          }
           _isLoading = false;
         });
       }
@@ -86,7 +107,9 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   }
 
   void _showPaymentDialog() {
-    final amountController = TextEditingController(text: _pendingFees > 0 ? _pendingFees.toStringAsFixed(0) : '25000');
+    final double pendingCap = _pendingFees;
+    final amountController = TextEditingController(
+        text: pendingCap > 0 ? pendingCap.toStringAsFixed(0) : '');
     String paymentMode = 'UPI / Online';
     final notesController = TextEditingController();
 
@@ -108,6 +131,14 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Paying for: $_studentClass ($_studentName)', style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                if (pendingCap > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      'Outstanding: ₹${pendingCap.toStringAsFixed(0)}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFF59E0B)),
+                    ),
+                  ),
                 const SizedBox(height: 16),
                 const Text('Amount to Pay (₹)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
@@ -160,25 +191,22 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () async {
+              onPressed: () {
                 final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
                 if (amt <= 0) return;
+                if (pendingCap > 0 && amt > pendingCap + 0.01) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Amount cannot exceed outstanding ₹${pendingCap.toStringAsFixed(0)}'),
+                      backgroundColor: const Color(0xFFEF4444),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  return;
+                }
 
                 Navigator.pop(ctx);
-                final receiptNo = await _schoolService.recordFeePayment({
-                  'student_id': _studentUsername,
-                  'class_id': 'cls-10a',
-                  'amount': amt,
-                  'payment_mode': paymentMode,
-                  'head': 'Quarterly Tuition & Academic Fee',
-                  'due_date': DateTime.now().toIso8601String().substring(0, 10),
-                });
-
-                await _loadFeeData();
-
-                if (mounted) {
-                  _showReceiptDialog(receiptNo, amt, paymentMode);
-                }
+                _confirmFeePayment(amt, paymentMode, notesController.text.trim());
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF59E0B),
@@ -191,6 +219,32 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _confirmFeePayment(
+      double amt, String paymentMode, String notes) async {
+    // Target the earliest outstanding demand's head — the backend allocates
+    // the payment by matching head first, then earliest due date.
+    final demands = _outstandingDemands;
+    final head = demands.isNotEmpty
+        ? (demands.first['head']?.toString() ?? 'Composite Fee')
+        : 'Composite Fee';
+
+    final receiptNo = await _schoolService.recordFeePayment({
+      'student_id': _studentUsername,
+      'class_id': _studentClassId,
+      'amount': amt,
+      'payment_mode': paymentMode,
+      'head': head,
+      'due_date': DateTime.now().toIso8601String().substring(0, 10),
+      if (notes.isNotEmpty) 'note': notes,
+    });
+
+    await _loadFeeData();
+
+    if (mounted) {
+      _showReceiptDialog(receiptNo, amt, paymentMode);
+    }
   }
 
   void _showReceiptDialog(String receiptNo, double amount, String mode) {
@@ -524,28 +578,84 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('CBSE Class 10 Fee Breakdown (Quarterly)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+                Text(
+                  'Fee Structure ($_studentClass)',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Live demand ledger — received from accounts backend',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
                 const SizedBox(height: 14),
-                ..._feeBreakdown.entries.map((e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
+                if (_outstandingDemands.isEmpty && _feeHistory.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text('No fee records found for this student.',
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                  )
+                else if (_outstandingDemands.isEmpty)
+                  const Row(
                     children: [
-                      Text(e.key, style: const TextStyle(fontSize: 14, color: Color(0xFF374151))),
-                      const Spacer(),
-                      Text(
-                        '₹${e.value}',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1F2937)),
-                      ),
+                      Icon(Icons.check_circle, color: Color(0xFF10B981), size: 18),
+                      SizedBox(width: 8),
+                      Text('All demands fully settled',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF10B981))),
                     ],
-                  ),
-                )),
+                  )
+                else
+                  ..._outstandingDemands.map((d) {
+                    final amount = (d['amount'] as num?)?.toDouble() ?? 0.0;
+                    final paid = (d['paid_amount'] as num?)?.toDouble() ?? 0.0;
+                    final remaining = (amount - paid).clamp(0.0, double.infinity);
+                    final isPartial = paid > 0.01 && remaining > 0.01;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  d['head']?.toString() ?? 'Fee',
+                                  style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  'Due ${d['due_date']?.toString() ?? '—'}${isPartial ? ' · ₹${paid.toStringAsFixed(0)} already paid' : ''}',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isPartial) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text('Partial',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFF59E0B))),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Text(
+                            '₹${remaining.toStringAsFixed(0)}',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
                 const Divider(),
                 Row(
                   children: [
-                    const Text('Quarter Total', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+                    const Text('Outstanding Total', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
                     const Spacer(),
                     Text(
-                      '₹${_feeBreakdown.values.fold(0, (a, b) => a + (b as int))}',
+                      '₹${_pendingFees.toStringAsFixed(0)}',
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B)),
                     ),
                   ],
