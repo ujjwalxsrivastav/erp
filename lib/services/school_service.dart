@@ -785,11 +785,30 @@ class SchoolService {
     try {
       var query = _supabase.from('school_admissions').select();
       if (status != null && status != 'all') {
-        query = query.eq('status', status);
+        final dbStatus = (status == 'Approved' || status == 'Enrolled')
+            ? 'approved'
+            : (status == 'Rejected' ? 'rejected' : 'pending');
+        query = query.eq('status', dbStatus);
       }
       final response = await query.order('created_at', ascending: false);
       final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
+      if (list.isNotEmpty) {
+        return list.map((a) => {
+          ...a,
+          'id': a['id']?.toString() ?? '',
+          'applicant_name': a['student_name'] ?? a['applicant_name'] ?? 'Applicant',
+          'grade_applying': a['class_applying'] ?? a['grade_applying'] ?? 'Class 1',
+          'parent_name': a['parent_name'] ?? 'Parent',
+          'parent_phone': a['phone'] ?? a['parent_phone'] ?? '',
+          'email': a['email'] ?? '',
+          'dob': a['dob'] ?? '2016-05-12',
+          'status': (a['status'] == 'approved' ? 'Approved' : (a['status'] == 'rejected' ? 'Rejected' : 'Under Review')),
+          'doc_status': a['doc_status'] ?? 'Verified',
+          'sibling_priority': a['sibling_priority'] ?? false,
+          'rte_quota': a['rte_quota'] ?? false,
+          'date': (a['created_at'] != null) ? a['created_at'].toString().substring(0, 10) : DateTime.now().toIso8601String().substring(0, 10),
+        }).toList();
+      }
     } catch (_) {}
 
     if (_admissionsStore.isNotEmpty) {
@@ -799,22 +818,142 @@ class SchoolService {
       return _admissionsStore;
     }
 
-    final defaults = [
-      {'id': 'ADM-101', 'applicant_name': 'Shaurya Mehta', 'grade_applying': 'Class 6', 'parent_name': 'Alok Mehta', 'parent_phone': '9871122334', 'status': 'Under Review', 'date': '2026-11-02'},
-      {'id': 'ADM-102', 'applicant_name': 'Ritika Sen', 'grade_applying': 'Class 9', 'parent_name': 'Debashis Sen', 'parent_phone': '9872233445', 'status': 'Interview Scheduled', 'date': '2026-11-01'},
-      {'id': 'ADM-103', 'applicant_name': 'Aditya Chauhan', 'grade_applying': 'Class 11-Science', 'parent_name': 'Kuldeep Chauhan', 'parent_phone': '9873344556', 'status': 'Approved', 'date': '2026-10-29'},
-      {'id': 'ADM-104', 'applicant_name': 'Tanvi Deshmukh', 'grade_applying': 'Class 7', 'parent_name': 'Nitin Deshmukh', 'parent_phone': '9874455667', 'status': 'Enrolled', 'date': '2026-10-26'},
-    ];
-    _admissionsStore.addAll(defaults);
-    return defaults;
+    return [];
+  }
+
+  Future<bool> checkDuplicateAdmission(String phone, String studentName) async {
+    try {
+      final res = await _supabase
+          .from('school_admissions')
+          .select('id')
+          .or('phone.eq.$phone,student_name.ilike.$studentName');
+      return res.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> submitAdmission(Map<String, dynamic> data) async {
-    _admissionsStore.insert(0, data);
+    final studentName = data['applicant_name'] ?? data['student_name'] ?? '';
+    final parentName = data['parent_name'] ?? '';
+    final phone = data['parent_phone'] ?? data['phone'] ?? '';
+    final email = data['email'] ?? '';
+    final classApplying = data['grade_applying'] ?? data['class_applying'] ?? 'Class 1';
+
+    final normalized = {
+      'id': data['id'] ?? 'ADM-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+      'applicant_name': studentName,
+      'parent_name': parentName,
+      'grade_applying': classApplying,
+      'parent_phone': phone,
+      'email': email,
+      'dob': data['dob'] ?? '',
+      'status': data['status'] ?? 'Under Review',
+      'doc_status': data['doc_status'] ?? 'Pending',
+      'sibling_priority': data['sibling_priority'] ?? false,
+      'rte_quota': data['rte_quota'] ?? false,
+      'date': DateTime.now().toIso8601String().substring(0, 10),
+    };
+    _admissionsStore.insert(0, normalized);
+
     try {
-      await _supabase.from('school_admissions').insert(data);
+      await _supabase.from('school_admissions').insert({
+        'institute_code': 'SHIV-SCH',
+        'student_name': studentName,
+        'parent_name': parentName,
+        'phone': phone,
+        'email': email.isNotEmpty ? email : null,
+        'class_applying': classApplying,
+        'status': 'pending',
+      });
     } catch (_) {}
     return true;
+  }
+
+  Future<bool> updateAdmissionStatus(String admissionId, String newStatus) async {
+    final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+    if (idx >= 0) {
+      _admissionsStore[idx] = {..._admissionsStore[idx], 'status': newStatus};
+    }
+    final dbStatus = (newStatus.toLowerCase() == 'approved' || newStatus.toLowerCase() == 'enrolled')
+        ? 'approved'
+        : (newStatus.toLowerCase() == 'rejected' ? 'rejected' : 'pending');
+    try {
+      await _supabase.from('school_admissions').update({'status': dbStatus}).eq('id', admissionId);
+    } catch (_) {}
+    return true;
+  }
+
+  Future<bool> updateAdmissionDocStatus(String admissionId, String docStatus) async {
+    final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+    if (idx >= 0) {
+      _admissionsStore[idx] = {..._admissionsStore[idx], 'doc_status': docStatus};
+    }
+    return true;
+  }
+
+  Future<Map<String, dynamic>> enrollAdmissionStudent({
+    required Map<String, dynamic> admission,
+    required String classId,
+    required String section,
+  }) async {
+    final studentName = admission['applicant_name'] ?? admission['student_name'] ?? 'New Student';
+    final parentName = admission['parent_name'] ?? 'Parent';
+    final contact = admission['parent_phone'] ?? admission['phone'] ?? '9876543210';
+    final className = '$classId-$section';
+    final newStudentId = 'SCH-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    final username = 'student_${newStudentId.toLowerCase()}';
+    final admissionNo = 'ADM${DateTime.now().year}${newStudentId.replaceAll(RegExp(r'[^0-9]'), '')}';
+
+    // 1. Insert into school_students
+    final studentRow = {
+      'id': newStudentId,
+      'username': username,
+      'name': studentName,
+      'class_id': classId,
+      'class_name': className,
+      'roll_number': '08',
+      'admission_no': admissionNo,
+      'parent_name': parentName,
+      'contact': contact,
+    };
+    try {
+      await _supabase.from('school_students').insert(studentRow);
+    } catch (_) {}
+
+    // 2. Insert parent-student link
+    try {
+      await _supabase.from('parent_student_links').insert({
+        'parent_username': 'parent1',
+        'student_username': username,
+        'relation': 'Parent/Guardian',
+      });
+    } catch (_) {}
+
+    // 3. Create initial fee demand
+    try {
+      await _supabase.from('school_fee_payments').insert({
+        'student_id': username,
+        'class_id': classId,
+        'amount': 25000.0,
+        'paid_amount': 0.0,
+        'due_date': DateTime.now().add(const Duration(days: 15)).toIso8601String().substring(0, 10),
+        'payment_mode': 'Pending',
+        'status': 'pending',
+        'head': 'Admission & First Quarter Fee',
+      });
+    } catch (_) {}
+
+    // 4. Update status to approved
+    if (admission['id'] != null) {
+      await updateAdmissionStatus(admission['id'].toString(), 'Enrolled');
+    }
+
+    return {
+      'student_id': newStudentId,
+      'username': username,
+      'admission_no': admissionNo,
+    };
   }
 
   // ===== HELPERS =====

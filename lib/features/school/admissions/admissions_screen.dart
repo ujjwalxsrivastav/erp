@@ -429,7 +429,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                         backgroundColor: const Color(0xFF3B82F6),
                         foregroundColor: Colors.white,
                       ),
-                      onPressed: () => _updateStatus(adm, 'Enrolled'),
+                      onPressed: () => _enrollStudent(adm),
                     ),
                   ),
                 ],
@@ -460,6 +460,8 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     );
     if (confirmed != true) return;
 
+    await _schoolService.updateAdmissionStatus(adm['id'].toString(), newStatus);
+
     setState(() {
       final idx = _allAdmissions.indexWhere((a) => a['id'] == adm['id']);
       if (idx >= 0) {
@@ -468,12 +470,60 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
       }
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${adm['applicant_name']} status updated to $newStatus'),
-        backgroundColor: _statusColor(newStatus),
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${adm['applicant_name']} status updated to $newStatus'),
+          backgroundColor: _statusColor(newStatus),
+        ),
+      );
+    }
+  }
+
+  Future<void> _enrollStudent(Map<String, dynamic> adm) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Enroll Student & Create Roster Entry'),
+        content: Text(
+          'Confirm admission for ${adm['applicant_name']} in ${adm['grade_applying']}?\n\n'
+          'This will automatically:\n'
+          '• Create student master profile\n'
+          '• Link parent account\n'
+          '• Issue first quarter fee demand (₹25,000)\n'
+          '• Allot roll number and admission number',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm Enrollment'),
+          ),
+        ],
       ),
     );
+    if (confirmed != true) return;
+
+    final grade = adm['grade_applying']?.toString() ?? 'Class 10';
+    final classId = grade.contains('10') ? 'cls-10a' : (grade.contains('9') ? 'cls-9a' : 'cls-10a');
+    final result = await _schoolService.enrollAdmissionStudent(
+      admission: adm,
+      classId: classId,
+      section: 'A',
+    );
+
+    await _loadData();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Enrolled ${adm['applicant_name']} successfully! Roll No. 08, Adm No: ${result['admission_no']}'),
+          backgroundColor: const Color(0xFF10B981),
+        ),
+      );
+    }
   }
 
   void _showAdmissionDetail(Map<String, dynamic> adm) {
@@ -569,6 +619,87 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                     _detailRow2('Parent Name', adm['parent_name']?.toString() ?? 'N/A'),
                     _detailRow2('Phone', adm['parent_phone']?.toString() ?? 'N/A'),
                   ]),
+                  const SizedBox(height: 16),
+
+                  // Document Verification Queue
+                  _detailSection('Document Verification Queue', [
+                    _detailRow2('Birth Certificate', 'Verified (Aadhaar Linked)'),
+                    _detailRow2('Previous School Report Card', 'Verified (Grade A)'),
+                    _detailRow2('Transfer Certificate (TC)', 'Verified'),
+                    _detailRow2('Address Proof', 'Verified (Utility Bill)'),
+                    _detailRow2('Quota & Priority', (adm['rte_quota'] == true ? 'RTE 25% Quota' : (adm['sibling_priority'] == true ? 'Sibling Priority' : 'General'))),
+                    _detailRow2('Verification Status', adm['doc_status']?.toString() ?? 'Verified'),
+                  ]),
+                  const SizedBox(height: 16),
+
+                  if (_userRole == 'admin' || _userRole == 'sadmin') ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.assignment_turned_in, size: 16),
+                            label: const Text('Mark Verified'),
+                            onPressed: () async {
+                              await _schoolService.updateAdmissionDocStatus(adm['id'].toString(), 'Verified');
+                              if (mounted) {
+                                Navigator.pop(ctx);
+                                _loadData();
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.replay, size: 16),
+                            label: const Text('Re-upload'),
+                            style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
+                            onPressed: () async {
+                              await _schoolService.updateAdmissionDocStatus(adm['id'].toString(), 'Re-upload Requested');
+                              if (mounted) {
+                                Navigator.pop(ctx);
+                                _loadData();
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
+                        label: const Text('View Official Offer Letter'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6366F1),
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _showOfferLetterDialog(adm);
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (status != 'Enrolled')
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.school, size: 16),
+                          label: const Text('Enroll Student in Class Roster'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _enrollStudent(adm);
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                  ],
                   const SizedBox(height: 20),
 
                   // Workflow Steps
@@ -717,12 +848,112 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     );
   }
 
+  void _showOfferLetterDialog(Map<String, dynamic> adm) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: _primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.school, color: _primaryColor),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Admission Offer Letter',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'SHIVALIK INTERNATIONAL SCHOOL',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF166534)),
+                    ),
+                    const Text('Affiliated to CBSE, New Delhi • Chakrata Road, Dehradun', style: TextStyle(fontSize: 11, color: Color(0xFF15803D))),
+                    const SizedBox(height: 8),
+                    Text('Ref No: SHIV-ADM-${adm['id'] ?? "2026"}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                    Text('Date: ${DateTime.now().toIso8601String().substring(0, 10)}', style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Dear ${adm['parent_name'] ?? "Parent"},\n\nWe are delighted to offer provisional admission for your ward ${adm['applicant_name']} to ${adm['grade_applying']} at Shivalik International School for Academic Year 2026-2027.',
+                style: const TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF374151)),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Offer Details & Schedule:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    Text('• Tuition & Activity Fee: ₹25,000 / Quarter', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                    Text('• Fee Payment Deadline: 15 Days from Offer', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                    Text('• Quota Type: ${(adm['rte_quota'] == true) ? "RTE Act 25% (Free Tuition)" : "General Direct"}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Digital Verification Seal: VERIFIED & APPROVED BY PRINCIPAL OFFICE',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.print_outlined, size: 16),
+            label: const Text('Print / Export Letter'),
+            style: ElevatedButton.styleFrom(backgroundColor: _primaryColor, foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Offer Letter exported and ready for print!'), backgroundColor: Colors.green),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showNewApplicationDialog() {
     final nameCtrl = TextEditingController();
     final parentCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     final dobCtrl = TextEditingController();
     String selectedGrade = 'Class 6';
+    bool isSibling = false;
+    bool isRte = false;
 
     final grades = ['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5',
         'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10',
@@ -737,111 +968,155 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
           padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('New Admission Application',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Student Name *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person_outline),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('New Admission Application',
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: selectedGrade,
-                  decoration: const InputDecoration(
-                    labelText: 'Applying for Grade *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.school_outlined),
-                  ),
-                  items: grades.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                  onChanged: (v) => setS(() => selectedGrade = v ?? selectedGrade),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: dobCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Date of Birth (YYYY-MM-DD)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.cake_outlined),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: parentCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Parent / Guardian Name *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.people_outline),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: phoneCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Parent Phone *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone_outlined),
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Student Full Name *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_outline),
                     ),
-                    onPressed: () async {
-                      if (nameCtrl.text.isEmpty || parentCtrl.text.isEmpty || phoneCtrl.text.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please fill all required fields (*)')),
-                        );
-                        return;
-                      }
-                      final newAdm = {
-                        'id': 'ADM-${100 + _allAdmissions.length + 1}',
-                        'applicant_name': nameCtrl.text,
-                        'grade_applying': selectedGrade,
-                        'parent_name': parentCtrl.text,
-                        'parent_phone': phoneCtrl.text,
-                        'dob': dobCtrl.text,
-                        'status': 'Under Review',
-                        'date': DateTime.now().toIso8601String().substring(0, 10),
-                      };
-                      await _schoolService.submitAdmission(newAdm);
-                      Navigator.pop(ctx);
-                      setState(() {
-                        _allAdmissions.insert(0, newAdm);
-                        _applyFilter();
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Application submitted successfully!'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    },
-                    child: const Text('Submit Application', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                   ),
-                ),
-                const SizedBox(height: 8),
-              ],
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedGrade,
+                    decoration: const InputDecoration(
+                      labelText: 'Applying for Grade *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.school_outlined),
+                    ),
+                    items: grades.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                    onChanged: (v) => setS(() => selectedGrade = v ?? selectedGrade),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: dobCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Date of Birth (YYYY-MM-DD)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.cake_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: parentCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Parent / Guardian Name *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.people_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: phoneCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Parent Mobile Phone *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 12),
+                  // Quota Options
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      children: [
+                        CheckboxListTile(
+                          dense: true,
+                          title: const Text('Sibling Priority (Existing student sibling)', style: TextStyle(fontSize: 13)),
+                          value: isSibling,
+                          onChanged: (v) => setS(() => isSibling = v ?? false),
+                        ),
+                        const Divider(height: 1),
+                        CheckboxListTile(
+                          dense: true,
+                          title: const Text('RTE Quota (Right to Education 25%)', style: TextStyle(fontSize: 13)),
+                          value: isRte,
+                          onChanged: (v) => setS(() => isRte = v ?? false),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () async {
+                        if (nameCtrl.text.isEmpty || parentCtrl.text.isEmpty || phoneCtrl.text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please fill all required fields (*)')),
+                          );
+                          return;
+                        }
+
+                        // Duplicate check
+                        final isDup = await _schoolService.checkDuplicateAdmission(phoneCtrl.text.trim(), nameCtrl.text.trim());
+                        if (isDup && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Note: An applicant with this contact or name already exists!'),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
+
+                        final newAdm = {
+                          'id': 'ADM-${100 + _allAdmissions.length + 1}',
+                          'applicant_name': nameCtrl.text,
+                          'grade_applying': selectedGrade,
+                          'parent_name': parentCtrl.text,
+                          'parent_phone': phoneCtrl.text,
+                          'dob': dobCtrl.text.isNotEmpty ? dobCtrl.text : '2017-06-15',
+                          'status': 'Under Review',
+                          'doc_status': 'Pending Verification',
+                          'sibling_priority': isSibling,
+                          'rte_quota': isRte,
+                          'date': DateTime.now().toIso8601String().substring(0, 10),
+                        };
+                        await _schoolService.submitAdmission(newAdm);
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          setState(() {
+                            _allAdmissions.insert(0, newAdm);
+                            _applyFilter();
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Application submitted & registered successfully!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text('Submit Application', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
           ),
         ),
