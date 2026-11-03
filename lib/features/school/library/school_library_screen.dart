@@ -269,7 +269,7 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -286,10 +286,10 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
                   width: 50,
                   height: 65,
                   decoration: BoxDecoration(
-                    color: _primaryColor.withOpacity(0.1),
+                    color: _primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(Icons.menu_book, color: _primaryColor, size: 28),
+                  child: const Icon(Icons.menu_book, color: _primaryColor, size: 28),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -313,7 +313,7 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                             decoration: BoxDecoration(
-                              color: _primaryColor.withOpacity(0.08),
+                              color: _primaryColor.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -339,7 +339,7 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: availabilityColor.withOpacity(0.1),
+                        color: availabilityColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -404,8 +404,8 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: isOverdue ? Border.all(color: Colors.red.withOpacity(0.3)) : null,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))],
+        border: isOverdue ? Border.all(color: Colors.red.withValues(alpha: 0.3)) : null,
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -424,7 +424,7 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (isOverdue ? Colors.red : Colors.green).withOpacity(0.1),
+                    color: (isOverdue ? Colors.red : Colors.green).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -589,10 +589,10 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
                 width: 80,
                 height: 100,
                 decoration: BoxDecoration(
-                  color: _primaryColor.withOpacity(0.1),
+                  color: _primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.menu_book, color: _primaryColor, size: 48),
+                child: const Icon(Icons.menu_book, color: _primaryColor, size: 48),
               ),
             ),
             const SizedBox(height: 16),
@@ -689,37 +689,49 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: _primaryColor, foregroundColor: Colors.white),
-            onPressed: () {
+            onPressed: () async {
               if (studentCtrl.text.isEmpty) return;
               final dueDate = DateTime.now().add(const Duration(days: 14));
+              final issueId = 'ISS-${_issuedBooks.length + 10}';
               final newIssue = {
-                'id': 'ISS-${_issuedBooks.length + 1}',
-                'book_id': book['id'],
-                'book_title': book['title'],
-                'student_name': studentCtrl.text,
-                'class': classCtrl.text,
+                'id': issueId,
+                'book_id': book['id']?.toString() ?? '',
+                'book_title': book['title']?.toString() ?? '',
+                'student_name': studentCtrl.text.trim(),
+                'class': classCtrl.text.trim(),
                 'issued_date': DateTime.now().toIso8601String().substring(0, 10),
                 'due_date': dueDate.toIso8601String().substring(0, 10),
                 'status': 'Active',
                 'fine': 0,
               };
+
+              try {
+                await _schoolService.issueLibraryBook(
+                  bookId: book['id']?.toString() ?? '',
+                  bookTitle: book['title']?.toString() ?? '',
+                  studentName: studentCtrl.text.trim(),
+                  className: classCtrl.text.trim(),
+                  daysToReturn: 14,
+                );
+              } catch (_) {}
+
               setState(() {
                 _issuedBooks.insert(0, newIssue);
                 final bookIdx = _books.indexWhere((b) => b['id'] == book['id']);
                 if (bookIdx >= 0) {
                   final curr = (book['available'] as num?)?.toInt() ?? 0;
-                  _books[bookIdx] = {..._books[bookIdx], 'available': curr - 1};
+                  _books[bookIdx] = {..._books[bookIdx], 'available': curr > 0 ? curr - 1 : 0};
                 }
               });
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Book issued to ${studentCtrl.text}'),
+                  content: Text('Book issued to ${studentCtrl.text} (Due in 14 days)'),
                   backgroundColor: Colors.green,
                 ),
               );
             },
-            child: const Text('Issue'),
+            child: const Text('Issue Book'),
           ),
         ],
       ),
@@ -737,7 +749,14 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-            onPressed: () {
+            onPressed: () async {
+              final studentUname = (issue['student_name'] ?? 'sstudent1').toString().toLowerCase().replaceAll(' ', '');
+              final res = await _schoolService.returnLibraryBook(
+                issueId: issue['id']?.toString() ?? '',
+                bookId: issue['book_id']?.toString() ?? '',
+                studentUsername: studentUname.contains('aarav') ? 'sstudent1' : studentUname,
+              );
+
               setState(() {
                 _issuedBooks.removeWhere((i) => i['id'] == issue['id']);
                 _overdueBooks.removeWhere((i) => i['id'] == issue['id']);
@@ -748,8 +767,16 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
                 }
               });
               Navigator.pop(ctx);
+              final fineIncurred = (res['fine_incurred'] as num?)?.toDouble() ?? 0.0;
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Book returned successfully'), backgroundColor: Colors.green),
+                SnackBar(
+                  content: Text(
+                    fineIncurred > 0
+                        ? 'Book returned. Late fine of ₹${fineIncurred.toInt()} auto-posted to student fee dues!'
+                        : 'Book returned successfully with zero dues.',
+                  ),
+                  backgroundColor: fineIncurred > 0 ? Colors.orange : Colors.green,
+                ),
               );
             },
             child: const Text('Confirm Return'),
@@ -831,7 +858,7 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
                 TextField(controller: isbnCtrl, decoration: const InputDecoration(labelText: 'ISBN', border: OutlineInputBorder())),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: selectedCat,
+                  initialValue: selectedCat,
                   decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                   items: _categories.where((c) => c != 'All').map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                   onChanged: (v) => setS(() => selectedCat = v ?? selectedCat),

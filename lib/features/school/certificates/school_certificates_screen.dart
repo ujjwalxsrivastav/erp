@@ -267,7 +267,7 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -285,10 +285,10 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: _primaryColor.withOpacity(0.1),
+                        color: _primaryColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(Icons.description, color: _primaryColor, size: 24),
+                      child: const Icon(Icons.description, color: _primaryColor, size: 24),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -315,7 +315,7 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -465,7 +465,7 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [_primaryColor, _primaryColor.withOpacity(0.8)],
+              colors: [_primaryColor, _primaryColor.withValues(alpha: 0.8)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -544,7 +544,7 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -558,7 +558,7 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(info['icon'] as IconData, color: color, size: 28),
@@ -685,25 +685,68 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
     );
   }
 
-  void _generateAndMarkReady(Map<String, dynamic> req) {
+  Future<void> _generateAndMarkReady(Map<String, dynamic> req) async {
+    final studentName = req['student_name']?.toString() ?? '';
+    final studentUsername = req['username']?.toString() ?? 'sstudent1';
+    final noDues = await _schoolService.checkCertificateNoDues(studentUsername);
+
+    if (!mounted) return;
+
+    if (!noDues['allClear']) {
+      final details = (noDues['details'] as List<String>).join('\n• ');
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.red),
+              SizedBox(width: 8),
+              Text('No-Dues Clearance Required'),
+            ],
+          ),
+          content: Text(
+            'Cannot generate certificate for $studentName. Outstanding dues detected:\n\n• $details\n\nPlease clear all dues before issuing original certificate.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Understood')),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Generate Certificate'),
+        title: const Row(
+          children: [
+            Icon(Icons.verified, color: Colors.green),
+            SizedBox(width: 8),
+            Text('No-Dues Verified'),
+          ],
+        ),
         content: Text(
-          'Generate ${req['cert_type']} for ${req['student_name']} and mark as ready for collection?',
+          'All clearances verified (Library, Transport, Finance). Generate ${req['cert_type']} for $studentName with digital QR seal?',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              _updateRequestStatus(req, 'Ready for Collection');
+              await _schoolService.issueSchoolCertificate(
+                requestId: req['id']?.toString() ?? 'CERT-01',
+                studentName: studentName,
+                className: req['class']?.toString() ?? '10-A',
+                certType: req['cert_type']?.toString() ?? 'Certificate',
+                authorizedBy: 'Principal Dr. R. K. Sharma',
+              );
+              _updateRequestStatus(req, 'Issued');
               _viewCertificate(req);
             },
-            child: const Text('Generate & Mark Ready'),
+            child: const Text('Issue Certificate & Seal'),
           ),
         ],
       ),
@@ -711,10 +754,13 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
   }
 
   void _viewCertificate(Map<String, dynamic> req) {
+    final certSerial = 'CERT-2026-${(req['id'] ?? '001').toString().replaceAll(RegExp(r'[^0-9]'), '').padLeft(4, '0')}';
+    final qrUrl = 'https://shivalikschool.edu.in/verify/certificate?cert_id=$certSerial&student=${Uri.encodeComponent(req['student_name'] ?? 'Student')}';
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -724,48 +770,74 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.school, color: _primaryColor, size: 32),
+                  const Icon(Icons.school, color: _primaryColor, size: 32),
                   const SizedBox(width: 8),
-                  const Text('ERP School', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text('Shivalik International School', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                 ],
               ),
-              const SizedBox(height: 6),
-              const Text('Affiliated to State Board of Education', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
-              const SizedBox(height: 16),
+              const SizedBox(height: 4),
+              const Text('Affiliated to CBSE, New Delhi • Affiliation No: 3530124', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+              const SizedBox(height: 4),
+              Text('Serial: $certSerial', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F766E))),
+              const SizedBox(height: 14),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
                   border: Border(top: BorderSide(color: Colors.grey.shade300), bottom: BorderSide(color: Colors.grey.shade300)),
                 ),
                 child: Text(
                   req['cert_type'] ?? 'Certificate',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1.1),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Text(
-                'This is to certify that ${req['student_name'] ?? 'the student'} of Class ${req['class'] ?? 'N/A'} is a bonafide student of this school during the academic year 2026-27.',
-                style: const TextStyle(fontSize: 13, height: 1.6),
+                'This is to certify that ${req['student_name'] ?? 'the student'} of Class ${req['class'] ?? '10-A'} has cleared all institutional No-Dues and is a bonafide student of this institution during Academic Session 2025-2026.',
+                style: const TextStyle(fontSize: 12, height: 1.5),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF86EFAC)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.qr_code_2, size: 36, color: Color(0xFF15803D)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('CBSE Digital Verification Seal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF15803D))),
+                          Text(qrUrl, style: const TextStyle(fontSize: 9, color: Color(0xFF475569)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Date:', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                      Text(DateTime.now().toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                      const Text('Date of Issue:', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                      Text(DateTime.now().toIso8601String().substring(0, 10), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                     ],
                   ),
-                  Column(
+                  const Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text('Principal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      const Text('ERP School', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                      Text('Principal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      Text('Dr. R. K. Sharma (CBSE)', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
                     ],
                   ),
                 ],
@@ -776,11 +848,11 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
                   Expanded(
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.print, size: 16),
-                      label: const Text('Print'),
+                      label: const Text('Print Certificate'),
                       onPressed: () {
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Sending to printer...')),
+                          const SnackBar(content: Text('Certificate sent to secure printer with QR seal.')),
                         );
                       },
                     ),
