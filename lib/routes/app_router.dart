@@ -21,14 +21,33 @@ import '../features/admin/add_user_screen.dart';
 import '../features/admin/add_teacher_screen.dart';
 import '../features/admin/add_student_screen.dart';
 
+// School imports
+import '../features/school/school_student_dashboard.dart';
+import '../features/school/school_teacher_dashboard.dart';
+import '../features/school/school_admin_dashboard.dart';
+import '../features/school/parent/school_parent_dashboard.dart';
+import '../features/school/homework/homework_list_screen.dart';
+import '../features/school/homework/upload_homework_screen.dart';
+import '../features/school/attendance/school_attendance_screen.dart';
+import '../features/school/marks/marks_entry_screen.dart';
+import '../features/school/marks/report_card_screen.dart';
+import '../features/school/timetable/school_timetable_screen.dart';
+import '../features/school/circulars/circulars_screen.dart';
+import '../features/school/transport/transport_screen.dart';
+import '../features/school/fee/school_fee_screen.dart';
+import '../features/school/admissions/admissions_screen.dart';
+
 final router = GoRouter(
   routes: [
+    // ===== COMMON =====
     GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
       path: '/dashboard',
       builder: (context, state) => const DashboardScreen(),
     ),
+
+    // ===== COLLEGE - STUDENT =====
     GoRoute(
       path: '/student-dashboard',
       builder: (context, state) => const StudentDashboard(),
@@ -77,10 +96,8 @@ final router = GoRouter(
         secondaryColor: Color(0xFF4B5563),
       ),
     ),
-    GoRoute(
-      path: '/timetable',
-      builder: (context, state) => const TimetableScreen(),
-    ),
+
+    // ===== COLLEGE - TEACHER =====
     GoRoute(
       path: '/teacher-dashboard',
       builder: (context, state) => const TeacherDashboardScreen(),
@@ -89,6 +106,8 @@ final router = GoRouter(
       path: '/teacher-profile',
       builder: (context, state) => const TeacherProfileScreen(),
     ),
+
+    // ===== COLLEGE - ADMIN / HR / HOD =====
     GoRoute(
       path: '/admin-dashboard',
       builder: (context, state) => const AdminDashboard(),
@@ -112,6 +131,76 @@ final router = GoRouter(
     GoRoute(
       path: '/admin/add-student',
       builder: (context, state) => const AddStudentScreen(),
+    ),
+
+    // ===== SHARED =====
+    GoRoute(
+      path: '/timetable',
+      builder: (context, state) => const TimetableScreen(),
+    ),
+
+    // ===== SCHOOL - STUDENT =====
+    GoRoute(
+      path: '/school/student-dashboard',
+      builder: (context, state) => const SchoolStudentDashboard(),
+    ),
+
+    // ===== SCHOOL - TEACHER =====
+    GoRoute(
+      path: '/school/teacher-dashboard',
+      builder: (context, state) => const SchoolTeacherDashboard(),
+    ),
+    GoRoute(
+      path: '/school/homework',
+      builder: (context, state) => const HomeworkListScreen(),
+    ),
+    GoRoute(
+      path: '/school/homework/upload',
+      builder: (context, state) => const UploadHomeworkScreen(),
+    ),
+    GoRoute(
+      path: '/school/attendance',
+      builder: (context, state) => const SchoolAttendanceScreen(),
+    ),
+    GoRoute(
+      path: '/school/marks-entry',
+      builder: (context, state) => const MarksEntryScreen(),
+    ),
+    GoRoute(
+      path: '/school/report-card',
+      builder: (context, state) => const ReportCardScreen(),
+    ),
+    GoRoute(
+      path: '/school/timetable',
+      builder: (context, state) => const SchoolTimetableScreen(),
+    ),
+
+    // ===== SCHOOL - ADMIN =====
+    GoRoute(
+      path: '/school/admin-dashboard',
+      builder: (context, state) => const SchoolAdminDashboard(),
+    ),
+    GoRoute(
+      path: '/school/circulars',
+      builder: (context, state) => const CircularsScreen(),
+    ),
+    GoRoute(
+      path: '/school/transport',
+      builder: (context, state) => const TransportScreen(),
+    ),
+    GoRoute(
+      path: '/school/fees',
+      builder: (context, state) => const SchoolFeeScreen(),
+    ),
+    GoRoute(
+      path: '/school/admissions',
+      builder: (context, state) => const AdmissionsScreen(),
+    ),
+
+    // ===== SCHOOL - PARENT =====
+    GoRoute(
+      path: '/school/parent-dashboard',
+      builder: (context, state) => const SchoolParentDashboard(),
     ),
   ],
 );

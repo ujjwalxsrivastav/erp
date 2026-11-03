@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'core/theme/app_theme.dart';
+import 'core/providers/erp_provider.dart';
 import 'routes/app_router.dart';
 import 'services/supabase_service.dart';
 
@@ -12,6 +13,7 @@ void main() async {
     print('Warning: Could not load .env file: $e');
   }
   await SupabaseService.initialize();
+  await ERPProvider().loadFromPrefs();
   runApp(const MyERPApp());
 }
 

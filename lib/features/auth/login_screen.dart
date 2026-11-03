@@ -67,23 +67,45 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
 
       if (result['success']) {
-        final role = result['role'];
-        switch (role) {
-          case 'student':
-            context.go('/student-dashboard');
-            break;
-          case 'teacher':
-            context.go('/teacher-dashboard');
-            break;
-          case 'admin':
-            context.go('/admin-dashboard');
-            break;
-          case 'HR':
-            context.go('/hr-dashboard');
-            break;
-          case 'hod':
-            context.go('/hod-dashboard');
-            break;
+        final role = result['role'] as String;
+        final instituteType = result['institute_type'] as String? ?? 'college';
+        final isSchool = instituteType == 'school';
+
+        if (isSchool) {
+          switch (role) {
+            case 'student':
+              context.go('/school/student-dashboard');
+              break;
+            case 'teacher':
+              context.go('/school/teacher-dashboard');
+              break;
+            case 'admin':
+              context.go('/school/admin-dashboard');
+              break;
+            case 'parent':
+              context.go('/school/parent-dashboard');
+              break;
+            default:
+              context.go('/school/admin-dashboard');
+          }
+        } else {
+          switch (role) {
+            case 'student':
+              context.go('/student-dashboard');
+              break;
+            case 'teacher':
+              context.go('/teacher-dashboard');
+              break;
+            case 'admin':
+              context.go('/admin-dashboard');
+              break;
+            case 'HR':
+              context.go('/hr-dashboard');
+              break;
+            case 'hod':
+              context.go('/hod-dashboard');
+              break;
+          }
         }
       } else {
         _showError(result['message'] ?? 'Login failed');
@@ -309,11 +331,20 @@ class _LoginScreenState extends State<LoginScreen>
             ],
           ),
           const SizedBox(height: AppTheme.sm),
-          _buildCredentialRow('Student', 'BT24CSE154', AppTheme.studentPrimary),
-          _buildCredentialRow('Teacher', 'teacher1', AppTheme.teacherPrimary),
+          // College
+          _buildCredentialRow('College Student', 'BT24CSE154', AppTheme.studentPrimary),
+          _buildCredentialRow('College Teacher', 'teacher1', AppTheme.teacherPrimary),
           _buildCredentialRow('Admin', 'admin1', AppTheme.adminPrimary),
           _buildCredentialRow('HR', 'hr1', const Color(0xFF059669)),
           _buildCredentialRow('HOD', 'hod1', const Color(0xFF0891B2)),
+          const SizedBox(height: 4),
+          Divider(color: AppTheme.extraLightGray, height: 1),
+          const SizedBox(height: 4),
+          // School
+          _buildCredentialRow('School Student', 'sstudent1', const Color(0xFFFF6B6B)),
+          _buildCredentialRow('School Teacher', 'steacher1', const Color(0xFFFF8E53)),
+          _buildCredentialRow('School Admin', 'sadmin1', const Color(0xFF9B59B6)),
+          _buildCredentialRow('Parent', 'parent1', const Color(0xFF1ABC9C)),
         ],
       ),
     );

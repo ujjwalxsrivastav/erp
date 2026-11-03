@@ -19,48 +19,66 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuthAndNavigate() async {
-    // Wait for splash animation
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
 
-    // Check if user is already logged in
     final isLoggedIn = await _authService.isLoggedIn();
 
     if (isLoggedIn) {
-      // Verify session is still valid
       final isValid = await _authService.verifySession();
 
       if (isValid) {
-        // Get user role and navigate to appropriate dashboard
         final role = await _authService.getCurrentUserRole();
+        final instituteType = await _authService.getCurrentInstituteType();
+        final isSchool = instituteType == 'school';
 
         if (!mounted) return;
 
-        switch (role) {
-          case 'student':
-            context.go('/student-dashboard');
-            break;
-          case 'teacher':
-            context.go('/teacher-dashboard');
-            break;
-          case 'admin':
-            context.go('/admin-dashboard');
-            break;
-          case 'HR':
-            context.go('/hr-dashboard');
-            break;
-          default:
-            context.go('/login');
+        if (isSchool) {
+          switch (role) {
+            case 'student':
+              context.go('/school/student-dashboard');
+              break;
+            case 'teacher':
+              context.go('/school/teacher-dashboard');
+              break;
+            case 'admin':
+              context.go('/school/admin-dashboard');
+              break;
+            case 'parent':
+              context.go('/school/parent-dashboard');
+              break;
+            default:
+              context.go('/school/admin-dashboard');
+          }
+        } else {
+          switch (role) {
+            case 'student':
+              context.go('/student-dashboard');
+              break;
+            case 'teacher':
+              context.go('/teacher-dashboard');
+              break;
+            case 'admin':
+              context.go('/admin-dashboard');
+              break;
+            case 'HR':
+              context.go('/hr-dashboard');
+              break;
+            case 'hod':
+              context.go('/hod-dashboard');
+              break;
+            default:
+              context.go('/login');
+          }
         }
       } else {
-        // Session invalid, logout and go to login
         await _authService.logout();
         if (!mounted) return;
         context.go('/login');
       }
     } else {
-      // Not logged in, go to login screen
       if (!mounted) return;
       context.go('/login');
     }
@@ -70,13 +88,14 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF1E3A8A),
-              const Color(0xFF3B82F6),
+              Color(0xFF0F172A),
+              Color(0xFF1E293B),
+              Color(0xFF334155),
             ],
           ),
         ),
@@ -89,30 +108,41 @@ class _SplashScreenState extends State<SplashScreen> {
                 height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withOpacity(0.15),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.5),
+                    color: Colors.white.withOpacity(0.4),
                     width: 3,
                   ),
                 ),
                 child: const Icon(
-                  Icons.school,
+                  Icons.school_rounded,
                   size: 50,
                   color: Colors.white,
                 ),
               ),
               const SizedBox(height: 24),
               const Text(
-                'Shivalik College ERP',
+                'Shivalik ERP',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
+              Text(
+                'College & School Edition',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white.withOpacity(0.7),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 32),
               const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                strokeWidth: 2.5,
               ),
             ],
           ),

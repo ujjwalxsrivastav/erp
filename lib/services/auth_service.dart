@@ -1,4 +1,4 @@
-// FIXED Auth Service - Using username as primary key
+// FIXED Auth Service - Dual Mode (College + School)
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,55 +17,55 @@ class AuthService {
   static const String _keyIsLoggedIn = 'is_logged_in';
   static const String _keyUsername = 'username';
   static const String _keyRole = 'user_role';
+  static const String _keyInstituteType = 'institute_type';
 
   /// Login user with username and password
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
-      // Validate input
       if (username.trim().isEmpty || password.trim().isEmpty) {
         return {
           'success': false,
           'role': null,
+          'institute_type': 'college',
           'message': 'Username and password cannot be empty',
         };
       }
 
-      // Query Supabase for user
-      // Query Supabase for user
       final response = await _supabase.from('users').select('''
             username,
             password,
-            role
+            role,
+            institute_type
           ''').eq('username', username.trim()).maybeSingle();
 
-      // Check if user exists
       if (response == null) {
         return {
           'success': false,
           'role': null,
+          'institute_type': 'college',
           'message': 'Invalid username or password',
         };
       }
 
-      // Verify password
       final storedPassword = response['password'] as String;
       if (storedPassword != password) {
         return {
           'success': false,
           'role': null,
+          'institute_type': 'college',
           'message': 'Invalid username or password',
         };
       }
 
-      // Get user role
       final role = response['role'] as String;
+      final instituteType = (response['institute_type'] as String?) ?? 'college';
 
-      // Save session
-      await _saveSession(username.trim(), role);
+      await _saveSession(username.trim(), role, instituteType);
 
       return {
         'success': true,
         'role': role,
+        'institute_type': instituteType,
         'message': 'Login successful',
       };
     } on PostgrestException catch (e) {
@@ -73,6 +73,7 @@ class AuthService {
       return {
         'success': false,
         'role': null,
+        'institute_type': 'college',
         'message': 'Database error: ${e.message}',
       };
     } catch (e) {
@@ -80,18 +81,20 @@ class AuthService {
       return {
         'success': false,
         'role': null,
+        'institute_type': 'college',
         'message': 'An unexpected error occurred. Please try again.',
       };
     }
   }
 
   /// Save user session to SharedPreferences
-  Future<void> _saveSession(String username, String role) async {
+  Future<void> _saveSession(String username, String role, String instituteType) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyIsLoggedIn, true);
       await prefs.setString(_keyUsername, username);
       await prefs.setString(_keyRole, role);
+      await prefs.setString(_keyInstituteType, instituteType);
     } catch (e) {
       print('Error saving session: $e');
     }
@@ -103,7 +106,6 @@ class AuthService {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getBool(_keyIsLoggedIn) ?? false;
     } catch (e) {
-      print('Error checking login status: $e');
       return false;
     }
   }
@@ -114,7 +116,6 @@ class AuthService {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(_keyRole);
     } catch (e) {
-      print('Error getting user role: $e');
       return null;
     }
   }
@@ -125,8 +126,17 @@ class AuthService {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(_keyUsername);
     } catch (e) {
-      print('Error getting username: $e');
       return null;
+    }
+  }
+
+  /// Get current institute type
+  Future<String?> getCurrentInstituteType() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyInstituteType) ?? 'college';
+    } catch (e) {
+      return 'college';
     }
   }
 
@@ -143,15 +153,14 @@ class AuthService {
   /// Verify if current session is still valid
   Future<bool> verifySession() async {
     try {
-      final isLoggedIn = await this.isLoggedIn();
-      if (!isLoggedIn) return false;
+      final loggedIn = await isLoggedIn();
+      if (!loggedIn) return false;
 
       final username = await getCurrentUsername();
       if (username == null) return false;
 
-      // Verify user still exists in database
       final response = await _supabase
-          .from('user_accounts')
+          .from('users')
           .select('username')
           .eq('username', username)
           .maybeSingle();
