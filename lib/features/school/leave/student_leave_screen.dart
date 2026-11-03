@@ -36,6 +36,11 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
   List<Map<String, dynamic>> _leaves = [];
   List<String> _teacherClasses = [];
 
+  /// Every known class identity (id, "cls-10a", "class10", "Class 10-A")
+  /// mapped to the class name shown in the UI. Leaves stored before the
+  /// class refactor only carry a UUID, so the label has to be resolved.
+  Map<String, String> _classNames = {};
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +64,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
       _isStudent = role == 'student';
     });
 
+    await _loadClassNames();
+
     if (_isStudent) {
       final profile = await _schoolService.getSchoolStudentProfile(username);
       if (!mounted) return;
@@ -68,13 +75,32 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
       if (!mounted) return;
       setState(() {
         _teacherClasses = classes
-            .map((c) => '${c['name'] ?? ''} ${c['section'] ?? ''}'.trim())
+            .map((c) => c['name']?.toString() ?? '')
             .where((c) => c.isNotEmpty)
             .toList();
       });
     }
 
     await _loadLeaves();
+  }
+
+  Future<void> _loadClassNames() async {
+    final classes = await _schoolService.getSchoolClasses();
+    final map = <String, String>{};
+    for (final c in classes) {
+      final name = c['name']?.toString().trim() ?? '';
+      if (name.isEmpty) continue;
+      final id = c['id']?.toString().trim() ?? '';
+      if (id.isNotEmpty) map[id.toLowerCase()] = name;
+      for (final alias in _schoolService.classAliases(
+        classId: id,
+        className: name,
+      )) {
+        map.putIfAbsent(alias, () => name);
+      }
+    }
+    if (!mounted) return;
+    setState(() => _classNames = map);
   }
 
   Future<void> _loadLeaves() async {
@@ -361,12 +387,6 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
     final profile = _profile;
     final classId = profile?['class_id']?.toString() ?? '';
     final className = profile?['class_name']?.toString();
-    var section = profile?['section']?.toString();
-    if ((section == null || section.isEmpty) &&
-        className != null &&
-        className.contains('-')) {
-      section = className.substring(className.lastIndexOf('-') + 1);
-    }
 
     try {
       await _schoolService.applyStudentLeave(
@@ -380,7 +400,6 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
         documentUrl: document.isEmpty ? null : document,
         studentUsername: _username,
         className: className,
-        section: section,
         appliedBy: _username,
         appliedByRole: 'student',
       );
@@ -1022,16 +1041,22 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
   }
 
   String _classLabel(Map<String, dynamic> leave) {
-    final className = leave['class_name']?.toString() ?? '';
-    final section = leave['section']?.toString() ?? '';
-    if (className.isNotEmpty) {
-      if (section.isNotEmpty &&
-          !className.toLowerCase().endsWith('-${section.toLowerCase()}')) {
-        return '$className-$section';
-      }
-      return className;
+    final className = leave['class_name']?.toString().trim() ?? '';
+    final classId = leave['class_id']?.toString().trim() ?? '';
+
+    // Resolve through every known alias so a raw UUID or "cls-10a" becomes
+    // the class name, and "Class 10-A" normalises to "Class 10".
+    for (final alias in _schoolService.classAliases(
+      classId: classId,
+      className: className,
+    )) {
+      final resolved = _classNames[alias];
+      if (resolved != null && resolved.isNotEmpty) return resolved;
     }
-    final classId = leave['class_id']?.toString() ?? '';
+
+    if (className.isNotEmpty) return className;
+    final byId = _classNames[classId.toLowerCase()];
+    if (byId != null && byId.isNotEmpty) return byId;
     return classId.isNotEmpty ? classId : 'Class not set';
   }
 

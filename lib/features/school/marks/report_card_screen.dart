@@ -54,7 +54,7 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
       if (_isStaff) {
         _classes = await _schoolService.getSchoolClasses();
         _classes = [
-          {'id': '__all__', 'name': 'All classes', 'section': ''},
+          {'id': '__all__', 'name': 'All classes'},
           ..._classes,
         ];
         _selectedClass = _classes.first;
@@ -90,7 +90,6 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
           : await _schoolService.getStudentsInClass(
               _selectedClass!['id']?.toString() ?? '',
               className: _selectedClass!['name']?.toString(),
-              section: _selectedClass!['section']?.toString(),
             );
       if (!mounted) return;
       setState(() {
@@ -197,7 +196,6 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
       return _schoolService.classDisplayName(
         classId: c['id']?.toString(),
         className: c['name']?.toString(),
-        section: c['section']?.toString(),
       );
     }
     return '-';
@@ -305,11 +303,7 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
           child: _buildSelector<Map<String, dynamic>>(
             label: 'Class',
             items: _classes,
-            itemLabel: (c) => [
-              c['name']?.toString() ?? '',
-              if ((c['section']?.toString() ?? '').isNotEmpty)
-                c['section'].toString(),
-            ].where((v) => v.isNotEmpty).join(' · '),
+            itemLabel: (c) => c['name']?.toString() ?? '',
             value: _selectedClass,
             onChanged: (c) async {
               if (c == null) return;

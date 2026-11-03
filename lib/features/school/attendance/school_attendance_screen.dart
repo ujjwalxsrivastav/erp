@@ -100,12 +100,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
         if (mounted && profile != null) {
           setState(() {
             _myName = profile['name']?.toString() ?? (username ?? 'Student');
-            final className = profile['class_name']?.toString();
-            final section = profile['section']?.toString();
-            _myClass = className ?? 'Class 10';
-            if (section != null && section.isNotEmpty) {
-              _myClass = '$_myClass-$section';
-            }
+            _myClass = profile['class_name']?.toString() ?? 'Class 10';
           });
         }
         await _loadMyAttendance();
@@ -172,7 +167,6 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
     if (_selectedClass == null) return;
     final classId = _selectedClass!['id']?.toString() ?? '';
     final className = _selectedClass!['name']?.toString() ?? '';
-    final section = _selectedClass!['section']?.toString() ?? '';
 
     setState(() {
       _loadingStudents = true;
@@ -186,12 +180,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       final students = await _schoolService.getStudentsInClass(
         classId,
         className: className,
-        section: section,
       );
       final existing = await _schoolService.getAttendance(
         classId: classId,
         className: className,
-        section: section,
         date: _selectedDate,
       );
 
@@ -232,7 +224,6 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
     if (_selectedClass == null) return;
     final classId = _selectedClass!['id']?.toString() ?? '';
     final className = _selectedClass!['name']?.toString() ?? '';
-    final section = _selectedClass!['section']?.toString() ?? '';
 
     setState(() => _loadingMonthly = true);
 
@@ -243,7 +234,6 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
       final report = await _schoolService.getAttendanceReport(
         classId: classId,
         className: className,
-        section: section,
         from: from,
         to: to,
       );
@@ -337,21 +327,19 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
 
     final classId = _selectedClass!['id']?.toString() ?? '';
     final className = _selectedClass!['name']?.toString() ?? '';
-    final classSection = _selectedClass!['section']?.toString() ?? '';
     final dateStr = _selectedDate.toIso8601String().substring(0, 10);
 
     final records = _students
         .map((s) {
           final sid =
               s['username']?.toString() ?? s['id']?.toString() ?? '';
-          final studentSection = s['section']?.toString() ?? '';
           return <String, dynamic>{
             'institute_code': 'SHIV-SCH',
             'class_id': classId,
             'class_name': className.isNotEmpty
                 ? className
                 : (s['class_name']?.toString() ?? ''),
-            'section': classSection.isNotEmpty ? classSection : studentSection,
+            'section': '',
             'student_id': sid,
             'student_name': s['name']?.toString() ??
                 s['username']?.toString() ??
@@ -1192,11 +1180,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen>
     );
   }
 
-  String _className(Map<String, dynamic> c) {
-    final name = c['name']?.toString() ?? '';
-    final section = c['section']?.toString() ?? '';
-    return section.isNotEmpty ? '$name-$section' : name;
-  }
+  String _className(Map<String, dynamic> c) =>
+      c['name']?.toString() ?? c['id']?.toString() ?? '';
 
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')} ${_monthName(d.month)} ${d.year}';

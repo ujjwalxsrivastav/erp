@@ -194,7 +194,6 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         _selectedClassId,
         day: _selectedDay,
         className: selected['name']?.toString(),
-        section: selected['section']?.toString(),
       );
 
       _allTeachers = await _service.getSchoolTeachersList();
@@ -221,13 +220,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         .toList();
     if (match.isNotEmpty) {
       final c = match.first;
-      final section = c['section']?.toString();
       _selectedClassLabel = c['name']?.toString() ??
           c['id']?.toString() ??
           _selectedClassId;
-      if (section != null && section.isNotEmpty) {
-        _selectedClassLabel = '$_selectedClassLabel · $section';
-      }
     }
   }
 
@@ -905,16 +900,13 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                             isExpanded: true,
                             items: _classes.map((c) {
-                              final section = c['section']?.toString();
                               final name = c['name']?.toString() ??
                                   c['id']?.toString() ??
                                   'Unknown';
                               return DropdownMenuItem<String>(
                                 value: c['id']?.toString(),
                                 child: Text(
-                                  (section == null || section.isEmpty)
-                                      ? name
-                                      : '$name · $section',
+                                  name,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               );

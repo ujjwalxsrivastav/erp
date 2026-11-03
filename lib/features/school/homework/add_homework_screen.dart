@@ -58,7 +58,6 @@ class _AddHomeworkScreenState extends State<AddHomeworkScreen> {
     final className = _schoolService.classDisplayName(
       classId: option['class_id']?.toString(),
       className: option['class_name']?.toString(),
-      section: option['section']?.toString(),
     );
     final subject = option['subject']?.toString() ?? 'Subject';
     return className.isEmpty ? subject : '$className · $subject';
@@ -67,22 +66,10 @@ class _AddHomeworkScreenState extends State<AddHomeworkScreen> {
   String _payloadClassName() {
     final option = _selectedOption;
     if (option == null) return '';
-    final explicit = option['class_name']?.toString() ?? '';
-    if (explicit.isNotEmpty) return explicit;
-    final classId = option['class_id']?.toString() ?? '';
-    final match = RegExp(r'(\d+)').firstMatch(classId);
-    return match != null ? 'Class ${match.group(1)}' : classId;
-  }
-
-  String _payloadSection() {
-    final option = _selectedOption;
-    if (option == null) return '';
-    final explicit = option['section']?.toString() ?? '';
-    if (explicit.isNotEmpty) return explicit;
-    final classId = option['class_id']?.toString() ?? '';
-    final match =
-        RegExp(r'^cls-\d+([a-zA-Z])$', caseSensitive: false).firstMatch(classId);
-    return (match?.group(1) ?? '').toUpperCase();
+    return _schoolService.classDisplayName(
+      classId: option['class_id']?.toString(),
+      className: option['class_name']?.toString(),
+    );
   }
 
   Future<void> _submit() async {
@@ -97,7 +84,7 @@ class _AddHomeworkScreenState extends State<AddHomeworkScreen> {
     final ok = await _schoolService.createHomework({
       'class_id': _selectedOption!['class_id']?.toString(),
       'class_name': _payloadClassName(),
-      'section': _payloadSection(),
+      'section': '',
       'subject': _selectedOption!['subject']?.toString() ?? '',
       'title': _titleController.text.trim(),
       'description': _descriptionController.text.trim(),
