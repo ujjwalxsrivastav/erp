@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/fee_receipt_pdf.dart';
 
 class SchoolFeeScreen extends StatefulWidget {
   const SchoolFeeScreen({super.key});
@@ -11,7 +12,7 @@ class SchoolFeeScreen extends StatefulWidget {
 
 class _SchoolFeeScreenState extends State<SchoolFeeScreen>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  TabController? _tabController;
   final _schoolService = SchoolService();
   final _authService = AuthService();
 
@@ -22,9 +23,17 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   String _studentName = 'Aarav Sharma';
   String _studentClass = 'Class 10-A';
   String _studentClassId = 'cls-10a';
+  String _admissionNo = '';
 
   List<Map<String, dynamic>> _feeHistory = [];
   Map<String, dynamic> _defaulterData = {};
+
+  /// Students/parents see 2 tabs (no other students' dues); staff see 3.
+  bool get _isStudentRole =>
+      _userRole == 'student' || _userRole == 'parent';
+  bool get _isAdminRole =>
+      _userRole == 'admin' || _userRole == 'sadmin';
+  int get _tabCount => _isStudentRole ? 2 : 3;
 
   // Totals computed from the real backend ledger.
   // Every row is a fee demand; `paid_amount` is what has been settled
@@ -40,6 +49,9 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
       });
 
   double get _pendingFees => ((_totalFees - _paidFees).clamp(0.0, double.infinity));
+
+  /// Fully settled → the pay button is replaced by a receipt download.
+  bool get _isFullyPaid => _feeHistory.isNotEmpty && _pendingFees <= 0.01;
 
   /// Demand rows that still have an outstanding amount (latest first).
   List<Map<String, dynamic>> get _outstandingDemands {
@@ -57,13 +69,12 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
     _loadFeeData();
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabController?.dispose();
     super.dispose();
   }
 
@@ -75,7 +86,11 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
     try {
       final role = await _authService.getCurrentUserRole() ?? 'student';
       final username = await _authService.getCurrentUsername() ?? 'sstudent1';
-      final targetUser = (role == 'admin' || role == 'teacher') ? 'sstudent1' : username;
+      // Staff view a seeded Class-10 student (clean backend data).
+      final targetUser = (role == 'admin' || role == 'sadmin' ||
+              role == 'teacher' || role == 'steacher')
+          ? 's10s01'
+          : username;
 
       final fees = await _schoolService.getStudentFees(targetUser);
       final defaulters = await _schoolService.getDefaultersWithAgeing();
@@ -92,9 +107,17 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
             _studentName = profile['name']?.toString() ?? _studentName;
             _studentClass = profile['class_name']?.toString() ?? _studentClass;
             _studentClassId = profile['class_id']?.toString() ?? _studentClassId;
+            _admissionNo = profile['admission_no']?.toString() ?? '';
           }
           _isLoading = false;
         });
+
+        // Tab set depends on the role — create it once the role is known.
+        if (_tabController == null || _tabController!.length != _tabCount) {
+          _tabController?.dispose();
+          _tabController = TabController(length: _tabCount, vsync: this);
+          setState(() {});
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -107,6 +130,9 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   }
 
   void _showPaymentDialog() {
+    // Nothing owed → there is nothing to pay. Never allow an over-payment.
+    if (_pendingFees <= 0) return;
+
     final double pendingCap = _pendingFees;
     final amountController = TextEditingController(
         text: pendingCap > 0 ? pendingCap.toStringAsFixed(0) : '');
@@ -230,24 +256,214 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
         ? (demands.first['head']?.toString() ?? 'Composite Fee')
         : 'Composite Fee';
 
-    final receiptNo = await _schoolService.recordFeePayment({
-      'student_id': _studentUsername,
-      'class_id': _studentClassId,
-      'amount': amt,
-      'payment_mode': paymentMode,
-      'head': head,
-      'due_date': DateTime.now().toIso8601String().substring(0, 10),
-      if (notes.isNotEmpty) 'note': notes,
-    });
+    try {
+      final receiptNo = await _schoolService.recordFeePayment({
+        'student_id': _studentUsername,
+        'class_id': _studentClassId,
+        'amount': amt,
+        'payment_mode': paymentMode,
+        'head': head,
+        'due_date': DateTime.now().toIso8601String().substring(0, 10),
+        if (notes.isNotEmpty) 'note': notes,
+      });
 
-    await _loadFeeData();
+      await _loadFeeData();
 
-    if (mounted) {
-      _showReceiptDialog(receiptNo, amt, paymentMode);
+      if (mounted) {
+        _showReceiptDialog(
+          receiptNo,
+          amt,
+          paymentMode,
+          date: DateTime.now().toIso8601String().substring(0, 10),
+        );
+      }
+    } catch (e) {
+      // Backend refused (already fully paid / exceeds outstanding / offline)
+      if (mounted) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        await _loadFeeData();
+      }
     }
   }
 
-  void _showReceiptDialog(String receiptNo, double amount, String mode) {
+  /// Generate the branded PDF (with school watermark) and open the system
+  /// share sheet so the user can download / print / send it.
+  Future<void> _downloadReceipt({
+    String? receiptNo,
+    double? amount,
+    String? mode,
+    String? date,
+  }) async {
+    try {
+      await FeeReceiptPdf.share(
+        studentName: _studentName,
+        className: _studentClass,
+        admissionNo: _admissionNo.isNotEmpty ? _admissionNo : _studentUsername,
+        studentUsername: _studentUsername,
+        ledger: _feeHistory,
+        receiptNo: receiptNo,
+        paymentMode: mode,
+        paymentAmount: amount,
+        paymentDate: date,
+        title: receiptNo == null ? 'FEE STATEMENT' : 'FEE RECEIPT',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not generate the PDF: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// ADMIN ONLY: update the total fee demand from the screen. The service
+  /// re-checks the role, so this is a convenience — not the security boundary.
+  void _showSetDemandDialog() {
+    if (!_isAdminRole) return;
+    final headCtrl = TextEditingController(text: 'Quarter 4 Tuition Fee');
+    final amountCtrl = TextEditingController();
+    final dueCtrl = TextEditingController(
+        text: DateTime.now().add(const Duration(days: 15))
+            .toIso8601String()
+            .substring(0, 10));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.admin_panel_settings, color: Color(0xFF92400E)),
+            SizedBox(width: 10),
+            Text('Set Fee Demand', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Student: $_studentName ($_studentUsername)',
+                  style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 14),
+              const Text('Fee Head', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: headCtrl,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Quarter 4 Tuition Fee',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text('Amount (₹)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.currency_rupee, size: 18),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text('Due Date', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: dueCtrl,
+                decoration: InputDecoration(
+                  hintText: 'YYYY-MM-DD',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Admin only — students and teachers read this total, they cannot change it.',
+                style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final head = headCtrl.text.trim();
+              final amt = double.tryParse(amountCtrl.text.trim()) ?? 0;
+              if (head.isEmpty || amt <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Enter a fee head and an amount greater than 0'),
+                    backgroundColor: Color(0xFFEF4444),
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              try {
+                final result = await _schoolService.setFeeDemand(
+                  studentId: _studentUsername,
+                  head: head,
+                  amount: amt,
+                  dueDate: dueCtrl.text.trim(),
+                  classId: _studentClassId,
+                );
+                await _loadFeeData();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(result == 'updated'
+                          ? 'Fee demand updated — total is now ₹${_totalFees.toStringAsFixed(0)}'
+                          : 'New fee demand created — ₹${amt.toStringAsFixed(0)}'),
+                      backgroundColor: const Color(0xFF10B981),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(e.toString().replaceFirst('Exception: ', '')),
+                      backgroundColor: const Color(0xFFEF4444),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF92400E),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Save Demand'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReceiptDialog(String receiptNo, double amount, String mode,
+      {String? date}) {
+    final paidDate = date ?? DateTime.now().toIso8601String().substring(0, 10);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -276,8 +492,9 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                   _receiptRow('Class & Section', _studentClass),
                   _receiptRow('Amount Paid', '₹${amount.toStringAsFixed(0)}'),
                   _receiptRow('Payment Mode', mode),
-                  _receiptRow('Date & Time', DateTime.now().toIso8601String().substring(0, 10)),
-                  _receiptRow('Status', 'CONFIRMED (PAID)'),
+                  _receiptRow('Date', paidDate),
+                  _receiptRow('Status',
+                      _pendingFees <= 0 ? 'FULLY PAID — NO DUES' : 'CONFIRMED (PAID)'),
                   const Divider(height: 16),
                   const Text('Digital Verification Seal: Verified by Shivalik International Accounts', style: TextStyle(fontSize: 10, color: Color(0xFF10B981), fontWeight: FontWeight.w600)),
                 ],
@@ -296,13 +513,20 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                 onPressed: () {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Receipt $receiptNo exported successfully!'),
-                      backgroundColor: const Color(0xFF10B981),
+                    const SnackBar(
+                      content: Text('Preparing your receipt PDF…'),
+                      backgroundColor: Color(0xFF10B981),
+                      behavior: SnackBarBehavior.floating,
                     ),
                   );
+                  _downloadReceipt(
+                    receiptNo: receiptNo,
+                    amount: amount,
+                    mode: mode,
+                    date: paidDate,
+                  );
                 },
-                icon: const Icon(Icons.download, color: Colors.white, size: 18),
+                icon: const Icon(Icons.picture_as_pdf, color: Colors.white, size: 18),
                 label: const Text('Download Receipt PDF', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
@@ -327,11 +551,16 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final tabs = <Widget>[
+      Tab(text: 'Summary'),
+      Tab(text: 'Receipts'),
+      if (!_isStudentRole) Tab(text: 'Defaulters'),
+    ];
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
-          _userRole == 'admin' ? 'Fee Management & Accounts' : 'Fee Details & Payments',
+          _isAdminRole ? 'Fee Management & Accounts' : 'Fee Details & Payments',
           style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
         ),
         foregroundColor: Colors.white,
@@ -345,7 +574,9 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
             ),
           ),
         ),
-        bottom: PreferredSize(
+        bottom: _tabController == null
+            ? null
+            : PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -373,16 +604,12 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
               unselectedLabelColor: Colors.white,
               labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
               unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-              tabs: const [
-                Tab(text: 'Summary'),
-                Tab(text: 'Receipts'),
-                Tab(text: 'Defaulters'),
-              ],
+              tabs: tabs,
             ),
           ),
         ),
       ),
-      body: _isLoading
+      body: _isLoading || _tabController == null
           ? _buildLoadingSkeleton()
           : _errorMessage != null
               ? _buildErrorView()
@@ -391,7 +618,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                   children: [
                     _buildSummaryTab(),
                     _buildHistoryTab(),
-                    _buildDefaultersTab(),
+                    if (!_isStudentRole) _buildDefaultersTab(),
                   ],
                 ),
     );
@@ -578,16 +805,40 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Fee Structure ($_studentClass)',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Fee Structure ($_studentClass)',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Live demand ledger — read from the accounts backend',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Download fee statement (PDF)',
+                      onPressed: () => _downloadReceipt(),
+                      icon: const Icon(Icons.picture_as_pdf_outlined,
+                          color: Color(0xFFEF4444), size: 22),
+                    ),
+                    if (_isAdminRole)
+                      IconButton(
+                        tooltip: 'Admin: set fee demand',
+                        onPressed: _showSetDemandDialog,
+                        icon: const Icon(Icons.edit_outlined,
+                            color: Color(0xFF92400E), size: 22),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Live demand ledger — received from accounts backend',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                ),
-                const SizedBox(height: 14),
                 if (_outstandingDemands.isEmpty && _feeHistory.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -664,23 +915,86 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
             ),
           ),
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _showPaymentDialog,
-              icon: const Icon(Icons.payment, color: Colors.white),
-              label: Text(
-                _pendingFees > 0 ? 'Pay Outstanding (₹${_pendingFees.toStringAsFixed(0)})' : 'Pay Fees Online / Record Counter',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+          if (_isFullyPaid)
+            // Fully settled → no more payments possible, receipt is ready.
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF10B981), width: 1.2),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF59E0B),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.verified, color: Color(0xFF10B981), size: 22),
+                      SizedBox(width: 8),
+                      Text('All Fees Paid — No Dues',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF047857))),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Total ₹${_totalFees.toStringAsFixed(0)} fully settled. '
+                    'No further payment can be made against this account.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12.5, color: Color(0xFF065F46)),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Preparing your fee receipt PDF…'),
+                            backgroundColor: Color(0xFF10B981),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        _downloadReceipt();
+                      },
+                      icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+                      label: const Text('Download Fee Receipt',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _showPaymentDialog,
+                icon: const Icon(Icons.payment, color: Colors.white),
+                label: Text(
+                  'Pay Outstanding (₹${_pendingFees.toStringAsFixed(0)})',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF59E0B),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -729,8 +1043,14 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
         final status = (f['status'] ?? 'pending').toString().toLowerCase();
         final receiptNo = f['receipt_no'] as String?;
         final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
+        final paidRaw = (f['paid_amount'] as num?)?.toDouble() ?? 0.0;
+        final paidAmount = paidRaw < amount ? paidRaw : amount;
         final head = f['head'] ?? 'Quarter Tuition Fee';
         final dueDate = f['due_date'] ?? 'Upcoming';
+        final createdAt = f['created_at']?.toString() ?? '';
+        final createdDate = createdAt.length >= 10
+            ? createdAt.substring(0, 10)
+            : null;
 
         Color statusColor;
         String statusLabel;
@@ -814,9 +1134,18 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                       ),
                       if (receiptNo != null && receiptNo.isNotEmpty) ...[
                         const SizedBox(width: 6),
-                        InkWell(
-                          onTap: () => _showReceiptDialog(receiptNo, amount, f['payment_mode']?.toString() ?? 'Online'),
-                          child: const Icon(Icons.print_outlined, size: 18, color: Color(0xFFF59E0B)),
+                        Tooltip(
+                          message: 'View / download receipt',
+                          child: InkWell(
+                            onTap: () => _showReceiptDialog(
+                              receiptNo,
+                              paidAmount > 0 ? paidAmount : amount,
+                              f['payment_mode']?.toString() ?? 'Online',
+                              date: createdDate,
+                            ),
+                            child: const Icon(Icons.picture_as_pdf_outlined,
+                                size: 18, color: Color(0xFFF59E0B)),
+                          ),
                         ),
                       ],
                     ],

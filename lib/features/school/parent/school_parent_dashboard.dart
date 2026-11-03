@@ -1091,6 +1091,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   leaveType: leaveType,
                   reason: reasonCtrl.text.trim(),
                   documentUrl: 'Self-Certified by Parent $_parentName',
+                  className: child?['class_name']?.toString(),
+                  section: child?['section']?.toString(),
+                  appliedBy: _parentName,
+                  appliedByRole: 'parent',
                 );
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(

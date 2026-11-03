@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
+import '../services/auth_service.dart';
 
 class SchoolService {
   static final SchoolService _instance = SchoolService._internal();
@@ -1390,13 +1391,14 @@ class SchoolService {
 
   /// Record a fee payment. The payment is *settle-ledger aware*:
   ///
+  ///  - The TOTAL OUTSTANDING is recomputed from the backend every time.
+  ///    Once all demands are fully paid, NO further payment is accepted
+  ///    (throws), and a payment can never exceed the outstanding balance —
+  ///    so paying can never inflate the total fee.
   ///  - It is allocated to the student's outstanding demand rows
   ///    (matched `head` first, then earliest due date), incrementing
   ///    `paid_amount` and flipping status `pending -> partial -> paid`.
   ///  - Receipt details are stamped on the demand row that was settled.
-  ///  - Nothing is added to the outstanding total: paying never inflates fees.
-  ///  - If there is no outstanding demand left (e.g. counter-recorded extra
-  ///    income), the payment is inserted as its own paid row.
   Future<String> recordFeePayment(Map<String, dynamic> data) async {
     final receiptNo = 'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
     final studentId = data['student_id']?.toString() ?? '';
@@ -1408,7 +1410,7 @@ class SchoolService {
     }
 
     // Fetch outstanding demands for this student from the backend
-    List<Map<String, dynamic>> demands = [];
+    List<Map<String, dynamic>> demands;
     try {
       final resp = await _supabase
           .from('school_fee_payments')
@@ -1416,7 +1418,27 @@ class SchoolService {
           .eq('student_id', studentId)
           .inFilter('status', ['pending', 'partial']);
       demands = List<Map<String, dynamic>>.from(resp);
-    } catch (_) {}
+    } catch (_) {
+      throw Exception(
+          'Could not verify outstanding fees. Check your connection and retry.');
+    }
+
+    // Single source of truth: how much is actually still owed.
+    final totalOutstanding = demands.fold<double>(0.0, (sum, d) {
+      final amount = (d['amount'] as num?)?.toDouble() ?? 0.0;
+      final paid = (d['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final out = amount - paid;
+      return sum + (out > 0 ? out : 0);
+    });
+
+    if (totalOutstanding <= 0.01) {
+      throw Exception(
+          'All fee demands are fully paid. No further payment can be recorded.');
+    }
+    if (remaining > totalOutstanding + 0.01) {
+      throw Exception(
+          'Amount exceeds the outstanding balance of ₹${totalOutstanding.toStringAsFixed(0)}.');
+    }
 
     // Allocate: matching head first, then earliest due date
     demands.sort((a, b) {
@@ -1431,7 +1453,6 @@ class SchoolService {
       return aDue.compareTo(bDue);
     });
 
-    double applied = 0.0;
     for (final d in demands) {
       if (remaining <= 0) break;
       final demandAmount = (d['amount'] as num?)?.toDouble() ?? 0.0;
@@ -1441,7 +1462,6 @@ class SchoolService {
 
       final pay = outstanding <= remaining ? outstanding : remaining;
       remaining -= pay;
-      applied += pay;
       final newPaid = alreadyPaid + pay;
       final newStatus = newPaid >= demandAmount - 0.01 ? 'paid' : 'partial';
 
@@ -1455,35 +1475,76 @@ class SchoolService {
       } catch (_) {}
     }
 
-    // Payment beyond outstanding demands → record as its own paid row
-    if (remaining > 0.0 && remaining != (data['amount'] as num?)?.toDouble()) {
-      try {
-        await _supabase.from('school_fee_payments').insert({
-          ...data,
-          'amount': remaining,
-          'paid_amount': remaining,
-          'receipt_no': receiptNo,
-          'payment_mode': paymentMode,
-          'status': 'paid',
-          'created_at': DateTime.now().toIso8601String(),
-        });
-      } catch (_) {}
-    } else if (applied <= 0.0) {
-      // No outstanding demand at all (e.g. first counter charge) → keep old behavior
-      final paymentData = {
-        ...data,
-        'receipt_no': receiptNo,
-        'status': 'paid',
-        'paid_amount': data['amount'] ?? 0.0,
-        'created_at': DateTime.now().toIso8601String(),
-      };
-      try {
-        await _supabase.from('school_fee_payments').insert(paymentData);
-      } catch (_) {}
-      _feePaymentsStore.insert(0, Map<String, dynamic>.from(paymentData));
-    }
+    // NOTE: payments are clamped to the outstanding balance above, so there is
+    // never a leftover amount to insert as an extra "paid" row. This is what
+    // keeps the total fee stable once everything is settled.
 
     return receiptNo;
+  }
+
+  /// ADMIN ONLY: create or update the total fee demand (the "total fees to be
+  /// paid") for a student. Students and teachers can never change fee amounts —
+  /// they only ever READ the totals from the backend.
+  ///
+  /// Returns 'updated' if an open demand with the same head existed (amount
+  /// changed in place), or 'created' for a brand-new demand row.
+  Future<String> setFeeDemand({
+    required String studentId,
+    required String head,
+    required double amount,
+    String? dueDate,
+    String? classId,
+  }) async {
+    final role = await AuthService().getCurrentUserRole();
+    if (role != 'admin' && role != 'sadmin') {
+      throw Exception('Only an admin can update fee amounts.');
+    }
+    if (head.trim().isEmpty) {
+      throw Exception('Fee head is required.');
+    }
+    if (amount <= 0) {
+      throw Exception('Amount must be greater than zero.');
+    }
+
+    try {
+      // Same head + still open → update the demand in place
+      final existing = await _supabase
+          .from('school_fee_payments')
+          .select()
+          .eq('student_id', studentId)
+          .eq('head', head.trim())
+          .inFilter('status', ['pending', 'partial'])
+          .limit(1);
+      final rows = List<Map<String, dynamic>>.from(existing);
+
+      if (rows.isNotEmpty) {
+        final row = rows.first;
+        final paid = (row['paid_amount'] as num?)?.toDouble() ?? 0.0;
+        await _supabase.from('school_fee_payments').update({
+          'amount': amount,
+          'status': paid >= amount - 0.01
+              ? 'paid'
+              : (paid > 0.01 ? 'partial' : 'pending'),
+          if (dueDate != null && dueDate.isNotEmpty) 'due_date': dueDate,
+        }).eq('id', row['id']?.toString() ?? '');
+        return 'updated';
+      }
+
+      await _supabase.from('school_fee_payments').insert({
+        'student_id': studentId,
+        if (classId != null && classId.isNotEmpty) 'class_id': classId,
+        'head': head.trim(),
+        'amount': amount,
+        'paid_amount': 0,
+        'due_date': dueDate,
+        'payment_mode': 'Pending',
+        'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      return 'created';
+    } catch (_) {
+      throw Exception('Could not save the fee demand. Check your connection and retry.');
+    }
   }
 
   Future<Map<String, dynamic>> getDefaultersWithAgeing({String? classId}) async {
@@ -2413,6 +2474,95 @@ class SchoolService {
     }
   }
 
+  // ===== STUDENT LEAVE REQUESTS =====
+
+  static const List<String> studentLeaveTypes = [
+    'Medical Leave',
+    'Casual Leave',
+    'Family Function',
+    'Emergency Leave',
+  ];
+
+  int _leaveDayCount(String startDate, String endDate) {
+    try {
+      final start = DateTime.parse(startDate);
+      final end = DateTime.parse(endDate);
+      final days = end.difference(start).inDays + 1;
+      return days > 0 ? days : 1;
+    } catch (_) {
+      return 1;
+    }
+  }
+
+  /// Classes for which [teacherUsername] is the class teacher, resolved from
+  /// `school_classes.class_teacher_id`.
+  Future<List<Map<String, dynamic>>> getClassTeacherClasses(
+      String teacherUsername) async {
+    if (teacherUsername.isEmpty) return [];
+    try {
+      final response = await _supabase
+          .from('school_classes')
+          .select()
+          .eq('class_teacher_id', teacherUsername)
+          .order('name');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Resolve the class teacher of a class so a leave application is routed to
+  /// exactly that teacher.
+  Future<String?> getClassTeacherForClass({
+    String? classId,
+    String? className,
+    String? section,
+  }) async {
+    List<Map<String, dynamic>> rows = [];
+
+    // Class id may be a UUID or an app-level id (e.g. 'cls-10a'); a failed
+    // lookup must not stop the name-based fallback below.
+    if (classId != null && classId.isNotEmpty) {
+      try {
+        final response = await _supabase
+            .from('school_classes')
+            .select('class_teacher_id')
+            .eq('id', classId);
+        rows = List<Map<String, dynamic>>.from(response);
+      } catch (_) {}
+    }
+
+    if (rows.isEmpty && className != null && className.isNotEmpty) {
+      try {
+        final base = className.contains('-')
+            ? className.substring(0, className.lastIndexOf('-'))
+            : className;
+        var query = _supabase
+            .from('school_classes')
+            .select('class_teacher_id')
+            .eq('name', base);
+        final resolvedSection = (section != null && section.isNotEmpty)
+            ? section
+            : (className.contains('-')
+                ? className.substring(className.lastIndexOf('-') + 1)
+                : null);
+        if (resolvedSection != null && resolvedSection.isNotEmpty) {
+          query = query.eq('section', resolvedSection);
+        }
+        rows = List<Map<String, dynamic>>.from(await query);
+      } catch (_) {}
+    }
+
+    for (final row in rows) {
+      final teacher = row['class_teacher_id']?.toString() ?? '';
+      if (teacher.isNotEmpty) return teacher;
+    }
+    return null;
+  }
+
+  /// File a leave application. Stored in `school_student_leaves` when the
+  /// setup script has been run; otherwise falls back to the legacy
+  /// `school_circulars` record so the parent app keeps working.
   Future<Map<String, dynamic>> applyStudentLeave({
     required String studentId,
     required String studentName,
@@ -2422,41 +2572,195 @@ class SchoolService {
     required String leaveType,
     required String reason,
     String? documentUrl,
+    String? studentUsername,
+    String? className,
+    String? section,
+    String? appliedBy,
+    String? appliedByRole,
   }) async {
-    final structured =
-        'STUDENT_LEAVE_APPLICATION | StudentId: $studentId | StudentName: $studentName | '
-        'ClassId: $classId | StartDate: $startDate | EndDate: $endDate | Type: $leaveType | '
-        'Reason: $reason | Doc: ${documentUrl ?? "Self Certified"} | Status: Pending Teacher Review';
+    final username = (studentUsername != null && studentUsername.isNotEmpty)
+        ? studentUsername
+        : studentId;
+    final classTeacher = await getClassTeacherForClass(
+      classId: classId,
+      className: className,
+      section: section,
+    );
+    final totalDays = _leaveDayCount(startDate, endDate);
 
-    final payload = {
-      'institute_code': 'SHIV-SCH',
-      'title': 'Student Leave Application: $studentName ($leaveType)',
-      'content': structured,
-      'category': 'StudentLeave',
-      'target_audience': 'teachers',
-      'published_by': 'Parent',
-    };
-
-    final resp = await _supabase
-        .from('school_circulars')
-        .insert(payload)
-        .select()
-        .single();
-
-    return {
-      'id': resp['id'],
+    final payload = <String, dynamic>{
       'student_id': studentId,
+      'student_username': username,
       'student_name': studentName,
-      'class_id': classId,
+      if (classId.isNotEmpty) 'class_id': classId,
+      if (className != null && className.isNotEmpty) 'class_name': className,
+      if (section != null && section.isNotEmpty) 'section': section,
+      if (classTeacher != null) 'class_teacher_id': classTeacher,
+      'leave_type': leaveType,
       'start_date': startDate,
       'end_date': endDate,
-      'leave_type': leaveType,
+      'total_days': totalDays,
       'reason': reason,
-      'status': 'Pending Teacher Review',
+      if (documentUrl != null && documentUrl.isNotEmpty)
+        'document_url': documentUrl,
+      'status': 'pending',
+      'applied_by': appliedBy ?? username,
+      'applied_by_role': appliedByRole ?? 'student',
+    };
+
+    try {
+      final resp = await _supabase
+          .from('school_student_leaves')
+          .insert(payload)
+          .select()
+          .single();
+      return _normaliseLeaveRow(Map<String, dynamic>.from(resp));
+    } catch (_) {
+      // Legacy storage (pre-migration databases).
+      final structured =
+          'STUDENT_LEAVE_APPLICATION | StudentId: $username | StudentName: $studentName | '
+          'ClassId: $classId | StartDate: $startDate | EndDate: $endDate | Type: $leaveType | '
+          'Reason: $reason | Doc: ${documentUrl ?? "Self Certified"} | Status: Pending Teacher Review';
+
+      final resp = await _supabase
+          .from('school_circulars')
+          .insert({
+            'institute_code': 'SHIV-SCH',
+            'title': 'Student Leave Application: $studentName ($leaveType)',
+            'content': structured,
+            'category': 'StudentLeave',
+            'target_audience': 'teachers',
+            'published_by': appliedByRole ?? 'Student',
+          })
+          .select()
+          .single();
+
+      return {
+        'id': resp['id'],
+        'student_id': studentId,
+        'student_username': username,
+        'student_name': studentName,
+        'class_id': classId,
+        'class_name': className,
+        'section': section,
+        'start_date': startDate,
+        'end_date': endDate,
+        'total_days': totalDays,
+        'leave_type': leaveType,
+        'type': leaveType,
+        'reason': reason,
+        'status': 'pending',
+        'legacy': true,
+      };
+    }
+  }
+
+  Map<String, dynamic> _normaliseLeaveRow(Map<String, dynamic> row) {
+    final status = (row['status']?.toString() ?? 'pending').toLowerCase();
+    return {
+      ...row,
+      'status': status,
+      'type': row['leave_type'] ?? 'Casual Leave',
     };
   }
 
-  Future<List<Map<String, dynamic>>> getStudentLeaves({String? studentId}) async {
+  /// Leave applications, optionally scoped to one student or one class.
+  Future<List<Map<String, dynamic>>> getStudentLeaves({
+    String? studentId,
+    String? classId,
+    String? status,
+  }) async {
+    try {
+      var query = _supabase.from('school_student_leaves').select();
+      if (studentId != null && studentId.isNotEmpty) {
+        query = query
+            .or('student_username.eq.$studentId,student_id.eq.$studentId');
+      }
+      if (classId != null && classId.isNotEmpty) {
+        query = query.eq('class_id', classId);
+      }
+      if (status != null && status.isNotEmpty) {
+        query = query.eq('status', status);
+      }
+      final response = await query.order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response)
+          .map(_normaliseLeaveRow)
+          .toList();
+    } catch (_) {
+      return _getLegacyStudentLeaves(studentId: studentId);
+    }
+  }
+
+  /// Every leave application that belongs to a class the teacher is in charge
+  /// of (matched by class teacher, class id, or class name + section).
+  Future<List<Map<String, dynamic>>> getLeaveRequestsForClassTeacher(
+      String teacherUsername) async {
+    if (teacherUsername.isEmpty) return [];
+
+    List<Map<String, dynamic>> all;
+    try {
+      final response = await _supabase
+          .from('school_student_leaves')
+          .select()
+          .order('created_at', ascending: false);
+      all = List<Map<String, dynamic>>.from(response)
+          .map(_normaliseLeaveRow)
+          .toList();
+    } catch (_) {
+      all = await _getLegacyStudentLeaves();
+    }
+
+    final classes = await getClassTeacherClasses(teacherUsername);
+    final classIds = classes
+        .map((c) => c['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final classKeys = <String>{};
+    for (final c in classes) {
+      final name = (c['name']?.toString() ?? '').toLowerCase();
+      final section = (c['section']?.toString() ?? '').toLowerCase();
+      if (name.isEmpty) continue;
+      classKeys.add(name);
+      classKeys.add('$name-$section');
+    }
+
+    return all.where((leave) {
+      final assigned = leave['class_teacher_id']?.toString() ?? '';
+      if (assigned.isNotEmpty) return assigned == teacherUsername;
+
+      final leaveClassId = leave['class_id']?.toString() ?? '';
+      if (leaveClassId.isNotEmpty && classIds.contains(leaveClassId)) return true;
+
+      final className = (leave['class_name']?.toString() ?? '').toLowerCase();
+      final section = (leave['section']?.toString() ?? '').toLowerCase();
+      if (className.isEmpty) return false;
+      if (classKeys.contains(className)) return true;
+      return section.isNotEmpty && classKeys.contains('$className-$section');
+    }).toList();
+  }
+
+  Map<String, String> _parseStructuredContent(String content) {
+    final map = <String, String>{};
+    for (final part in content.split('|')) {
+      final kv = part.split(':');
+      if (kv.length >= 2) {
+        map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+      }
+    }
+    return map;
+  }
+
+  String _legacyLeaveStatus(String raw) {
+    final s = raw.toLowerCase();
+    if (s.startsWith('approved') || s.contains('approved by')) return 'approved';
+    if (s.startsWith('rejected') || s.contains('rejected by')) return 'rejected';
+    if (s.startsWith('cancelled') || s.startsWith('canceled')) return 'cancelled';
+    return 'pending';
+  }
+
+  /// Leaves filed before the `school_student_leaves` table existed.
+  Future<List<Map<String, dynamic>>> _getLegacyStudentLeaves(
+      {String? studentId}) async {
     try {
       final response = await _supabase
           .from('school_circulars')
@@ -2467,35 +2771,94 @@ class SchoolService {
       final list = <Map<String, dynamic>>[];
       for (final row in response) {
         final content = row['content']?.toString() ?? '';
-        if (content.contains('STUDENT_LEAVE_APPLICATION')) {
-          final parts = content.split('|');
-          final map = <String, String>{};
-          for (final p in parts) {
-            final kv = p.split(':');
-            if (kv.length >= 2) {
-              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
-            }
-          }
-
-          if (studentId != null && studentId.isNotEmpty && map['StudentId'] != studentId) continue;
-
-          list.add({
-            'id': row['id'],
-            'student_id': map['StudentId'] ?? '',
-            'student_name': map['StudentName'] ?? '',
-            'class_id': map['ClassId'] ?? '',
-            'start_date': map['StartDate'] ?? '',
-            'end_date': map['EndDate'] ?? '',
-            'type': map['Type'] ?? 'Casual Leave',
-            'reason': map['Reason'] ?? '',
-            'status': map['Status'] ?? 'Pending Review',
-            'created_at': row['created_at'],
-          });
+        if (!content.contains('STUDENT_LEAVE_APPLICATION')) continue;
+        final map = _parseStructuredContent(content);
+        final legacyStudent = map['StudentId'] ?? '';
+        if (studentId != null &&
+            studentId.isNotEmpty &&
+            legacyStudent != studentId) {
+          continue;
         }
+
+        final rawStatus = map['Status'] ?? 'Pending Teacher Review';
+        list.add({
+          'id': row['id'],
+          'student_id': legacyStudent,
+          'student_username': legacyStudent,
+          'student_name': map['StudentName'] ?? '',
+          'class_id': map['ClassId'] ?? '',
+          'leave_type': map['Type'] ?? 'Casual Leave',
+          'type': map['Type'] ?? 'Casual Leave',
+          'start_date': map['StartDate'] ?? '',
+          'end_date': map['EndDate'] ?? '',
+          'total_days': _leaveDayCount(
+              map['StartDate'] ?? '', map['EndDate'] ?? ''),
+          'reason': map['Reason'] ?? '',
+          'document_url': map['Doc'] ?? '',
+          'status': _legacyLeaveStatus(rawStatus),
+          'review_remarks': rawStatus,
+          'class_teacher_id': null,
+          'created_at': row['created_at'],
+          'legacy': true,
+        });
       }
       return list;
     } catch (_) {
       return [];
+    }
+  }
+
+  /// Approve or reject a leave application. Approval also marks every covered
+  /// school day as `excused` in `school_attendance`.
+  Future<bool> reviewStudentLeave({
+    required String leaveId,
+    required String status,
+    required String reviewedBy,
+    String? reviewerName,
+    String? remarks,
+  }) async {
+    final normalised = status.toLowerCase() == 'approved' ? 'approved' : 'rejected';
+    final now = DateTime.now().toIso8601String();
+
+    try {
+      final row = await _supabase
+          .from('school_student_leaves')
+          .select()
+          .eq('id', leaveId)
+          .maybeSingle();
+      if (row == null) {
+        return await _reviewLegacyStudentLeave(
+          leaveId: leaveId,
+          status: normalised,
+          reviewedBy: reviewedBy,
+          remarks: remarks,
+        );
+      }
+
+      await _supabase.from('school_student_leaves').update({
+        'status': normalised,
+        'reviewed_by': reviewedBy,
+        'reviewer_name': reviewerName ?? reviewedBy,
+        'review_remarks': remarks ?? '',
+        'reviewed_at': now,
+        'updated_at': now,
+        'attendance_marked': normalised == 'approved',
+      }).eq('id', leaveId);
+
+      if (normalised == 'approved') {
+        await _markLeaveAttendance({
+          ...Map<String, dynamic>.from(row),
+          'reviewed_by': reviewedBy,
+        });
+      }
+      return true;
+    } catch (_) {
+      return _reviewLegacyStudentLeave(
+        leaveId: leaveId,
+        status: normalised,
+        reviewedBy: reviewedBy,
+        remarks: remarks,
+      );
     }
   }
 
@@ -2504,44 +2867,128 @@ class SchoolService {
     required String approvedBy,
     required String remarks,
   }) async {
-    try {
-      final row = await _supabase.from('school_circulars').select().eq('id', leaveId).single();
-      final content = row['content']?.toString() ?? '';
-      final updatedContent = content.replaceAll(
-        RegExp(r'Status:\s*[^\|]+'),
-        'Status: Approved by $approvedBy ($remarks) ',
-      );
+    return reviewStudentLeave(
+      leaveId: leaveId,
+      status: 'approved',
+      reviewedBy: approvedBy,
+      remarks: remarks,
+    );
+  }
 
-      await _supabase.from('school_circulars').update({'content': updatedContent}).eq('id', leaveId);
+  Future<bool> rejectStudentLeave({
+    required String leaveId,
+    required String rejectedBy,
+    required String remarks,
+  }) async {
+    return reviewStudentLeave(
+      leaveId: leaveId,
+      status: 'rejected',
+      reviewedBy: rejectedBy,
+      remarks: remarks,
+    );
+  }
 
-      // Parse student details to update attendance record
-      final parts = content.split('|');
-      final map = <String, String>{};
-      for (final p in parts) {
-        final kv = p.split(':');
-        if (kv.length >= 2) {
-          map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+  /// Mark the approved leave dates as excused attendance for the student.
+  Future<void> _markLeaveAttendance(Map<String, dynamic> leave) async {
+    final username = leave['student_username']?.toString() ?? '';
+    final studentId = username.isNotEmpty
+        ? username
+        : (leave['student_id']?.toString() ?? '');
+    if (studentId.isEmpty) return;
+
+    final classId = leave['class_id']?.toString() ?? '';
+    var className = leave['class_name']?.toString() ?? '';
+    var section = leave['section']?.toString() ?? '';
+    if (section.isEmpty && className.contains('-')) {
+      section = className.substring(className.lastIndexOf('-') + 1);
+      className = className.substring(0, className.lastIndexOf('-'));
+    }
+    // school_attendance.class_name is NOT NULL: derive it when the leave row
+    // only carries an app-level class id such as 'cls-10a'.
+    if (className.isEmpty && classId.isNotEmpty) {
+      final raw =
+          classId.replaceFirst(RegExp(r'^cls-', caseSensitive: false), '');
+      final match = RegExp(r'^(\d+)([a-zA-Z]?)$').firstMatch(raw);
+      if (match != null) {
+        className = 'Class ${match.group(1)}';
+        if (section.isEmpty && (match.group(2) ?? '').isNotEmpty) {
+          section = match.group(2)!.toUpperCase();
         }
       }
+    }
+    if (className.isEmpty) className = 'Class';
 
-      final studentId = map['StudentId'] ?? 'sstudent1';
-      final studentName = map['StudentName'] ?? 'Student';
-      final classId = map['ClassId'] ?? 'cls-10a';
-      final startDate = map['StartDate'] ?? DateTime.now().toIso8601String().split('T')[0];
+    final start = DateTime.tryParse(leave['start_date']?.toString() ?? '');
+    if (start == null) return;
+    final end = DateTime.tryParse(leave['end_date']?.toString() ?? '') ?? start;
 
-      // Update / insert attendance record with status = 'excused' (official leave)
-      await _supabase.from('school_attendance').insert({
+    final rows = <Map<String, dynamic>>[];
+    for (var day = start;
+        !day.isAfter(end);
+        day = day.add(const Duration(days: 1))) {
+      if (day.weekday == DateTime.sunday) continue;
+      rows.add({
         'institute_code': 'SHIV-SCH',
         'student_id': studentId,
-        'student_name': studentName,
-        'class_name': 'Class 10',
-        'section': 'A',
-        'class_id': classId,
-        'date': startDate,
+        'student_name': leave['student_name']?.toString() ?? '',
+        if (classId.isNotEmpty) 'class_id': classId,
+        if (className.isNotEmpty) 'class_name': className,
+        if (section.isNotEmpty) 'section': section,
+        'date': day.toIso8601String().substring(0, 10),
         'status': 'excused',
-        'marked_by': approvedBy,
+        'marked_by': leave['reviewed_by']?.toString() ?? 'Class Teacher',
       });
+    }
+    if (rows.isEmpty) return;
 
+    try {
+      await _supabase
+          .from('school_attendance')
+          .upsert(rows, onConflict: 'student_id,date');
+    } catch (_) {
+      for (final row in rows) {
+        try {
+          await _supabase.from('school_attendance').insert(row);
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Review a leave stored in the legacy `school_circulars` format.
+  Future<bool> _reviewLegacyStudentLeave({
+    required String leaveId,
+    required String status,
+    required String reviewedBy,
+    String? remarks,
+  }) async {
+    try {
+      final row = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('id', leaveId)
+          .single();
+      final content = row['content']?.toString() ?? '';
+      final label = status == 'approved' ? 'Approved' : 'Rejected';
+      final updatedContent = content.replaceAll(
+        RegExp(r'Status:\s*[^\|]+'),
+        'Status: $label by $reviewedBy (${remarks ?? "No remarks"}) ',
+      );
+      await _supabase
+          .from('school_circulars')
+          .update({'content': updatedContent}).eq('id', leaveId);
+
+      if (status == 'approved') {
+        final map = _parseStructuredContent(content);
+        await _markLeaveAttendance({
+          'student_id': map['StudentId'] ?? '',
+          'student_username': map['StudentId'] ?? '',
+          'student_name': map['StudentName'] ?? '',
+          'class_id': map['ClassId'] ?? '',
+          'start_date': map['StartDate'] ?? '',
+          'end_date': map['EndDate'] ?? '',
+          'reviewed_by': reviewedBy,
+        });
+      }
       return true;
     } catch (_) {
       return false;

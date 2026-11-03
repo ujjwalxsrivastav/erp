@@ -657,6 +657,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
       {'icon': Icons.calendar_today_outlined, 'label': 'Timetable', 'color': const Color(0xFF3B82F6), 'route': '/school/timetable'},
       {'icon': Icons.assignment_outlined, 'label': 'Homework', 'color': const Color(0xFFFB7185), 'route': '/school/homework'},
       {'icon': Icons.checklist_rtl, 'label': 'Attendance', 'color': const Color(0xFF10B981), 'route': '/school/attendance'},
+      {'icon': Icons.event_busy_outlined, 'label': 'Leave', 'color': const Color(0xFFE11D48), 'route': '/school/leave'},
       {'icon': Icons.payment_outlined, 'label': 'Fees', 'color': const Color(0xFFF59E0B), 'route': '/school/fees'},
       {'icon': Icons.campaign_outlined, 'label': 'Circulars', 'color': const Color(0xFF8B5CF6), 'route': '/school/circulars'},
       {'icon': Icons.directions_bus_outlined, 'label': 'Transport', 'color': const Color(0xFF06B6D4), 'route': '/school/transport'},
@@ -1173,6 +1174,11 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                   icon: Icons.checklist_rtl,
                   label: 'Attendance',
                   onTap: () => context.go('/school/attendance'),
+                ),
+                _buildSidebarItem(
+                  icon: Icons.event_busy_outlined,
+                  label: 'Leave Requests',
+                  onTap: () => context.go('/school/leave'),
                 ),
                 _buildSidebarItem(
                   icon: Icons.calendar_today_outlined,
