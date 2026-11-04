@@ -38,5 +38,13 @@ void main() {
     final summary = await service.getStudentFeeSummary('sstudent1');
     print('\nSummary: Total Annual: ₹${summary["total_annual"]}, Paid: ₹${summary["total_paid"]}, Pending: ₹${summary["total_pending"]}, Overdue Fines: ₹${summary["total_late_fees"]}');
     expect(summary['total_annual'], greaterThan(0));
+
+    // Test getAllStudentFeeSummaries (Admin Ledger)
+    final allSummaries = await service.getAllStudentFeeSummaries();
+    print('\nAll Student Fee Summaries count: ${allSummaries.length}');
+    expect(allSummaries.isNotEmpty, true);
+    for (var s in allSummaries.take(3)) {
+      print(' - ${s["name"]} (${s["username"]}): Total: ₹${s["total_fee"]}, Paid: ₹${s["paid_amount"]}, Pending: ₹${s["pending_amount"]}, Overdue Mos: ${s["overdue_months"]}');
+    }
   });
 }
