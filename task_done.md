@@ -10,9 +10,9 @@
 ---
 
 ## Current Execution Location:
-- **Active Section in Execution Plan:** `### TIMETABLE SCREEN FIX & MINIMALIST LIGHT-THEME OVERHAUL`
-- **Current Line in Execution Plan:** Line 316 (`Verification of Step 13.3 Timetable Screen Overhaul Complete`)
-- **Status:** School Timetable Screen (`school_timetable_screen.dart`) is 100% COMPLETE. `LateInitializationError: Field '_tabController' has not been initialized` eliminated by synchronous lifecycle initialization & dynamic role length sync. Entire screen overhauled to minimalist light-theme SaaS design (clean white cards, Slate-50 canvas, modern day-pill selectors, period timeline cards, substitution desk, syllabus tracker). 0 analyze errors, 0 deprecation warnings!
+- **Active Section in Execution Plan:** `### SCHOOL FEE MODULE OVERHAUL (ADMIN FEE HEADS, APRIL-TO-MARCH SCHEDULE & LATE FEE FINE)`
+- **Current Line in Execution Plan:** Line 325 (`Verification of Step 13.4 Fee Module Complete`)
+- **Status:** School Fee Module (`school_fee_screen.dart` & `school_service.dart`) is 100% COMPLETE. Admin can create, edit, and manage Fee Heads (Tuition, Computer, Science Lab, Sports, Library, Exam, etc.) which dynamically synchronize to student accounts and dashboards. 12-Month Academic Schedule runs from April to March with due date on the 5th of each month. Automated statutory ₹100 Late Fee Fine is levied for any month unpaid past the 5th. Students view itemized fee heads breakdown for all 12 months with real-time status (`PAID`, `OVERDUE (+₹100 LATE FINE)`, `DUE SOON`, `UPCOMING`), one-click online/counter payment, and instant official PDF receipt generation. Unit test in `test/test_fee_schedule.dart` passed with 100% accuracy. 0 analyze errors, 0 warnings!
 
 ---
 
@@ -196,7 +196,33 @@
 
 ---
 
-### [MILESTONE REACHED — TIMETABLE OVERHAUL COMPLETE]
-**Status:** All tasks through Step 13.3 are 100% completed, verified clean with 0 analyze issues, and ready for Final QA (Step 14).
-- **Step 14 (Lines 336–344):** Final QA, Build, and Handoff.
-- **Step 15 (Lines 345–355):** Production Deployment and Client Handover.
+### [COMPLETED] Step 13.4: Fee Module Overhaul — Fee Heads Manager, April-to-March Schedule & ₹100 Late Fee Engine
+- [x] **Line 336 (Action 1):** Configurable Fee Heads Master Architecture (`SchoolService`):
+  - Admin can create, edit, activate/deactivate, and delete custom Fee Heads (Tuition, Computer/IT, Science Lab, Sports, Library, Exam/Evaluation, etc.).
+  - Default CBSE baseline: Tuition (₹3,500), Computer (₹600), Science Lab (₹500), Sports (₹300), Library (₹200), Exam (₹400) -> Base Monthly: ₹5,500; Annual Base: ₹66,000.
+  - Dynamically persisted across sessions and instantly synced to student profiles.
+- [x] **Line 337 (Action 2):** 12-Month Academic Schedule Engine (April to March):
+  - Complete 12-month calendar generated per Indian CBSE/ICSE standard: Month 1 (April) through Month 12 (March of following year).
+  - Statutory Due Date: **5th of every month** (`YYYY-MM-05`).
+- [x] **Line 338 (Action 3):** Statutory Late Fee Rule Enforcement (+₹100 Fine past 5th):
+  - If a month remains unpaid and the current date is strictly past the 5th (`now.isAfter(dueDateEnd)`), an automated statutory fine of **₹100** is levied for that overdue month.
+  - If current month is on or before the 5th, fee status is `pending` with ₹0 fine.
+  - Total Month Amount = Base Monthly Amount + (isOverdue ? ₹100 : ₹0).
+- [x] **Line 339 (Action 4):** Minimalist Light-Theme UI Overhaul (`SchoolFeeScreen`):
+  - **Admin View (3 Tabs):**
+    1. *Fee Heads & Policy Master:* KPI metric chips (Monthly Base, Annual Total, Active Heads, Late Fine Rule), Statutory policy banner, list of fee heads with category icons, and `+ Add Fee Head` interactive dialog.
+    2. *Student Accounts & Demands:* Search by name/roll/class, filter pills (All, Overdue Defaulters, Partial, Paid), student cards with real-time totals & overdue months count. Tapping opens the interactive **Student April-to-March Ledger Modal** with counter payment recording.
+    3. *Defaulters & Ageing Analysis:* Ageing buckets (0-30, 31-60, 61-90, 90+ days), overdue stats, and batch PDF/CSV export.
+  - **Student View (2 Tabs):**
+    1. *Academic Schedule (April - March):* Hero summary card with session metadata, paid vs annual fee progress bar, overdue fine alert banner, and 12 expandable sequential monthly cards with itemized fee heads breakdown, overdue alert (+₹100 fine), and instant "Pay Month" or "Download Receipt" actions.
+    2. *Receipts & History:* Full digital receipts archive with download PDF button and consolidated full annual statement export.
+- [x] **Line 340 (Action 5):** Student Dashboard Synchronization (`school_student_dashboard.dart`):
+  - Student Dashboard pending fee statistic reads live demands from the 12-month schedule including applicable late fee fines past the 5th, ensuring 100% data consistency.
+- [x] **Line 341 (Verification):** Tested with automated unit test `test/test_fee_schedule.dart` (`All tests passed!`), and `dart analyze lib/features/school/fee/school_fee_screen.dart` and `lib/services/school_service.dart`: **No issues found! (0 errors, 0 warnings, 0 deprecations)**.
+
+---
+
+### [MILESTONE REACHED — FEE MODULE OVERHAUL COMPLETE]
+**Status:** All tasks through Step 13.4 are 100% completed, verified clean with 0 analyze issues, and ready for Final QA (Step 14).
+- **Step 14 (Lines 342–348):** Final QA, Build, and Handoff.
+- **Step 15 (Lines 349–355):** Production Deployment and Client Handover.

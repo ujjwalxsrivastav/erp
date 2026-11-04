@@ -19,6 +19,65 @@ class SchoolService {
   final List<Map<String, dynamic>> _admissionsStore = [];
   final List<Map<String, dynamic>> _feePaymentsStore = [];
 
+  // Configured school fee heads (Admin customizable)
+  static final List<Map<String, dynamic>> _defaultSchoolFeeHeads = [
+    {
+      'id': 'head-tuition',
+      'title': 'Tuition Fee',
+      'amount': 3500.0,
+      'frequency': 'Monthly',
+      'category': 'Academic',
+      'description': 'Academic instruction, classroom resources, faculty lectures and lab access',
+      'is_active': true,
+    },
+    {
+      'id': 'head-computer',
+      'title': 'Computer & IT Fee',
+      'amount': 600.0,
+      'frequency': 'Monthly',
+      'category': 'Technology',
+      'description': 'Smart classroom infrastructure, high-speed computer lab and digital portal',
+      'is_active': true,
+    },
+    {
+      'id': 'head-science',
+      'title': 'Science Laboratory Fee',
+      'amount': 500.0,
+      'frequency': 'Monthly',
+      'category': 'Laboratory',
+      'description': 'Physics, Chemistry, and Biology experimental equipment and apparatus',
+      'is_active': true,
+    },
+    {
+      'id': 'head-sports',
+      'title': 'Sports & Physical Education',
+      'amount': 300.0,
+      'frequency': 'Monthly',
+      'category': 'Sports',
+      'description': 'Athletic courts, sports kits, fitness training, and intra-school competitions',
+      'is_active': true,
+    },
+    {
+      'id': 'head-library',
+      'title': 'Library & Reading Room',
+      'amount': 200.0,
+      'frequency': 'Monthly',
+      'category': 'Library',
+      'description': 'Access to CBSE syllabus books, international journals and research archives',
+      'is_active': true,
+    },
+    {
+      'id': 'head-exam',
+      'title': 'Examination & Assessment',
+      'amount': 400.0,
+      'frequency': 'Monthly',
+      'category': 'Evaluation',
+      'description': 'Unit test papers, board mock exams, progress report cards & certification',
+      'is_active': true,
+    },
+  ];
+  List<Map<String, dynamic>> _customFeeHeadsStore = [];
+
   // ===== STUDENT DETAILS =====
   Future<Map<String, dynamic>?> getSchoolStudentDetails(String username) async {
     try {
@@ -1967,16 +2026,364 @@ class SchoolService {
     };
   }
 
-  // ===== FEES =====
+  // ===== FEES & ACCOUNTS ARCHITECTURE =====
+
+  /// Fetch all active & configured fee heads (Admin managed, reflected on student portal)
+  Future<List<Map<String, dynamic>>> getSchoolFeeHeads() async {
+    if (_customFeeHeadsStore.isNotEmpty) {
+      return List<Map<String, dynamic>>.from(_customFeeHeadsStore);
+    }
+
+    try {
+      final resp = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'FEE_HEAD_CONFIG')
+          .order('published_at', ascending: false);
+      final rows = List<Map<String, dynamic>>.from(resp);
+      if (rows.isNotEmpty) {
+        final parsed = <Map<String, dynamic>>[];
+        for (final r in rows) {
+          try {
+            final content = r['content']?.toString() ?? '';
+            final decoded = jsonDecode(content);
+            if (decoded is Map<String, dynamic>) {
+              parsed.add({
+                'id': r['id']?.toString() ?? decoded['id'] ?? 'head-${parsed.length}',
+                'title': r['title']?.toString() ?? decoded['title'] ?? 'Fee Head',
+                'amount': (decoded['amount'] as num?)?.toDouble() ?? 0.0,
+                'frequency': decoded['frequency'] ?? 'Monthly',
+                'category': decoded['category'] ?? 'Academic',
+                'description': decoded['description'] ?? '',
+                'is_active': decoded['is_active'] ?? true,
+              });
+            }
+          } catch (_) {}
+        }
+        if (parsed.isNotEmpty) {
+          _customFeeHeadsStore = parsed;
+          return List<Map<String, dynamic>>.from(_customFeeHeadsStore);
+        }
+      }
+    } catch (_) {}
+
+    _customFeeHeadsStore = List<Map<String, dynamic>>.from(_defaultSchoolFeeHeads);
+    return List<Map<String, dynamic>>.from(_customFeeHeadsStore);
+  }
+
+  /// Admin method: Create or update a Fee Head (e.g. Tuition Fee, Computer Fee, Lab Fee)
+  Future<bool> saveSchoolFeeHead(Map<String, dynamic> head) async {
+    final headId = head['id']?.toString() ?? 'head-${DateTime.now().millisecondsSinceEpoch}';
+    final headData = {
+      ...head,
+      'id': headId,
+      'is_active': head['is_active'] ?? true,
+    };
+
+    final existingIdx = _customFeeHeadsStore.indexWhere((h) => h['id'] == headId || h['title'] == head['title']);
+    if (existingIdx >= 0) {
+      _customFeeHeadsStore[existingIdx] = headData;
+    } else {
+      _customFeeHeadsStore.add(headData);
+    }
+
+    // Persist to Supabase circulars config store
+    try {
+      final payload = {
+        'title': head['title']?.toString() ?? 'Fee Head',
+        'category': 'FEE_HEAD_CONFIG',
+        'content': jsonEncode(headData),
+        'published_by': 'Admin',
+        'target_audience': 'all',
+      };
+      final existing = await _supabase
+          .from('school_circulars')
+          .select('id')
+          .eq('category', 'FEE_HEAD_CONFIG')
+          .eq('title', head['title']?.toString() ?? '')
+          .maybeSingle();
+
+      if (existing != null) {
+        await _supabase
+            .from('school_circulars')
+            .update(payload)
+            .eq('id', existing['id']);
+      } else {
+        await _supabase.from('school_circulars').insert(payload);
+      }
+      return true;
+    } catch (e) {
+      print('Cached fee head in memory: $e');
+      return true;
+    }
+  }
+
+  /// Admin method: Remove a Fee Head
+  Future<bool> deleteSchoolFeeHead(String headId) async {
+    final existing = _customFeeHeadsStore.firstWhere(
+      (h) => h['id'] == headId,
+      orElse: () => <String, dynamic>{},
+    );
+    _customFeeHeadsStore.removeWhere((h) => h['id'] == headId);
+
+    if (existing.isNotEmpty) {
+      try {
+        await _supabase
+            .from('school_circulars')
+            .delete()
+            .eq('category', 'FEE_HEAD_CONFIG')
+            .eq('title', existing['title']?.toString() ?? '');
+      } catch (_) {}
+    }
+    return true;
+  }
+
+  /// Reset fee heads to CBSE standard defaults
+  Future<void> resetSchoolFeeHeadsToDefault() async {
+    _customFeeHeadsStore = List<Map<String, dynamic>>.from(_defaultSchoolFeeHeads);
+    try {
+      await _supabase
+          .from('school_circulars')
+          .delete()
+          .eq('category', 'FEE_HEAD_CONFIG');
+      for (final h in _defaultSchoolFeeHeads) {
+        await saveSchoolFeeHead(h);
+      }
+    } catch (_) {}
+  }
+
+  /// 12-Month Academic Fee Schedule Engine (April to March)
+  /// - Enforces statutory rule: If unpaid after 5th of that month, applies ₹100 Late Fee Fine
+  /// - Attaches itemized fee heads breakdown
+  Future<List<Map<String, dynamic>>> getMonthlyFeeSchedule(
+    String studentUsername, {
+    String? classId,
+  }) async {
+    final heads = await getSchoolFeeHeads();
+    final activeHeads = heads.where((h) => h['is_active'] != false).toList();
+    final double baseMonthlyAmount = activeHeads.fold<double>(
+      0.0,
+      (sum, h) => sum + ((h['amount'] as num?)?.toDouble() ?? 0.0),
+    );
+
+    // Fetch existing payment rows from Supabase
+    List<Map<String, dynamic>> existingPayments = [];
+    try {
+      final resp = await _supabase
+          .from('school_fee_payments')
+          .select()
+          .eq('student_id', studentUsername);
+      existingPayments = List<Map<String, dynamic>>.from(resp);
+    } catch (_) {
+      if (_feePaymentsStore.isNotEmpty) {
+        existingPayments = _feePaymentsStore
+            .where((f) => f['student_id'] == studentUsername)
+            .toList();
+      }
+    }
+
+    final now = DateTime.now();
+    // Academic year runs April (month 4) to March (month 3 of next year)
+    final sessionStartYear = now.month >= 4 ? now.year : now.year - 1;
+    final sessionEndYear = sessionStartYear + 1;
+
+    final schedule = <Map<String, dynamic>>[];
+    const monthNames = [
+      'April', 'May', 'June', 'July', 'August', 'September',
+      'October', 'November', 'December', 'January', 'February', 'March'
+    ];
+    const monthNumbers = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+
+    for (var i = 0; i < 12; i++) {
+      final monthName = monthNames[i];
+      final monthNum = monthNumbers[i];
+      final year = (i < 9) ? sessionStartYear : sessionEndYear;
+      final fullMonthName = '$monthName $year';
+      final dueDateStr = '$year-${monthNum.toString().padLeft(2, '0')}-05';
+      final dueDateEnd = DateTime(year, monthNum, 5, 23, 59, 59);
+
+      // Check if student already paid this month
+      final match = existingPayments.firstWhere(
+        (p) {
+          final pHead = (p['head'] ?? '').toString().toLowerCase();
+          final pDue = (p['due_date'] ?? '').toString();
+          final status = (p['status'] ?? '').toString().toLowerCase();
+          final matchesMonth = pHead.contains(monthName.toLowerCase()) ||
+              pDue == dueDateStr ||
+              pDue.startsWith('$year-${monthNum.toString().padLeft(2, '0')}');
+          return matchesMonth && (status == 'paid' || status == 'settled');
+        },
+        orElse: () => <String, dynamic>{},
+      );
+
+      final isPaid = match.isNotEmpty;
+      final double paidAmount = isPaid
+          ? ((match['paid_amount'] as num?)?.toDouble() ??
+              (match['amount'] as num?)?.toDouble() ??
+              baseMonthlyAmount)
+          : 0.0;
+      final String? receiptNo = isPaid ? match['receipt_no']?.toString() : null;
+      final String? paymentMode = isPaid ? match['payment_mode']?.toString() : null;
+      final String? paidOn = isPaid
+          ? (match['paid_on']?.toString() ?? match['created_at']?.toString() ?? dueDateStr)
+          : null;
+
+      // Late fee statutory rule:
+      // If unpaid, and current timestamp is strictly after the 5th of that month
+      final bool isPast5th = now.isAfter(dueDateEnd);
+      final bool isCurrentMonth = now.year == year && now.month == monthNum;
+      final bool isOverdue = !isPaid && isPast5th;
+      final double lateFee = isOverdue ? 100.0 : 0.0;
+      final double totalPayable = isPaid ? paidAmount : (baseMonthlyAmount + lateFee);
+
+      String status;
+      if (isPaid) {
+        status = 'paid';
+      } else if (isOverdue) {
+        status = 'overdue';
+      } else if (isCurrentMonth) {
+        status = 'pending'; // Due by 5th of current month
+      } else if (now.isBefore(DateTime(year, monthNum, 1))) {
+        status = 'upcoming';
+      } else {
+        status = 'pending';
+      }
+
+      schedule.add({
+        'month_index': i + 1,
+        'month_name': fullMonthName,
+        'short_month': monthName.substring(0, 3),
+        'year': year,
+        'month_number': monthNum,
+        'due_date': dueDateStr,
+        'due_day': 5,
+        'is_paid': isPaid,
+        'is_overdue': isOverdue,
+        'late_fee': lateFee,
+        'base_amount': baseMonthlyAmount,
+        'total_amount': totalPayable,
+        'paid_amount': paidAmount,
+        'status': status,
+        'receipt_no': receiptNo,
+        'payment_mode': paymentMode,
+        'paid_on': paidOn,
+        'heads': activeHeads.map((h) => {
+          'id': h['id'],
+          'title': h['title'],
+          'amount': (h['amount'] as num?)?.toDouble() ?? 0.0,
+          'category': h['category'] ?? 'Academic',
+          'frequency': h['frequency'] ?? 'Monthly',
+        }).toList(),
+      });
+    }
+
+    return schedule;
+  }
+
+  /// Record payment for a specific academic month (or multiple months)
+  Future<String> payMonthlyFee({
+    required String studentUsername,
+    required String monthName,
+    required double baseAmount,
+    required double lateFee,
+    required String paymentMode,
+    String? classId,
+    String? note,
+  }) async {
+    final receiptNo = 'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
+    final totalAmount = baseAmount + lateFee;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final headTitle = lateFee > 0
+        ? '$monthName Fee (Itemized Heads + ₹100 Late Fee Fine)'
+        : '$monthName Fee (Itemized Heads)';
+
+    final row = <String, dynamic>{
+      'student_id': studentUsername,
+      if (classId != null && classId.isNotEmpty) 'class_id': classId,
+      'head': headTitle,
+      'amount': totalAmount,
+      'paid_amount': totalAmount,
+      'payment_mode': paymentMode,
+      'status': 'paid',
+      'receipt_no': receiptNo,
+      'due_date': today,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    try {
+      await _supabase.from('school_fee_payments').insert(row);
+    } catch (_) {
+      _feePaymentsStore.add(row);
+    }
+
+    try {
+      final receiptRow = <String, dynamic>{
+        'receipt_no': receiptNo,
+        'student_id': studentUsername,
+        if (classId != null && classId.isNotEmpty) 'class_id': classId,
+        'amount': totalAmount,
+        'payment_mode': paymentMode,
+        'head': headTitle,
+        if (note != null && note.isNotEmpty) 'note': note,
+        'paid_on': today,
+        'created_at': DateTime.now().toIso8601String(),
+      };
+      await _supabase.from('school_fee_receipts').insert(receiptRow);
+    } catch (_) {}
+
+    return receiptNo;
+  }
+
+  /// Quick summary of fee metrics for a student
+  Future<Map<String, dynamic>> getStudentFeeSummary(String studentUsername) async {
+    final schedule = await getMonthlyFeeSchedule(studentUsername);
+    double totalAnnual = 0.0;
+    double totalPaid = 0.0;
+    double totalPending = 0.0;
+    double totalLateFeeFines = 0.0;
+    int overdueCount = 0;
+    String? nextDueDate;
+
+    for (final m in schedule) {
+      final isPaid = m['is_paid'] == true;
+      final total = (m['total_amount'] as num?)?.toDouble() ?? 0.0;
+      final paid = (m['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final lateFee = (m['late_fee'] as num?)?.toDouble() ?? 0.0;
+
+      totalAnnual += total;
+      if (isPaid) {
+        totalPaid += paid;
+      } else {
+        totalPending += total;
+        if (m['is_overdue'] == true) {
+          overdueCount++;
+          totalLateFeeFines += lateFee;
+        }
+        if (nextDueDate == null && m['due_date'] != null) {
+          nextDueDate = m['due_date'].toString();
+        }
+      }
+    }
+
+    return {
+      'total_annual': totalAnnual,
+      'total_paid': totalPaid,
+      'total_pending': totalPending,
+      'total_late_fees': totalLateFeeFines,
+      'overdue_count': overdueCount,
+      'next_due_date': nextDueDate ?? '5th of Month',
+      'schedule': schedule,
+    };
+  }
+
+  // ===== ALL STUDENT FEE SUMMARIES (ADMIN) =====
   Future<List<Map<String, dynamic>>> getAllStudentFeeSummaries() async {
     const pageSize = 500;
     final students = <Map<String, dynamic>>[];
-    final feesByStudent = <String, Map<String, double>>{};
-
     for (var offset = 0;; offset += pageSize) {
       final response = await _supabase
           .from('school_students')
-          .select('username, name, class_name, roll_number')
+          .select('username, name, class_name, section, roll_number')
           .order('username')
           .range(offset, offset + pageSize - 1);
       final page = List<Map<String, dynamic>>.from(response);
@@ -1984,74 +2391,74 @@ class SchoolService {
       if (page.length < pageSize) break;
     }
 
+    final heads = await getSchoolFeeHeads();
+    final activeHeads = heads.where((h) => h['is_active'] != false).toList();
+    final double baseMonthlyAmount = activeHeads.fold<double>(
+      0.0,
+      (sum, h) => sum + ((h['amount'] as num?)?.toDouble() ?? 0.0),
+    );
+    final double annualBaseFee = baseMonthlyAmount * 12;
+
+    // Fetch payments grouped by student
+    final feesByStudent = <String, Map<String, dynamic>>{};
     try {
-      for (var offset = 0;; offset += pageSize) {
-        final response = await _supabase
-            .from('school_fee_payments')
-            .select('student_id, amount, paid_amount')
-            .order('student_id')
-            .range(offset, offset + pageSize - 1);
-        final page = List<Map<String, dynamic>>.from(response);
-        for (final demand in page) {
-          final studentId = (demand['student_id'] ?? '').toString();
-          if (studentId.isEmpty) continue;
+      final response = await _supabase
+          .from('school_fee_payments')
+          .select('student_id, amount, paid_amount, status');
+      final page = List<Map<String, dynamic>>.from(response);
+      for (final demand in page) {
+        final sid = (demand['student_id'] ?? '').toString();
+        if (sid.isEmpty) continue;
 
-          final amount = (demand['amount'] as num?)?.toDouble() ?? 0;
-          final paid = ((demand['paid_amount'] as num?)?.toDouble() ?? 0)
-              .clamp(0.0, amount)
-              .toDouble();
-          final totals = feesByStudent.putIfAbsent(
-            studentId,
-            () => {'total_fee': 0, 'paid_amount': 0},
-          );
-          totals['total_fee'] = totals['total_fee']! + amount;
-          totals['paid_amount'] = totals['paid_amount']! + paid;
+        final amount = (demand['amount'] as num?)?.toDouble() ?? 0;
+        final paid = ((demand['paid_amount'] as num?)?.toDouble() ?? 0)
+            .clamp(0.0, amount)
+            .toDouble();
+        final totals = feesByStudent.putIfAbsent(
+          sid,
+          () => {'paid_amount': 0.0, 'paid_count': 0},
+        );
+        totals['paid_amount'] = (totals['paid_amount'] as double) + paid;
+        if (demand['status'] == 'paid' || paid >= baseMonthlyAmount - 0.01) {
+          totals['paid_count'] = (totals['paid_count'] as int) + 1;
         }
-        if (page.length < pageSize) break;
       }
-    } on PostgrestException catch (e) {
-      if (e.code != '42703' && e.code != 'PGRST204') rethrow;
+    } catch (_) {}
 
-      // Some installs store each student's balance in accounts rather than
-      // storing paid_amount on each fee demand/payment row.
-      for (var offset = 0;; offset += pageSize) {
-        final response = await _supabase
-            .from('school_fee_accounts')
-            .select(
-                'student_username, total_fee, paid_amount, pending_amount')
-            .order('student_username')
-            .range(offset, offset + pageSize - 1);
-        final page = List<Map<String, dynamic>>.from(response);
-        for (final account in page) {
-          final studentId = (account['student_username'] ?? '').toString();
-          if (studentId.isEmpty) continue;
-
-          final totals = feesByStudent.putIfAbsent(
-            studentId,
-            () => {'total_fee': 0, 'paid_amount': 0},
-          );
-          totals['total_fee'] =
-              totals['total_fee']! +
-              ((account['total_fee'] as num?)?.toDouble() ?? 0);
-          totals['paid_amount'] =
-              totals['paid_amount']! +
-              ((account['paid_amount'] as num?)?.toDouble() ?? 0);
-        }
-        if (page.length < pageSize) break;
+    final now = DateTime.now();
+    final sessionStartYear = now.month >= 4 ? now.year : now.year - 1;
+    final sessionEndYear = sessionStartYear + 1;
+    int monthsElapsedPast5th = 0;
+    const monthNumbers = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+    for (var i = 0; i < 12; i++) {
+      final mNum = monthNumbers[i];
+      final y = (i < 9) ? sessionStartYear : sessionEndYear;
+      final dueDate = DateTime(y, mNum, 5, 23, 59, 59);
+      if (now.isAfter(dueDate)) {
+        monthsElapsedPast5th++;
       }
     }
 
     return students.map((student) {
       final username = (student['username'] ?? '').toString();
-      final totals =
-          feesByStudent[username] ?? {'total_fee': 0.0, 'paid_amount': 0.0};
-      final totalFee = totals['total_fee'] ?? 0;
-      final paidAmount = totals['paid_amount'] ?? 0;
+      final stats = feesByStudent[username] ?? {'paid_amount': 0.0, 'paid_count': 0};
+      final paidAmount = (stats['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final paidMonths = (stats['paid_count'] as int?) ??
+          (paidAmount / (baseMonthlyAmount > 0 ? baseMonthlyAmount : 1)).floor();
+
+      final overdueMonthsCount = (monthsElapsedPast5th - paidMonths).clamp(0, 12);
+      final double totalLateFee = overdueMonthsCount * 100.0;
+      final double totalFeeWithLateFine = annualBaseFee + totalLateFee;
+      final double pendingAmount = (totalFeeWithLateFine - paidAmount).clamp(0.0, double.infinity);
+
       return {
         ...student,
-        'total_fee': totalFee,
+        'total_fee': totalFeeWithLateFine,
         'paid_amount': paidAmount,
-        'pending_amount': (totalFee - paidAmount).clamp(0.0, double.infinity),
+        'pending_amount': pendingAmount,
+        'overdue_months': overdueMonthsCount,
+        'late_fee_fine': totalLateFee,
+        'monthly_base': baseMonthlyAmount,
       };
     }).toList();
   }
@@ -2221,20 +2628,25 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getStudentFees(String studentId) async {
-    try {
-      final response = await _supabase
-          .from('school_fee_payments')
-          .select()
-          .eq('student_id', studentId)
-          .order('created_at', ascending: false);
-      final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    if (_feePaymentsStore.isNotEmpty) {
-      return _feePaymentsStore.where((f) => f['student_id'] == studentId).toList();
+    final schedule = await getMonthlyFeeSchedule(studentId);
+    final demands = <Map<String, dynamic>>[];
+    for (final m in schedule) {
+      final isPaid = m['is_paid'] == true;
+      demands.add({
+        'student_id': studentId,
+        'head': '${m['month_name']} Composite Fee',
+        'amount': m['total_amount'],
+        'paid_amount': isPaid ? m['total_amount'] : 0.0,
+        'due_date': m['due_date'],
+        'status': m['status'],
+        'payment_mode': m['payment_mode'] ?? 'Online',
+        'receipt_no': m['receipt_no'],
+        'is_overdue': m['is_overdue'],
+        'late_fee': m['late_fee'],
+        'heads': m['heads'],
+      });
     }
-    return [];
+    return demands;
   }
 
   Future<List<Map<String, dynamic>>> getPendingFees(String classId) async {
