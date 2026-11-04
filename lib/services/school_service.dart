@@ -1952,6 +1952,94 @@ class SchoolService {
   }
 
   // ===== FEES =====
+  Future<List<Map<String, dynamic>>> getAllStudentFeeSummaries() async {
+    const pageSize = 500;
+    final students = <Map<String, dynamic>>[];
+    final feesByStudent = <String, Map<String, double>>{};
+
+    for (var offset = 0;; offset += pageSize) {
+      final response = await _supabase
+          .from('school_students')
+          .select('username, name, class_name, roll_number')
+          .order('username')
+          .range(offset, offset + pageSize - 1);
+      final page = List<Map<String, dynamic>>.from(response);
+      students.addAll(page);
+      if (page.length < pageSize) break;
+    }
+
+    try {
+      for (var offset = 0;; offset += pageSize) {
+        final response = await _supabase
+            .from('school_fee_payments')
+            .select('student_id, amount, paid_amount')
+            .order('student_id')
+            .range(offset, offset + pageSize - 1);
+        final page = List<Map<String, dynamic>>.from(response);
+        for (final demand in page) {
+          final studentId = (demand['student_id'] ?? '').toString();
+          if (studentId.isEmpty) continue;
+
+          final amount = (demand['amount'] as num?)?.toDouble() ?? 0;
+          final paid = ((demand['paid_amount'] as num?)?.toDouble() ?? 0)
+              .clamp(0.0, amount)
+              .toDouble();
+          final totals = feesByStudent.putIfAbsent(
+            studentId,
+            () => {'total_fee': 0, 'paid_amount': 0},
+          );
+          totals['total_fee'] = totals['total_fee']! + amount;
+          totals['paid_amount'] = totals['paid_amount']! + paid;
+        }
+        if (page.length < pageSize) break;
+      }
+    } on PostgrestException catch (e) {
+      if (e.code != '42703' && e.code != 'PGRST204') rethrow;
+
+      // Some installs store each student's balance in accounts rather than
+      // storing paid_amount on each fee demand/payment row.
+      for (var offset = 0;; offset += pageSize) {
+        final response = await _supabase
+            .from('school_fee_accounts')
+            .select(
+                'student_username, total_fee, paid_amount, pending_amount')
+            .order('student_username')
+            .range(offset, offset + pageSize - 1);
+        final page = List<Map<String, dynamic>>.from(response);
+        for (final account in page) {
+          final studentId = (account['student_username'] ?? '').toString();
+          if (studentId.isEmpty) continue;
+
+          final totals = feesByStudent.putIfAbsent(
+            studentId,
+            () => {'total_fee': 0, 'paid_amount': 0},
+          );
+          totals['total_fee'] =
+              totals['total_fee']! +
+              ((account['total_fee'] as num?)?.toDouble() ?? 0);
+          totals['paid_amount'] =
+              totals['paid_amount']! +
+              ((account['paid_amount'] as num?)?.toDouble() ?? 0);
+        }
+        if (page.length < pageSize) break;
+      }
+    }
+
+    return students.map((student) {
+      final username = (student['username'] ?? '').toString();
+      final totals =
+          feesByStudent[username] ?? {'total_fee': 0.0, 'paid_amount': 0.0};
+      final totalFee = totals['total_fee'] ?? 0;
+      final paidAmount = totals['paid_amount'] ?? 0;
+      return {
+        ...student,
+        'total_fee': totalFee,
+        'paid_amount': paidAmount,
+        'pending_amount': (totalFee - paidAmount).clamp(0.0, double.infinity),
+      };
+    }).toList();
+  }
+
   Future<List<Map<String, dynamic>>> getFeePayments({String? classId}) async {
     try {
       if (classId != null && classId.isNotEmpty) {

@@ -27,14 +27,36 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
 
   List<Map<String, dynamic>> _feeHistory = [];
   List<Map<String, dynamic>> _receipts = [];
+  List<Map<String, dynamic>> _allStudentFeeSummaries = [];
   Map<String, dynamic> _defaulterData = {};
+  bool _isAdminFeesLoading = false;
+  String? _adminFeesError;
+  String _adminFeeSearch = '';
 
-  /// Students/parents see 2 tabs (no other students' dues); staff see 3.
+  /// Students/parents see 2 tabs; other staff see 3. Admins get a pending-only
+  /// fee list without payment or student-specific fee controls.
   bool get _isStudentRole =>
       _userRole == 'student' || _userRole == 'parent';
   bool get _isAdminRole =>
       _userRole == 'admin' || _userRole == 'sadmin';
   int get _tabCount => _isStudentRole ? 2 : 3;
+
+  List<Map<String, dynamic>> get _filteredStudentFeeSummaries {
+    final query = _adminFeeSearch.trim().toLowerCase();
+    return _allStudentFeeSummaries.where((student) {
+      if (((student['pending_amount'] as num?)?.toDouble() ?? 0) <= 0.01) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return [
+        student['name'],
+        student['username'],
+        student['class_name'],
+        student['section'],
+        student['roll_number'],
+      ].any((value) => (value ?? '').toString().toLowerCase().contains(query));
+    }).toList();
+  }
 
   // Totals computed from the real backend ledger.
   // Every row is a fee demand; `paid_amount` is what has been settled
@@ -87,9 +109,16 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
     try {
       final role = await _authService.getCurrentUserRole() ?? 'student';
       final username = await _authService.getCurrentUsername() ?? 'sstudent1';
-      // Staff view a seeded Class-10 student (clean backend data).
-      final targetUser = (role == 'admin' || role == 'sadmin' ||
-              role == 'teacher' || role == 'steacher')
+      if (role == 'admin' || role == 'sadmin') {
+        if (mounted) setState(() => _userRole = role);
+        await _loadAdminStudentFees();
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        _tabController?.dispose();
+        _tabController = null;
+        return;
+      }
+      final targetUser = (role == 'teacher' || role == 'steacher')
           ? 's10s01'
           : username;
 
@@ -129,6 +158,28 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
           _errorMessage = 'Could not load fee records. Please check your connection and retry.';
         });
       }
+    }
+  }
+
+  Future<void> _loadAdminStudentFees() async {
+    setState(() {
+      _isAdminFeesLoading = true;
+      _adminFeesError = null;
+    });
+    try {
+      final summaries = await _schoolService.getAllStudentFeeSummaries();
+      if (!mounted) return;
+      setState(() {
+        _allStudentFeeSummaries = summaries;
+        _isAdminFeesLoading = false;
+      });
+    } catch (e) {
+      print('Error loading all student fee summaries: $e');
+      if (!mounted) return;
+      setState(() {
+        _adminFeesError = 'Could not load student fees: $e';
+        _isAdminFeesLoading = false;
+      });
     }
   }
 
@@ -576,7 +627,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
             ),
           ),
         ),
-        bottom: _tabController == null
+        bottom: _isAdminRole || _tabController == null
             ? null
             : PreferredSize(
           preferredSize: const Size.fromHeight(48),
@@ -612,7 +663,11 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
         ),
       ),
       body: _isLoading || _tabController == null
-          ? _buildLoadingSkeleton()
+          ? (_isAdminRole && !_isLoading
+              ? _buildAllStudentFeesTab()
+              : _buildLoadingSkeleton())
+          : _isAdminRole
+              ? _buildAllStudentFeesTab()
           : _errorMessage != null
               ? _buildErrorView()
               : TabBarView(
@@ -698,6 +753,244 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAllStudentFeesTab() {
+    if (_isAdminFeesLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFFD97706)),
+      );
+    }
+    if (_adminFeesError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 44, color: Colors.red),
+              const SizedBox(height: 12),
+              Text(
+                _adminFeesError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF475569)),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: _loadAdminStudentFees,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Try Again'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final students = _filteredStudentFeeSummaries;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: TextField(
+            onChanged: (value) => setState(() => _adminFeeSearch = value),
+            decoration: InputDecoration(
+              hintText: 'Search name, username, class or roll number',
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Students with pending fees: ${students.length}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF475569),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadAdminStudentFees,
+            color: const Color(0xFFD97706),
+            child: students.isEmpty
+                ? ListView(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 56),
+                        child: Center(
+                          child: Text(
+                            _adminFeeSearch.trim().isEmpty
+                                ? 'No students have pending fees.'
+                                : 'No students match your search.',
+                            style:
+                                const TextStyle(color: Color(0xFF64748B)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                    itemCount: students.length,
+                    itemBuilder: (context, index) =>
+                        _buildAdminStudentFeeCard(students[index]),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdminStudentFeeCard(Map<String, dynamic> student) {
+    final name = (student['name'] ?? '').toString().trim();
+    final username = (student['username'] ?? '').toString();
+    final className = (student['class_name'] ?? '').toString();
+    final section = (student['section'] ?? '').toString();
+    final roll = (student['roll_number'] ?? '').toString();
+    final total = (student['total_fee'] as num?)?.toDouble() ?? 0;
+    final paid = (student['paid_amount'] as num?)?.toDouble() ?? 0;
+    final pending = (student['pending_amount'] as num?)?.toDouble() ?? 0;
+    final status = total <= 0
+        ? 'No fee set'
+        : pending <= 0.01
+            ? 'Paid'
+            : paid > 0
+                ? 'Partially paid'
+                : 'Pending';
+    final statusColor = pending <= 0.01 && total > 0
+        ? const Color(0xFF059669)
+        : paid > 0
+            ? const Color(0xFFD97706)
+            : const Color(0xFFDC2626);
+    final classDetail = [
+      if (className.isNotEmpty) className,
+      if (section.isNotEmpty) 'Section $section',
+      if (roll.isNotEmpty) 'Roll $roll',
+    ].join(' • ');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: const Color(0xFFFEF3C7),
+                  child: Text(
+                    (name.isNotEmpty ? name : username)
+                        .characters
+                        .first
+                        .toUpperCase(),
+                    style: const TextStyle(
+                      color: Color(0xFF92400E),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name.isEmpty ? username : name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        '$username${classDetail.isEmpty ? '' : ' • $classDetail'}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(height: 1),
+            ),
+            Row(
+              children: [
+                _buildStudentFeeAmount('Total', total, const Color(0xFF334155)),
+                _buildStudentFeeAmount('Paid', paid, const Color(0xFF059669)),
+                _buildStudentFeeAmount(
+                  'Pending',
+                  pending,
+                  pending > 0
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF64748B),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudentFeeAmount(String label, double amount, Color color) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+          const SizedBox(height: 3),
+          Text(
+            '₹${amount.toStringAsFixed(0)}',
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
