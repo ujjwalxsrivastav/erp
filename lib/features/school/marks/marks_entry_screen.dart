@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
 
@@ -11,34 +12,45 @@ class MarksEntryScreen extends StatefulWidget {
 
 class _MarksEntryScreenState extends State<MarksEntryScreen> {
   final _schoolService = SchoolService();
+  final _authService = AuthService();
 
+  // Role and Identity
+  bool _isStaff = false;
+  bool _isInitialising = true;
+
+  // Selected parameters
   List<Map<String, dynamic>> _classes = [];
   List<Map<String, dynamic>> _subjects = [];
   List<Map<String, dynamic>> _students = [];
 
   Map<String, dynamic>? _selectedClass;
   Map<String, dynamic>? _selectedSubject;
-  String _selectedExam = 'Unit Test 1';
+  String _selectedExam = 'Half Yearly';
+  List<String> _examSessions = ['Half Yearly', 'Final', 'Periodic Test 1', 'Periodic Test 2', 'Unit Test 1', 'Unit Test 2'];
 
-  static const List<String> _examTypes = [
-    'Unit Test 1',
-    'Unit Test 2',
-    'Mid Term',
-    'Final Term',
-    'Assignment',
-  ];
-
-  // Map<studentId, TextEditingController>
+  // Scholastic Controllers
   final Map<String, TextEditingController> _marksControllers = {};
-  int _maxMarks = 50;
-  final _maxMarksController = TextEditingController(text: '50');
+  final Map<String, TextEditingController> _remarksControllers = {};
+  int _maxMarks = 80;
+  final _maxMarksController = TextEditingController(text: '80');
 
-  bool _isInitialising = true;
+  // Co-Scholastic & Narrative Controllers (for Class Teachers & Admins)
+  Map<String, dynamic>? _selectedStudentForNarrative;
+  final TextEditingController _teacherRemarkController = TextEditingController();
+  String _selectedPromotionVerdict = 'Promoted';
+  final Map<String, String> _coScholasticGrades = {
+    'Work Education': 'A',
+    'Art Education': 'A',
+    'Health & Physical Education': 'A',
+    'Discipline': 'A',
+  };
+
+  // State flags
   bool _isLoadingStudents = false;
-  bool _isSaving = false;
-  bool _isRestricted = false;
-
-  double? _classAverage;
+  bool _isSavingMarks = false;
+  bool _isSavingNarrative = false;
+  String? _errorMessage;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -47,25 +59,46 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   }
 
   Future<void> _init() async {
-    // Adding/editing report-card marks is an administrator action.
-    final role = await AuthService().getCurrentUserRole();
-    if (role != 'admin' && role != 'sadmin') {
+    setState(() => _isInitialising = true);
+    final role = await _authService.getCurrentUserRole() ?? 'student';
+    final username = await _authService.getCurrentUsername() ?? '';
+
+    // Allow both Teachers (subject/class) and Admins
+    final isStaff = role == 'admin' || role == 'sadmin' || role == 'teacher' || role == 'steacher';
+    if (!isStaff) {
       if (mounted) {
         setState(() {
-          _isRestricted = true;
+          _isStaff = false;
           _isInitialising = false;
         });
       }
       return;
     }
 
-    final classes = await _schoolService.getSchoolClasses();
+    // Load available exam sessions to match Report Card criteria
+    final sessions = await _schoolService.getExamSessions();
+    if (sessions.isNotEmpty) {
+      _examSessions = sessions;
+      _selectedExam = sessions.first;
+    }
+
+    // Load classes: if teacher, prefer their assigned classes
+    List<Map<String, dynamic>> classes = [];
+    if (role == 'teacher' || role == 'steacher') {
+      classes = await _schoolService.getClassTeacherClasses(username);
+    }
+    if (classes.isEmpty) {
+      classes = await _schoolService.getSchoolClasses();
+    }
+
     if (!mounted) return;
     setState(() {
+      _isStaff = true;
       _classes = classes;
       _selectedClass = classes.isNotEmpty ? classes.first : null;
       _isInitialising = false;
     });
+
     if (_selectedClass != null) {
       await _loadSubjectsAndStudents();
     }
@@ -73,137 +106,189 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
   Future<void> _loadSubjectsAndStudents() async {
     final classId = _selectedClass?['id']?.toString();
+    final className = _selectedClass?['name']?.toString() ?? '';
     if (classId == null) return;
 
-    setState(() => _isLoadingStudents = true);
-
-    final subjects = await _schoolService.getSchoolSubjects(classId: classId);
-    final students = await _schoolService.getStudentsByClass(classId);
-
-    if (!mounted) return;
-
-    // Dispose old controllers
-    for (final c in _marksControllers.values) {
-      c.dispose();
-    }
-    _marksControllers.clear();
-
-    for (final s in students) {
-      final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
-      _marksControllers[sid] = TextEditingController();
-    }
-
     setState(() {
-      _subjects = subjects;
-      _selectedSubject = subjects.isNotEmpty ? subjects.first : null;
-      _students = students;
-      _isLoadingStudents = false;
-      _classAverage = null;
+      _isLoadingStudents = true;
+      _errorMessage = null;
     });
 
-    await _loadExistingMarks();
+    try {
+      final subjects = await _schoolService.getSchoolSubjects(classId: classId);
+      final students = await _schoolService.getStudentsInClass(classId, className: className);
+
+      if (!mounted) return;
+
+      // Dispose existing controllers
+      for (final c in _marksControllers.values) {
+        c.dispose();
+      }
+      for (final c in _remarksControllers.values) {
+        c.dispose();
+      }
+      _marksControllers.clear();
+      _remarksControllers.clear();
+
+      for (final s in students) {
+        final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
+        _marksControllers[sid] = TextEditingController();
+        _remarksControllers[sid] = TextEditingController();
+      }
+
+      setState(() {
+        _subjects = subjects;
+        _selectedSubject = subjects.isNotEmpty ? subjects.first : null;
+        _students = students;
+        if (students.isNotEmpty) {
+          _selectedStudentForNarrative = students.first;
+        }
+        _isLoadingStudents = false;
+      });
+
+      await _loadExistingMarks();
+      if (_selectedStudentForNarrative != null) {
+        await _loadStudentNarrative(_selectedStudentForNarrative!);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingStudents = false;
+        _errorMessage = 'Could not load student roster: $e';
+      });
+    }
   }
 
   Future<void> _loadExistingMarks() async {
     final classId = _selectedClass?['id']?.toString();
-    final subject = _selectedSubject?['name']?.toString() ??
-        _selectedSubject?['id']?.toString();
+    final subject = _selectedSubject?['name']?.toString() ?? _selectedSubject?['id']?.toString();
     if (classId == null || subject == null) return;
 
-    final existing = await _schoolService.getMarksByClassSubjectExam(
-      classId: classId,
-      subject: subject,
-      examType: _selectedExam,
-    );
+    try {
+      final existing = await _schoolService.getMarksByClassSubjectExam(
+        classId: classId,
+        subject: subject,
+        examType: _selectedExam,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    for (final m in existing) {
-      final sid = m['student_id']?.toString() ?? '';
-      final obtained = m['marks_obtained']?.toString() ??
-          m['obtained_marks']?.toString() ??
-          m['marks']?.toString() ??
-          '';
-      if (_marksControllers.containsKey(sid)) {
-        _marksControllers[sid]!.text = obtained;
-      }
-      // Also read max marks from DB if present
-      final max = m['total_marks'] ?? m['max_marks'];
-      if (max != null) {
-        final maxInt = int.tryParse(max.toString());
-        if (maxInt != null && maxInt != _maxMarks) {
-          setState(() {
-            _maxMarks = maxInt;
-            _maxMarksController.text = maxInt.toString();
-          });
+      for (final m in existing) {
+        final sid = m['student_id']?.toString() ?? '';
+        final obtained = m['marks_obtained']?.toString() ??
+            m['obtained_marks']?.toString() ??
+            m['marks']?.toString() ??
+            '';
+        final remark = m['remarks']?.toString() ?? '';
+
+        if (_marksControllers.containsKey(sid)) {
+          _marksControllers[sid]!.text = obtained;
+        }
+        if (_remarksControllers.containsKey(sid)) {
+          _remarksControllers[sid]!.text = remark;
+        }
+
+        // Align max marks from DB if present
+        final max = m['total_marks'] ?? m['max_marks'];
+        if (max != null) {
+          final maxInt = int.tryParse(max.toString());
+          if (maxInt != null && maxInt != _maxMarks) {
+            setState(() {
+              _maxMarks = maxInt;
+              _maxMarksController.text = maxInt.toString();
+            });
+          }
         }
       }
-    }
+      setState(() {});
+    } catch (_) {}
   }
 
-  Future<void> _saveMarks() async {
-    // Validate
-    bool hasError = false;
-    for (final s in _students) {
-      final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
-      final text = _marksControllers[sid]?.text.trim() ?? '';
-      if (text.isEmpty) continue; // empty = not entered yet, skip
-      final val = int.tryParse(text);
-      if (val == null) {
-        hasError = true;
-        break;
-      }
-      if (val > _maxMarks || val < 0) {
-        hasError = true;
-        break;
-      }
-    }
+  Future<void> _loadStudentNarrative(Map<String, dynamic> student) async {
+    final sid = student['username']?.toString() ?? student['id']?.toString() ?? '';
+    if (sid.isEmpty) return;
 
-    if (hasError) {
+    try {
+      final meta = await _schoolService.getReportCardMeta(
+        studentId: sid,
+        examType: _selectedExam,
+      );
+      final coScholastic = await _schoolService.getCoScholastic(
+        studentId: sid,
+        examType: _selectedExam,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _teacherRemarkController.text = meta['teacher_remark']?.toString() ?? '';
+        _selectedPromotionVerdict = meta['promotion_verdict']?.toString() ?? 'Promoted';
+
+        for (final item in coScholastic) {
+          final area = item['area']?.toString() ?? '';
+          final grade = item['grade']?.toString() ?? 'A';
+          if (_coScholasticGrades.containsKey(area)) {
+            _coScholasticGrades[area] = grade;
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
+  // ──────────────────────────────────────────────
+  // SAVE MARKS (SCHOLASTIC)
+  // ──────────────────────────────────────────────
+  Future<void> _saveMarks() async {
+    final classId = _selectedClass?['id']?.toString() ?? '';
+    final className = _selectedClass?['name']?.toString() ?? '';
+    final subject = _selectedSubject?['name']?.toString() ?? _selectedSubject?['id']?.toString() ?? '';
+
+    if (subject.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Invalid marks. Each must be a number between 0 and $_maxMarks.'),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
+        const SnackBar(content: Text('Please select a subject to enter marks.'), backgroundColor: Color(0xFFEF4444)),
       );
       return;
     }
 
-    setState(() => _isSaving = true);
-
-    final classId = _selectedClass?['id']?.toString() ?? '';
-    final className = _selectedClass?['name']?.toString() ?? '';
-    final subject = _selectedSubject?['name']?.toString() ??
-        _selectedSubject?['id']?.toString() ?? '';
-
+    // Validate marks bounds
     final marksList = <Map<String, dynamic>>[];
     for (final s in _students) {
-      // Controllers are keyed by username (DB marks store student_id = username).
       final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
       final text = _marksControllers[sid]?.text.trim() ?? '';
       if (text.isEmpty) continue;
-      final val = int.tryParse(text);
-      if (val == null) continue;
+
+      final val = double.tryParse(text);
+      if (val == null || val < 0 || val > _maxMarks) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid mark for ${s['name'] ?? sid}. Marks must be between 0 and $_maxMarks.'),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final remark = _remarksControllers[sid]?.text.trim() ?? '';
+
       marksList.add({
         'student_id': sid,
-        'student_name': s['name'],
+        'student_name': s['name'] ?? s['username'],
         'class_id': classId,
         'class_name': className,
-        'section': _selectedClass?['section'],
+        'section': _selectedClass?['section'] ?? '',
         'subject': subject,
         'exam_type': _selectedExam,
-        'obtained_marks': val,
-        'max_marks': _maxMarks,
+        'marks_obtained': val,
+        'total_marks': _maxMarks.toDouble(),
+        if (remark.isNotEmpty) 'remarks': remark,
         'created_at': DateTime.now().toIso8601String(),
       });
     }
 
     if (marksList.isEmpty) {
-      setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No marks entered to save.'),
+          content: Text('No marks entered to save. Please type student marks in the inputs.'),
           backgroundColor: Color(0xFFF59E0B),
           behavior: SnackBarBehavior.floating,
         ),
@@ -211,30 +296,36 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       return;
     }
 
+    setState(() => _isSavingMarks = true);
     final ok = await _schoolService.saveMarks(marksList);
     if (!mounted) return;
-    setState(() => _isSaving = false);
+    setState(() => _isSavingMarks = false);
 
     if (ok) {
-      // Calculate class average
-      final total = marksList.fold<int>(0, (sum, m) => sum + (m['obtained_marks'] as int));
-      final avg = total / marksList.length;
-      setState(() => _classAverage = avg);
-
+      final avg = marksList.fold<double>(0.0, (acc, m) => acc + (m['marks_obtained'] as double)) / marksList.length;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              'Marks saved! Class average: ${avg.toStringAsFixed(1)} / $_maxMarks'),
-          backgroundColor: const Color(0xFF8B5CF6),
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Saved marks for ${marksList.length} students! Class Average: ${avg.toStringAsFixed(1)} / $_maxMarks',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_schoolService.lastMarksError ??
-              'Failed to save marks. Please try again.'),
+          content: Text(_schoolService.lastMarksError ?? 'Failed to save marks to the database.'),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
@@ -242,46 +333,180 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     }
   }
 
+  // ──────────────────────────────────────────────
+  // SAVE NARRATIVE & CO-SCHOLASTIC
+  // ──────────────────────────────────────────────
+  Future<void> _saveNarrative() async {
+    final student = _selectedStudentForNarrative;
+    if (student == null) return;
+    final sid = student['username']?.toString() ?? student['id']?.toString() ?? '';
+    if (sid.isEmpty) return;
+
+    setState(() => _isSavingNarrative = true);
+
+    final okMeta = await _schoolService.saveReportCardMeta(
+      studentId: sid,
+      examType: _selectedExam,
+      teacherRemark: _teacherRemarkController.text.trim(),
+      promotionVerdict: _selectedPromotionVerdict,
+    );
+
+    final areasList = _coScholasticGrades.entries
+        .map((e) => {'area': e.key, 'grade': e.value})
+        .toList();
+
+    final okCo = await _schoolService.saveCoScholastic(
+      studentId: sid,
+      examType: _selectedExam,
+      areas: areasList,
+    );
+
+    if (!mounted) return;
+    setState(() => _isSavingNarrative = false);
+
+    if (okMeta && okCo) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Report Card remarks & co-scholastic grades saved for ${student['name'] ?? sid}!'),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_schoolService.lastMarksError ?? 'Could not save remarks. Please try again.'),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _autoFillPassingMarks() {
+    final passing = (_maxMarks * 0.35).ceil();
+    setState(() {
+      for (final s in _students) {
+        final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
+        if (_marksControllers[sid]?.text.trim().isEmpty ?? true) {
+          _marksControllers[sid]?.text = passing.toString();
+        }
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Auto-filled $passing / $_maxMarks (35% passing mark) for unrecorded students.'),
+        backgroundColor: const Color(0xFF3B82F6),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _clearAllMarks() {
+    setState(() {
+      for (final c in _marksControllers.values) {
+        c.clear();
+      }
+    });
+  }
+
+  // ──────────────────────────────────────────────
+  // CALCULATIONS & HELPERS
+  // ──────────────────────────────────────────────
+  double get _computedClassAverage {
+    final values = _marksControllers.values
+        .map((c) => double.tryParse(c.text.trim()))
+        .whereType<double>()
+        .toList();
+    if (values.isEmpty) return 0.0;
+    return values.reduce((a, b) => a + b) / values.length;
+  }
+
+  int get _gradedCount {
+    return _marksControllers.values
+        .where((c) => c.text.trim().isNotEmpty && double.tryParse(c.text.trim()) != null)
+        .length;
+  }
+
+  List<Map<String, dynamic>> get _filteredStudents {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return _students;
+    return _students.where((s) {
+      final name = (s['name'] ?? '').toString().toLowerCase();
+      final uname = (s['username'] ?? '').toString().toLowerCase();
+      final roll = (s['roll_number'] ?? '').toString().toLowerCase();
+      return name.contains(q) || uname.contains(q) || roll.contains(q);
+    }).toList();
+  }
+
   @override
   void dispose() {
     for (final c in _marksControllers.values) {
       c.dispose();
     }
+    for (final c in _remarksControllers.values) {
+      c.dispose();
+    }
     _maxMarksController.dispose();
+    _teacherRemarkController.dispose();
     super.dispose();
   }
 
+  // ──────────────────────────────────────────────
+  // BUILD
+  // ──────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    if (_isRestricted) {
+    if (_isInitialising) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
-          title: const Text(
-            'Marks Entry',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          foregroundColor: Colors.white,
-          backgroundColor: const Color(0xFF6D28D9),
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF0F172A),
+          elevation: 0,
+          title: const Text('Assessment & Marks Entry', style: TextStyle(fontWeight: FontWeight.w700)),
         ),
-        body: const Center(
+        body: _buildLoadingSkeleton(),
+      );
+    }
+
+    if (!_isStaff) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF0F172A),
+          elevation: 0,
+          title: const Text('Assessment & Marks Entry', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        body: Center(
           child: Padding(
-            padding: EdgeInsets.all(28),
+            padding: const EdgeInsets.all(28),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock_outline, size: 56, color: Color(0xFF94A3B8)),
-                SizedBox(height: 12),
-                Text(
-                  'Administrator only',
-                  style:
-                      TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                const Icon(Icons.lock_person_outlined, size: 54, color: Color(0xFFEF4444)),
+                const SizedBox(height: 14),
+                const Text(
+                  'Teacher & Administrator Access Required',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                 ),
-                SizedBox(height: 6),
-                Text(
-                  'Report card marks can only be added by an administrator.',
+                const SizedBox(height: 6),
+                const Text(
+                  'Students and parents view finalized report cards via the Report Card portal.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 18),
+                ElevatedButton(
+                  onPressed: () => context.go('/school/report-card'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('View Report Card'),
                 ),
               ],
             ),
@@ -290,377 +515,873 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text(
-          'Assessment & Marks Entry',
-          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
-        ),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF4C1D95), Color(0xFF6D28D9), Color(0xFF7C3AED)],
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF0F172A),
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Assessment & Marks Entry',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              ),
+              Text(
+                'CBSE Academic Year 2026-27 • ${_selectedExam} Session',
+                style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(48),
+            child: Container(
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+              ),
+              child: const TabBar(
+                labelColor: Color(0xFF0F172A),
+                unselectedLabelColor: Color(0xFF64748B),
+                indicatorColor: Color(0xFF0F172A),
+                indicatorWeight: 3,
+                labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                tabs: [
+                  Tab(text: '1. Subject Marks Ledger'),
+                  Tab(text: '2. Co-Scholastic & Remarks'),
+                ],
+              ),
             ),
           ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: ElevatedButton.icon(
-              onPressed: _isSaving ? null : _saveMarks,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF6D28D9),
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-              ),
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6D28D9)),
-                    )
-                  : const Icon(Icons.check, size: 18),
-              label: Text(
-                _isSaving ? 'Saving...' : 'Save Marks',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
+          actions: [
+            IconButton(
+              tooltip: 'Bulk CSV Upload',
+              icon: const Icon(Icons.file_upload_outlined, size: 20),
+              onPressed: () => context.push('/school/marks/csv'),
             ),
-          ),
-        ],
+            IconButton(
+              tooltip: 'Preview Report Cards',
+              icon: const Icon(Icons.description_outlined, size: 20),
+              onPressed: () => context.push('/school/report-card'),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: TabBarView(
+          children: [
+            _buildScholasticTab(),
+            _buildCoScholasticTab(),
+          ],
+        ),
       ),
-      body: _isInitialising
-          ? _buildLoadingSkeleton()
-          : Column(
-              children: [
-                // ── Filter Header ──
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF4C1D95), Color(0xFF6D28D9), Color(0xFF7C3AED)],
-                    ),
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(24),
-                      bottomRight: Radius.circular(24),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildFilterDropdown<Map<String, dynamic>>(
-                              label: 'Class',
-                              value: _selectedClass,
-                              items: _classes,
-                              itemLabel: (c) =>
-                                  c['name']?.toString() ?? c['id']?.toString() ?? '',
-                              onChanged: (v) {
-                                setState(() => _selectedClass = v);
-                                _loadSubjectsAndStudents();
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _buildFilterDropdown<Map<String, dynamic>>(
-                              label: 'Subject',
-                              value: _selectedSubject,
-                              items: _subjects,
-                              itemLabel: (s) =>
-                                  s['name']?.toString() ?? s['id']?.toString() ?? '',
-                              onChanged: (v) {
-                                setState(() => _selectedSubject = v);
-                                _loadExistingMarks();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildFilterDropdown<String>(
-                              label: 'Exam Type',
-                              value: _selectedExam,
-                              items: _examTypes,
-                              itemLabel: (e) => e,
-                              onChanged: (v) {
-                                if (v != null) {
-                                  setState(() => _selectedExam = v);
-                                  _loadExistingMarks();
-                                }
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Text('Out of: ',
-                                      style: TextStyle(
-                                          color: Colors.white, fontSize: 13)),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _maxMarksController,
-                                      keyboardType: TextInputType.number,
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15),
-                                      decoration: const InputDecoration(
-                                        border: InputBorder.none,
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.zero,
-                                      ),
-                                      onChanged: (v) => setState(() =>
-                                          _maxMarks = int.tryParse(v) ?? 50),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      // Class average banner
-                      if (_classAverage != null) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.bar_chart,
-                                  color: Colors.white, size: 18),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Class Average: ${_classAverage!.toStringAsFixed(1)} / $_maxMarks  '
-                                '(${((_classAverage! / _maxMarks) * 100).toStringAsFixed(1)}%)',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                // ── Student List ──
-                Expanded(
-                  child: _isLoadingStudents
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                              color: Color(0xFF8B5CF6)))
-                      : _students.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.people_outline,
-                                      size: 64, color: Colors.grey.shade300),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'No students found for this class.',
-                                    style: TextStyle(
-                                        color: Colors.grey.shade500,
-                                        fontSize: 15),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: _students.length,
-                              itemBuilder: (context, index) {
-                                final student = _students[index];
-                                final sid = student['username']?.toString() ??
-                                    student['id']?.toString() ??
-                                    '';
-                                final roll = student['roll_number']?.toString() ??
-                                    student['roll']?.toString() ??
-                                    '${index + 1}';
-                                final name = student['name']?.toString() ??
-                                    student['full_name']?.toString() ??
-                                    'Student ${index + 1}';
-                                final studentId =
-                                    student['student_id']?.toString() ??
-                                        student['username']?.toString() ??
-                                        sid;
-
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(14),
-                                    boxShadow: [
-                                      BoxShadow(
-                                          color:
-                                              Colors.black.withValues(alpha: 0.04),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 3))
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 38,
-                                        height: 38,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFFF3E8FF),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            roll,
-                                            style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.bold,
-                                                color: Color(0xFF8B5CF6)),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              name,
-                                              style: const TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Color(0xFF1F2937)),
-                                            ),
-                                            Text(
-                                              studentId,
-                                              style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey.shade500),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 90,
-                                        child: TextFormField(
-                                          controller: _marksControllers[sid],
-                                          keyboardType: TextInputType.number,
-                                          textAlign: TextAlign.center,
-                                          decoration: InputDecoration(
-                                            hintText: '-- / $_maxMarks',
-                                            hintStyle: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade400),
-                                            border: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              borderSide: const BorderSide(
-                                                  color: Color(0xFFE2E8F0)),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              borderSide: const BorderSide(
-                                                  color: Color(0xFF8B5CF6),
-                                                  width: 2),
-                                            ),
-                                            contentPadding:
-                                                const EdgeInsets.symmetric(
-                                                    horizontal: 8, vertical: 10),
-                                            filled: true,
-                                            fillColor: const Color(0xFFF3E8FF),
-                                          ),
-                                          style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF8B5CF6)),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                ),
-              ],
-            ),
     );
   }
 
-  Widget _buildFilterDropdown<T>({
+  // ──────────────────────────────────────────────
+  // TAB 1: SCHOLASTIC SUBJECT MARKS LEDGER
+  // ──────────────────────────────────────────────
+  Widget _buildScholasticTab() {
+    return Column(
+      children: [
+        _buildSelectionHeader(),
+        _buildStatsSummaryRibbon(),
+        _buildBatchActionToolBar(),
+        Expanded(
+          child: _isLoadingStudents
+              ? _buildLoadingSkeleton()
+              : _errorMessage != null
+                  ? _buildErrorView()
+                  : _buildStudentMarksList(),
+        ),
+        _buildBottomSaveDock(),
+      ],
+    );
+  }
+
+  Widget _buildSelectionHeader() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Class Picker
+              Expanded(
+                flex: 4,
+                child: _buildDropdownChip<Map<String, dynamic>>(
+                  label: 'Class',
+                  value: _selectedClass,
+                  items: _classes,
+                  itemLabel: (c) => c['name']?.toString() ?? c['id']?.toString() ?? '',
+                  onChanged: (v) {
+                    setState(() => _selectedClass = v);
+                    _loadSubjectsAndStudents();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Subject Picker
+              Expanded(
+                flex: 5,
+                child: _buildDropdownChip<Map<String, dynamic>>(
+                  label: 'Subject',
+                  value: _selectedSubject,
+                  items: _subjects,
+                  itemLabel: (s) => s['name']?.toString() ?? s['id']?.toString() ?? '',
+                  onChanged: (v) {
+                    setState(() => _selectedSubject = v);
+                    _loadExistingMarks();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Exam Session Picker
+              Expanded(
+                flex: 5,
+                child: _buildDropdownChip<String>(
+                  label: 'Exam Session',
+                  value: _selectedExam,
+                  items: _examSessions,
+                  itemLabel: (e) => e,
+                  onChanged: (v) {
+                    if (v != null) {
+                      setState(() => _selectedExam = v);
+                      _loadExistingMarks();
+                      if (_selectedStudentForNarrative != null) {
+                        _loadStudentNarrative(_selectedStudentForNarrative!);
+                      }
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              // Max Marks Config
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Max Marks: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+                    SizedBox(
+                      width: 44,
+                      height: 28,
+                      child: TextField(
+                        controller: _maxMarksController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        textAlign: TextAlign.center,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 4),
+                          border: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF0F172A))),
+                        ),
+                        onSubmitted: (val) {
+                          final parsed = int.tryParse(val);
+                          if (parsed != null && parsed > 0) {
+                            setState(() => _maxMarks = parsed);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+
+              // Search Filter
+              Expanded(
+                child: Container(
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: TextField(
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    style: const TextStyle(fontSize: 12.5, color: Color(0xFF0F172A)),
+                    decoration: const InputDecoration(
+                      hintText: 'Filter student by name or roll…',
+                      hintStyle: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      prefixIcon: Icon(Icons.search_rounded, size: 16, color: Color(0xFF94A3B8)),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownChip<T>({
     required String label,
     required T? value,
     required List<T> items,
     required String Function(T) itemLabel,
-    required void Function(T?) onChanged,
+    required ValueChanged<T?> onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: DropdownButton<T>(
-        value: value,
-        isExpanded: true,
-        underline: const SizedBox.shrink(),
-        dropdownColor: const Color(0xFF7C3AED),
-        style: const TextStyle(
-            color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
-        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-        hint: Text(label,
-            style: const TextStyle(color: Colors.white70, fontSize: 13)),
-        items: items
-            .map((i) => DropdownMenuItem<T>(
-                  value: i,
-                  child: Text(itemLabel(i),
-                      style: const TextStyle(color: Colors.white)),
-                ))
-            .toList(),
-        onChanged: onChanged,
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          isExpanded: true,
+          dropdownColor: Colors.white,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
+          hint: Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+          items: items.map((item) {
+            return DropdownMenuItem<T>(
+              value: item,
+              child: Text(
+                itemLabel(item),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              ),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
       ),
     );
   }
 
+  Widget _buildStatsSummaryRibbon() {
+    final avg = _computedClassAverage;
+    final total = _students.length;
+    final graded = _gradedCount;
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          _buildStatPill('Graded', '$graded / $total', const Color(0xFF0F172A), const Color(0xFFF1F5F9)),
+          const SizedBox(width: 8),
+          _buildStatPill('Class Average', '${avg.toStringAsFixed(1)} / $_maxMarks', const Color(0xFF2563EB), const Color(0xFFEFF6FF)),
+          const SizedBox(width: 8),
+          _buildStatPill('Average %', '${total == 0 ? "0" : ((avg / _maxMarks) * 100).toStringAsFixed(0)}%', const Color(0xFF10B981), const Color(0xFFECFDF5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatPill(String label, String value, Color color, Color bg) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.15)),
+        ),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: color)),
+            Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.85))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBatchActionToolBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+      child: Row(
+        children: [
+          Text(
+            'STUDENT LIST (${_filteredStudents.length})',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: Color(0xFF64748B)),
+          ),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: _autoFillPassingMarks,
+            icon: const Icon(Icons.bolt_rounded, size: 14),
+            label: const Text('Auto-fill 35%', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF2563EB),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            ),
+          ),
+          const SizedBox(width: 4),
+          TextButton.icon(
+            onPressed: _clearAllMarks,
+            icon: const Icon(Icons.clear_all_rounded, size: 14),
+            label: const Text('Clear', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFEF4444),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentMarksList() {
+    final list = _filteredStudents;
+    if (list.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_outline_rounded, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 10),
+            const Text('No students found for this class', style: TextStyle(color: Color(0xFF64748B), fontSize: 13.5)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      itemCount: list.length,
+      itemBuilder: (context, index) {
+        final s = list[index];
+        return _buildStudentMarksRow(s, index);
+      },
+    );
+  }
+
+  Widget _buildStudentMarksRow(Map<String, dynamic> student, int index) {
+    final sid = student['username']?.toString() ?? student['id']?.toString() ?? '';
+    final roll = student['roll_number']?.toString() ?? '${student['roll'] ?? (index + 1)}';
+    final name = student['name']?.toString() ?? student['username']?.toString() ?? 'Student';
+    final ctrl = _marksControllers[sid] ?? TextEditingController();
+    final remarkCtrl = _remarksControllers[sid] ?? TextEditingController();
+
+    final markVal = double.tryParse(ctrl.text.trim());
+    final pct = (markVal != null && _maxMarks > 0) ? (markVal / _maxMarks) * 100 : null;
+    final gradeInfo = pct != null ? SchoolService.calculateCbseGrade(pct) : null;
+
+    Color gradeBg = const Color(0xFFF1F5F9);
+    Color gradeColor = const Color(0xFF64748B);
+    if (gradeInfo != null) {
+      if (pct! >= 75) {
+        gradeBg = const Color(0xFFECFDF5);
+        gradeColor = const Color(0xFF10B981);
+      } else if (pct >= 50) {
+        gradeBg = const Color(0xFFEFF6FF);
+        gradeColor = const Color(0xFF2563EB);
+      } else if (pct >= 33) {
+        gradeBg = const Color(0xFFFFFBEB);
+        gradeColor = const Color(0xFFD97706);
+      } else {
+        gradeBg = const Color(0xFFFEF2F2);
+        gradeColor = const Color(0xFFEF4444);
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Roll No Avatar
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                roll,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Name and ID
+          Expanded(
+            flex: 4,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                ),
+                Text(
+                  sid,
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+
+          // Grade and % pill
+          if (gradeInfo != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: gradeBg,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: gradeColor.withValues(alpha: 0.3)),
+              ),
+              child: Text(
+                '${gradeInfo['grade']} • ${pct!.toStringAsFixed(0)}%',
+                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: gradeColor),
+              ),
+            )
+          else
+            const Text('—', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+
+          const SizedBox(width: 12),
+
+          // Marks Input Field
+          Container(
+            width: 72,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFCBD5E1)),
+            ),
+            child: TextField(
+              controller: ctrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+                hintText: '0.0',
+                hintStyle: TextStyle(fontSize: 12, color: Color(0xFFCBD5E1)),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text('/$_maxMarks', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+
+          const SizedBox(width: 8),
+          // Remark toggle button
+          IconButton(
+            icon: Icon(
+              remarkCtrl.text.trim().isNotEmpty ? Icons.chat_bubble_rounded : Icons.chat_bubble_outline_rounded,
+              size: 16,
+              color: remarkCtrl.text.trim().isNotEmpty ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
+            ),
+            tooltip: 'Add remark',
+            onPressed: () => _showStudentRemarkSheet(sid, name, remarkCtrl),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showStudentRemarkSheet(String sid, String name, TextEditingController ctrl) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.rate_review_outlined, color: Color(0xFF0F172A), size: 20),
+                const SizedBox(width: 8),
+                Text('Remark for $name', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              maxLines: 2,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'e.g. Needs practice in trigonometry, commendable effort…',
+                hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: ElevatedButton(
+                onPressed: () {
+                  setState(() {});
+                  Navigator.pop(ctx);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomSaveDock() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: const Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$_gradedCount of ${_students.length} Marks Entered',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0F172A)),
+                  ),
+                  Text(
+                    '${_selectedSubject?['name'] ?? ''} • $_selectedExam',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _isSavingMarks ? null : _saveMarks,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F172A),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: _isSavingMarks
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.cloud_upload_outlined, size: 18),
+              label: Text(_isSavingMarks ? 'Saving Marks…' : 'Save & Publish Marks', style: const TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // TAB 2: CO-SCHOLASTIC & TEACHER REMARKS
+  // ──────────────────────────────────────────────
+  Widget _buildCoScholasticTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Guidance Banner
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.stars_rounded, color: Color(0xFF2563EB), size: 22),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CBSE Co-Scholastic & Narrative Assessment',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF1E40AF)),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Grades entered here populate Part 2 (Co-Scholastic) and Class Teacher Remarks directly on the official student report card.',
+                      style: TextStyle(fontSize: 11.5, color: Color(0xFF3B82F6)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Student Selector Dropdown
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Select Student for Narrative Assessment', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<Map<String, dynamic>>(
+                    value: _selectedStudentForNarrative,
+                    isExpanded: true,
+                    dropdownColor: Colors.white,
+                    items: _students.map((s) {
+                      return DropdownMenuItem(
+                        value: s,
+                        child: Text(
+                          '${s['name'] ?? s['username']} (Roll: ${s['roll_number'] ?? '—'})',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedStudentForNarrative = v);
+                        _loadStudentNarrative(v);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Co-Scholastic Areas
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Co-Scholastic 3-Point Scale (A, B, C)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              const SizedBox(height: 12),
+              ..._coScholasticGrades.keys.map((area) {
+                final currentGrade = _coScholasticGrades[area] ?? 'A';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          area,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1F2937)),
+                        ),
+                      ),
+                      Row(
+                        children: ['A', 'B', 'C'].map((g) {
+                          final isSel = currentGrade == g;
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: InkWell(
+                              onTap: () => setState(() => _coScholasticGrades[area] = g),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: isSel ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  g,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: isSel ? Colors.white : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Narrative Remark & Promotion Verdict
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Class Teacher Narrative Remark', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _teacherRemarkController,
+                maxLines: 3,
+                style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Shows exceptional dedication and analytical aptitude. Active participant in classroom seminars.',
+                  hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              const Text('Promotion Verdict (End of Term)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedPromotionVerdict,
+                    isExpanded: true,
+                    dropdownColor: Colors.white,
+                    items: const [
+                      DropdownMenuItem(value: 'Promoted', child: Text('Promoted to Next Higher Grade', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF10B981)))),
+                      DropdownMenuItem(value: 'Promoted with Grace', child: Text('Promoted with Grace / Concession', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFD97706)))),
+                      DropdownMenuItem(value: 'Eligible for Compartment', child: Text('Eligible for Compartment / Retest', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFEF4444)))),
+                      DropdownMenuItem(value: 'Detained', child: Text('Detained in Current Grade', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF991B1B)))),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setState(() => _selectedPromotionVerdict = v);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  onPressed: _isSavingNarrative ? null : _saveNarrative,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: _isSavingNarrative
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.save_rounded, size: 18),
+                  label: Text(_isSavingNarrative ? 'Saving Narrative…' : 'Save Remarks & Co-Scholastic', style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // SKELETON & ERROR
+  // ──────────────────────────────────────────────
   Widget _buildLoadingSkeleton() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: 6,
-      itemBuilder: (context, index) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        height: 64,
+      itemCount: 8,
+      itemBuilder: (ctx, i) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        height: 52,
         decoration: BoxDecoration(
-          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(14),
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
+            const SizedBox(height: 10),
+            Text(_errorMessage ?? 'Failed to load data', style: const TextStyle(fontSize: 13.5, color: Color(0xFF64748B))),
+            const SizedBox(height: 14),
+            ElevatedButton(
+              onPressed: _loadSubjectsAndStudents,
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+              child: const Text('Retry'),
+            ),
+          ],
         ),
       ),
     );

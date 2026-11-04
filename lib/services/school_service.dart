@@ -1757,7 +1757,7 @@ class SchoolService {
     }
   }
 
-  /// ADMIN ONLY: save the narrative remark + promotion verdict for a card.
+  /// Save the narrative remark + promotion verdict for a card.
   Future<bool> saveReportCardMeta({
     required String studentId,
     required String examType,
@@ -1766,8 +1766,8 @@ class SchoolService {
   }) async {
     lastMarksError = null;
     final role = await AuthService().getCurrentUserRole();
-    if (role != 'admin' && role != 'sadmin') {
-      lastMarksError = 'Only the admin can update the report card.';
+    if (role != 'admin' && role != 'sadmin' && role != 'teacher' && role != 'steacher') {
+      lastMarksError = 'Only teachers and administrators can update report card remarks.';
       return false;
     }
     try {
@@ -1787,10 +1787,35 @@ class SchoolService {
     }
   }
 
+  /// Save co-scholastic grades (Work Education, Art Education, Health & Physical Education, Discipline).
+  Future<bool> saveCoScholastic({
+    required String studentId,
+    required String examType,
+    required List<Map<String, dynamic>> areas,
+  }) async {
+    final role = await AuthService().getCurrentUserRole();
+    if (role != 'admin' && role != 'sadmin' && role != 'teacher' && role != 'steacher') {
+      return false;
+    }
+    try {
+      final rows = areas.map((a) => {
+        'student_id': studentId,
+        'exam_type': examType,
+        'area': a['area'],
+        'grade': a['grade'],
+        'term': examType,
+      }).toList();
+      await _supabase.from('school_co_scholastic').upsert(rows, onConflict: 'student_id,exam_type,area');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static const String reportCardAcademicYear = '2026-2027';
 
-  /// ADMIN ONLY (for the time being): save / update report card marks.
-  /// Students, parents and teachers can never change marks — only the admin.
+  /// Save / update report card marks.
+  /// Teachers and administrators can enter and edit marks.
   ///
   /// Rows are normalised to the `school_marks` schema (obtained_marks /
   /// max_marks aliases from the entry screen are mapped to marks_obtained /
@@ -1801,8 +1826,8 @@ class SchoolService {
     if (marksList.isEmpty) return false;
 
     final role = await AuthService().getCurrentUserRole();
-    if (role != 'admin' && role != 'sadmin') {
-      lastMarksError = 'Only the admin can update the report card.';
+    if (role != 'admin' && role != 'sadmin' && role != 'teacher' && role != 'steacher') {
+      lastMarksError = 'Only teachers and administrators can enter or update marks.';
       return false;
     }
 

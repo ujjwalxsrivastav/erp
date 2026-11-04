@@ -80,7 +80,7 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
   Future<void> _init() async {
     // Results are administered by the school admin only.
     final role = await AuthService().getCurrentUserRole();
-    if (role != 'admin' && role != 'sadmin') {
+    if (role != 'admin' && role != 'sadmin' && role != 'teacher' && role != 'steacher') {
       if (mounted) {
         setState(() {
           _isRestricted = true;
