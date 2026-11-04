@@ -389,137 +389,213 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
     }
   }
 
-  /// ADMIN ONLY: update the total fee demand from the screen. The service
-  /// re-checks the role, so this is a convenience — not the security boundary.
-  void _showSetDemandDialog() {    if (!_isAdminRole) return;
-    final headCtrl = TextEditingController(text: 'Quarter 4 Tuition Fee');
-    final amountCtrl = TextEditingController();
-    final dueCtrl = TextEditingController(
-        text: DateTime.now().add(const Duration(days: 15))
-            .toIso8601String()
-            .substring(0, 10));
+  Future<void> _showAddFeeDialog() async {
+    if (!_isAdminRole) return;
+    if (_allStudentFeeSummaries.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Student list is not loaded yet. Refresh and try again.')),
+      );
+      return;
+    }
 
-    showDialog(
+    const feeHeads = [
+      'Tuition Fee',
+      'Late Fee',
+      'Library Charge',
+      'Examination Fee',
+      'Transport Fee',
+      'Other',
+    ];
+    final amountCtrl = TextEditingController();
+    final customHeadCtrl = TextEditingController();
+    var selectedHead = feeHeads.first;
+    var applyToAll = true;
+    var selectedStudent = _allStudentFeeSummaries.first['username'].toString();
+    var dueDate = DateTime.now().add(const Duration(days: 15));
+
+    final request = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: const [
-            Icon(Icons.admin_panel_settings, color: Color(0xFF92400E)),
-            SizedBox(width: 10),
-            Text('Set Fee Demand', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Fee Demand'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: selectedHead,
+                  decoration: const InputDecoration(labelText: 'Fee head'),
+                  items: feeHeads
+                      .map((head) => DropdownMenuItem(
+                            value: head,
+                            child: Text(head),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => selectedHead = value);
+                    }
+                  },
+                ),
+                if (selectedHead == 'Other') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: customHeadCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Custom fee head',
+                      hintText: 'e.g. Uniform Charge',
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Amount per student (₹)',
+                    prefixText: '₹ ',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<bool>(
+                  initialValue: applyToAll,
+                  decoration: const InputDecoration(labelText: 'Apply to'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: true,
+                      child: Text('All students'),
+                    ),
+                    DropdownMenuItem(
+                      value: false,
+                      child: Text('One student'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => applyToAll = value);
+                    }
+                  },
+                ),
+                if (!applyToAll) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedStudent,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Student'),
+                    items: _allStudentFeeSummaries.map((student) {
+                      final username = student['username'].toString();
+                      final name = (student['name'] ?? username).toString();
+                      return DropdownMenuItem(
+                        value: username,
+                        child: Text('$name ($username)'),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => selectedStudent = value);
+                      }
+                    },
+                  ),
+                ],
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Due date'),
+                  subtitle: Text(
+                    '${dueDate.year}-${dueDate.month.toString().padLeft(2, '0')}-${dueDate.day.toString().padLeft(2, '0')}',
+                  ),
+                  trailing: const Icon(Icons.calendar_today_outlined),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: dueDate,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => dueDate = picked);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final amount = double.tryParse(amountCtrl.text.trim());
+                final head = selectedHead == 'Other'
+                    ? customHeadCtrl.text.trim()
+                    : selectedHead;
+                if (amount == null || !amount.isFinite || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Enter an amount greater than zero.'),
+                    ),
+                  );
+                  return;
+                }
+                if (head.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Enter a fee head.')),
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext, {
+                  'head': head,
+                  'amount': amount,
+                  'due_date':
+                      '${dueDate.year}-${dueDate.month.toString().padLeft(2, '0')}-${dueDate.day.toString().padLeft(2, '0')}',
+                  'student_usernames': applyToAll
+                      ? _allStudentFeeSummaries
+                          .map((student) => student['username'].toString())
+                          .toList()
+                      : [selectedStudent],
+                });
+              },
+              child: const Text('Add fee'),
+            ),
           ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Student: $_studentName ($_studentUsername)',
-                  style: const TextStyle(fontSize: 13, color: Colors.grey)),
-              const SizedBox(height: 14),
-              const Text('Fee Head', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: headCtrl,
-                decoration: InputDecoration(
-                  hintText: 'e.g. Quarter 4 Tuition Fee',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text('Amount (₹)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: amountCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.currency_rupee, size: 18),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text('Due Date', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: dueCtrl,
-                decoration: InputDecoration(
-                  hintText: 'YYYY-MM-DD',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Admin only — students and teachers read this total, they cannot change it.',
-                style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final head = headCtrl.text.trim();
-              final amt = double.tryParse(amountCtrl.text.trim()) ?? 0;
-              if (head.isEmpty || amt <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Enter a fee head and an amount greater than 0'),
-                    backgroundColor: Color(0xFFEF4444),
-                  ),
-                );
-                return;
-              }
-              Navigator.pop(ctx);
-              try {
-                final result = await _schoolService.setFeeDemand(
-                  studentId: _studentUsername,
-                  head: head,
-                  amount: amt,
-                  dueDate: dueCtrl.text.trim(),
-                  classId: _studentClassId,
-                );
-                await _loadFeeData();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(result == 'updated'
-                          ? 'Fee demand updated — total is now ₹${_totalFees.toStringAsFixed(0)}'
-                          : 'New fee demand created — ₹${amt.toStringAsFixed(0)}'),
-                      backgroundColor: const Color(0xFF10B981),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(e.toString().replaceFirst('Exception: ', '')),
-                      backgroundColor: const Color(0xFFEF4444),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF92400E),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('Save Demand'),
-          ),
-        ],
       ),
     );
+    amountCtrl.dispose();
+    customHeadCtrl.dispose();
+    if (request == null || !mounted) return;
+
+    try {
+      final added = await _schoolService.addFeeDemands(
+        studentUsernames:
+            List<String>.from(request['student_usernames'] as List),
+        head: request['head'] as String,
+        amount: request['amount'] as double,
+        dueDate: request['due_date'] as String,
+      );
+      await _loadAdminStudentFees();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${request['head']} added for $added student${added == 1 ? '' : 's'}.',
+          ),
+          backgroundColor: const Color(0xFF059669),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not add fee: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    }
   }
 
   void _showReceiptDialog(String receiptNo, double amount, String mode,
@@ -619,6 +695,15 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
     ];
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      floatingActionButton: _isAdminRole
+          ? FloatingActionButton.extended(
+              onPressed: _showAddFeeDialog,
+              backgroundColor: const Color(0xFF92400E),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Add Fee'),
+            )
+          : null,
       appBar: AppBar(
         title: Text(
           _isAdminRole ? 'Fee Management & Accounts' : 'Fee Details & Payments',
@@ -1132,13 +1217,6 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
                       icon: const Icon(Icons.picture_as_pdf_outlined,
                           color: Color(0xFFEF4444), size: 22),
                     ),
-                    if (_isAdminRole)
-                      IconButton(
-                        tooltip: 'Admin: set fee demand',
-                        onPressed: _showSetDemandDialog,
-                        icon: const Icon(Icons.edit_outlined,
-                            color: Color(0xFF92400E), size: 22),
-                      ),
                   ],
                 ),
                 const SizedBox(height: 4),
