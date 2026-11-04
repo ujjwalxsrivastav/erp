@@ -276,7 +276,7 @@ class _TransportScreenState extends State<TransportScreen> {
                 labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                 unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                 tabs: [
-                  const Tab(text: '1. Trip Attendance (Aate/Jaate)'),
+                  const Tab(text: '1. Trip Attendance '),
                   Tab(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -369,7 +369,7 @@ class _TransportScreenState extends State<TransportScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '☀️ Morning Pickup (Aate Time)',
+                      '☀️ Morning Pickup',
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
@@ -403,7 +403,7 @@ class _TransportScreenState extends State<TransportScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '🌙 Evening Drop (Jaate Time)',
+                      '🌙 Evening Drop',
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
