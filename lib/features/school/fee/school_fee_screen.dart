@@ -12,9 +12,7 @@ class SchoolFeeScreen extends StatefulWidget {
   State<SchoolFeeScreen> createState() => _SchoolFeeScreenState();
 }
 
-class _SchoolFeeScreenState extends State<SchoolFeeScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
   final _schoolService = SchoolService();
   final _authService = AuthService();
 
@@ -73,14 +71,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadFeeData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadFeeData() async {
@@ -108,8 +99,6 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
           _receipts = allReceipts;
           _isLoading = false;
         });
-
-        _syncTabController(3);
         return;
       }
 
@@ -147,22 +136,12 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
         }
         _isLoading = false;
       });
-
-      _syncTabController(2);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMessage = 'Could not load fee records: $e';
       });
-    }
-  }
-
-  void _syncTabController(int count) {
-    if (_tabController.length != count) {
-      _tabController.dispose();
-      _tabController = TabController(length: count, vsync: this);
-      setState(() {});
     }
   }
 
@@ -894,112 +873,143 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF0F172A),
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _isAdminRole ? 'School Fee & Accounts Master' : 'Student Fee Portal',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-            ),
-            Text(
-              _isAdminRole
-                  ? 'CBSE Academic Year 2026-27 • 12-Month April-March Schedule'
-                  : '$_studentName • $_studentClass • Roll $_admissionNo',
-              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh Ledger',
-            icon: const Icon(Icons.refresh_rounded, size: 20),
-            onPressed: _loadFeeData,
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF0F172A),
+          elevation: 0,
+          title: Text(
+            _isAdminRole ? 'School Fee & Accounts Master' : 'Student Fee Portal',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
           ),
-          if (_isAdminRole)
+        ),
+        body: _buildLoadingSkeleton(),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF0F172A),
+          elevation: 0,
+          title: Text(
+            _isAdminRole ? 'School Fee & Accounts Master' : 'Student Fee Portal',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+          ),
+        ),
+        body: _buildErrorView(),
+      );
+    }
+
+    final tabCount = _isAdminRole ? 3 : 2;
+
+    return DefaultTabController(
+      key: ValueKey('fee_tabs_${tabCount}_$_userRole'),
+      length: tabCount,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF0F172A),
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _isAdminRole ? 'School Fee & Accounts Master' : 'Student Fee Portal',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              ),
+              Text(
+                _isAdminRole
+                    ? 'CBSE Academic Year 2026-27 • 12-Month April-March Schedule'
+                    : '$_studentName • $_studentClass • Roll $_admissionNo',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+          actions: [
             IconButton(
-              tooltip: 'Export Defaulters',
-              icon: const Icon(Icons.download_outlined, size: 20),
-              onPressed: () {
-                final defaulters = _allStudentSummaries.where((s) => ((s['pending_amount'] as num?)?.toDouble() ?? 0) > 0.01).toList();
-                SchoolExportService.showExportOptionsModal(
-                  context: context,
-                  title: 'Export Defaulters Ledger',
-                  subtitle: 'Export ${defaulters.length} students with outstanding balances.',
-                  onExportPdf: () => SchoolExportService.exportPendingFeesPdf(
+              tooltip: 'Refresh Ledger',
+              icon: const Icon(Icons.refresh_rounded, size: 20),
+              onPressed: _loadFeeData,
+            ),
+            if (_isAdminRole)
+              IconButton(
+                tooltip: 'Export Defaulters',
+                icon: const Icon(Icons.download_outlined, size: 20),
+                onPressed: () {
+                  final defaulters = _allStudentSummaries.where((s) => ((s['pending_amount'] as num?)?.toDouble() ?? 0) > 0.01).toList();
+                  SchoolExportService.showExportOptionsModal(
                     context: context,
-                    pendingStudents: defaulters,
-                    totalOutstandingAmount: defaulters.fold<double>(0.0, (s, d) => s + ((d['pending_amount'] as num?)?.toDouble() ?? 0.0)),
-                  ),
-                  onExportCsv: () => SchoolExportService.exportPendingFeesCsv(context: context, pendingStudents: defaulters),
-                );
-              },
-            ),
-          const SizedBox(width: 8),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              labelColor: const Color(0xFFD97706),
-              unselectedLabelColor: const Color(0xFF64748B),
-              indicatorColor: const Color(0xFFD97706),
-              indicatorWeight: 3,
-              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-              tabs: _isAdminRole
-                  ? const [
-                      Tab(text: 'Fee Heads & Policy'),
-                      Tab(text: 'Student Accounts'),
-                      Tab(text: 'Defaulters & Ageing'),
-                    ]
-                  : const [
-                      Tab(text: 'Academic Schedule (Apr-Mar)'),
-                      Tab(text: 'Receipts & History'),
-                    ],
+                    title: 'Export Defaulters Ledger',
+                    subtitle: 'Export ${defaulters.length} students with outstanding balances.',
+                    onExportPdf: () => SchoolExportService.exportPendingFeesPdf(
+                      context: context,
+                      pendingStudents: defaulters,
+                      totalOutstandingAmount: defaulters.fold<double>(0.0, (s, d) => s + ((d['pending_amount'] as num?)?.toDouble() ?? 0.0)),
+                    ),
+                    onExportCsv: () => SchoolExportService.exportPendingFeesCsv(context: context, pendingStudents: defaulters),
+                  );
+                },
+              ),
+            const SizedBox(width: 8),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(48),
+            child: Container(
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+              ),
+              child: TabBar(
+                labelColor: const Color(0xFFD97706),
+                unselectedLabelColor: const Color(0xFF64748B),
+                indicatorColor: const Color(0xFFD97706),
+                indicatorWeight: 3,
+                labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                tabs: _isAdminRole
+                    ? const [
+                        Tab(text: 'Fee Heads & Policy'),
+                        Tab(text: 'Student Accounts'),
+                        Tab(text: 'Defaulters & Ageing'),
+                      ]
+                    : const [
+                        Tab(text: 'Academic Schedule (Apr-Mar)'),
+                        Tab(text: 'Receipts & History'),
+                      ],
+              ),
             ),
           ),
         ),
+        body: _isAdminRole
+            ? TabBarView(
+                children: [
+                  _buildAdminFeeHeadsTab(),
+                  _buildAdminStudentAccountsTab(),
+                  _buildAdminDefaultersTab(),
+                ],
+              )
+            : TabBarView(
+                children: [
+                  _buildStudentScheduleTab(),
+                  _buildStudentReceiptsTab(),
+                ],
+              ),
+        floatingActionButton: _isAdminRole
+            ? FloatingActionButton.extended(
+                onPressed: () => _showAddEditFeeHeadDialog(),
+                backgroundColor: const Color(0xFF0F172A),
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text('Add Fee Head', style: TextStyle(fontWeight: FontWeight.w600)),
+              )
+            : null,
       ),
-      body: _isLoading
-          ? _buildLoadingSkeleton()
-          : _errorMessage != null
-              ? _buildErrorView()
-              : _isAdminRole
-                  ? TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildAdminFeeHeadsTab(),
-                        _buildAdminStudentAccountsTab(),
-                        _buildAdminDefaultersTab(),
-                      ],
-                    )
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildStudentScheduleTab(),
-                        _buildStudentReceiptsTab(),
-                      ],
-                    ),
-      floatingActionButton: _isAdminRole
-          ? FloatingActionButton.extended(
-              onPressed: () => _showAddEditFeeHeadDialog(),
-              backgroundColor: const Color(0xFF0F172A),
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text('Add Fee Head', style: TextStyle(fontWeight: FontWeight.w600)),
-            )
-          : null,
     );
   }
 
