@@ -18,15 +18,12 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
   final _authService = AuthService();
 
   static const Color _primary = Color(0xFF0F766E); // Deep Teal
-  static const Color _accent = Color(0xFF14B8A6);  // Bright Teal
   static const Color _gold = Color(0xFFF59E0B);    // Gold / Amber
   static const Color _bg = Color(0xFFF8FAFC);
 
   // Authentication & Role
   bool _isInitialized = false;
   bool _isTeacher = false;
-  String _userRole = 'teacher';
-  String _username = '';
   String _teacherDisplayName = 'Faculty';
   List<Map<String, dynamic>> _teacherClasses = [];
   List<Map<String, dynamic>> _allClasses = [];
@@ -155,8 +152,6 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     _tabController = TabController(length: tabCount, vsync: this);
 
     setState(() {
-      _userRole = role;
-      _username = username;
       _teacherDisplayName = teacherName;
       _isTeacher = isTeacher;
       _teacherClasses = teacherClasses;
@@ -957,6 +952,32 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     ],
                   ],
                 ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildBentoStat(
+                        title: 'Open Inquiries',
+                        value: '$complaints',
+                        subtitle: complaints > 0 ? 'Requires attention' : 'All clear',
+                        icon: Icons.chat_bubble_outline,
+                        color: complaints > 0 ? Colors.red : const Color(0xFF10B981),
+                        bgColor: complaints > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildBentoStat(
+                        title: 'Substitution Status',
+                        value: 'Active',
+                        subtitle: '100% Period Coverage',
+                        icon: Icons.assignment_turned_in_outlined,
+                        color: _primary,
+                        bgColor: const Color(0xFFF0FDFA),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -1621,11 +1642,13 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             Row(
               children: [
                 Expanded(child: _buildMetricTile('Class Average', '${_marksAvg.toStringAsFixed(1)}%', Icons.show_chart, const Color(0xFF3B82F6))),
-                const SizedBox(width: 8),
-                Expanded(child: _buildMetricTile('Highest Score', '${_marksHighest.toStringAsFixed(1)}%', Icons.arrow_upward, const Color(0xFF10B981))),
-                const SizedBox(width: 8),
-                Expanded(child: _buildMetricTile('Passed Students', '$_passCount / ${_marksRows.length}', Icons.check_circle_outline, const Color(0xFF0F766E))),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
+                Expanded(child: _buildMetricTile('Highest', '${_marksHighest.toStringAsFixed(1)}%', Icons.arrow_upward, const Color(0xFF10B981))),
+                const SizedBox(width: 6),
+                Expanded(child: _buildMetricTile('Lowest', '${_marksLowest.toStringAsFixed(1)}%', Icons.arrow_downward, const Color(0xFFEA580C))),
+                const SizedBox(width: 6),
+                Expanded(child: _buildMetricTile('Passed', '$_passCount / ${_marksRows.length}', Icons.check_circle_outline, const Color(0xFF0F766E))),
+                const SizedBox(width: 6),
                 Expanded(child: _buildMetricTile('Needs Support', '$_failCount', Icons.flag_outlined, _failCount > 0 ? Colors.red : Colors.green)),
               ],
             ),
@@ -2123,7 +2146,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     final subjects = (student['subjects'] as List<dynamic>?) ?? [];
     showModalBottomSheet(
       context: context,
-      isScrollable: true,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Container(
@@ -2509,7 +2532,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
   Widget _dropdownField(String label, String value, List<String> items, void Function(String?) onChanged) {
     final validValue = items.contains(value) ? value : (items.isNotEmpty ? items.first : null);
     return DropdownButtonFormField<String>(
-      value: validValue,
+      initialValue: validValue,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
