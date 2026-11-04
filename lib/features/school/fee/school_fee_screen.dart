@@ -118,9 +118,17 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
         _tabController = null;
         return;
       }
-      final targetUser = (role == 'teacher' || role == 'steacher')
-          ? 's10s01'
-          : username;
+      if (role == 'teacher' || role == 'steacher') {
+        if (mounted) {
+          setState(() {
+            _userRole = role;
+            _errorMessage = 'Fee management is restricted to School Administration and Accounts. Teachers do not have access to fee records.';
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+      final targetUser = username;
 
       final fees = await _schoolService.getStudentFees(targetUser);
       final receipts = await _schoolService.getStudentReceipts(targetUser);

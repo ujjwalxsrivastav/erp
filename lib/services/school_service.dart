@@ -1827,18 +1827,34 @@ class SchoolService {
 
   Future<List<Map<String, dynamic>>> getMarksReport({
     required String classId,
+    String? className,
     String? subjectId,
     String? examType,
   }) async {
     try {
-      var query = _supabase.from('school_marks').select().or('class_id.eq.$classId,class_name.eq.$classId');
-      if (subjectId != null) query = query.eq('subject', subjectId);
-      if (examType != null) query = query.eq('exam_type', examType);
+      var query = _supabase.from('school_marks').select();
+      if (classId != 'All' && classId.isNotEmpty) {
+        if (className != null && className.isNotEmpty && className != classId) {
+          query = query.or('class_id.eq.$classId,class_name.eq.$classId,class_name.eq.$className,class_id.eq.$className');
+        } else {
+          query = query.or('class_id.eq.$classId,class_name.eq.$classId');
+        }
+      }
+      if (subjectId != null && subjectId != 'All' && subjectId.isNotEmpty) {
+        query = query.eq('subject', subjectId);
+      }
+      if (examType != null && examType.isNotEmpty && examType != 'All') {
+        if (examType.toLowerCase().contains('annual')) {
+          query = query.inFilter('exam_type', ['Annual', 'Final']);
+        } else {
+          query = query.eq('exam_type', examType);
+        }
+      }
       final response = await query;
-      return List<Map<String, dynamic>>.from(response);
-    } catch (_) {
-      return [];
-    }
+      final rows = List<Map<String, dynamic>>.from(response);
+      if (rows.isNotEmpty) return rows;
+    } catch (_) {}
+    return [];
   }
 
   // ===== CBSE BOARD 9-POINT GRADING SCALE CONFIGURATION =====
