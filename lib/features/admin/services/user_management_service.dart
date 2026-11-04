@@ -48,36 +48,36 @@ class UserManagementService {
   /// the accounts without institution filtering so the screen is still useful.
   /// Each row is enriched with `display_name` / `detail` where resolvable.
   Future<ManagedUsersResult> getUsers({String? institution}) async {
-    List<Map<String, dynamic>> users;
+    late final List<Map<String, dynamic>> users;
     var institutionFilterAvailable = true;
-
     if (institution == null || institution.isEmpty) {
-      final response = await _supabase
-          .from('users')
-          .select('username, role')
-          .order('username', ascending: true);
-      users = List<Map<String, dynamic>>.from(response);
+      users = await _fetchAllUsers();
     } else {
       try {
         final response = await _supabase
             .from('users')
-            .select('username, role, institution')
-            .eq('institution', institution)
+            .select('username, role, institution, institute_type')
+            .or('institution.eq.$institution,institute_type.eq.$institution')
             .order('username', ascending: true);
         users = List<Map<String, dynamic>>.from(response);
       } on PostgrestException catch (e) {
-        if (e.code != '42703' && e.code != 'PGRST204') rethrow;
-
-        print(
-          'The users.institution column is unavailable; loading all users '
-          'without institution filtering: $e',
-        );
-        final response = await _supabase
-            .from('users')
-            .select('username, role')
-            .order('username', ascending: true);
-        users = List<Map<String, dynamic>>.from(response);
-        institutionFilterAvailable = false;
+        if (!_isMissingColumn(e)) rethrow;
+        try {
+          users = await _fetchUsersByLegacyInstitution(institution);
+        } on PostgrestException catch (legacyError) {
+          if (!_isMissingColumn(legacyError)) rethrow;
+          try {
+            users = await _fetchUsersByInstitution(institution);
+          } on PostgrestException catch (institutionError) {
+            if (!_isMissingColumn(institutionError)) rethrow;
+            print(
+              'Neither users.institution nor users.institute_type is '
+              'available; loading all users without institution filtering.',
+            );
+            users = await _fetchAllUsers();
+            institutionFilterAvailable = false;
+          }
+        }
       }
     }
 
@@ -87,6 +87,39 @@ class UserManagementService {
       institutionFilterAvailable: institutionFilterAvailable,
     );
   }
+
+  Future<List<Map<String, dynamic>>> _fetchUsersByLegacyInstitution(
+    String institution,
+  ) async {
+    final response = await _supabase
+        .from('users')
+        .select('username, role, institute_type')
+        .eq('institute_type', institution)
+        .order('username', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchUsersByInstitution(
+    String institution,
+  ) async {
+    final response = await _supabase
+        .from('users')
+        .select('username, role, institution')
+        .eq('institution', institution)
+        .order('username', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchAllUsers() async {
+    final response = await _supabase
+        .from('users')
+        .select('username, role')
+        .order('username', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  bool _isMissingColumn(PostgrestException error) =>
+      error.code == '42703' || error.code == 'PGRST204';
 
   /// Two batched lookups: school profiles (school_students + teacher_details)
   /// and college profiles (student_details + staff).
