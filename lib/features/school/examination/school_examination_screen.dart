@@ -8,7 +8,9 @@ class SchoolExaminationScreen extends StatefulWidget {
   State<SchoolExaminationScreen> createState() => _SchoolExaminationScreenState();
 }
 
-class _SchoolExaminationScreenState extends State<SchoolExaminationScreen> {
+class _SchoolExaminationScreenState extends State<SchoolExaminationScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
   final _schoolService = SchoolService();
 
   bool _isLoading = true;
@@ -40,7 +42,14 @@ class _SchoolExaminationScreenState extends State<SchoolExaminationScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 5, vsync: this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -146,20 +155,18 @@ class _SchoolExaminationScreenState extends State<SchoolExaminationScreen> {
       );
     }
 
-    return DefaultTabController(
-      length: 5,
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        appBar: _buildAppBar(hasTabs: true),
-        body: TabBarView(
-          children: [
-            _buildSessionsTab(),
-            _buildDateSheetTab(),
-            _buildAdmitCardsTab(),
-            _buildRoomsTab(),
-            _buildEvaluationTab(),
-          ],
-        ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: _buildAppBar(hasTabs: true),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildSessionsTab(),
+          _buildDateSheetTab(),
+          _buildAdmitCardsTab(),
+          _buildRoomsTab(),
+          _buildEvaluationTab(),
+        ],
       ),
     );
   }
@@ -203,16 +210,17 @@ class _SchoolExaminationScreenState extends State<SchoolExaminationScreen> {
                 decoration: const BoxDecoration(
                   border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
                 ),
-                child: const TabBar(
+                child: TabBar(
+                  controller: _tabController,
                   isScrollable: true,
                   tabAlignment: TabAlignment.start,
-                  labelColor: Color(0xFF2563EB),
-                  unselectedLabelColor: Color(0xFF64748B),
-                  indicatorColor: Color(0xFF2563EB),
+                  labelColor: const Color(0xFF2563EB),
+                  unselectedLabelColor: const Color(0xFF64748B),
+                  indicatorColor: const Color(0xFF2563EB),
                   indicatorWeight: 3,
-                  labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                  unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                  tabs: [
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                  tabs: const [
                     Tab(icon: Icon(Icons.calendar_month_rounded, size: 16), text: '1. Exam Sessions'),
                     Tab(icon: Icon(Icons.table_chart_rounded, size: 16), text: '2. Class Date Sheet'),
                     Tab(icon: Icon(Icons.badge_rounded, size: 16), text: '3. Admit Cards'),
@@ -472,7 +480,7 @@ class _SchoolExaminationScreenState extends State<SchoolExaminationScreen> {
                     setState(() {
                       _selectedSessionId = s['id'];
                     });
-                    DefaultTabController.of(context).animateTo(1);
+                    _tabController.animateTo(1);
                   },
                   icon: const Icon(Icons.calendar_month_rounded, size: 14),
                   label: const Text('View Class Date Sheet', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
@@ -488,7 +496,7 @@ class _SchoolExaminationScreenState extends State<SchoolExaminationScreen> {
                     setState(() {
                       _selectedSessionId = s['id'];
                     });
-                    DefaultTabController.of(context).animateTo(2);
+                    _tabController.animateTo(2);
                   },
                   icon: const Icon(Icons.badge_rounded, size: 14),
                   label: const Text('Admit Cards', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
@@ -1869,4 +1877,3 @@ class _SchoolExaminationScreenState extends State<SchoolExaminationScreen> {
 
   static const minAxisSize = MainAxisSize.min;
 }
-

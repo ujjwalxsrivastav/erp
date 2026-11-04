@@ -1133,104 +1133,110 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
   void _showQuickActionSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(2),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Principal Command & Quick Actions',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Principal Command & Quick Actions',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Instantly execute administrative actions or inspect statutory records',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                ),
-                const SizedBox(height: 14),
-                _buildQuickActionRow(
-                  icon: Icons.fact_check_rounded,
-                  iconColor: const Color(0xFFD97706),
-                  title: 'Conduct / Schedule Examination',
-                  subtitle: 'Manage exam sessions, date sheets, admit cards & results',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    context.go('/school/examination');
-                  },
-                ),
-                _buildQuickActionRow(
-                  icon: Icons.campaign_rounded,
-                  iconColor: const Color(0xFF2563EB),
-                  title: 'Publish Official Circular',
-                  subtitle: 'Draft and broadcast notice to Parents, Staff, or All',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _showPublishCircularDialog(context);
-                  },
-                ),
-                _buildQuickActionRow(
-                  icon: Icons.payment_rounded,
-                  iconColor: const Color(0xFFD97706),
-                  title: 'Record Counter Fee Payment',
-                  subtitle: 'Issue instant official fee receipt for counter transactions',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    context.go('/school/fees');
-                  },
-                ),
-                _buildQuickActionRow(
-                  icon: Icons.person_add_alt_1_rounded,
-                  iconColor: const Color(0xFF059669),
-                  title: 'Scrutinize Pending Admissions',
-                  subtitle: 'Review incoming admission applications & documents',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    context.go('/school/admissions');
-                  },
-                ),
-                _buildQuickActionRow(
-                  icon: Icons.card_membership_rounded,
-                  iconColor: const Color(0xFF7C3AED),
-                  title: 'Issue Transfer / Bonafide Certificate',
-                  subtitle: 'Verify automated No-Dues clearance & issue certificate',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    context.go('/school/certificates');
-                  },
-                ),
-                _buildQuickActionRow(
-                  icon: Icons.verified_outlined,
-                  iconColor: const Color(0xFF0284C7),
-                  title: 'Inspect Statutory UDISE+ Sheet',
-                  subtitle: 'View live PTR, RTE 25% quota, and fire safety NOC compliance',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _showUdiseModal(context);
-                  },
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Instantly execute administrative actions or inspect statutory records',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 14),
+                  _buildQuickActionRow(
+                    icon: Icons.fact_check_rounded,
+                    iconColor: const Color(0xFFD97706),
+                    title: 'Conduct / Schedule Examination',
+                    subtitle: 'Manage exam sessions, date sheets, admit cards & results',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.go('/school/examination');
+                    },
+                  ),
+                  _buildQuickActionRow(
+                    icon: Icons.campaign_rounded,
+                    iconColor: const Color(0xFF2563EB),
+                    title: 'Publish Official Circular',
+                    subtitle: 'Draft and broadcast notice to Parents, Staff, or All',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _showPublishCircularDialog(context);
+                    },
+                  ),
+                  _buildQuickActionRow(
+                    icon: Icons.payment_rounded,
+                    iconColor: const Color(0xFFD97706),
+                    title: 'Record Counter Fee Payment',
+                    subtitle: 'Issue instant official fee receipt for counter transactions',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.go('/school/fees');
+                    },
+                  ),
+                  _buildQuickActionRow(
+                    icon: Icons.person_add_alt_1_rounded,
+                    iconColor: const Color(0xFF059669),
+                    title: 'Scrutinize Pending Admissions',
+                    subtitle: 'Review incoming admission applications & documents',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.go('/school/admissions');
+                    },
+                  ),
+                  _buildQuickActionRow(
+                    icon: Icons.card_membership_rounded,
+                    iconColor: const Color(0xFF7C3AED),
+                    title: 'Issue Transfer / Bonafide Certificate',
+                    subtitle: 'Verify automated No-Dues clearance & issue certificate',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.go('/school/certificates');
+                    },
+                  ),
+                  _buildQuickActionRow(
+                    icon: Icons.verified_outlined,
+                    iconColor: const Color(0xFF0284C7),
+                    title: 'Inspect Statutory UDISE+ Sheet',
+                    subtitle: 'View live PTR, RTE 25% quota, and fire safety NOC compliance',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _showUdiseModal(context);
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -1732,6 +1738,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 children: [
                   _buildDrawerItem(Icons.dashboard_rounded, 'Command Center', () => Navigator.pop(context), isActive: true),
                   _buildDrawerCategory('ACADEMICS & CURRICULUM'),
+                  _buildDrawerItem(Icons.fact_check_rounded, 'Examination & Hall Tickets', () => context.go('/school/examination')),
                   _buildDrawerItem(Icons.calendar_month_rounded, 'Timetable & Substitution', () => context.go('/school/timetable')),
                   _buildDrawerItem(Icons.assignment_rounded, 'Homework & Syllabus', () => context.go('/school/homework')),
                   _buildDrawerItem(Icons.description_rounded, 'CBSE Holistic Report Cards', () => context.go('/school/report-card')),

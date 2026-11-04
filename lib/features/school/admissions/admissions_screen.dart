@@ -9,7 +9,9 @@ class AdmissionsScreen extends StatefulWidget {
   State<AdmissionsScreen> createState() => _AdmissionsScreenState();
 }
 
-class _AdmissionsScreenState extends State<AdmissionsScreen> {
+class _AdmissionsScreenState extends State<AdmissionsScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
   final _schoolService = SchoolService();
   final _authService = AuthService();
 
@@ -53,7 +55,14 @@ class _AdmissionsScreenState extends State<AdmissionsScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 5, vsync: this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -160,20 +169,18 @@ class _AdmissionsScreenState extends State<AdmissionsScreen> {
       );
     }
 
-    return DefaultTabController(
-      length: 5,
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        appBar: _buildAppBar(hasTabs: true),
-        body: TabBarView(
-          children: [
-            _buildPipelineTab(),
-            _buildIntakeWizardTab(),
-            _buildDocumentScrutinyTab(),
-            _buildInteractionTestTab(),
-            _buildEnquiriesTab(),
-          ],
-        ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: _buildAppBar(hasTabs: true),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildPipelineTab(),
+          _buildIntakeWizardTab(),
+          _buildDocumentScrutinyTab(),
+          _buildInteractionTestTab(),
+          _buildEnquiriesTab(),
+        ],
       ),
     );
   }
@@ -212,16 +219,17 @@ class _AdmissionsScreenState extends State<AdmissionsScreen> {
                 decoration: const BoxDecoration(
                   border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
                 ),
-                child: const TabBar(
+                child: TabBar(
+                  controller: _tabController,
                   isScrollable: true,
                   tabAlignment: TabAlignment.start,
-                  labelColor: Color(0xFF2563EB),
-                  unselectedLabelColor: Color(0xFF64748B),
-                  indicatorColor: Color(0xFF2563EB),
+                  labelColor: const Color(0xFF2563EB),
+                  unselectedLabelColor: const Color(0xFF64748B),
+                  indicatorColor: const Color(0xFF2563EB),
                   indicatorWeight: 3,
-                  labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                  unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                  tabs: [
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                  tabs: const [
                     Tab(icon: Icon(Icons.view_kanban_rounded, size: 16), text: '1. Admission Pipeline'),
                     Tab(icon: Icon(Icons.person_add_alt_1_rounded, size: 16), text: '2. New Intake Form'),
                     Tab(icon: Icon(Icons.verified_user_rounded, size: 16), text: '3. Document Scrutiny'),
@@ -650,7 +658,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen> {
     return _AdmissionIntakeForm(
       onSubmitted: () {
         _loadData();
-        DefaultTabController.of(context).animateTo(0);
+        _tabController.animateTo(0);
       },
       schoolService: _schoolService,
     );

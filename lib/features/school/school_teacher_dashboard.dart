@@ -805,6 +805,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     Navigator.pop(context);
                     context.push('/school/report-card');
                   }),
+                  _buildDrawerTile(Icons.fact_check_outlined, 'Exam Sessions & Date Sheet', () {
+                    Navigator.pop(context);
+                    context.push('/school/examination');
+                  }),
                   _buildDrawerTile(Icons.how_to_reg_rounded, 'Daily Attendance', () {
                     Navigator.pop(context);
                     context.push('/school/attendance');

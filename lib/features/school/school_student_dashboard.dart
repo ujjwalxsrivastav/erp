@@ -1415,6 +1415,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               _buildDrawerItem(Icons.assignment_rounded, 'Homework', () => context.go('/school/homework')),
               _buildDrawerItem(Icons.fact_check_rounded, 'Attendance', () => context.go('/school/attendance')),
               _buildDrawerItem(Icons.description_rounded, 'Report Card', () => context.go('/school/report-card')),
+              _buildDrawerItem(Icons.fact_check_rounded, 'Date Sheet & Hall Ticket', () => context.go('/school/examination')),
               _buildDrawerItem(Icons.event_busy_rounded, 'Leave Requests', () => context.go('/school/leave')),
               _buildDrawerCategory('CAMPUS & FINANCES'),
               _buildDrawerItem(Icons.receipt_long_rounded, 'Fee Dues & Receipts', () => context.go('/school/fees')),
