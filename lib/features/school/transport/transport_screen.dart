@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
-import '../../../services/auth_service.dart';
 
 class TransportScreen extends StatefulWidget {
   const TransportScreen({super.key});
@@ -9,46 +8,34 @@ class TransportScreen extends StatefulWidget {
   State<TransportScreen> createState() => _TransportScreenState();
 }
 
-class _TransportScreenState extends State<TransportScreen>
-    with SingleTickerProviderStateMixin {
+class _TransportScreenState extends State<TransportScreen> {
   final _schoolService = SchoolService();
-  final _authService = AuthService();
 
-  late TabController _tabController;
   bool _isLoading = true;
   String? _errorMessage;
+
+  // Routes and Roster
   List<Map<String, dynamic>> _routes = [];
-  Map<String, dynamic>? _myTransport;
-  String _userRole = 'admin';
-  int _expandedIndex = 0;
+  List<Map<String, dynamic>> _transportRoster = [];
+  Map<String, dynamic>? _selectedRoute;
+  String _selectedStop = '__all__';
+  String _searchQuery = '';
 
-  // Live Attendance & Gate Pass state
+  // Active Trip Shift: 'Morning Pickup' (Aate time) or 'Evening Drop' (Jaate time)
+  String _activeShift = 'Morning Pickup';
+
+  // Attendance Logs & Discrepancies
   List<Map<String, dynamic>> _busAttendanceLogs = [];
+  List<Map<String, dynamic>> _discrepancies = [];
   List<Map<String, dynamic>> _gatePasses = [];
-  String _selectedRouteForAttendance = '';
-  String _selectedStopForAttendance = 'School Gate';
 
-  static const _primaryColor = Color(0xFF0F766E);
-
-  final List<Color> _routeColors = const [
-    Color(0xFF2563EB),
-    Color(0xFF059669),
-    Color(0xFF7C3AED),
-    Color(0xFFD97706),
-    Color(0xFFDC2626),
-  ];
+  // Expanded route index
+  int _expandedIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
     _loadData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -56,159 +43,1327 @@ class _TransportScreenState extends State<TransportScreen>
       _isLoading = true;
       _errorMessage = null;
     });
-    try {
-      final username = await _authService.getCurrentUsername() ?? '';
-      final role = await _authService.getCurrentUserRole() ?? 'admin';
 
+    try {
       final routes = await _schoolService.getTransportRoutes();
-      final transportList = await _schoolService.getStudentTransport(username);
+      final roster = await _schoolService.getTransportRoster();
       final attLogs = await _schoolService.getBusAttendanceLogs();
+      final discrepancies = await _schoolService.getTransportTripDiscrepancies();
       final passes = await _schoolService.getGatePasses();
 
-      Map<String, dynamic>? myTransport;
-      if (transportList.isNotEmpty) {
-        myTransport = transportList.first;
-      }
-
-      if (mounted) {
-        setState(() {
-          _userRole = role;
-          _routes = routes;
-          _myTransport = myTransport;
-          _busAttendanceLogs = attLogs;
-          _gatePasses = passes;
-          if (routes.isNotEmpty) {
-            _selectedRouteForAttendance = routes.first['route_no'] ?? '';
-            final stops = routes.first['stops'] as List;
-            if (stops.isNotEmpty) _selectedStopForAttendance = stops.first.toString();
-          }
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _routes = routes;
+        _transportRoster = roster;
+        _busAttendanceLogs = attLogs;
+        _discrepancies = discrepancies;
+        _gatePasses = passes;
+        if (routes.isNotEmpty && _selectedRoute == null) {
+          _selectedRoute = routes.first;
+        }
+        _isLoading = false;
+      });
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Could not load transport & fleet details. Tap retry.';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Could not load transport and fleet records. Tap to retry.';
+      });
     }
   }
 
-  // ===== DIALOGS =====
+  // Record stop-by-stop boarding or drop
+  Future<void> _markStudentTripStatus({
+    required Map<String, dynamic> student,
+    required String action, // 'Boarded', 'Dropped', 'Absent', 'ParentHandover'
+    String? customStop,
+    String? note,
+  }) async {
+    final sid = student['student_id']?.toString() ?? '';
+    final sname = student['name']?.toString() ?? 'Student';
+    final routeId = student['route_id']?.toString() ?? (_selectedRoute?['route_no'] ?? 'Route 1');
+    final stop = customStop ??
+        (_activeShift == 'Morning Pickup'
+            ? (student['pickup_stop'] ?? 'School Gate')
+            : (student['drop_stop'] ?? 'School Gate'));
+
+    await _schoolService.recordBusAttendance(
+      routeId: routeId,
+      stopName: stop,
+      studentId: sid,
+      studentName: sname,
+      action: action,
+      shift: _activeShift,
+      notes: note,
+      recordedBy: 'Conductor',
+    );
+
+    // Refresh logs and discrepancies
+    final updatedLogs = await _schoolService.getBusAttendanceLogs();
+    final updatedDiscrepancies = await _schoolService.getTransportTripDiscrepancies();
+
+    if (!mounted) return;
+    setState(() {
+      _busAttendanceLogs = updatedLogs;
+      _discrepancies = updatedDiscrepancies;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$sname marked as $action in $_activeShift at $stop'),
+        backgroundColor: action == 'Boarded' || action == 'Dropped'
+            ? const Color(0xFF10B981)
+            : action == 'ParentHandover'
+                ? const Color(0xFFD97706)
+                : const Color(0xFFEF4444),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // Resolve safety mismatch (e.g. Parent took child directly from school gate)
+  Future<void> _resolveSafetyMismatch(Map<String, dynamic> discrepancy) async {
+    final sid = discrepancy['student_id']?.toString() ?? '';
+    final sname = discrepancy['name']?.toString() ?? 'Student';
+    final routeId = discrepancy['route_id']?.toString() ?? 'Route 1';
+    final parent = discrepancy['parent_name'] ?? 'Parent';
+
+    await _schoolService.recordBusAttendance(
+      routeId: routeId,
+      stopName: 'School Main Gate',
+      studentId: sid,
+      studentName: sname,
+      action: 'ParentHandover',
+      shift: 'Evening Drop',
+      notes: 'Verified Handover: Parent ($parent) picked up student directly from school gate.',
+      recordedBy: 'Gate Security & Transport Incharge',
+    );
+
+    final updatedLogs = await _schoolService.getBusAttendanceLogs();
+    final updatedDiscrepancies = await _schoolService.getTransportTripDiscrepancies();
+
+    if (!mounted) return;
+    setState(() {
+      _busAttendanceLogs = updatedLogs;
+      _discrepancies = updatedDiscrepancies;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Safety Discrepancy Resolved! Direct parent handover confirmed for $sname.'),
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showAddNoteDialog(Map<String, dynamic> student) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.note_alt_outlined, color: Color(0xFF0F172A), size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Transport Note for ${student['name']}',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              ),
+            ),
+          ],
+        ),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 3,
+          decoration: InputDecoration(
+            hintText: 'e.g. Parent called, child staying back for football match, etc.',
+            hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _markStudentTripStatus(
+                student: student,
+                action: 'ParentHandover',
+                note: ctrl.text.trim(),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F172A),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Record Handover'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Filtered Roster
+  List<Map<String, dynamic>> get _filteredRoster {
+    final routeNo = _selectedRoute?['route_no']?.toString();
+    final q = _searchQuery.trim().toLowerCase();
+
+    return _transportRoster.where((s) {
+      final matchesRoute = routeNo == null || s['route_id'] == routeNo;
+      final assignedStop = _activeShift == 'Morning Pickup' ? s['pickup_stop'] : s['drop_stop'];
+      final matchesStop = _selectedStop == '__all__' || assignedStop == _selectedStop;
+
+      final name = (s['name'] ?? '').toString().toLowerCase();
+      final sid = (s['student_id'] ?? '').toString().toLowerCase();
+      final roll = (s['roll_number'] ?? '').toString().toLowerCase();
+      final matchesQuery = q.isEmpty || name.contains(q) || sid.contains(q) || roll.contains(q);
+
+      return matchesRoute && matchesStop && matchesQuery;
+    }).toList();
+  }
+
+  // ──────────────────────────────────────────────
+  // BUILD
+  // ──────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    final criticalDiscrepancies = _discrepancies.where((d) => d['is_resolved'] == false).length;
+
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF0F172A),
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Transport & Bus Operations',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              ),
+              Text(
+                'Stop-Wise Attendance • Morning & Evening Reconciliation',
+                style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(48),
+            child: Container(
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+              ),
+              child: TabBar(
+                labelColor: const Color(0xFF0F172A),
+                unselectedLabelColor: const Color(0xFF64748B),
+                indicatorColor: const Color(0xFF0F172A),
+                indicatorWeight: 3,
+                labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                tabs: [
+                  const Tab(text: '1. Trip Attendance (Aate/Jaate)'),
+                  Tab(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('2. Safety Mismatches'),
+                        if (criticalDiscrepancies > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$criticalDiscrepancies',
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const Tab(text: '3. Routes & Fleet Master'),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'Refresh Transport Data',
+              icon: const Icon(Icons.refresh_rounded, size: 20),
+              onPressed: _loadData,
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: _isLoading
+            ? _buildLoadingSkeleton()
+            : _errorMessage != null
+                ? _buildErrorView()
+                : TabBarView(
+                    children: [
+                      _buildTripAttendanceTab(),
+                      _buildSafetyMismatchesTab(),
+                      _buildRoutesMasterTab(),
+                    ],
+                  ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // TAB 1: TRIP ATTENDANCE (AATE & JAATE TIME)
+  // ──────────────────────────────────────────────
+  Widget _buildTripAttendanceTab() {
+    return Column(
+      children: [
+        _buildShiftToggleHeader(),
+        _buildRouteAndStopControls(),
+        _buildActiveShiftKpiRibbon(),
+        Expanded(child: _buildRosterList()),
+      ],
+    );
+  }
+
+  Widget _buildShiftToggleHeader() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() => _activeShift = 'Morning Pickup'),
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _activeShift == 'Morning Pickup' ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.wb_sunny_rounded,
+                      size: 16,
+                      color: _activeShift == 'Morning Pickup' ? Colors.white : const Color(0xFF64748B),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '☀️ Morning Pickup (Aate Time)',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _activeShift == 'Morning Pickup' ? Colors.white : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() => _activeShift = 'Evening Drop'),
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _activeShift == 'Evening Drop' ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.nights_stay_rounded,
+                      size: 16,
+                      color: _activeShift == 'Evening Drop' ? Colors.white : const Color(0xFF64748B),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '🌙 Evening Drop (Jaate Time)',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _activeShift == 'Evening Drop' ? Colors.white : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRouteAndStopControls() {
+    final stops = (_selectedRoute?['stops'] as List<dynamic>?)?.map((s) => s.toString()).toList() ?? [];
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Route Selector
+              Expanded(
+                flex: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<Map<String, dynamic>>(
+                      value: _selectedRoute,
+                      isExpanded: true,
+                      dropdownColor: Colors.white,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
+                      items: _routes.map((r) {
+                        return DropdownMenuItem(
+                          value: r,
+                          child: Text(
+                            r['route_no'] ?? 'Route',
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (v) {
+                        setState(() {
+                          _selectedRoute = v;
+                          _selectedStop = '__all__';
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Stop Filter Selector
+              Expanded(
+                flex: 5,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedStop,
+                      isExpanded: true,
+                      dropdownColor: Colors.white,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
+                      items: [
+                        const DropdownMenuItem(value: '__all__', child: Text('All Route Stops', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)))),
+                        ...stops.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))))),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setState(() => _selectedStop = v);
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Search Input
+              Expanded(
+                flex: 5,
+                child: Container(
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: TextField(
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    style: const TextStyle(fontSize: 12.5, color: Color(0xFF0F172A)),
+                    decoration: const InputDecoration(
+                      hintText: 'Search student…',
+                      hintStyle: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                      prefixIcon: Icon(Icons.search_rounded, size: 16, color: Color(0xFF94A3B8)),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveShiftKpiRibbon() {
+    final roster = _filteredRoster;
+    final total = roster.length;
+
+    // Count states in the active shift
+    int boardedCount = 0;
+    int absentCount = 0;
+    int parentHandoverCount = 0;
+
+    for (final s in roster) {
+      final sid = s['student_id'] as String;
+      final log = _busAttendanceLogs.firstWhere(
+        (l) => l['student_id'] == sid && l['shift'] == _activeShift,
+        orElse: () => <String, dynamic>{},
+      );
+      final action = log['action']?.toString();
+      if (action == 'Boarded' || action == 'Dropped') boardedCount++;
+      if (action == 'Absent') absentCount++;
+      if (action == 'ParentHandover') parentHandoverCount++;
+    }
+
+    final pendingCount = total - (boardedCount + absentCount + parentHandoverCount);
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          _buildKpiPill(_activeShift == 'Morning Pickup' ? 'Picked Up / Boarded' : 'Dropped / Boarded', '$boardedCount', const Color(0xFF10B981), const Color(0xFFECFDF5)),
+          const SizedBox(width: 8),
+          _buildKpiPill('Direct Parent Pickup', '$parentHandoverCount', const Color(0xFFD97706), const Color(0xFFFFFBEB)),
+          const SizedBox(width: 8),
+          _buildKpiPill('Absent on Bus', '$absentCount', const Color(0xFFEF4444), const Color(0xFFFEF2F2)),
+          const SizedBox(width: 8),
+          _buildKpiPill('Pending Marking', '$pendingCount', const Color(0xFF64748B), const Color(0xFFF1F5F9)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKpiPill(String label, String value, Color color, Color bg) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color)),
+            Text(label, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.9))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRosterList() {
+    final list = _filteredRoster;
+    if (list.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.directions_bus_outlined, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 10),
+            const Text('No students found for this route and stop filter.', style: TextStyle(color: Color(0xFF64748B), fontSize: 13.5)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      itemCount: list.length,
+      itemBuilder: (context, index) {
+        final s = list[index];
+        return _buildStudentTransportCard(s, index);
+      },
+    );
+  }
+
+  Widget _buildStudentTransportCard(Map<String, dynamic> student, int index) {
+    final sid = student['student_id'] as String;
+    final name = student['name'] ?? 'Student';
+    final className = student['class_name'] ?? 'Class 10';
+    final roll = student['roll_number'] ?? '${index + 1}';
+    final pickupStop = student['pickup_stop'] ?? 'School Gate';
+    final dropStop = student['drop_stop'] ?? 'School Gate';
+    final parentPhone = student['parent_phone'] ?? '';
+
+    // Active log for this shift
+    final activeLog = _busAttendanceLogs.firstWhere(
+      (l) => l['student_id'] == sid && l['shift'] == _activeShift,
+      orElse: () => <String, dynamic>{},
+    );
+    final activeAction = activeLog['action']?.toString();
+    final activeTime = activeLog['time']?.toString() ?? '';
+    final activeStop = activeLog['stop']?.toString() ?? '';
+
+    Color statusColor = const Color(0xFF64748B);
+    Color statusBg = const Color(0xFFF1F5F9);
+    String statusLabel = 'Unrecorded';
+
+    if (activeAction == 'Boarded' || activeAction == 'Dropped') {
+      statusColor = const Color(0xFF10B981);
+      statusBg = const Color(0xFFECFDF5);
+      statusLabel = _activeShift == 'Morning Pickup' ? 'Boarded at $activeTime ($activeStop)' : 'Dropped at $activeTime ($activeStop)';
+    } else if (activeAction == 'ParentHandover') {
+      statusColor = const Color(0xFFD97706);
+      statusBg = const Color(0xFFFFFBEB);
+      statusLabel = 'Parent Direct Pickup';
+    } else if (activeAction == 'Absent') {
+      statusColor = const Color(0xFFEF4444);
+      statusBg = const Color(0xFFFEF2F2);
+      statusLabel = 'Absent on Bus Trip';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: Text(
+                    roll,
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                    ),
+                    Text(
+                      '$className • ID: $sid • Parent: $parentPhone',
+                      style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(8)),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: statusColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Assigned Stops Strip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF64748B)),
+                const SizedBox(width: 4),
+                Text(
+                  _activeShift == 'Morning Pickup' ? 'Pickup Stop: $pickupStop' : 'Drop Stop: $dropStop',
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                ),
+                const Spacer(),
+                Text(
+                  _activeShift == 'Morning Pickup' ? 'Scheduled: ${student['pickup_time'] ?? '07:20 AM'}' : 'Scheduled: ${student['drop_time'] ?? '02:40 PM'}',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Action Buttons
+          Row(
+            children: [
+              if (_activeShift == 'Morning Pickup') ...[
+                Expanded(
+                  child: _buildActionButton(
+                    label: 'Mark Boarded',
+                    icon: Icons.check_circle_outline_rounded,
+                    color: const Color(0xFF10B981),
+                    isSelected: activeAction == 'Boarded',
+                    onTap: () => _markStudentTripStatus(student: student, action: 'Boarded'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildActionButton(
+                    label: 'Parent Self-Drop',
+                    icon: Icons.directions_walk_rounded,
+                    color: const Color(0xFF2563EB),
+                    isSelected: activeAction == 'SelfDrop',
+                    onTap: () => _markStudentTripStatus(student: student, action: 'SelfDrop', note: 'Parent dropped directly at school'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildActionButton(
+                    label: 'Bus Absent',
+                    icon: Icons.cancel_outlined,
+                    color: const Color(0xFFEF4444),
+                    isSelected: activeAction == 'Absent',
+                    onTap: () => _markStudentTripStatus(student: student, action: 'Absent'),
+                  ),
+                ),
+              ] else ...[
+                Expanded(
+                  child: _buildActionButton(
+                    label: 'Mark Dropped',
+                    icon: Icons.check_circle_outline_rounded,
+                    color: const Color(0xFF10B981),
+                    isSelected: activeAction == 'Dropped',
+                    onTap: () => _markStudentTripStatus(student: student, action: 'Dropped'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildActionButton(
+                    label: 'Handover Parent',
+                    icon: Icons.person_pin_circle_outlined,
+                    color: const Color(0xFFD97706),
+                    isSelected: activeAction == 'ParentHandover',
+                    onTap: () => _showAddNoteDialog(student),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildActionButton(
+                    label: 'Return Absent',
+                    icon: Icons.warning_amber_rounded,
+                    color: const Color(0xFFEF4444),
+                    isSelected: activeAction == 'Absent',
+                    onTap: () => _markStudentTripStatus(student: student, action: 'Absent'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? color : color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isSelected ? color : color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 14, color: isSelected ? Colors.white : color),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : color,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // TAB 2: SAFETY DISCREPANCIES & RETURN TRIP MISMATCHES
+  // ──────────────────────────────────────────────
+  Widget _buildSafetyMismatchesTab() {
+    final activeDiscrepancies = _discrepancies.where((d) => d['is_resolved'] == false).toList();
+    final resolvedDiscrepancies = _discrepancies.where((d) => d['is_resolved'] == true).toList();
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: const Color(0xFF0F172A),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Safety Banner
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFECACA)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.shield_outlined, color: Color(0xFFDC2626), size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Child Safety Reconciliation Protocol',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF991B1B)),
+                      ),
+                      const SizedBox(height: 3),
+                      const Text(
+                        'Flags any student who boarded the morning bus to school but is NOT aboard or dropped on the evening return bus. Ensures 100% child custody accountability.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFFB91C1C), height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Active Critical Alerts
+          Row(
+            children: [
+              const Text(
+                'Safety Anomaly Alerts',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: activeDiscrepancies.isNotEmpty ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  activeDiscrepancies.isNotEmpty ? '${activeDiscrepancies.length} Action Needed' : '0 Clean',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          if (activeDiscrepancies.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.verified_user_rounded, color: Color(0xFF10B981), size: 48),
+                  SizedBox(height: 10),
+                  Text('100% Student Custody Reconciliation', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  SizedBox(height: 4),
+                  Text('All students who took the morning bus are properly accounted for in the return trip or gate handover.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                ],
+              ),
+            )
+          else
+            ...activeDiscrepancies.map((d) => _buildDiscrepancyCard(d)),
+
+          const SizedBox(height: 20),
+
+          // Resolved Handover Log
+          if (resolvedDiscrepancies.isNotEmpty) ...[
+            const Text(
+              'Resolved Handovers & Verified Exceptions',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 10),
+            ...resolvedDiscrepancies.map((d) => _buildResolvedCard(d)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiscrepancyCard(Map<String, dynamic> d) {
+    final name = d['name'] ?? 'Student';
+    final sid = d['student_id'] ?? '';
+    final className = d['class_name'] ?? 'Class 10';
+    final parentPhone = d['parent_phone'] ?? '';
+    final parentName = d['parent_name'] ?? 'Parent';
+    final morningStatus = d['morning_status'] ?? '';
+    final eveningStatus = d['evening_status'] ?? '';
+    final desc = d['description'] ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFECACA), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.warning_rounded, color: Color(0xFFEF4444), size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$name ($className)',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    ),
+                    Text(
+                      'ID: $sid • Parent: $parentName ($parentPhone)',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: const Text('TRIP MISMATCH', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFDC2626))),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Detail Box
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.wb_sunny_rounded, size: 14, color: Color(0xFFD97706)),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text('Morning Pickup: $morningStatus', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF92400E)))),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.nights_stay_rounded, size: 14, color: Color(0xFFEF4444)),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text('Evening Return: $eveningStatus', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)))),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(desc, style: const TextStyle(fontSize: 11, color: Color(0xFFB45309))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Action Buttons
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _resolveSafetyMismatch(d),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  icon: const Icon(Icons.verified_rounded, size: 16),
+                  label: const Text('Confirm Parent Handover at Gate', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResolvedCard(Map<String, dynamic> d) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${d['name']} (${d['class_name']}) — Verified',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                ),
+                Text(
+                  d['description'] ?? '',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // TAB 3: ROUTES & FLEET MASTER
+  // ──────────────────────────────────────────────
+  Widget _buildRoutesMasterTab() {
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: const Color(0xFF0F172A),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Active School Fleet & Bus Routes',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              ),
+              OutlinedButton.icon(
+                onPressed: _showAddRouteDialog,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF0F172A),
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add Route', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          ..._routes.asMap().entries.map((e) => _buildRouteMasterCard(e.key, e.value)),
+          const SizedBox(height: 20),
+
+          // Gate Pass Audit
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Gate Passes & Authorized Pickups',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              ),
+              Text('${_gatePasses.length} Logs', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          if (_gatePasses.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Center(
+                child: Text('No early exit gate passes filed today.', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+              ),
+            )
+          else
+            ..._gatePasses.take(5).map((p) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.badge_outlined, size: 20, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${p['student_name'] ?? 'Student'} • Pass ${p['pass_no'] ?? ''}',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                          ),
+                          Text(
+                            'Reason: ${p['reason']} • Pickup by: ${p['pickup_person']} (${p['relation']})',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text('Approved', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF10B981))),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRouteMasterCard(int index, Map<String, dynamic> route) {
+    final isExpanded = _expandedIndex == index;
+    final stops = (route['stops'] as List<dynamic>?)?.map((s) => s.toString()).toList() ?? [];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isExpanded ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            onTap: () => setState(() => _expandedIndex = isExpanded ? -1 : index),
+            leading: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.directions_bus_rounded, color: Color(0xFF0F172A), size: 22),
+            ),
+            title: Text(
+              '${route['route_no']} • ${route['name']}',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            ),
+            subtitle: Text(
+              'Bus: ${route['bus_no']} • Driver: ${route['driver_name']} (${route['driver_phone']})',
+              style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+            ),
+            trailing: Icon(isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: const Color(0xFF64748B)),
+          ),
+          if (isExpanded) ...[
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Route Stops Sequence & Schedule:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: stops.asMap().entries.map((e) {
+                      return Chip(
+                        label: Text('${e.key + 1}. ${e.value}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                        backgroundColor: const Color(0xFFF8FAFC),
+                        side: const BorderSide(color: Color(0xFFE2E8F0)),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('Vehicle Fitness: Active', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF10B981))),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('Speed Governor: OK (40 km/h)', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   void _showAddRouteDialog() {
-    final routeNoCtrl = TextEditingController(text: 'Route 4');
-    final nameCtrl = TextEditingController(text: 'Route 4 - Raipur & Sahastradhara');
-    final busNoCtrl = TextEditingController(text: 'UK-07-PA-4096');
-    final driverCtrl = TextEditingController(text: 'Anil Chauhan');
-    final phoneCtrl = TextEditingController(text: '9876543213');
-    final timeCtrl = TextEditingController(text: '07:15 AM');
-    final stopsCtrl = TextEditingController(text: 'School Gate, Raipur, Sahastradhara Road, IT Park');
+    final routeNoCtrl = TextEditingController(text: 'Route 3');
+    final nameCtrl = TextEditingController(text: 'Route 3 - Dilaram & Ballupur');
+    final busNoCtrl = TextEditingController(text: 'UK-07-PA-5521');
+    final driverCtrl = TextEditingController(text: 'Vikram Singh');
+    final phoneCtrl = TextEditingController(text: '9876543219');
+    final stopsCtrl = TextEditingController(text: 'School Main Gate, Dilaram Chowk, Ballupur, Kishan Nagar');
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Add Transport Route', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: routeNoCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Route ID',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: busNoCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Bus Number',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Route Name & Coverage Area',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Add Bus Route', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: driverCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Driver Name',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: phoneCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Driver Mobile',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: stopsCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Stops (Comma-separated)',
-                  hintText: 'Stop 1, Stop 2, Stop 3...',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: routeNoCtrl,
+                  decoration: const InputDecoration(labelText: 'Route ID (e.g. Route 3)', border: OutlineInputBorder()),
                 ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () async {
-                    try {
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Route Name & Coverage Area', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: busNoCtrl,
+                  decoration: const InputDecoration(labelText: 'Bus Plate Number', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: TextField(controller: driverCtrl, decoration: const InputDecoration(labelText: 'Driver Name', border: OutlineInputBorder()))),
+                    const SizedBox(width: 10),
+                    Expanded(child: TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Driver Phone', border: OutlineInputBorder()))),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: stopsCtrl,
+                  decoration: const InputDecoration(labelText: 'Ordered Stops (Comma-separated)', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: () async {
                       final stopsList = stopsCtrl.text.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
                       await _schoolService.supabase.from('school_transport').insert({
                         'institute_code': 'SHIV-SCH',
@@ -216,1163 +1371,39 @@ class _TransportScreenState extends State<TransportScreen>
                         'bus_number': busNoCtrl.text.trim(),
                         'driver_name': driverCtrl.text.trim(),
                         'driver_phone': phoneCtrl.text.trim(),
-                        'pickup_time': timeCtrl.text.trim(),
+                        'pickup_time': '07:15 AM',
                         'stops': stopsList,
                       });
-                      if (mounted) {
+                      if (context.mounted) {
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Route created successfully!'), backgroundColor: Colors.green),
-                        );
                         _loadData();
                       }
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                      );
-                    }
-                  },
-                  child: const Text('Save Route', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showRequestGatePassDialog() {
-    final studentCtrl = TextEditingController(text: 'Aarav Sharma');
-    final classCtrl = TextEditingController(text: 'Class 10-A');
-    final reasonCtrl = TextEditingController(text: 'Medical Consultation at Max Hospital');
-    final timeCtrl = TextEditingController(text: '12:30 PM');
-    final pickupNameCtrl = TextEditingController(text: 'Rajesh Sharma');
-    final phoneCtrl = TextEditingController(text: '9876543210');
-    String selectedRelation = 'Father';
-    bool isAuthorized = true;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Container(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Request Early Exit Gate Pass',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: studentCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'Student Name',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextFormField(
-                            controller: classCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'Class',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: reasonCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'Reason for Exit',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextFormField(
-                            controller: timeCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'Expected Exit Time',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    const Text('Authorized Pickup Person Details',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: pickupNameCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'Pickup Person Name',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: selectedRelation,
-                            decoration: InputDecoration(
-                              labelText: 'Relation',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            items: const [
-                              DropdownMenuItem(value: 'Father', child: Text('Father')),
-                              DropdownMenuItem(value: 'Mother', child: Text('Mother')),
-                              DropdownMenuItem(value: 'Guardian', child: Text('Guardian')),
-                              DropdownMenuItem(value: 'Emergency Contact', child: Text('Emergency Contact')),
-                              DropdownMenuItem(value: 'Other', child: Text('Other (Unlisted)')),
-                            ],
-                            onChanged: (v) {
-                              if (v != null) {
-                                setSheetState(() {
-                                  selectedRelation = v;
-                                  if (v == 'Other') isAuthorized = false;
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: phoneCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Contact Phone Number',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: isAuthorized,
-                      activeColor: _primaryColor,
-                      title: const Text(
-                        'Pre-registered Authorised Person on School Master Records',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                      subtitle: Text(
-                        isAuthorized
-                            ? 'Instant verification via Parent Master Record'
-                            : 'MANDATORY: Unlisted persons require formal Principal approval before gate exit can be authorized.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isAuthorized ? Colors.green.shade800 : Colors.red.shade800,
-                          fontWeight: isAuthorized ? FontWeight.normal : FontWeight.bold,
-                        ),
-                      ),
-                      onChanged: (v) => setSheetState(() => isAuthorized = v ?? true),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _primaryColor,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () async {
-                          try {
-                            await _schoolService.requestGatePass(
-                              studentId: 'sstudent1',
-                              studentName: studentCtrl.text.trim(),
-                              className: classCtrl.text.trim(),
-                              reason: reasonCtrl.text.trim(),
-                              expectedExitTime: timeCtrl.text.trim(),
-                              pickupPersonName: pickupNameCtrl.text.trim(),
-                              pickupPersonRelation: selectedRelation,
-                              pickupPersonPhone: phoneCtrl.text.trim(),
-                              isAuthorizedOnRecord: isAuthorized,
-                            );
-                            if (mounted) {
-                              Navigator.pop(ctx);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(isAuthorized
-                                      ? 'Gate Pass issued and security notified!'
-                                      : 'Submitted! Flagged for mandatory Principal approval.'),
-                                  backgroundColor: isAuthorized ? Colors.green : Colors.orange,
-                                ),
-                              );
-                              _loadData();
-                            }
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                            );
-                          }
-                        },
-                        child: const Text('Generate Gate Pass',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ===== TAB 1: ROUTES & VEHICLE COMPLIANCE =====
-
-  Widget _buildRoutesTab() {
-    // Check if any bus has expired vehicle documents
-    final expiredBuses = _routes.where((r) => r['fitness_expired'] == true).toList();
-
-    return RefreshIndicator(
-      color: _primaryColor,
-      onRefresh: _loadData,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Vehicle Expiry Alert Banner
-          if (expiredBuses.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.red.shade300),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_rounded, color: Colors.red, size: 28),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('CRITICAL: Vehicle Document Expiry Alert',
-                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14)),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Bus ${expiredBuses.first['bus_no']} Fitness Certificate Expired on ${expiredBuses.first['fitness_expiry']}. '
-                          'Statutory fitness renewal required immediately.',
-                          style: TextStyle(color: Colors.red.shade900, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Summary Stats
-          _buildStatsSummary(),
-          const SizedBox(height: 20),
-
-          // All Routes Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'School Bus Fleet & Routes',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-              ),
-              Text(
-                '${_routes.length} Active Routes',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Route Cards
-          if (_routes.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: const Center(
-                child: Text('No transport routes configured.', style: TextStyle(color: Colors.grey)),
-              ),
-            )
-          else
-            ..._routes.asMap().entries.map((e) => _buildRouteCard(e.key, e.value)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRouteCard(int index, Map<String, dynamic> route) {
-    final isExpanded = _expandedIndex == index;
-    final color = _routeColors[index % _routeColors.length];
-    final isExpired = route['fitness_expired'] == true;
-    final stops = route['stops'] as List<String>;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isExpired ? Colors.red.shade300 : (isExpanded ? color : Colors.transparent),
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header
-          GestureDetector(
-            onTap: () => setState(() => _expandedIndex = isExpanded ? -1 : index),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.directions_bus, color: color, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              route['route_no'] ?? 'Route',
-                              style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: (isExpired ? Colors.red : Colors.green).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                isExpired ? 'Fitness Expired' : 'Active & On Time',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: isExpired ? Colors.red.shade700 : Colors.green.shade700,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          route['name'] ?? '',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Bus: ${route['bus_no']}  •  Driver: ${route['driver_name']}  •  ${stops.length} stops',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: color,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Expanded Details
-          if (isExpanded) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Statutory Compliance Box
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Statutory Vehicle & Crew Verification',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            _complianceBadge('Fitness Cert', route['fitness_expiry'] ?? 'Valid', !isExpired),
-                            const SizedBox(width: 8),
-                            _complianceBadge('Insurance', '2026-11-20', true),
-                            const SizedBox(width: 8),
-                            _complianceBadge('Police Check', 'Verified', true),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  _detailRow(Icons.phone_outlined, 'Driver Contact', '${route['driver_phone']}', color),
-                  const SizedBox(height: 6),
-                  _detailRow(Icons.access_time, 'Depot Departure', '${route['pickup_time']}', color),
-                  const SizedBox(height: 12),
-
-                  const Text(
-                    'Route Stops & Sequence',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
-                  ),
-                  const SizedBox(height: 8),
-                  ...stops.asMap().entries.map(
-                        (e) => _buildStopRow(e.key, e.value, stops.length, color),
-                      ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _complianceBadge(String label, String value, bool isValid) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-        decoration: BoxDecoration(
-          color: isValid ? Colors.green.shade50 : Colors.red.shade50,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: isValid ? Colors.green.shade800 : Colors.red.shade800,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _detailRow(IconData icon, String label, String value, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 8),
-        Text('$label: ', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-        Expanded(
-          child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStopRow(int index, String stop, int total, Color color) {
-    final isFirst = index == 0;
-    final isLast = index == total - 1;
-    return IntrinsicHeight(
-      child: Row(
-        children: [
-          SizedBox(
-            width: 24,
-            child: Column(
-              children: [
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: isFirst || isLast ? color : color.withValues(alpha: 0.3),
-                    shape: BoxShape.circle,
-                  ),
-                  child: isFirst
-                      ? const Icon(Icons.school, size: 10, color: Colors.white)
-                      : isLast
-                          ? const Icon(Icons.flag, size: 10, color: Colors.white)
-                          : null,
-                ),
-                if (!isLast)
-                  Expanded(
-                    child: Container(width: 2, color: color.withValues(alpha: 0.2)),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Text(
-              stop,
-              style: TextStyle(
-                fontSize: 13,
-                color: isFirst || isLast ? color : const Color(0xFF374151),
-                fontWeight: isFirst || isLast ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsSummary() {
-    final totalStops = _routes.fold<int>(0, (sum, r) => sum + ((r['stops'] as List).length));
-    final verifiedDrivers = _routes.length;
-
-    return Row(
-      children: [
-        _statBox('${_routes.length}', 'Active Fleet', Icons.directions_bus, const Color(0xFF0F766E)),
-        const SizedBox(width: 10),
-        _statBox('$totalStops', 'Total Stops', Icons.place_outlined, const Color(0xFF2563EB)),
-        const SizedBox(width: 10),
-        _statBox('$verifiedDrivers/${_routes.length}', 'Crew Verified', Icons.verified_user_outlined, const Color(0xFF059669)),
-      ],
-    );
-  }
-
-  Widget _statBox(String value, String label, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 6),
-            Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-            Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===== TAB 2: LIVE JOURNEY & BUS ATTENDANCE =====
-
-  Widget _buildLiveJourneyTab() {
-    final t = _myTransport ??
-        {
-          'route_no': 'Route 1',
-          'bus_no': 'UK-07-PA-1024',
-          'pickup_point': 'Jakhan Chowk',
-          'current_stop': 'Clock Tower',
-          'eta_minutes': 8,
-          'driver_name': 'Kishan Rawat',
-          'driver_phone': '9876543210',
-          'live_status': 'En Route',
-        };
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Parent Live View Card
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F766E).withValues(alpha: 0.25),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              )
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.gps_fixed, size: 26, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Live Vehicle Telematics (Driver App GPS)',
-                            style: TextStyle(color: Colors.white70, fontSize: 11)),
-                        Text('${t['route_no']} • Bus ${t['bus_no']}',
-                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.fiber_manual_record, color: Colors.greenAccent, size: 10),
-                        SizedBox(width: 4),
-                        Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Current Location', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                        const SizedBox(height: 2),
-                        Text(t['current_stop'] ?? 'Clock Tower',
-                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text('Estimated Arrival', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                        const SizedBox(height: 2),
-                        Text('ETA: ${t['eta_minutes']} mins',
-                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(Icons.person, color: Colors.white70, size: 16),
-                  const SizedBox(width: 6),
-                  Text('Driver: ${t['driver_name']} (${t['driver_phone']})',
-                      style: const TextStyle(color: Colors.white, fontSize: 12)),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // Bus Attendance Section (Conductor / Driver Flow)
-        Card(
-          elevation: 0,
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.grey.shade200),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.how_to_reg, color: Color(0xFF0F766E), size: 22),
-                    SizedBox(width: 8),
-                    Text('Per-Stop Bus Attendance Marking',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _selectedStopForAttendance,
-                        decoration: InputDecoration(
-                          labelText: 'Current Bus Stop',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'School Gate', child: Text('School Gate')),
-                          DropdownMenuItem(value: 'Clock Tower', child: Text('Clock Tower')),
-                          DropdownMenuItem(value: 'Jakhan', child: Text('Jakhan')),
-                          DropdownMenuItem(value: 'Dilaram Chowk', child: Text('Dilaram Chowk')),
-                        ],
-                        onChanged: (v) {
-                          if (v != null) setState(() => _selectedStopForAttendance = v);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                const Text('Mark Student Boarding/Alighting:',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
-                const SizedBox(height: 8),
-
-                _buildAttendanceActionTile('sstudent1', 'Aarav Sharma (Class 10-A)'),
-                _buildAttendanceActionTile('sstudent2', 'Priya Patel (Class 10-A)'),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // Attendance Events Audit Feed
-        const Text(
-          'Live Journey & Boarding Log Feed',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-        ),
-        const SizedBox(height: 10),
-
-        if (_busAttendanceLogs.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: const Center(
-              child: Text('No attendance logs logged yet for today\'s trip.',
-                  style: TextStyle(color: Colors.grey, fontSize: 13)),
-            ),
-          )
-        else
-          ..._busAttendanceLogs.take(5).map((log) {
-            final isBoarded = log['action'] == 'Boarded';
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              elevation: 0,
-              color: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade200),
-              ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: isBoarded ? Colors.green.shade50 : Colors.blue.shade50,
-                  child: Icon(
-                    isBoarded ? Icons.login : Icons.logout,
-                    color: isBoarded ? Colors.green.shade800 : Colors.blue.shade800,
-                    size: 18,
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+                    child: const Text('Save Route Master', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
-                title: Text('${log['student_name']} • ${log['action']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                subtitle: Text('Stop: ${log['stop']} • ${log['time']} (${log['date']})',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                trailing: Text(log['recorded_by'] ?? 'Attendant',
-                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
-              ),
-            );
-          }),
-      ],
-    );
-  }
-
-  Widget _buildAttendanceActionTile(String studentId, String studentName) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(studentName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-          ),
-          Row(
-            children: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                ),
-                onPressed: () async {
-                  await _schoolService.recordBusAttendance(
-                    routeId: _selectedRouteForAttendance,
-                    stopName: _selectedStopForAttendance,
-                    studentId: studentId,
-                    studentName: studentName,
-                    action: 'Boarded',
-                  );
-                  _loadData();
-                },
-                child: const Text('Boarded', style: TextStyle(color: Colors.white, fontSize: 11)),
-              ),
-              const SizedBox(width: 6),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                ),
-                onPressed: () async {
-                  await _schoolService.recordBusAttendance(
-                    routeId: _selectedRouteForAttendance,
-                    stopName: _selectedStopForAttendance,
-                    studentId: studentId,
-                    studentName: studentName,
-                    action: 'Alighted',
-                  );
-                  _loadData();
-                },
-                child: const Text('Alighted', style: TextStyle(color: Colors.white, fontSize: 11)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===== TAB 3: GATE PASS & PICKUP VERIFICATION =====
-
-  Widget _buildGatePassTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Action Bar
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Security Gate Passes & Pickup Verifications',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-            ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryColor,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              ),
-              onPressed: _showRequestGatePassDialog,
-              icon: const Icon(Icons.add, size: 16, color: Colors.white),
-              label: const Text('Request Pass', style: TextStyle(color: Colors.white, fontSize: 12)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        if (_gatePasses.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: const Center(
-              child: Text('No active gate passes issued for today.', style: TextStyle(color: Colors.grey)),
-            ),
-          )
-        else
-          ..._gatePasses.map((pass) {
-            final isAuthorized = pass['is_authorized'] == true;
-            final isExitLogged = pass['status'].toString().contains('Exit Verified');
-            final isPrincipalNeeded = !isAuthorized && !isExitLogged;
-            final passId = pass['id']?.toString() ?? '';
-
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(
-                  color: isPrincipalNeeded ? Colors.orange.shade300 : Colors.grey.shade200,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${pass['pass_no']} • ${pass['student_name']}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isExitLogged
-                                ? Colors.blue.shade50
-                                : (isAuthorized ? Colors.green.shade50 : Colors.orange.shade50),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            isExitLogged ? 'Exit Logged' : (isAuthorized ? 'Authorized' : 'Principal Req'),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isExitLogged
-                                  ? Colors.blue.shade800
-                                  : (isAuthorized ? Colors.green.shade800 : Colors.orange.shade800),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text('Class: ${pass['class']} • Exit Time: ${pass['exit_time']}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                    const SizedBox(height: 4),
-                    Text('Reason: ${pass['reason']}',
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF334155))),
-                    const SizedBox(height: 10),
-
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person_pin, size: 20, color: Color(0xFF0F766E)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Pickup Person: ${pass['pickup_person']} (${pass['relation']})',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  'Phone: ${pass['phone']} • Photo ID Verified by Parent',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          pass['status'] ?? '',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: isExitLogged ? Colors.blue.shade800 : Colors.grey.shade700,
-                          ),
-                        ),
-                        if (!isExitLogged)
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isPrincipalNeeded ? Colors.orange.shade800 : const Color(0xFF0F766E),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            ),
-                            onPressed: () async {
-                              await _schoolService.verifyAndAuthorizeGatePassExit(
-                                passId: passId,
-                                gateOfficer: 'Security Gate 1',
-                                verificationNotes: 'Photo ID verified against school authorized list',
-                              );
-                              _loadData();
-                            },
-                            icon: const Icon(Icons.qr_code_scanner, size: 16, color: Colors.white),
-                            label: Text(
-                              isPrincipalNeeded ? 'Principal Seal & Exit' : 'Verify ID & Exit',
-                              style: const TextStyle(color: Colors.white, fontSize: 11),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text(
-          'Transport & Safety Hub',
-          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
-        ),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF14B8A6)],
-            ),
-          ),
-        ),
-        actions: [
-          if (_userRole == 'admin' || _userRole == 'sadmin')
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-              tooltip: 'Add Route',
-              onPressed: _showAddRouteDialog,
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            tooltip: 'Reload',
-            onPressed: _loadData,
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: const Color(0xFF134E4A),
-              unselectedLabelColor: Colors.white,
-              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-              tabs: const [
-                Tab(icon: Icon(Icons.directions_bus, size: 16), text: 'Fleet'),
-                Tab(icon: Icon(Icons.gps_fixed, size: 16), text: 'Journey'),
-                Tab(icon: Icon(Icons.badge, size: 16), text: 'Gate Pass'),
               ],
             ),
           ),
         ),
       ),
-      body: _isLoading
-          ? _buildLoadingSkeleton()
-          : _errorMessage != null
-              ? _buildErrorView()
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildRoutesTab(),
-                    _buildLiveJourneyTab(),
-                    _buildGatePassTab(),
-                  ],
-                ),
     );
   }
 
+  // ──────────────────────────────────────────────
+  // SKELETON & ERROR VIEWS
+  // ──────────────────────────────────────────────
   Widget _buildLoadingSkeleton() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: 4,
+      itemCount: 6,
       itemBuilder: (context, index) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        height: 130,
+        margin: const EdgeInsets.only(bottom: 10),
+        height: 72,
         decoration: BoxDecoration(
-          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(14),
         ),
       ),
     );
@@ -1381,41 +1412,18 @@ class _TransportScreenState extends State<TransportScreen>
   Widget _buildErrorView() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
-            ),
+            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
+            const SizedBox(height: 12),
+            Text(_errorMessage ?? 'Failed to load transport records', style: const TextStyle(fontSize: 13.5, color: Color(0xFF64748B))),
             const SizedBox(height: 16),
-            const Text(
-              'Failed to Load Transport Data',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage ?? 'Unable to connect to the fleet telematics server.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
+            ElevatedButton(
               onPressed: _loadData,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F766E),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+              child: const Text('Retry'),
             ),
           ],
         ),

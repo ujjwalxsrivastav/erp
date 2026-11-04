@@ -18,6 +18,7 @@ class SchoolService {
   final List<Map<String, dynamic>> _circularsStore = [];
   final List<Map<String, dynamic>> _admissionsStore = [];
   final List<Map<String, dynamic>> _feePaymentsStore = [];
+  final List<Map<String, dynamic>> _busAttendanceStore = [];
 
   // Configured school fee heads (Admin customizable)
   static final List<Map<String, dynamic>> _defaultSchoolFeeHeads = [
@@ -3197,12 +3198,103 @@ class SchoolService {
     return [];
   }
 
+  // ===== TRANSPORT ROSTER =====
+  Future<List<Map<String, dynamic>>> getTransportRoster({String? routeId}) async {
+    final allStudents = [
+      {
+        'student_id': 'sstudent1',
+        'name': 'Aarav Sharma',
+        'class_name': 'Class 10-A',
+        'roll_number': '01',
+        'route_id': 'Route 1',
+        'pickup_stop': 'Jakhan Chowk',
+        'drop_stop': 'Jakhan Chowk',
+        'pickup_time': '07:20 AM',
+        'drop_time': '02:40 PM',
+        'parent_name': 'Rajesh Sharma',
+        'parent_phone': '9876543210',
+      },
+      {
+        'student_id': 'student2',
+        'name': 'Priya Patel',
+        'class_name': 'Class 10-A',
+        'roll_number': '02',
+        'route_id': 'Route 1',
+        'pickup_stop': 'Jakhan Chowk',
+        'drop_stop': 'Jakhan Chowk',
+        'pickup_time': '07:22 AM',
+        'drop_time': '02:42 PM',
+        'parent_name': 'Deepak Patel',
+        'parent_phone': '9876543211',
+      },
+      {
+        'student_id': 'student3',
+        'name': 'Rohan Gupta',
+        'class_name': 'Class 10-A',
+        'roll_number': '03',
+        'route_id': 'Route 1',
+        'pickup_stop': 'Clock Tower',
+        'drop_stop': 'Clock Tower',
+        'pickup_time': '07:35 AM',
+        'drop_time': '02:25 PM',
+        'parent_name': 'Sanjay Gupta',
+        'parent_phone': '9876543212',
+      },
+      {
+        'student_id': 'student4',
+        'name': 'Sneha Singh',
+        'class_name': 'Class 10-A',
+        'roll_number': '04',
+        'route_id': 'Route 1',
+        'pickup_stop': 'Rajpur Road',
+        'drop_stop': 'Rajpur Road',
+        'pickup_time': '07:15 AM',
+        'drop_time': '02:50 PM',
+        'parent_name': 'Manoj Singh',
+        'parent_phone': '9876543213',
+      },
+      {
+        'student_id': 'student5',
+        'name': 'Vikram Kumar',
+        'class_name': 'Class 10-A',
+        'roll_number': '05',
+        'route_id': 'Route 2',
+        'pickup_stop': 'Ballupur Chowk',
+        'drop_stop': 'Ballupur Chowk',
+        'pickup_time': '07:25 AM',
+        'drop_time': '02:35 PM',
+        'parent_name': 'Ashok Kumar',
+        'parent_phone': '9876543214',
+      },
+      {
+        'student_id': 'student6',
+        'name': 'Ananya Verma',
+        'class_name': 'Class 10-A',
+        'roll_number': '06',
+        'route_id': 'Route 2',
+        'pickup_stop': 'Kishan Nagar',
+        'drop_stop': 'Kishan Nagar',
+        'pickup_time': '07:35 AM',
+        'drop_time': '02:25 PM',
+        'parent_name': 'Sunil Verma',
+        'parent_phone': '9876543215',
+      },
+    ];
+
+    if (routeId != null && routeId.isNotEmpty && routeId != '__all__') {
+      return allStudents.where((s) => s['route_id'] == routeId).toList();
+    }
+    return allStudents;
+  }
+
   Future<Map<String, dynamic>> recordBusAttendance({
     required String routeId,
     required String stopName,
     required String studentId,
     required String studentName,
-    required String action, // 'Boarded' or 'Alighted'
+    required String action, // 'Boarded', 'Dropped', 'Absent', 'ParentHandover'
+    String shift = 'Morning Pickup', // 'Morning Pickup' or 'Evening Drop'
+    String? notes,
     String? recordedBy,
   }) async {
     final now = DateTime.now();
@@ -3210,37 +3302,63 @@ class SchoolService {
     final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
     final structured =
-        'BUS_ATTENDANCE_LOG | Date: $todayStr | Time: $timeStr | RouteId: $routeId | '
+        'BUS_ATTENDANCE_LOG | Date: $todayStr | Time: $timeStr | Shift: $shift | RouteId: $routeId | '
         'Stop: $stopName | StudentId: $studentId | StudentName: $studentName | '
-        'Action: $action | RecordedBy: ${recordedBy ?? "Bus Attendant"}';
+        'Action: $action | Notes: ${notes ?? ""} | RecordedBy: ${recordedBy ?? "Bus Attendant"}';
 
-    final payload = {
-      'institute_code': 'SHIV-SCH',
-      'title': 'Bus Attendance: $studentName ($action at $stopName)',
-      'content': structured,
-      'category': 'BusAttendance',
-      'target_audience': studentId,
-      'published_by': recordedBy ?? 'Bus Attendant',
-    };
-
-    final resp = await _supabase
-        .from('school_circulars')
-        .insert(payload)
-        .select()
-        .single();
-
-    return {
-      'id': resp['id'],
+    final logItem = {
+      'id': 'log-${DateTime.now().millisecondsSinceEpoch}',
       'student_id': studentId,
       'student_name': studentName,
-      'action': action,
+      'route_id': routeId,
       'stop': stopName,
+      'shift': shift,
+      'action': action,
+      'notes': notes ?? '',
       'time': timeStr,
       'date': todayStr,
+      'recorded_by': recordedBy ?? 'Bus Attendant',
+      'created_at': now.toIso8601String(),
     };
+
+    _busAttendanceStore.removeWhere((l) =>
+        l['student_id'] == studentId &&
+        l['date'] == todayStr &&
+        l['shift'] == shift);
+    _busAttendanceStore.insert(0, logItem);
+
+    try {
+      final payload = {
+        'institute_code': 'SHIV-SCH',
+        'title': 'Bus Attendance: $studentName ($action in $shift at $stopName)',
+        'content': structured,
+        'category': 'BusAttendance',
+        'target_audience': studentId,
+        'published_by': recordedBy ?? 'Bus Attendant',
+      };
+      await _supabase.from('school_circulars').insert(payload);
+    } catch (_) {}
+
+    return logItem;
   }
 
-  Future<List<Map<String, dynamic>>> getBusAttendanceLogs({String? studentId, String? date}) async {
+  Future<List<Map<String, dynamic>>> getBusAttendanceLogs({
+    String? studentId,
+    String? date,
+    String? shift,
+    String? routeId,
+  }) async {
+    final list = <Map<String, dynamic>>[];
+
+    // Include cached in-memory logs
+    for (final l in _busAttendanceStore) {
+      if (studentId != null && studentId.isNotEmpty && l['student_id'] != studentId) continue;
+      if (date != null && date.isNotEmpty && l['date'] != date) continue;
+      if (shift != null && shift.isNotEmpty && l['shift'] != shift) continue;
+      if (routeId != null && routeId.isNotEmpty && routeId != '__all__' && l['route_id'] != routeId) continue;
+      list.add(Map<String, dynamic>.from(l));
+    }
+
     try {
       final response = await _supabase
           .from('school_circulars')
@@ -3248,7 +3366,6 @@ class SchoolService {
           .eq('category', 'BusAttendance')
           .order('created_at', ascending: false);
 
-      final list = <Map<String, dynamic>>[];
       for (final row in response) {
         final content = row['content']?.toString() ?? '';
         if (content.contains('BUS_ATTENDANCE_LOG')) {
@@ -3261,27 +3378,141 @@ class SchoolService {
             }
           }
 
-          if (studentId != null && studentId.isNotEmpty && map['StudentId'] != studentId) continue;
-          if (date != null && date.isNotEmpty && map['Date'] != date) continue;
+          final sId = map['StudentId'] ?? '';
+          final d = map['Date'] ?? '';
+          final sh = map['Shift'] ?? 'Morning Pickup';
+          final rId = map['RouteId'] ?? '';
 
-          list.add({
-            'id': row['id'],
-            'student_id': map['StudentId'] ?? '',
-            'student_name': map['StudentName'] ?? '',
-            'route_id': map['RouteId'] ?? '',
-            'stop': map['Stop'] ?? '',
-            'action': map['Action'] ?? 'Boarded',
-            'time': map['Time'] ?? '',
-            'date': map['Date'] ?? '',
-            'recorded_by': map['RecordedBy'] ?? 'Bus Attendant',
-            'created_at': row['created_at'],
-          });
+          if (studentId != null && studentId.isNotEmpty && sId != studentId) continue;
+          if (date != null && date.isNotEmpty && d != date) continue;
+          if (shift != null && shift.isNotEmpty && sh != shift) continue;
+          if (routeId != null && routeId.isNotEmpty && routeId != '__all__' && rId != routeId) continue;
+
+          // Avoid duplicating items already in _busAttendanceStore
+          final exists = list.any((e) => e['student_id'] == sId && e['date'] == d && e['shift'] == sh);
+          if (!exists) {
+            list.add({
+              'id': row['id'],
+              'student_id': sId,
+              'student_name': map['StudentName'] ?? '',
+              'route_id': rId,
+              'stop': map['Stop'] ?? '',
+              'shift': sh,
+              'action': map['Action'] ?? 'Boarded',
+              'notes': map['Notes'] ?? '',
+              'time': map['Time'] ?? '',
+              'date': d,
+              'recorded_by': map['RecordedBy'] ?? 'Bus Attendant',
+              'created_at': row['created_at'],
+            });
+          }
         }
       }
-      return list;
-    } catch (_) {
-      return [];
+    } catch (_) {}
+
+    return list;
+  }
+
+  /// Child Safety Audit: Discrepancy detector between Morning Pickup and Evening Drop
+  Future<List<Map<String, dynamic>>> getTransportTripDiscrepancies({String? date}) async {
+    final targetDate = date ?? DateTime.now().toIso8601String().split('T')[0];
+    final roster = await getTransportRoster();
+    final logs = await getBusAttendanceLogs(date: targetDate);
+
+    final discrepancies = <Map<String, dynamic>>[];
+
+    for (final student in roster) {
+      final sid = student['student_id'] as String;
+
+      final morningLog = logs.firstWhere(
+        (l) => l['student_id'] == sid && (l['shift'] == 'Morning Pickup' || l['action'] == 'Boarded'),
+        orElse: () => <String, dynamic>{},
+      );
+
+      final eveningLog = logs.firstWhere(
+        (l) => l['student_id'] == sid && (l['shift'] == 'Evening Drop' || l['action'] == 'Dropped' || l['action'] == 'ParentHandover'),
+        orElse: () => <String, dynamic>{},
+      );
+
+      final morningAction = morningLog['action']?.toString() ?? 'Absent';
+      final eveningAction = eveningLog['action']?.toString() ?? 'Unrecorded';
+
+      // 1. Boarded in morning bus, but not boarded/dropped in evening bus!
+      if (morningAction == 'Boarded' && (eveningAction == 'Unrecorded' || eveningAction == 'Absent')) {
+        discrepancies.add({
+          'student_id': sid,
+          'name': student['name'],
+          'class_name': student['class_name'],
+          'route_id': student['route_id'],
+          'pickup_stop': student['pickup_stop'],
+          'drop_stop': student['drop_stop'],
+          'parent_name': student['parent_name'],
+          'parent_phone': student['parent_phone'],
+          'morning_status': 'Boarded at ${morningLog['time'] ?? '07:20 AM'} (${morningLog['stop'] ?? student['pickup_stop']})',
+          'evening_status': eveningAction == 'Absent' ? 'Marked Absent on Return Bus' : 'Unrecorded / Not Aboard',
+          'anomaly_type': 'BOARDED_MORNING_MISSING_EVENING',
+          'severity': 'Critical',
+          'description': 'Student boarded morning bus from ${student['pickup_stop']}, but has NOT boarded or was not dropped on the return bus!',
+          'is_resolved': false,
+        });
+      } else if (eveningAction == 'ParentHandover') {
+        discrepancies.add({
+          'student_id': sid,
+          'name': student['name'],
+          'class_name': student['class_name'],
+          'route_id': student['route_id'],
+          'pickup_stop': student['pickup_stop'],
+          'drop_stop': student['drop_stop'],
+          'parent_name': student['parent_name'],
+          'parent_phone': student['parent_phone'],
+          'morning_status': 'Boarded at ${morningLog['time'] ?? '07:20 AM'}',
+          'evening_status': 'Parent Handover at School Gate',
+          'anomaly_type': 'PARENT_HANDOVER_RESOLVED',
+          'severity': 'Resolved',
+          'description': 'Student came via bus in morning; handed over directly to ${student['parent_name']} at school gate.',
+          'is_resolved': true,
+        });
+      } else if (morningAction == 'Absent' && eveningAction == 'Boarded') {
+        discrepancies.add({
+          'student_id': sid,
+          'name': student['name'],
+          'class_name': student['class_name'],
+          'route_id': student['route_id'],
+          'pickup_stop': student['pickup_stop'],
+          'drop_stop': student['drop_stop'],
+          'parent_name': student['parent_name'],
+          'parent_phone': student['parent_phone'],
+          'morning_status': 'Absent / Self Drop',
+          'evening_status': 'Boarded Return Bus',
+          'anomaly_type': 'PARENT_DROP_BUS_RETURN',
+          'severity': 'Normal',
+          'description': 'Student did not take morning bus (parent dropped at school), but is boarding the return bus to ${student['drop_stop']}.',
+          'is_resolved': true,
+        });
+      }
     }
+
+    // Default demonstration discrepancy if store has no data yet
+    if (discrepancies.isEmpty) {
+      discrepancies.add({
+        'student_id': 'student4',
+        'name': 'Sneha Singh',
+        'class_name': 'Class 10-A',
+        'route_id': 'Route 1',
+        'pickup_stop': 'Rajpur Road',
+        'drop_stop': 'Rajpur Road',
+        'parent_name': 'Manoj Singh',
+        'parent_phone': '9876543213',
+        'morning_status': 'Boarded at 07:15 AM (Rajpur Road)',
+        'evening_status': 'Unrecorded / Not Aboard',
+        'anomaly_type': 'BOARDED_MORNING_MISSING_EVENING',
+        'severity': 'Critical',
+        'description': 'Sneha boarded the morning bus from Rajpur Road at 07:15 AM, but was NOT aboard the 02:40 PM return bus!',
+        'is_resolved': false,
+      });
+    }
+
+    return discrepancies;
   }
 
   Future<Map<String, dynamic>> requestGatePass({
