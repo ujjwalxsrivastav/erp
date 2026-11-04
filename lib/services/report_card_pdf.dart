@@ -41,30 +41,22 @@ class ReportCardPdf {
                 style: pw.TextStyle(fontSize: 7.5, color: _grey)),
           ],
         ),
-        build: (ctx) => [
-          _header(examType, academicYear),
-          pw.SizedBox(height: 12),
-          _studentBlock(
-              studentName, rollNo, className, admissionNo, studentUsername),
-          pw.SizedBox(height: 10),
-          _summaryStrip(analytics, attendancePct),
-          pw.SizedBox(height: 12),
-          _sectionTitle('PART 1 · SCHOLASTIC SUBJECTS (CBSE 9-POINT SCALE)'),
-          pw.SizedBox(height: 6),
-          _marksTable(marks),
-          pw.SizedBox(height: 12),
-          _sectionTitle('PART 2 · CO-SCHOLASTIC & LIFE SKILLS (A / B / C)'),
-          pw.SizedBox(height: 6),
-          _coScholasticTable(coScholastic),
-          pw.SizedBox(height: 12),
-          _sectionTitle('PART 3 · RESULT ANALYTICS'),
-          pw.SizedBox(height: 6),
-          _analyticsBlock(analytics),
-          pw.SizedBox(height: 12),
-          _remarksBlock(teacherRemark, promotionVerdict, isPromoted),
-          pw.SizedBox(height: 14),
-          _signatures(),
-        ],
+        build: (ctx) => _reportContents(
+          studentName: studentName,
+          studentUsername: studentUsername,
+          className: className,
+          rollNo: rollNo,
+          admissionNo: admissionNo,
+          examType: examType,
+          academicYear: academicYear,
+          marks: marks,
+          analytics: analytics,
+          attendancePct: attendancePct,
+          coScholastic: coScholastic,
+          teacherRemark: teacherRemark,
+          promotionVerdict: promotionVerdict,
+          isPromoted: isPromoted,
+        ),
       ),
     );
 
@@ -73,6 +65,104 @@ class ReportCardPdf {
       filename:
           'report_card_${studentUsername}_${examType.replaceAll(' ', '_')}.pdf',
     );
+  }
+
+  static Future<void> shareClass({
+    required List<Map<String, dynamic>> students,
+    required String className,
+    required String examType,
+    required String academicYear,
+  }) async {
+    if (students.isEmpty) {
+      throw ArgumentError('At least one student report card is required.');
+    }
+
+    final doc = pw.Document();
+    for (final student in students) {
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          footer: (ctx) => pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text('Shivalik School · Academic Office',
+                  style: pw.TextStyle(fontSize: 7.5, color: _grey)),
+              pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
+                  style: pw.TextStyle(fontSize: 7.5, color: _grey)),
+            ],
+          ),
+          build: (ctx) => _reportContents(
+            studentName: (student['student_name'] ?? 'Student').toString(),
+            studentUsername: (student['student_username'] ?? '').toString(),
+            className: className,
+            rollNo: (student['roll_no'] ?? '-').toString(),
+            admissionNo: (student['admission_no'] ?? '-').toString(),
+            examType: examType,
+            academicYear: academicYear,
+            marks: List<Map<String, dynamic>>.from(student['marks'] as List),
+            analytics:
+                Map<String, dynamic>.from(student['analytics'] as Map),
+            attendancePct:
+                (student['attendance_pct'] as num?)?.toDouble() ?? 0,
+            coScholastic: List<Map<String, dynamic>>.from(
+                student['co_scholastic'] as List),
+            teacherRemark: (student['teacher_remark'] ?? '').toString(),
+            promotionVerdict:
+                (student['promotion_verdict'] ?? '').toString(),
+            isPromoted: student['is_promoted'] as bool? ?? false,
+          ),
+        ),
+      );
+    }
+
+    await Printing.sharePdf(
+      bytes: await doc.save(),
+      filename:
+          'report_cards_${className.replaceAll(' ', '_')}_${examType.replaceAll(' ', '_')}.pdf',
+    );
+  }
+
+  static List<pw.Widget> _reportContents({
+    required String studentName,
+    required String studentUsername,
+    required String className,
+    required String rollNo,
+    required String admissionNo,
+    required String examType,
+    required String academicYear,
+    required List<Map<String, dynamic>> marks,
+    required Map<String, dynamic> analytics,
+    required double attendancePct,
+    required List<Map<String, dynamic>> coScholastic,
+    required String teacherRemark,
+    required String promotionVerdict,
+    required bool isPromoted,
+  }) {
+    return [
+      _header(examType, academicYear),
+      pw.SizedBox(height: 12),
+      _studentBlock(
+          studentName, rollNo, className, admissionNo, studentUsername),
+      pw.SizedBox(height: 10),
+      _summaryStrip(analytics, attendancePct),
+      pw.SizedBox(height: 12),
+      _sectionTitle('PART 1 · SCHOLASTIC SUBJECTS (CBSE 9-POINT SCALE)'),
+      pw.SizedBox(height: 6),
+      _marksTable(marks),
+      pw.SizedBox(height: 12),
+      _sectionTitle('PART 2 · CO-SCHOLASTIC & LIFE SKILLS (A / B / C)'),
+      pw.SizedBox(height: 6),
+      _coScholasticTable(coScholastic),
+      pw.SizedBox(height: 12),
+      _sectionTitle('PART 3 · RESULT ANALYTICS'),
+      pw.SizedBox(height: 6),
+      _analyticsBlock(analytics),
+      pw.SizedBox(height: 12),
+      _remarksBlock(teacherRemark, promotionVerdict, isPromoted),
+      pw.SizedBox(height: 14),
+      _signatures(),
+    ];
   }
 
   static pw.Widget _header(String examType, String academicYear) {

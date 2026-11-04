@@ -16,6 +16,8 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
 
   bool _isLoading = true;
   bool _isLoadingCard = false;
+  bool _isExportingClass = false;
+  int _classExportProgress = 0;
   bool _isAdmin = false;
   bool _isStaff = false;
   String _userRole = 'student';
@@ -261,6 +263,31 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
         children: [
           if (_isStaff) ...[
             _buildStaffPickers(),
+            const SizedBox(height: 12),
+          ],
+          if (_isAdmin &&
+              _selectedClass != null &&
+              _selectedClass!['id']?.toString() != '__all__') ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isExportingClass || _students.isEmpty
+                    ? null
+                    : _downloadClassReportCards,
+                icon: _isExportingClass
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_for_offline_outlined),
+                label: Text(
+                  _isExportingClass
+                      ? 'Preparing $_classExportProgress/${_students.length} report cards...'
+                      : 'Download all ${_students.length} report cards',
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
           ],
           _buildExamTabs(),
@@ -1046,6 +1073,115 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  Future<void> _downloadClassReportCards() async {
+    final selectedClass = _selectedClass;
+    if (!_isAdmin ||
+        selectedClass == null ||
+        selectedClass['id']?.toString() == '__all__' ||
+        _students.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isExportingClass = true;
+      _classExportProgress = 0;
+    });
+
+    try {
+      final className = _schoolService.classDisplayName(
+        classId: selectedClass['id']?.toString(),
+        className: selectedClass['name']?.toString(),
+      );
+      final cards = <Map<String, dynamic>>[];
+      for (final student in _students) {
+        final username = (student['username'] ?? '').toString();
+        final studentId = (username.isNotEmpty
+                ? username
+                : student['id']?.toString() ?? '')
+            .trim();
+        if (studentId.isEmpty) continue;
+
+        final studentName = (student['name'] ?? username).toString();
+        final marks = await _schoolService.getStudentMarks(
+          studentId,
+          examType: _selectedExam,
+          studentName: studentName,
+        );
+        final analytics = _schoolService.buildReportAnalytics(marks);
+        final attendance =
+            await _schoolService.getStudentAttendancePercent(studentId);
+        final coScholastic = await _schoolService.getCoScholastic(
+          studentId: studentId,
+          examType: _selectedExam,
+        );
+        final meta = await _schoolService.getReportCardMeta(
+          studentId: studentId,
+          examType: _selectedExam,
+        );
+        final percentage =
+            (analytics['percentage'] as num?)?.toDouble() ?? 0;
+        final isPromoted = percentage >= 33 && attendance >= 75;
+        final teacherRemark =
+            (meta['teacher_remark']?.toString() ?? '').isNotEmpty
+                ? meta['teacher_remark'].toString()
+                : percentage >= 80
+                    ? 'Very good performance. Deep understanding of core subjects and high diligence.'
+                    : percentage >= 50
+                        ? 'Satisfactory. Regular revision and problem-solving practice recommended.'
+                        : 'Needs substantial improvement and dedicated parent-teacher counselling support.';
+        final promotionVerdict =
+            (meta['promotion_verdict']?.toString() ?? '').isNotEmpty
+                ? meta['promotion_verdict'].toString()
+                : isPromoted
+                    ? 'ELIGIBLE FOR PROMOTION (Subject to Final Examination)'
+                    : 'ACADEMIC RETENTION / REMEDIAL REQUIRED';
+
+        cards.add({
+          'student_name': studentName,
+          'student_username': studentId,
+          'roll_no': student['roll_number']?.toString() ?? '-',
+          'admission_no': student['admission_no']?.toString() ?? '-',
+          'marks': marks,
+          'analytics': analytics,
+          'attendance_pct': attendance,
+          'co_scholastic': coScholastic,
+          'teacher_remark': teacherRemark,
+          'promotion_verdict': promotionVerdict,
+          'is_promoted': isPromoted,
+        });
+        if (mounted) {
+          setState(() => _classExportProgress = cards.length);
+        }
+      }
+
+      if (cards.isEmpty) {
+        throw Exception('No valid students were found in this class.');
+      }
+      await ReportCardPdf.shareClass(
+        students: cards,
+        className: className,
+        examType: _selectedExam,
+        academicYear: SchoolService.reportCardAcademicYear,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not generate class report cards: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExportingClass = false;
+          _classExportProgress = 0;
+        });
+      }
     }
   }
 

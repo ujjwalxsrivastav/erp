@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/fee_receipt_pdf.dart';
+import '../../../services/school_export_service.dart';
 
 class SchoolFeeScreen extends StatefulWidget {
   const SchoolFeeScreen({super.key});
@@ -43,10 +44,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
 
   List<Map<String, dynamic>> get _filteredStudentFeeSummaries {
     final query = _adminFeeSearch.trim().toLowerCase();
-    return _allStudentFeeSummaries.where((student) {
-      if (((student['pending_amount'] as num?)?.toDouble() ?? 0) <= 0.01) {
-        return false;
-      }
+    return _pendingStudentFeeSummaries.where((student) {
       if (query.isEmpty) return true;
       return [
         student['name'],
@@ -57,6 +55,11 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
       ].any((value) => (value ?? '').toString().toLowerCase().contains(query));
     }).toList();
   }
+
+  List<Map<String, dynamic>> get _pendingStudentFeeSummaries =>
+      _allStudentFeeSummaries.where((student) {
+        return ((student['pending_amount'] as num?)?.toDouble() ?? 0) > 0.01;
+      }).toList();
 
   // Totals computed from the real backend ledger.
   // Every row is a fee demand; `paid_amount` is what has been settled
@@ -189,6 +192,36 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
         _isAdminFeesLoading = false;
       });
     }
+  }
+
+  Future<void> _exportAllPendingFees() async {
+    final pendingStudents = _pendingStudentFeeSummaries;
+    if (pendingStudents.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('There are no pending student fees to export.')),
+      );
+      return;
+    }
+
+    SchoolExportService.showExportOptionsModal(
+      context: context,
+      title: 'Export All Pending Fees',
+      subtitle:
+          'Export all ${pendingStudents.length} students with outstanding balances.',
+      onExportPdf: () => SchoolExportService.exportPendingFeesPdf(
+        context: context,
+        pendingStudents: pendingStudents,
+        totalOutstandingAmount: pendingStudents.fold<double>(
+          0,
+          (sum, student) =>
+              sum + ((student['pending_amount'] as num?)?.toDouble() ?? 0),
+        ),
+      ),
+      onExportCsv: () => SchoolExportService.exportPendingFeesCsv(
+        context: context,
+        pendingStudents: pendingStudents,
+      ),
+    );
   }
 
   void _showPaymentDialog() {
@@ -903,16 +936,26 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen>
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Students with pending fees: ${students.length}',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF475569),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Students with pending fees: ${students.length}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF475569),
+                  ),
+                ),
               ),
-            ),
+              TextButton.icon(
+                onPressed: _pendingStudentFeeSummaries.isEmpty
+                    ? null
+                    : _exportAllPendingFees,
+                icon: const Icon(Icons.download_outlined, size: 18),
+                label: const Text('Export all'),
+              ),
+            ],
           ),
         ),
         Expanded(

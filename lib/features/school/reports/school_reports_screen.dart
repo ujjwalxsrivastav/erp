@@ -301,6 +301,83 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     if (mounted) setState(() => _feeLoading = false);
   }
 
+  Future<void> _exportAttendance() async {
+    if (_attRows.isEmpty) return;
+    SchoolExportService.showExportOptionsModal(
+      context: context,
+      title: 'Export Attendance Register',
+      subtitle: 'Choose PDF or CSV format.',
+      onExportPdf: () => SchoolExportService.exportAttendancePdf(
+        context: context,
+        className: _attClass,
+        fromDate: _attFromDate,
+        toDate: _attToDate,
+        overallPct: _attOverallPct,
+        attendanceRows: _attRows,
+      ),
+      onExportCsv: () => SchoolExportService.exportAttendanceCsv(
+        context: context,
+        className: _attClass,
+        fromDate: _attFromDate,
+        toDate: _attToDate,
+        overallPct: _attOverallPct,
+        attendanceRows: _attRows,
+      ),
+    );
+  }
+
+  Future<void> _exportPendingFees() async {
+    final grouped = <String, Map<String, dynamic>>{};
+    for (final row in _feeRows) {
+      final username = (row['student'] ?? 'Student').toString();
+      final summary = grouped.putIfAbsent(
+        username,
+        () => {
+          'name': username,
+          'username': username,
+          'class_name': _feeClass,
+          'total_fee': 0.0,
+          'paid_amount': 0.0,
+        },
+      );
+      summary['total_fee'] =
+          (summary['total_fee'] as double) + (row['amount'] as double);
+      summary['paid_amount'] =
+          (summary['paid_amount'] as double) + (row['paid'] as double);
+    }
+
+    final pendingStudents = grouped.values.map((student) {
+      final total = student['total_fee'] as double;
+      final paid = student['paid_amount'] as double;
+      final pending = (total - paid).clamp(0.0, double.infinity);
+      return {
+        ...student,
+        'pending_amount': pending,
+        'status': paid > 0 ? 'Partial' : 'Pending',
+      };
+    }).where((student) => (student['pending_amount'] as double) > 0.01).toList();
+
+    if (pendingStudents.isEmpty) return;
+    SchoolExportService.showExportOptionsModal(
+      context: context,
+      title: 'Export Pending Fees',
+      subtitle: 'Choose PDF or CSV format.',
+      onExportPdf: () => SchoolExportService.exportPendingFeesPdf(
+        context: context,
+        pendingStudents: pendingStudents,
+        totalOutstandingAmount: pendingStudents.fold<double>(
+          0,
+          (sum, student) =>
+              sum + (student['pending_amount'] as double),
+        ),
+      ),
+      onExportCsv: () => SchoolExportService.exportPendingFeesCsv(
+        context: context,
+        pendingStudents: pendingStudents,
+      ),
+    );
+  }
+
   // ===================== MARKS & RANKINGS =====================
   Future<void> _generateMarksReport() async {
     setState(() { _marksLoading = true; _marksRows = []; });
@@ -1484,7 +1561,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   ])).toList(),
                 ),
               ),
+              ],
             ),
+          ),
           ] else if (!_feeLoading) ...[
             const SizedBox(height: 20),
             _buildEmptyState('No fee transactions found for this selection.'),
