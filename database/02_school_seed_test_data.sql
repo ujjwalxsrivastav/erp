@@ -11,6 +11,7 @@
 --   * 22 subject teachers     : steach01 .. steach22 (password same)
 --   * Class teacher of 10     : steach01 (Mathematics)
 --   * 1 demo parent           : parent1 (existing) gets 2 children of Class 10
+--   * 1 demo admin            : sadmin01 (admin) for login testing
 --   * Fee demands             : 1 pending demand per student (+5 paid samples)
 --   * Homework                : 5 assignments for Class 10
 --   * Attendance              : last 5 working days × all 50 students
@@ -50,7 +51,17 @@ ON CONFLICT (username) DO UPDATE
       institute_type = 'school';
 
 -- ---------------------------------------------------------------------------
--- 2. STUDENT MASTER RECORDS (school_students)
+-- 2. USERS — DEMO SCHOOL ADMIN (added per request)
+-- ---------------------------------------------------------------------------
+INSERT INTO public.users (username, password, role, institute_type)
+VALUES ('sadmin01', 'sadmin01', 'admin', 'school')
+ON CONFLICT (username) DO UPDATE
+  SET password       = EXCLUDED.password,
+      role           = 'admin',
+      institute_type = 'school';
+
+-- ---------------------------------------------------------------------------
+-- 3. STUDENT MASTER RECORDS (school_students)
 -- ---------------------------------------------------------------------------
 WITH cfg AS (
   SELECT (SELECT id FROM public.school_classes
@@ -401,13 +412,34 @@ WHERE NOT EXISTS (
 
 -- ---------------------------------------------------------------------------
 -- 11. DEMO PARENT — parent1 (existing test parent) linked to first 2 students
+-- ----------------------------------------------------------------------------- ---------------------------------------------------------------------------
+-- 11. VERIFICATION
+-- ---------------------------------------------------------------------------
+SELECT 'students(class 10)' AS what, count(*) FROM public.school_students WHERE class_name = 'Class 10'
+UNION ALL
+SELECT 'teacher users (steach*)', count(*) FROM public.users WHERE username LIKE 'steach%'
+UNION ALL
+SELECT 'class teacher(s) of Class 10', count(*) FROM public.school_classes WHERE name = 'Class 10' AND class_teacher_id IS NOT NULL
+UNION ALL
+SELECT 'pending fee demands', count(*) FROM public.school_fee_payments WHERE status = 'pending'
+UNION ALL
+SELECT 'homework(class 10)', count(*) FROM public.school_homework WHERE class_name = 'Class 10'
+UNION ALL
+SELECT 'timetable slots', count(*) FROM public.school_timetable WHERE class_id = (SELECT id::text FROM public.school_classes WHERE name='Class 10' ORDER BY created_at ASC NULLS LAST LIMIT 1);
+
+SELECT 'School seed completed successfully!' AS result;
+
+-- ---------------------------------------------------------------------------
+-- 12. DEMO ADMIN — sadmin01 (added per request)
 -- ---------------------------------------------------------------------------
 INSERT INTO public.users (username, password, role, institute_type)
-VALUES ('parent1', 'parent1', 'parent', 'school')
+VALUES ('sadmin01', 'sadmin01', 'admin', 'school')
 ON CONFLICT (username) DO UPDATE
-  SET password = EXCLUDED.password,
-      role = 'parent',
+  SET password       = EXCLUDED.password,
+      role           = 'admin',
       institute_type = 'school';
+
+SELECT 'School seed completed successfully!' AS result;
 
 INSERT INTO public.parent_student_links (parent_username, student_username, relation)
 SELECT 'parent1', s.username, 'Father'

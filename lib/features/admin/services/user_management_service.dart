@@ -1,5 +1,15 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+class ManagedUsersResult {
+  final List<Map<String, dynamic>> users;
+  final bool institutionFilterAvailable;
+
+  const ManagedUsersResult({
+    required this.users,
+    required this.institutionFilterAvailable,
+  });
+}
+
 /// Roles an admin can assign from Manage Users. HR / HOD / Staff accounts are
 /// no longer supported.
 class UserRoles {
@@ -13,9 +23,8 @@ class UserRoles {
         student => 'Student',
         teacher => 'Teacher',
         admin => 'Admin',
-        _ => role.isEmpty
-            ? role
-            : '${role[0].toUpperCase()}${role.substring(1)}',
+        _ =>
+          role.isEmpty ? role : '${role[0].toUpperCase()}${role.substring(1)}',
       };
 
   /// `users.institution` — decides which dashboard the account lands on.
@@ -35,21 +44,48 @@ class UserManagementService {
   final _supabase = Supabase.instance.client;
 
   /// [institution] — `school` or `college`; null lists every institution.
+  /// Older databases may not yet have `users.institution`; in that case, list
+  /// the accounts without institution filtering so the screen is still useful.
   /// Each row is enriched with `display_name` / `detail` where resolvable.
-  Future<List<Map<String, dynamic>>> getAllUsers({String? institution}) async {
-    try {
-      var query = _supabase.from('users').select('username, role, institution');
-      if (institution != null && institution.isNotEmpty) {
-        query = query.eq('institution', institution);
+  Future<ManagedUsersResult> getUsers({String? institution}) async {
+    List<Map<String, dynamic>> users;
+    var institutionFilterAvailable = true;
+
+    if (institution == null || institution.isEmpty) {
+      final response = await _supabase
+          .from('users')
+          .select('username, role')
+          .order('username', ascending: true);
+      users = List<Map<String, dynamic>>.from(response);
+    } else {
+      try {
+        final response = await _supabase
+            .from('users')
+            .select('username, role, institution')
+            .eq('institution', institution)
+            .order('username', ascending: true);
+        users = List<Map<String, dynamic>>.from(response);
+      } on PostgrestException catch (e) {
+        if (e.code != '42703' && e.code != 'PGRST204') rethrow;
+
+        print(
+          'The users.institution column is unavailable; loading all users '
+          'without institution filtering: $e',
+        );
+        final response = await _supabase
+            .from('users')
+            .select('username, role')
+            .order('username', ascending: true);
+        users = List<Map<String, dynamic>>.from(response);
+        institutionFilterAvailable = false;
       }
-      final response = await query.order('username', ascending: true);
-      final users = List<Map<String, dynamic>>.from(response);
-      await _attachDetails(users);
-      return users;
-    } catch (e) {
-      print('Error fetching users: $e');
-      return [];
     }
+
+    await _attachDetails(users);
+    return ManagedUsersResult(
+      users: users,
+      institutionFilterAvailable: institutionFilterAvailable,
+    );
   }
 
   /// Two batched lookups: school profiles (school_students + teacher_details)
@@ -168,25 +204,6 @@ class UserManagementService {
     }
   }
 
-  Future<Map<String, int>> getRoleCounts({String? institution}) async {
-    try {
-      var query = _supabase.from('users').select('role');
-      if (institution != null && institution.isNotEmpty) {
-        query = query.eq('institution', institution);
-      }
-      final counts = <String, int>{'total': 0};
-      for (final row in List<Map<String, dynamic>>.from(await query)) {
-        final role = (row['role'] ?? '').toString();
-        counts[role] = (counts[role] ?? 0) + 1;
-        counts['total'] = (counts['total'] ?? 0) + 1;
-      }
-      return counts;
-    } catch (e) {
-      print('Error fetching role counts: $e');
-      return {'total': 0};
-    }
-  }
-
   Future<bool> updateUserRole(String username, String newRole) async {
     try {
       await _supabase.from('users').update({
@@ -271,9 +288,8 @@ class UserManagementService {
       return {
         'success': true,
         'username': cleanUsername,
-        'message':
-            'Account created, but saving the name failed: $e. '
-                'Role changes are still applied from this screen.',
+        'message': 'Account created, but saving the name failed: $e. '
+            'Role changes are still applied from this screen.',
       };
     }
 
