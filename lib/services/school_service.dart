@@ -2076,6 +2076,150 @@ class SchoolService {
     }
   }
 
+  Future<int> addFeeDemands({
+    required List<String> studentUsernames,
+    required String head,
+    required double amount,
+    required String dueDate,
+  }) async {
+    final role = await AuthService().getCurrentUserRole();
+    if (role != 'admin' && role != 'sadmin') {
+      throw Exception('Only an admin can add fee demands.');
+    }
+
+    final cleanHead = head.trim();
+    final uniqueUsernames =
+        studentUsernames.map((username) => username.trim()).where((username) => username.isNotEmpty).toSet().toList();
+    if (cleanHead.isEmpty) throw Exception('Fee head is required.');
+    if (!amount.isFinite || amount <= 0) {
+      throw Exception('Enter an amount greater than zero.');
+    }
+    if (uniqueUsernames.isEmpty) {
+      throw Exception('Select at least one student.');
+    }
+
+    late final List<Map<String, dynamic>> profiles;
+    try {
+      final students = await _supabase
+          .from('school_students')
+          .select('id, username, class_id, class_name, academic_year')
+          .inFilter('username', uniqueUsernames);
+      profiles = List<Map<String, dynamic>>.from(students);
+    } on PostgrestException catch (e) {
+      if (e.code != '42703' && e.code != 'PGRST204') rethrow;
+      final students = await _supabase
+          .from('school_students')
+          .select('id, username, class_id, class_name')
+          .inFilter('username', uniqueUsernames);
+      profiles = List<Map<String, dynamic>>.from(students);
+    }
+    if (profiles.length != uniqueUsernames.length) {
+      throw Exception('Some selected students could not be found.');
+    }
+
+    final createdAt = DateTime.now().toIso8601String();
+    final demands = profiles.map((student) {
+      final classId = student['class_id']?.toString();
+      return <String, dynamic>{
+        'student_id': student['username'],
+        if (classId != null && classId.isNotEmpty) 'class_id': classId,
+        'head': cleanHead,
+        'amount': amount,
+        'paid_amount': 0,
+        'due_date': dueDate,
+        'payment_mode': 'Pending',
+        'status': 'pending',
+        'created_at': createdAt,
+      };
+    }).toList();
+
+    try {
+      await _supabase.from('school_fee_payments').insert(demands);
+      return demands.length;
+    } on PostgrestException catch (e) {
+      if (e.code != '42703' && e.code != 'PGRST204') rethrow;
+      return _addFeeDemandsToAccounts(
+        profiles: profiles,
+        head: cleanHead,
+        amount: amount,
+      );
+    }
+  }
+
+  Future<int> _addFeeDemandsToAccounts({
+    required List<Map<String, dynamic>> profiles,
+    required String head,
+    required double amount,
+  }) async {
+    var added = 0;
+    for (final student in profiles) {
+      final studentId = (student['id'] ?? '').toString();
+      final username = (student['username'] ?? '').toString();
+      if (studentId.isEmpty || username.isEmpty) {
+        throw Exception('A selected student is missing a database ID.');
+      }
+
+      final academicYear =
+          (student['academic_year'] ?? '2024-2025').toString();
+      final existing = await _supabase
+          .from('school_fee_accounts')
+          .select('id, total_fee, paid_amount')
+          .eq('student_id', studentId)
+          .eq('academic_year', academicYear)
+          .maybeSingle();
+
+      final double totalFee;
+      final double paidAmount;
+      final String accountId;
+      if (existing == null) {
+        final response = await _supabase
+            .from('school_fee_accounts')
+            .insert({
+              'student_id': studentId,
+              'student_username': username,
+              'class_id': student['class_id'],
+              'class_name': student['class_name'],
+              'academic_year': academicYear,
+              'total_fee': amount,
+              'paid_amount': 0,
+            })
+            .select('id')
+            .single();
+        accountId = response['id'].toString();
+        totalFee = amount;
+        paidAmount = 0;
+      } else {
+        accountId = existing['id'].toString();
+        totalFee = ((existing['total_fee'] as num?)?.toDouble() ?? 0) + amount;
+        paidAmount = (existing['paid_amount'] as num?)?.toDouble() ?? 0;
+        await _supabase.from('school_fee_accounts').update({
+          'total_fee': totalFee,
+          'paid_amount': paidAmount,
+          'pending_amount': totalFee - paidAmount,
+        }).eq('id', accountId);
+      }
+
+      final existingItem = await _supabase
+          .from('school_fee_items')
+          .select('amount')
+          .eq('account_id', accountId)
+          .eq('fee_head', head)
+          .maybeSingle();
+      final previousAmount =
+          (existingItem?['amount'] as num?)?.toDouble() ?? 0;
+      await _supabase.from('school_fee_items').upsert(
+        {
+          'account_id': accountId,
+          'fee_head': head,
+          'amount': previousAmount + amount,
+        },
+        onConflict: 'account_id,fee_head',
+      );
+      added++;
+    }
+    return added;
+  }
+
   Future<List<Map<String, dynamic>>> getStudentFees(String studentId) async {
     try {
       final response = await _supabase

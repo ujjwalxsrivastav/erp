@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/school_export_service.dart';
 
 class SchoolReportsScreen extends StatefulWidget {
   const SchoolReportsScreen({super.key});
@@ -1052,8 +1053,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     ),
                     IconButton(
                       icon: const Icon(Icons.download, color: _primary),
-                      tooltip: 'Export CSV / PDF',
-                      onPressed: _showExportSnackbar,
+                      tooltip: 'Export Attendance (PDF / CSV)',
+                      onPressed: _exportAttendance,
                     ),
                   ],
                 ),
@@ -1429,9 +1430,27 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             ),
             const SizedBox(height: 16),
             _buildGlassCard(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Fee Ledger & Pending Defaulters',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.download, color: _primary),
+                        tooltip: 'Export Pending Fees (PDF / CSV)',
+                        onPressed: _exportPendingFees,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
                   headingRowColor: WidgetStateProperty.all(_primary.withValues(alpha: 0.08)),
                   columns: const [
                     DataColumn(label: Text('Receipt #', style: TextStyle(fontWeight: FontWeight.w700))),
