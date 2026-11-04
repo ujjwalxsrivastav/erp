@@ -4,15 +4,15 @@
 **Based on:** `SCHOOL ERP — EXECUTION README (v1.1)`  
 **Target Repository:** `ujjwalxsrivastav/erp`  
 **Starting Commit:** `cece3600f9aa57b3a3e48bc6353df267f6011445`  
-**Current Commit:** `8c15355` (pushed to origin/main)  
-**Last Updated:** 2026-11-04 09:47 IST  
+**Current Commit:** `82189cb` (pushed to origin/main)  
+**Last Updated:** 2026-11-04 09:59 IST  
 
 ---
 
 ## Current Execution Location:
-- **Active Section in Execution Plan:** `### LIGHT THEME OVERHAUL — School Student Dashboard Screen`
-- **Current Line in Execution Plan:** Line 315 (`Verification of Step 13.2 School Student Dashboard Overhaul Complete`)
-- **Status:** School Student Dashboard is 100% COMPLETE with minimalist, sleek, light-theme UI, student passport hero card, real 4 master KPI cards, today's live class schedule timeline, curated 8-module services grid, pending homework list, recent exam scores with CBSE grades, live school circulars, and clean light-theme drawer. 0 analyze errors, 0 deprecation warnings!
+- **Active Section in Execution Plan:** `### TIMETABLE SCREEN FIX & MINIMALIST LIGHT-THEME OVERHAUL`
+- **Current Line in Execution Plan:** Line 316 (`Verification of Step 13.3 Timetable Screen Overhaul Complete`)
+- **Status:** School Timetable Screen (`school_timetable_screen.dart`) is 100% COMPLETE. `LateInitializationError: Field '_tabController' has not been initialized` eliminated by synchronous lifecycle initialization & dynamic role length sync. Entire screen overhauled to minimalist light-theme SaaS design (clean white cards, Slate-50 canvas, modern day-pill selectors, period timeline cards, substitution desk, syllabus tracker). 0 analyze errors, 0 deprecation warnings!
 
 ---
 
@@ -65,110 +65,96 @@
 - [x] **Line 233 (Action 2):** Added document verification queue (`Verified`, `Rejected`, `Re-upload`), sibling priority, RTE quota flag, duplicate check (phone + student name), and offer letter generation dialog.
 - [x] **Line 236 (Action 3):** Wired enrollment flow end to end: application -> verification -> offer letter -> enrollment automatically creates student master in `school_students`, parent link in `parent_student_links`, and initial fee demand in `school_fee_payments`.
 - [x] **Line 238 (Action 4):** Applied Section 7 UI/UX standards: designer cards, status chips, responsive bottom sheets, empty states.
-- [x] **Line 239–240 (Verification):** Tested end to end on live Supabase: Application `c7db26c0-a67d-4efa-85e9-4a9d8f7501ea` created, student enrolled in Class 10-A, parent link verified, fee demand verified. Zero analyze errors. Committed as `63a7c7e` and pushed to `origin/main`.
+- [x] **Line 239–240 (Verification):** Tested end to end on live Supabase: Application created, student enrolled in Class 10-A, parent link verified, fee demand verified. Zero analyze errors. Committed as `63a7c7e` and pushed to `origin/main`.
 
 ---
 
 ### [COMPLETED] Step 5: Harden School Fees (Lines 214–225)
-- [x] **Line 216–217 (Action 1):** Audited `features/school/fee/` against Section 4.2: fee structures by class/category, quarterly/monthly demands, concessions (sibling 15%, staff 25%, RTE 100% receivable), receipts, defaulters.
-- [x] **Line 218 (Action 2):** Adapted sequential receipt generation (`RCP-2026-XXXXX`), payment modes (Cash, Cheque, UPI, Cards, NetBanking), and ageing buckets (0–30, 31–60, 61–90, 90+ days). RTE handled as government receivable.
-- [x] **Line 219 (Action 3):** Wired online/counter fee payment workflow into `school_service.dart` (`recordFeePayment`) with automatic receipt generation, status transitions (`pending` -> `paid`/`partial`), and payment logging in `school_fee_payments`.
-- [x] **Line 220 (Action 4):** Built defaulters & ageing analysis tab in `school_fee_screen.dart` with bucket breakdown, student ledger, parent contact actions, and late fee tracking.
-- [x] **Line 221–222 (Action 5 & 6):** Applied Section 7 UI/UX standards: 3 tabs (`Summary & Structure`, `History & Receipts`, `Defaulters & Ageing`), digital printable receipt dialog with seal, and zero analyze errors.
-- [x] **Line 223–225 (Verification):** Tested end-to-end money test on live Supabase: Demand raised -> Online payment processed (RCP-2026-00081) -> Counter payment processed (RCP-2026-00082) -> Defaulter ageing report verified from live database. Zero mock data.
+- [x] **Line 216–217 (Action 1):** Audited `features/school/fee/` against Section 4.2: fee structures by class/category, quarterly/monthly demands, concessions, receipts, defaulters.
+- [x] **Line 218 (Action 2):** Adapted sequential receipt generation, payment modes, and ageing buckets.
+- [x] **Line 219 (Action 3):** Wired online/counter fee payment workflow into `school_service.dart`.
+- [x] **Line 220 (Action 4):** Built defaulters & ageing analysis tab in `school_fee_screen.dart`.
+- [x] **Line 221–222 (Action 5 & 6):** Applied Section 7 UI/UX standards: 3 tabs, digital printable receipt dialog with seal.
+- [x] **Line 223–225 (Verification):** Tested end-to-end money test on live Supabase. Zero mock data.
 
 ---
 
 ### [COMPLETED] Step 6: School Timetable + Substitution (Lines 226–237)
-- [x] **Line 229 (Action 1):** Audited `features/school/timetable/` against spec: removed 100% hardcoded mock timetable array and replaced with real Supabase queries to `school_timetable`.
-- [x] **Line 230 (Action 2):** Implemented clash detection (`checkTimetableClash`) and load caps in `school_service.dart`: detects teacher double-booking, room conflicts, and class overlap before publish.
-- [x] **Line 231–232 (Action 3 & 4):** Built morning substitution coverage workflow: absent/leave roster selector, dynamic uncovered periods detector, smart substitute recommendation (free period + load balance), one-click assignment, instant alert notification, and period audit log in `school_circulars`.
-- [x] **Line 233 (Action 5):** Built lesson plans & syllabus tracking: teacher creates lesson plans (chapter, topic, planned date, pedagogical objective, resources), coverage dashboard calculates completion %, and alerts Academic Head if lagging (<70%).
-- [x] **Line 234 (Action 6):** Applied Section 7 UI/UX standards: 3 tabs (`Timetable Grid`, `Morning Coverage`, `Syllabus Tracker`), designer period cards, live clash warnings, and zero analyze issues.
-- [x] **Line 235–237 (Verification):** Tested end-to-end on live Supabase: Deliberate clash test correctly detected and blocked publish. Morning coverage workflow executed: Mrs. Gupta absent -> Period 3 (Chemistry) uncovered -> Substitute assigned (`ms_nair`) -> Circular ID `77c65bb4-7872-4c6d-8fc5-f132ae3109c9` generated -> Lesson plan created ID `9acb78e7-28ca-40f2-8516-af7cba01f4b1`. Zero analyze errors.
+- [x] **Line 229 (Action 1):** Audited `features/school/timetable/`: replaced with real Supabase queries to `school_timetable`.
+- [x] **Line 230 (Action 2):** Implemented clash detection and load caps in `school_service.dart`.
+- [x] **Line 231–232 (Action 3 & 4):** Built morning substitution coverage workflow.
+- [x] **Line 233 (Action 5):** Built lesson plans & syllabus tracking.
+- [x] **Line 234 (Action 6):** Applied Section 7 UI/UX standards.
+- [x] **Line 235–237 (Verification):** Tested end-to-end on live Supabase. Zero analyze errors.
 
 ---
 
 ### [COMPLETED] Step 7: Promotion + Session Changeover (Lines 238–247)
-- [x] **Line 241 (Action 1):** Built the promotion list generator in `school_service.dart` (`getPromotionCandidates`): combines annual exam scores (from `school_marks`) and attendance percentages (from `school_attendance`) under board advancement rules (Pass >= 33%, Attendance >= 75%) to generate `Promoted / Detained / Result Awaited` statuses.
-- [x] **Line 242 (Action 2):** Built the changeover engine in `school_service.dart` (`executeSessionChangeover`): moves approved promoted students to the next class in `school_students`, auto-creates new academic session Q1 composite fee demands in `school_fee_payments`, and archives the previous session in `school_circulars` (Category: `SessionArchive`). Zero data deleted.
-- [x] **Line 243 (Action 3):** Handled edge cases: detained students remain in the current grade, and an automatic Parent Academic Retention Notice & Counselor Consultation Task is generated in `school_circulars` (Category: `Academic`). Mid-year and awaiting students flagged cleanly.
-- [x] **Line 244 (Action 4):** Built `SchoolPromotionScreen` in `lib/features/school/promotion/school_promotion_screen.dart` with two tabs (`Promotion Register & Changeover` and `Session Archives`), Principal digital seal and authorization check, filter chips, and metric overview cards. Wired into `app_router.dart` and `school_admin_dashboard.dart`.
-- [x] **Line 245–247 (Verification):** Ran end-to-end changeover test on live Supabase: Test class `cls-test-9z` with 3 students -> 2 promoted to `cls-test-10z` with new fee demands raised -> 1 detained student retained with parent notice ID `a91b4d02-7626-4353-8c3a-f39e2bfa437f` created -> Session Changeover Event Archive ID `70156036-1e66-409b-a7d7-7fa72f6bc5f3` verified provably intact. Zero analyze errors.
+- [x] **Line 241 (Action 1):** Built the promotion list generator in `school_service.dart`.
+- [x] **Line 242 (Action 2):** Built the changeover engine in `school_service.dart`.
+- [x] **Line 243 (Action 3):** Handled edge cases: detained students remain in the current grade.
+- [x] **Line 244 (Action 4):** Built `SchoolPromotionScreen`.
+- [x] **Line 245–247 (Verification):** Ran end-to-end changeover test on live Supabase. Zero analyze errors.
 
 ---
 
 ### [COMPLETED] Step 8: Transport Real: Bus Attendance, GPS, Gate Pass (Lines 248–258)
-- [x] **Line 251 (Action 1):** Replaced mock stops implementation with real `school_transport` route/stop data (Dehradun routes: Rajpur Road, Chakrata Road, Haridwar Bypass) and per-stop bus attendance (`recordBusAttendance` - Boarded/Alighted) in `school_service.dart`.
-- [x] **Line 252 (Action 2):** Built the parent live journey view: bus location, current stop, ETA in minutes, pickup/drop times, and live telematics feed.
-- [x] **Line 253 (Action 3):** Built gate pass + pickup verification workflow (`requestGatePass` & `verifyAndAuthorizeGatePassExit`): requires photo ID matching against authorized list; unlisted persons trigger mandatory Principal approval before gate exit can be authorized. Zero UI shortcuts.
-- [x] **Line 254 (Action 4):** Added statutory vehicle document compliance monitoring: automatic alerts for expired fitness certificates (`UK-07-PA-1024`), insurance renewals, and driver police verification.
-- [x] **Line 255 (Action 5):** Upgraded `lib/features/school/transport/transport_screen.dart` with 3 tabs (`Fleet & Routes`, `Live Journey`, `Gate Pass`), Section 7 design tokens, and zero analyze errors.
-- [x] **Line 256–258 (Verification):** Tested end-to-end on live Supabase: Real route `UK-07-PA-1024` verified -> Bus attendance marked at Stop 1 & Stop 2 -> Parent view journey verified -> Gate pass issued (`45e1f37f`), security verified and exit logged -> Vehicle document expiry alert verified. Zero analyze issues.
+- [x] **Line 251 (Action 1):** Replaced mock stops implementation with real `school_transport` route/stop data.
+- [x] **Line 252 (Action 2):** Built the parent live journey view.
+- [x] **Line 253 (Action 3):** Built gate pass + pickup verification workflow.
+- [x] **Line 254 (Action 4):** Added statutory vehicle document compliance monitoring.
+- [x] **Line 255 (Action 5):** Upgraded `lib/features/school/transport/transport_screen.dart`.
+- [x] **Line 256–258 (Verification):** Tested end-to-end on live Supabase. Zero analyze issues.
 
 ---
 
 ### [COMPLETED] Step 9: Report Cards: Board Formats + HPC + Promotion Linkage (Lines 259–269)
-- [x] **Line 262 (Action 1):** Audited `features/school/marks/`: removed fallback mock arrays from `school_service.dart` (`getStudentMarks`, `getMarksReport`) and wired real queries to `school_marks`.
-- [x] **Line 263 (Action 2):** Implemented CBSE 9-point grading scale (`SchoolService.cbse9PointGradingScale` and `calculateCbseGrade`): A1 (91-100, GP 10), A2 (81-90, GP 9), B1 (71-80, GP 8), B2 (61-70, GP 7), C1 (51-60, GP 6), C2 (41-50, GP 5), D (33-40, GP 4), E1/E2 (<33, GP 0). No numbers hard-coded in UI.
-- [x] **Line 264 (Action 3):** Implemented Holistic Progress Card (HPC) 360-degree composition: Part 1 Scholastic subjects + Part 2 Co-Scholastic domains (Work Education, Art Education, Health & Physical Education, Discipline) on 3-point scale (A, B, C) + narrative teacher evaluation.
-- [x] **Line 265 (Action 4):** Linked results to Step 7 Promotion engine: evaluates pass threshold (>= 33%) and attendance (>= 75%) to issue official `PROMOTED TO CLASS 11` or `DETAINED FOR REMEDIATION` verdict.
-- [x] **Line 266 (Action 5):** Applied Section 7 UI/UX standards: official CBSE banner, digital QR code verification seal, Principal digital signature, and print preview dialog.
-- [x] **Line 267–269 (Verification):** Tested end-to-end on live Supabase: Aarav Sharma fetched 6 real CBSE subjects (526/600, 87.7%) -> evaluated to Grade `A2` (GP: 9.0) -> Co-scholastic areas evaluated -> QR seal generated -> Promotion verdict verified. Zero analyze issues.
+- [x] **Line 262 (Action 1):** Audited `features/school/marks/`.
+- [x] **Line 263 (Action 2):** Implemented CBSE 9-point grading scale.
+- [x] **Line 264 (Action 3):** Implemented Holistic Progress Card (HPC) 360-degree composition.
+- [x] **Line 265 (Action 4):** Linked results to Step 7 Promotion engine.
+- [x] **Line 266 (Action 5):** Applied Section 7 UI/UX standards.
+- [x] **Line 267–269 (Verification):** Tested end-to-end on live Supabase. Zero analyze issues.
 
 ---
 
 ### [COMPLETED] Step 10: School Staff Decision + Parent Experience Completion (Lines 270–288)
-- [x] **Line 273 (Action 1):** Staff decision recorded from Step 1 facts: School payroll deferred; reuse college HR screens via role routing (`/admin/manage-users` + role-based view); school teacher leaves linked to morning coverage.
-- [x] **Line 274 (Action 2):** Parent experience audit & hardening: multi-child switcher via `parent_student_links`, live metrics, instant alerts feed, and zero broken widgets or dead links.
-- [x] **Line 275 (Action 3):** Built student leave workflow: parent applies via app -> stored in `school_circulars` -> review and approval -> attendance record automatically updated/inserted with `status = 'excused'`. Tested live on Supabase.
-- [x] **Line 276 (Action 4):** Built LMS-lite functionality: class-restricted study material browser (`getStudyMaterials`) with downloadable syllabus guides and online MCQ practice tests (`getOnlineQuizzes`) with auto-grading.
-- [x] **Line 277 (Action 5):** Applied Section 7 UI/UX checklist across parent and staff dashboards: 4 states handled, 48dp touch targets, soft shadows, 8pt grid, and zero raw exceptions.
-- [x] **Line 278–280 (Verification):** Tested end-to-end parent journey on live Supabase: multi-child switching, student leave application + approval, PTM slot booking, parent grievance ticket system, LMS-lite class materials modal. Zero analyze errors.
+- [x] **Line 273 (Action 1):** Staff decision recorded from Step 1 facts.
+- [x] **Line 274 (Action 2):** Parent experience audit & hardening.
+- [x] **Line 275 (Action 3):** Built student leave workflow.
+- [x] **Line 276 (Action 4):** Built LMS-lite functionality.
+- [x] **Line 277 (Action 5):** Applied Section 7 UI/UX checklist across parent and staff dashboards.
+- [x] **Line 278–280 (Verification):** Tested end-to-end parent journey on live Supabase. Zero analyze errors.
 
 ---
 
 ### [COMPLETED] Step 11: Certificates, Library, Circulars, Reports (Lines 289–303)
-- [x] **Line 284 (Action 1):** Certificates: Pre-checks (No-Dues clearance for Library, Transport, and Finance via `checkCertificateNoDues`), Admin verify, Principal digital sign, unique serial (`CERT-2026-0901`), QR verification page, and Issue Register entry. Tested on live Supabase.
-- [x] **Line 285 (Action 2):** Library: Hardened catalogue with real `school_library` + `school_library_issues` flow. Issue book (`issueLibraryBook`), availability decrement, return with late fine calculation, and automatic posting to student fee ledger under head `LibraryFine`.
-- [x] **Line 286 (Action 3):** Circulars & targeted notices: Verified `getCirculars`/`getSchoolNotices` wiring end to end (create -> target audience -> deliver).
-- [x] **Line 287 (Action 4):** Reports hub: Overhauled `school_reports_screen.dart` to 6 tabs on real data with zero mock fallbacks: Principal Morning Briefing & Statutory 38-field UDISE+ compliance export (`05010100123`, CBSE 3530124, RTE 25% seats 38/45, PTR 18:1, CWSN ramps, certified sanitation).
-- [x] **Line 288 (Action 5):** Applied the Section 7 UI/UX checklist to every screen touched: 4 explicit states, no raw exceptions, zero `.withOpacity` deprecations.
-- [x] **Line 289–291 (Verification):** Tested end-to-end on live Supabase: certificate issued with QR seal, book issued and returned with late fine auto-posted to fees, targeted circular delivered, morning briefing metrics computed live, and 38-field UDISE+ export compiled. Zero analyze errors.
+- [x] **Line 284 (Action 1):** Certificates: Pre-checks No-Dues clearance, Admin verify, QR verification.
+- [x] **Line 285 (Action 2):** Library: Hardened catalogue with real issue/return and auto-posting fines.
+- [x] **Line 286 (Action 3):** Circulars & targeted notices.
+- [x] **Line 287 (Action 4):** Reports hub with Principal Morning Briefing & 38-field UDISE+ export.
+- [x] **Line 288 (Action 5):** Applied Section 7 UI/UX checklist.
+- [x] **Line 289–291 (Verification):** Tested end-to-end on live Supabase. Zero analyze errors.
 
 ---
 
 ### [COMPLETED] Step 13: Designer-Grade UI/UX Polish Pass (Lines 304–313)
 - [x] **Line 307 (Action 1):** Walked every `/school/*` screen in route order and applied the full Section 7 design checklist.
-- [x] **Line 308 (Action 2):** Unified visual language across all 18 school screens (gradients, pill tab bars, 4-state skeletons, 48dp targets).
-- [x] **Line 309 (Action 3):** Checked Parent App (`school_parent_dashboard.dart`) and Student App (`school_student_dashboard.dart`).
+- [x] **Line 308 (Action 2):** Unified visual language across all 18 school screens.
+- [x] **Line 309 (Action 3):** Checked Parent App and Student App.
 - [x] **Line 310 (Action 4):** Re-ran `dart analyze lib/features/school/`: **0 errors, 0 warnings, 0 deprecations!**
-- [x] **Line 311–313 (Verification):** Screen-by-screen polish table verified across all 18 school screens in `SCHOOL_PROGRESS.md`. Step 13 gate passed.
+- [x] **Line 311–313 (Verification):** Screen-by-screen polish table verified across all 18 school screens. Step 13 gate passed.
 
 ---
 
 ### [COMPLETED] Step 13.1: Enterprise Overhaul — School Admin Module ("sadmin") Command Center
 - [x] **Line 314 (Action 1):** Minimalist Enterprise Redesign:
-  - Eliminated toy blurred floating orbs (`_buildOrb`), oversized neon glass panels, and gaudy bubbles.
-  - Replaced with a crisp slate-neutral canvas (`#F8FAFC`), pure white surface cards, subtle `#E2E8F0` hairline borders, and deep ink typography (`#0F172A`).
-  - Standardized all paddings and spacings on the 8pt grid.
-- [x] **Line 315 (Action 2):** Institutional Executive Header:
-  - Prominent School Crest and institutional branding: "SHIVALIK INTERNATIONAL SCHOOL".
-  - CBSE Affiliation badge (`CBSE #3530124 • Dehradun`), Academic Session (`2025-2026 • Term II`), and live calendar date.
-  - Real-time Principal Identity pill (`_adminName • Principal / Institutional Admin`).
-  - Header actions: `[+ Action]`, `[UDISE+ Compliance Inspection]`, and `[Sync Live Data]` with spinner animation.
-- [x] **Line 316 (Action 3):** Attention Required / Executive Approvals Queue:
-  - Live priority banner dynamically pulling pending items: Admissions Under Review, Overdue Fee Defaulters, Open Parent Grievances.
-  - One-tap action chips taking the Principal directly to the required review workflow.
-- [x] **Line 317 (Action 4):** Principal's Morning Pulse (4 Real KPI Master Tiles):
-  - Enrolled Students, Faculty & Staff, Fee Collections vs Pending, Transport Fleet.
-- [x] **Line 318 (Action 5):** Categorized Institutional Command Matrix (13 Modules in 4 Domains):
-  - Academic & Curriculum, Student Administration, Finance & Fleet, Statutory Compliance & Governance.
-- [x] **Line 319 (Action 6):** Principal Quick Action Modal & Interactive Administrative Tools:
-  - Floating Action Button / Header trigger opening speed-actions sheet.
-  - Official Circular Broadcast Dialog via `createCircular()`.
-  - Statutory UDISE+ Sheet Modal.
-  - Parent Grievance Resolution Tool.
+  - Slate-50 canvas (`#F8FAFC`), pure white surface cards, subtle `#E2E8F0` hairline borders, deep ink typography (`#0F172A`).
+- [x] **Line 315 (Action 2):** Institutional Executive Header with CBSE Affiliation badge, session info, and live date.
+- [x] **Line 316 (Action 3):** Attention Required / Executive Approvals Queue.
+- [x] **Line 317 (Action 4):** Principal's Morning Pulse (4 Real KPI Master Tiles).
+- [x] **Line 318 (Action 5):** Categorized Institutional Command Matrix (13 Modules in 4 Domains).
+- [x] **Line 319 (Action 6):** Principal Quick Action Modal & Interactive Administrative Tools.
 - [x] **Line 320 (Action 7):** Minimalist Executive Drawer with secure sign-out.
 - [x] **Line 321 (Verification):** Tested with `dart analyze lib/features/school/school_admin_dashboard.dart`: **No issues found! (0 errors, 0 warnings, 0 deprecations)**. Committed as `8c15355`.
 
@@ -176,26 +162,41 @@
 
 ### [COMPLETED] Step 13.2: Light-Theme Overhaul — School Student Dashboard Screen
 - [x] **Line 322 (Action 1):** Minimalist & Sexy Light-Theme Visual Foundation:
-  - Completely removed blurry candy-colored orbs (`_buildOrb`), messy multi-colored gradients, and heavy glassmorphism.
-  - Implemented an airy Slate-50 canvas (`#F8FAFC`), crisp `#FFFFFF` cards with hairline `#E2E8F0` borders, and luxurious featherweight shadows (`BoxShadow(color: Color(0x050F172A), blurRadius: 16, offset: Offset(0, 4))`).
-- [x] **Line 323 (Action 2):** Student Passport Hero Card:
-  - Modern squircle avatar with student initials, greeting ("Hello, Aarav Sharma 👋"), class & admission number tags, CBSE Senior Secondary pill, active term badge, and real-time calendar date.
-- [x] **Line 324 (Action 3):** 4 Master Minimalist KPI Metric Cards:
-  - Attendance (94.2% • On Track >=75%), Pending Homework (Due count + active deadlines tag), Fees Due (settled status), Upcoming Tests (CBSE Term II scheduled).
-- [x] **Line 325 (Action 4):** Today's Class Schedule & Period Timeline:
-  - Live timeline displaying today's scheduled periods (P1 Mathematics, P2 English, P3 Physics Lab, P4 Social Science) with timings, room numbers, teacher names, and direct link to full timetable.
-- [x] **Line 326 (Action 5):** Curated 8-Module Quick Services Hub:
-  - Minimalist squircle service tiles: Timetable, Homework, Attendance, Report Card, Fees & Dues, Apply Leave, Circulars, Library.
-- [x] **Line 327 (Action 6):** Lower Split Sections (Homework & Exam Marks):
-  - Real pending homework items with subject pills, deadlines, and direct view/submit actions.
-  - Subject exam scores with CBSE grades (A1, A2, B1), scores, and report card CTA.
-- [x] **Line 328 (Action 7):** School Announcements Feed & Light-Theme Navigation Drawer:
-  - Real circulars preview for students; clean, light-theme drawer and desktop sidebar with active indigo pill markers and sign out.
-- [x] **Line 329 (Verification):** Tested with `dart analyze lib/features/school/school_student_dashboard.dart`: **No issues found! (0 errors, 0 warnings, 0 deprecations)**.
+  - Slate-50 canvas (`#F8FAFC`), crisp `#FFFFFF` cards with hairline `#E2E8F0` borders, featherweight shadows.
+- [x] **Line 323 (Action 2):** Student Passport Hero Card.
+- [x] **Line 324 (Action 3):** 4 Master Minimalist KPI Metric Cards.
+- [x] **Line 325 (Action 4):** Today's Class Schedule & Period Timeline.
+- [x] **Line 326 (Action 5):** Curated 8-Module Quick Services Hub.
+- [x] **Line 327 (Action 6):** Lower Split Sections (Homework & Exam Marks).
+- [x] **Line 328 (Action 7):** School Announcements Feed & Light-Theme Navigation Drawer.
+- [x] **Line 329 (Verification):** Tested with `dart analyze lib/features/school/school_student_dashboard.dart`: **No issues found! (0 errors, 0 warnings, 0 deprecations)**. Committed as `82189cb`.
 
 ---
 
-### [MILESTONE REACHED — STUDENT DASHBOARD LIGHT-THEME OVERHAUL COMPLETE]
-**Status:** All tasks through Step 13.2 are 100% completed, verified clean with 0 analyze issues, and ready for Final QA (Step 14).
-- **Step 14 (Lines 330–338):** Final QA, Build, and Handoff.
-- **Step 15 (Lines 339–348):** Production Deployment and Client Handover.
+### [COMPLETED] Step 13.3: Timetable Screen Fix & Minimalist Light-Theme Overhaul
+- [x] **Line 330 (Action 1):** Resolved `LateInitializationError: Field '_tabController' has not been initialized`:
+  - `_tabController` is now initialized synchronously in `initState()` with default length 3.
+  - In `_init()`, if the role is student/parent, controller length is safely re-synchronized to 1 with listener cleanup and old instance disposal.
+  - Added `_isRoleLoaded` gate to eliminate race conditions between first build frame and async role resolution.
+- [x] **Line 331 (Action 2):** Overall UI Redesign (Minimalist, Light Theme SaaS Aesthetic):
+  - Eradicated heavy dark-teal header blocks, crude green drop-downs, and harsh left-border period cards.
+  - Implemented clean Slate-50 canvas (`#F8FAFC`), crisp pure white surface cards (`#FFFFFF`), hairline borders (`#E2E8F0`), and soft drop shadows.
+  - Redesigned Top App Bar: Minimalist light header with session metadata (`CBSE #3530124 • 2025-26`), quick `+ Add Slot` action button for admins, and reload spinner.
+  - Redesigned TabBar: Segmented pill TabBar inside subtle `#F1F5F9` container with white elevated active indicator (`Routine Grid`, `Coverage`, `Syllabus Tracker`).
+- [x] **Line 332 (Action 3):** Redesigned Class & Weekday Control Strip:
+  - Clean white control card with enrolled section badge (for students) and dropdown selector (for staff/admin).
+  - Modern horizontal weekday pill row (`Monday` through `Saturday`) with active royal indigo indicator and period counter chip.
+- [x] **Line 333 (Action 4):** Redesigned Period Routine Cards:
+  - Squircle period badge (`P1`, `P2`, etc.) with subject-tinted backgrounds.
+  - Time badge pill (`08:00 AM - 08:45 AM`), teacher icon with username, room indicator, and clean edit/delete action triggers for admin.
+- [x] **Line 334 (Action 5):** Redesigned Morning Substitution Desk & Syllabus Tracker:
+  - Daily Teacher Leave Roster with multi-select chips, pending uncovered period alert tiles with instant "Assign Substitute" recommendation dialog, and audit log history.
+  - Syllabus coverage progress bar with lagging alert warnings and lesson plan cards with "Mark as Taught" action.
+- [x] **Line 335 (Verification):** Tested with `dart analyze lib/features/school/timetable/school_timetable_screen.dart`: **No issues found! (0 errors, 0 warnings, 0 deprecations)**.
+
+---
+
+### [MILESTONE REACHED — TIMETABLE OVERHAUL COMPLETE]
+**Status:** All tasks through Step 13.3 are 100% completed, verified clean with 0 analyze issues, and ready for Final QA (Step 14).
+- **Step 14 (Lines 336–344):** Final QA, Build, and Handoff.
+- **Step 15 (Lines 345–355):** Production Deployment and Client Handover.
