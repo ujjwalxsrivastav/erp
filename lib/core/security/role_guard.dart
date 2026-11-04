@@ -11,6 +11,7 @@ import '../security/secure_logger.dart';
 /// User roles in the system
 enum UserRole {
   student,
+  parent,
   teacher,
   hod,
   hr,
@@ -106,6 +107,7 @@ class RoleGuard {
   /// Role hierarchy (higher index = more privileges)
   static const List<UserRole> _roleHierarchy = [
     UserRole.student,
+    UserRole.parent,
     UserRole.tempStudent,
     UserRole.teacher,
     UserRole.counsellor,
@@ -121,6 +123,7 @@ class RoleGuard {
     // Student permissions
     Permission.viewOwnGrades: {
       UserRole.student,
+      UserRole.parent,
       UserRole.teacher,
       UserRole.hod,
       UserRole.hr,
@@ -128,6 +131,7 @@ class RoleGuard {
     },
     Permission.viewOwnTimetable: {
       UserRole.student,
+      UserRole.parent,
       UserRole.teacher,
       UserRole.hod,
       UserRole.hr,
@@ -136,6 +140,7 @@ class RoleGuard {
     Permission.submitAssignment: {UserRole.student},
     Permission.viewAnnouncements: {
       UserRole.student,
+      UserRole.parent,
       UserRole.teacher,
       UserRole.hod,
       UserRole.hr,
@@ -249,6 +254,8 @@ class RoleGuard {
     switch (roleString.toLowerCase()) {
       case 'student':
         return UserRole.student;
+      case 'parent':
+        return UserRole.parent;
       case 'teacher':
         return UserRole.teacher;
       case 'hod':

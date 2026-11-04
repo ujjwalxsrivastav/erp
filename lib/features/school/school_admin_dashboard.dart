@@ -912,71 +912,76 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
             ),
           ),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+          Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            itemCount: modules.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, indent: 48, color: Color(0xFFF8FAFC)),
-            itemBuilder: (ctx, index) {
-              final m = modules[index];
-              return ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-                leading: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(m.icon, size: 17, color: accentColor),
-                ),
-                title: Row(
+            child: Column(
+              children: modules.asMap().entries.map((entry) {
+                final index = entry.key;
+                final m = entry.value;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: Text(
-                        m.title,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                    ),
-                    if (m.badge != null) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    if (index > 0) const Divider(height: 1, indent: 48, color: Color(0xFFF8FAFC)),
+                    ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                      leading: Container(
+                        width: 32,
+                        height: 32,
                         decoration: BoxDecoration(
-                          color: (m.badgeColor ?? const Color(0xFF2563EB)).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
+                          color: accentColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(
-                          m.badge!,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: m.badgeColor ?? const Color(0xFF2563EB),
-                          ),
-                        ),
+                        child: Icon(m.icon, size: 17, color: accentColor),
                       ),
-                    ],
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              m.title,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                          if (m.badge != null) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (m.badgeColor ?? const Color(0xFF2563EB)).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                m.badge!,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: m.badgeColor ?? const Color(0xFF2563EB),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text(
+                        m.desc,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFFCBD5E1)),
+                      onTap: () => context.go(m.route),
+                    ),
                   ],
-                ),
-                subtitle: Text(
-                  m.desc,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF64748B),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFFCBD5E1)),
-                onTap: () => context.go(m.route),
-              );
-            },
+                );
+              }).toList(),
+            ),
           ),
         ],
       ),
@@ -1041,13 +1046,10 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _recentCirculars.length,
-              separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
-              itemBuilder: (ctx, index) {
-                final circ = _recentCirculars[index];
+            child: Column(
+              children: _recentCirculars.asMap().entries.map((entry) {
+                final index = entry.key;
+                final circ = entry.value;
                 final title = circ['title']?.toString() ?? 'Notice';
                 final category = circ['category']?.toString() ?? 'General';
                 final date = circ['published_at']?.toString() ??
@@ -1055,72 +1057,78 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     'Recent';
                 final isUrgent = circ['urgent'] == true;
 
-                return ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  leading: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: isUrgent ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      isUrgent ? Icons.error_outline_rounded : Icons.campaign_rounded,
-                      size: 18,
-                      color: isUrgent ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
-                    ),
-                  ),
-                  title: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (index > 0) const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      leading: Container(
+                        width: 34,
+                        height: 34,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(4),
+                          color: isUrgent ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(
-                          category,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF475569),
-                          ),
+                        child: Icon(
+                          isUrgent ? Icons.error_outline_rounded : Icons.campaign_rounded,
+                          size: 18,
+                          color: isUrgent ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
                         ),
                       ),
-                    ],
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      children: [
-                        Text(
-                          date,
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              category,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(
+                          children: [
+                            Text(
+                              date,
+                              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '• ${circ['target_audience'] ?? 'All'}',
+                              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '• ${circ['target_audience'] ?? 'All'}',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                        ),
-                      ],
+                      ),
+                      onTap: () => context.go('/school/circulars'),
                     ),
-                  ),
-                  onTap: () => context.go('/school/circulars'),
+                  ],
                 );
-              },
+              }).toList(),
             ),
           ),
       ],

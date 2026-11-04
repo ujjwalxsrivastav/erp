@@ -852,6 +852,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           ),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           ListView.separated(
+            primary: false,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _todaySchedule.length,
@@ -1097,6 +1098,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
             )
           else
             ListView.separated(
+              primary: false,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _homework.length,
@@ -1193,6 +1195,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           ),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           ListView.separated(
+            primary: false,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _recentResults.length,
@@ -1290,6 +1293,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           ),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           ListView.separated(
+            primary: false,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _announcements.length,
