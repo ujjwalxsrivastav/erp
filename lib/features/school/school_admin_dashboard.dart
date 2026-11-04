@@ -757,6 +757,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               route: '/school/homework',
             ),
             _ModuleItem(
+              title: 'Examination Controller',
+              desc: 'Exam sessions, date sheet scheduling, admit cards, seating & result publishing',
+              icon: Icons.fact_check_rounded,
+              route: '/school/examination',
+              badge: 'Conduct Live',
+              badgeColor: const Color(0xFFD97706),
+            ),
+            _ModuleItem(
               title: 'CBSE Holistic Report Card',
               desc: 'Term assessments, 360° HPC & scholastic grading',
               icon: Icons.description_rounded,
@@ -1162,6 +1170,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                 ),
                 const SizedBox(height: 14),
+                _buildQuickActionRow(
+                  icon: Icons.fact_check_rounded,
+                  iconColor: const Color(0xFFD97706),
+                  title: 'Conduct / Schedule Examination',
+                  subtitle: 'Manage exam sessions, date sheets, admit cards & results',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    context.go('/school/examination');
+                  },
+                ),
                 _buildQuickActionRow(
                   icon: Icons.campaign_rounded,
                   iconColor: const Color(0xFF2563EB),

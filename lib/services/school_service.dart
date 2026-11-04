@@ -19,6 +19,9 @@ class SchoolService {
   final List<Map<String, dynamic>> _admissionsStore = [];
   final List<Map<String, dynamic>> _feePaymentsStore = [];
   final List<Map<String, dynamic>> _busAttendanceStore = [];
+  final List<Map<String, dynamic>> _examSessionsStore = [];
+  final List<Map<String, dynamic>> _examDateSheetStore = [];
+  final List<Map<String, dynamic>> _examRoomsStore = [];
 
   // Configured school fee heads (Admin customizable)
   static final List<Map<String, dynamic>> _defaultSchoolFeeHeads = [
@@ -5348,6 +5351,542 @@ class SchoolService {
       'fire_safety_noc_status': 'Valid (Ref: UK-FS-2026/8911)',
       'status_indicator': 'COMPLIANT & READY FOR STATUTORY UDISE+ SUBMISSION (VERIFY WITH CLIENT)',
     };
+  }
+
+  // ============================================================================
+  // EXAMINATION CONTROLLER & SCHEDULING MODULE
+  // ============================================================================
+
+  /// Fetch all active and scheduled exam sessions
+  Future<List<Map<String, dynamic>>> getSchoolExamSessions() async {
+    if (_examSessionsStore.isEmpty) {
+      _examSessionsStore.addAll([
+        {
+          'id': 'sess-midterm-2026',
+          'title': 'Half Yearly / Mid-Term Examination 2026-27',
+          'term': 'Term 1',
+          'academic_year': '2026-2027',
+          'status': 'Ongoing', // Draft, Scheduled, Ongoing, Evaluation, Published
+          'start_date': '2026-09-15',
+          'end_date': '2026-09-28',
+          'passing_percentage': 33.0,
+          'total_papers': 6,
+          'classes_count': 12,
+          'instructions': 'CBSE Uniform mandatory. Entry closes 15 mins before paper. Non-programmable calculators allowed for 11th/12th Physics only.',
+          'is_published': false,
+        },
+        {
+          'id': 'sess-pt2-2026',
+          'title': 'Periodic Assessment 2 (PT-2) 2026-27',
+          'term': 'Term 2',
+          'academic_year': '2026-2027',
+          'status': 'Scheduled',
+          'start_date': '2026-12-01',
+          'end_date': '2026-12-08',
+          'passing_percentage': 33.0,
+          'total_papers': 5,
+          'classes_count': 12,
+          'instructions': 'Internal assessment unit test series. Weightage 10% towards annual aggregate.',
+          'is_published': false,
+        },
+        {
+          'id': 'sess-preboard-2027',
+          'title': 'CBSE Pre-Board Mock Examination 2026-27',
+          'term': 'Term 2',
+          'academic_year': '2026-2027',
+          'status': 'Draft',
+          'start_date': '2027-01-05',
+          'end_date': '2027-01-18',
+          'passing_percentage': 33.0,
+          'total_papers': 5,
+          'classes_count': 4,
+          'instructions': 'Complete 3-hour CBSE mock test environment for 10th & 12th board aspirants.',
+          'is_published': false,
+        },
+        {
+          'id': 'sess-pt1-2026',
+          'title': 'Periodic Assessment 1 (PT-1) 2026-27',
+          'term': 'Term 1',
+          'academic_year': '2026-2027',
+          'status': 'Published',
+          'start_date': '2026-07-20',
+          'end_date': '2026-07-26',
+          'passing_percentage': 33.0,
+          'total_papers': 5,
+          'classes_count': 12,
+          'instructions': 'First cycle unit test. Results published and report cards archived.',
+          'is_published': true,
+        },
+      ]);
+    }
+    return List<Map<String, dynamic>>.from(_examSessionsStore);
+  }
+
+  /// Create or update an exam session
+  Future<bool> saveExamSession(Map<String, dynamic> session) async {
+    final id = session['id']?.toString() ?? 'sess-${DateTime.now().millisecondsSinceEpoch}';
+    final payload = Map<String, dynamic>.from(session)..['id'] = id;
+    final idx = _examSessionsStore.indexWhere((s) => s['id'] == id);
+    if (idx >= 0) {
+      _examSessionsStore[idx] = payload;
+    } else {
+      _examSessionsStore.insert(0, payload);
+    }
+
+    // Persist to circulars/bulletin so other roles can observe
+    try {
+      await _supabase.from('school_circulars').insert({
+        'institute_code': 'SHIV-SCH',
+        'title': 'EXAM NOTIFICATION: ${payload['title']}',
+        'content': 'Status: ${payload['status']} | Term: ${payload['term']} | Start: ${payload['start_date']} | End: ${payload['end_date']}',
+        'category': 'Exam',
+        'target_audience': 'all',
+        'published_by': 'Controller of Examinations',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
+    return true;
+  }
+
+  /// Delete an exam session
+  Future<bool> deleteExamSession(String sessionId) async {
+    _examSessionsStore.removeWhere((s) => s['id'] == sessionId);
+    _examDateSheetStore.removeWhere((p) => p['session_id'] == sessionId);
+    return true;
+  }
+
+  /// Update Exam Session status (Draft -> Scheduled -> Ongoing -> Evaluation -> Published)
+  Future<bool> updateExamSessionStatus(String sessionId, String newStatus) async {
+    final idx = _examSessionsStore.indexWhere((s) => s['id'] == sessionId);
+    if (idx >= 0) {
+      _examSessionsStore[idx]['status'] = newStatus;
+      if (newStatus == 'Published') {
+        _examSessionsStore[idx]['is_published'] = true;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /// Date Sheet Timetable for a session and class
+  Future<List<Map<String, dynamic>>> getExamDateSheet({
+    String? sessionId,
+    String? classId,
+  }) async {
+    final sid = sessionId ?? 'sess-midterm-2026';
+    if (_examDateSheetStore.isEmpty) {
+      _examDateSheetStore.addAll([
+        {
+          'id': 'paper-101',
+          'session_id': 'sess-midterm-2026',
+          'class_id': 'cls-10a',
+          'class_name': 'Class 10-A',
+          'date': '2026-09-15',
+          'day': 'Monday',
+          'subject': 'English Language & Lit (184)',
+          'start_time': '09:30 AM',
+          'end_time': '12:30 PM',
+          'duration': '3.0 Hours',
+          'max_theory': 80,
+          'max_practical': 20,
+          'pass_marks': 33,
+          'hall_name': 'Exam Hall A',
+          'room_no': 'Room 101',
+          'invigilator': 'Mrs. Anjali Rawat',
+          'status': 'Conducted',
+        },
+        {
+          'id': 'paper-102',
+          'session_id': 'sess-midterm-2026',
+          'class_id': 'cls-10a',
+          'class_name': 'Class 10-A',
+          'date': '2026-09-17',
+          'day': 'Wednesday',
+          'subject': 'Hindi Course-A (002)',
+          'start_time': '09:30 AM',
+          'end_time': '12:30 PM',
+          'duration': '3.0 Hours',
+          'max_theory': 80,
+          'max_practical': 20,
+          'pass_marks': 33,
+          'hall_name': 'Exam Hall A',
+          'room_no': 'Room 101',
+          'invigilator': 'Mr. Suresh Joshi',
+          'status': 'Conducted',
+        },
+        {
+          'id': 'paper-103',
+          'session_id': 'sess-midterm-2026',
+          'class_id': 'cls-10a',
+          'class_name': 'Class 10-A',
+          'date': '2026-09-20',
+          'day': 'Saturday',
+          'subject': 'Mathematics Standard (041)',
+          'start_time': '09:30 AM',
+          'end_time': '12:30 PM',
+          'duration': '3.0 Hours',
+          'max_theory': 80,
+          'max_practical': 20,
+          'pass_marks': 33,
+          'hall_name': 'Exam Hall A',
+          'room_no': 'Room 101 & 102',
+          'invigilator': 'Mrs. Sunita Sharma',
+          'status': 'Conducted',
+        },
+        {
+          'id': 'paper-104',
+          'session_id': 'sess-midterm-2026',
+          'class_id': 'cls-10a',
+          'class_name': 'Class 10-A',
+          'date': '2026-09-22',
+          'day': 'Monday',
+          'subject': 'Science (Theory - 086)',
+          'start_time': '09:30 AM',
+          'end_time': '12:30 PM',
+          'duration': '3.0 Hours',
+          'max_theory': 80,
+          'max_practical': 20,
+          'pass_marks': 33,
+          'hall_name': 'Exam Hall A',
+          'room_no': 'Room 101 & 102',
+          'invigilator': 'Mr. Rajesh Verma',
+          'status': 'Conducted',
+        },
+        {
+          'id': 'paper-105',
+          'session_id': 'sess-midterm-2026',
+          'class_id': 'cls-10a',
+          'class_name': 'Class 10-A',
+          'date': '2026-09-25',
+          'day': 'Thursday',
+          'subject': 'Social Science (087)',
+          'start_time': '09:30 AM',
+          'end_time': '12:30 PM',
+          'duration': '3.0 Hours',
+          'max_theory': 80,
+          'max_practical': 20,
+          'pass_marks': 33,
+          'hall_name': 'Exam Hall B',
+          'room_no': 'Room 103',
+          'invigilator': 'Ms. Pooja Negi',
+          'status': 'Conducted',
+        },
+        {
+          'id': 'paper-106',
+          'session_id': 'sess-midterm-2026',
+          'class_id': 'cls-10a',
+          'class_name': 'Class 10-A',
+          'date': '2026-09-28',
+          'day': 'Monday',
+          'subject': 'Information Technology (402)',
+          'start_time': '09:30 AM',
+          'end_time': '11:30 AM',
+          'duration': '2.0 Hours',
+          'max_theory': 50,
+          'max_practical': 50,
+          'pass_marks': 33,
+          'hall_name': 'ICT Block',
+          'room_no': 'Computer Lab 1',
+          'invigilator': 'Mr. Amit Bhatt',
+          'status': 'Conducted',
+        },
+      ]);
+    }
+
+    var list = _examDateSheetStore.where((p) => p['session_id'] == sid).toList();
+    if (classId != null && classId.isNotEmpty && classId != '__all__') {
+      list = list.where((p) => (p['class_id'] == classId || p['class_name'] == classId)).toList();
+    }
+    return list;
+  }
+
+  /// Add / update paper in Date Sheet
+  Future<bool> saveExamPaper(Map<String, dynamic> paper) async {
+    final id = paper['id']?.toString() ?? 'paper-${DateTime.now().millisecondsSinceEpoch}';
+    final payload = Map<String, dynamic>.from(paper)..['id'] = id;
+    final idx = _examDateSheetStore.indexWhere((p) => p['id'] == id);
+    if (idx >= 0) {
+      _examDateSheetStore[idx] = payload;
+    } else {
+      _examDateSheetStore.add(payload);
+    }
+    return true;
+  }
+
+  /// Delete paper from Date Sheet
+  Future<bool> deleteExamPaper(String paperId) async {
+    _examDateSheetStore.removeWhere((p) => p['id'] == paperId);
+    return true;
+  }
+
+  /// Candidates roster for Admit Card / Hall Ticket issuance
+  Future<List<Map<String, dynamic>>> getExamAdmitCardCandidates({
+    String? sessionId,
+    String? classId,
+  }) async {
+    final allCandidates = [
+      {
+        'student_id': 'sstudent1',
+        'name': 'Aarav Sharma',
+        'roll_number': '01',
+        'exam_roll_no': '2610101',
+        'admission_no': 'ADM202401',
+        'class_name': 'Class 10-A',
+        'class_id': 'cls-10a',
+        'father_name': 'Rajesh Sharma',
+        'mother_name': 'Pooja Sharma',
+        'dob': '2010-04-12',
+        'attendance_percentage': 92.4,
+        'attendance_eligible': true,
+        'fee_status': 'No Dues Cleared',
+        'fee_cleared': true,
+        'admit_card_status': 'Issued & Verified',
+        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
+        'room_no': 'Room 101',
+        'seat_no': 'A-01',
+      },
+      {
+        'student_id': 'student2',
+        'name': 'Priya Patel',
+        'roll_number': '02',
+        'exam_roll_no': '2610102',
+        'admission_no': 'ADM202402',
+        'class_name': 'Class 10-A',
+        'class_id': 'cls-10a',
+        'father_name': 'Deepak Patel',
+        'mother_name': 'Meena Patel',
+        'dob': '2010-08-25',
+        'attendance_percentage': 88.0,
+        'attendance_eligible': true,
+        'fee_status': 'No Dues Cleared',
+        'fee_cleared': true,
+        'admit_card_status': 'Issued & Verified',
+        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
+        'room_no': 'Room 101',
+        'seat_no': 'A-02',
+      },
+      {
+        'student_id': 'student3',
+        'name': 'Rohan Gupta',
+        'roll_number': '03',
+        'exam_roll_no': '2610103',
+        'admission_no': 'ADM202403',
+        'class_name': 'Class 10-A',
+        'class_id': 'cls-10a',
+        'father_name': 'Sanjay Gupta',
+        'mother_name': 'Kavita Gupta',
+        'dob': '2010-02-14',
+        'attendance_percentage': 95.1,
+        'attendance_eligible': true,
+        'fee_status': 'No Dues Cleared',
+        'fee_cleared': true,
+        'admit_card_status': 'Issued & Verified',
+        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
+        'room_no': 'Room 101',
+        'seat_no': 'A-03',
+      },
+      {
+        'student_id': 'student4',
+        'name': 'Sneha Singh',
+        'roll_number': '04',
+        'exam_roll_no': '2610104',
+        'admission_no': 'ADM202404',
+        'class_name': 'Class 10-A',
+        'class_id': 'cls-10a',
+        'father_name': 'Manoj Singh',
+        'mother_name': 'Sunita Singh',
+        'dob': '2010-11-09',
+        'attendance_percentage': 68.5,
+        'attendance_eligible': false, // Condonation needed (< 75%)
+        'fee_status': 'No Dues Cleared',
+        'fee_cleared': true,
+        'admit_card_status': 'Attendance Condonation Granted',
+        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
+        'room_no': 'Room 101',
+        'seat_no': 'A-04',
+      },
+      {
+        'student_id': 'student5',
+        'name': 'Vikram Kumar',
+        'roll_number': '05',
+        'exam_roll_no': '2610105',
+        'admission_no': 'ADM202405',
+        'class_name': 'Class 10-A',
+        'class_id': 'cls-10a',
+        'father_name': 'Ashok Kumar',
+        'mother_name': 'Geeta Devi',
+        'dob': '2009-12-19',
+        'attendance_percentage': 82.0,
+        'attendance_eligible': true,
+        'fee_status': '₹5,500 Fee Overdue',
+        'fee_cleared': false,
+        'admit_card_status': 'Conditional Pass (Fee Undertaking)',
+        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
+        'room_no': 'Room 101',
+        'seat_no': 'A-05',
+      },
+      {
+        'student_id': 'student6',
+        'name': 'Ananya Verma',
+        'roll_number': '06',
+        'exam_roll_no': '2610106',
+        'admission_no': 'ADM202406',
+        'class_name': 'Class 10-A',
+        'class_id': 'cls-10a',
+        'father_name': 'Sunil Verma',
+        'mother_name': 'Anita Verma',
+        'dob': '2010-06-30',
+        'attendance_percentage': 91.0,
+        'attendance_eligible': true,
+        'fee_status': 'No Dues Cleared',
+        'fee_cleared': true,
+        'admit_card_status': 'Issued & Verified',
+        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
+        'room_no': 'Room 101',
+        'seat_no': 'A-06',
+      },
+    ];
+
+    if (classId != null && classId.isNotEmpty && classId != '__all__') {
+      return allCandidates.where((c) => c['class_id'] == classId || c['class_name'] == classId).toList();
+    }
+    return allCandidates;
+  }
+
+  /// Exam Halls and Seating Arrangements
+  Future<List<Map<String, dynamic>>> getExamRooms() async {
+    if (_examRoomsStore.isEmpty) {
+      _examRoomsStore.addAll([
+        {
+          'id': 'room-hall-a',
+          'room_name': 'Central Examination Hall A',
+          'block': 'Senior Academic Wing, Ground Floor',
+          'capacity': 60,
+          'allocated_count': 56,
+          'allocated_classes': 'Class 10-A (Roll 1-30), Class 12-Science (Roll 1-26)',
+          'chief_invigilator': 'Mrs. Sunita Sharma (PGT Mathematics)',
+          'support_invigilator': 'Mr. Rajesh Verma (TGT Science)',
+          'bench_type': 'Single Desk CCTV Monitored',
+          'status': 'Sanitized & Ready',
+        },
+        {
+          'id': 'room-101',
+          'room_name': 'Examination Room 101',
+          'block': 'Block B, 1st Floor',
+          'capacity': 30,
+          'allocated_count': 28,
+          'allocated_classes': 'Class 10-B (Roll 1-28)',
+          'chief_invigilator': 'Mrs. Anjali Rawat (TGT English)',
+          'support_invigilator': 'Mr. Suresh Joshi (TGT Hindi)',
+          'bench_type': 'Single Desk Spaced 1.5m',
+          'status': 'Sanitized & Ready',
+        },
+        {
+          'id': 'room-102',
+          'room_name': 'Examination Room 102',
+          'block': 'Block B, 1st Floor',
+          'capacity': 30,
+          'allocated_count': 28,
+          'allocated_classes': 'Class 9-A (Roll 1-28)',
+          'chief_invigilator': 'Ms. Pooja Negi (TGT SST)',
+          'support_invigilator': 'Mrs. Priyanka Rawat (PRT)',
+          'bench_type': 'Single Desk Spaced 1.5m',
+          'status': 'Sanitized & Ready',
+        },
+        {
+          'id': 'room-it-lab',
+          'room_name': 'Computer & IT Laboratory 1',
+          'block': 'ICT Block, 2nd Floor',
+          'capacity': 40,
+          'allocated_count': 32,
+          'allocated_classes': 'Practical Assessment Batches',
+          'chief_invigilator': 'Mr. Amit Bhatt (PGT CS)',
+          'support_invigilator': 'Mr. Naveen Negi (Lab Asst)',
+          'bench_type': 'Individual Workstations',
+          'status': 'Network Firewalled',
+        },
+      ]);
+    }
+    return List<Map<String, dynamic>>.from(_examRoomsStore);
+  }
+
+  /// Create or edit an Exam Room allocation
+  Future<bool> saveExamRoom(Map<String, dynamic> room) async {
+    final id = room['id']?.toString() ?? 'room-${DateTime.now().millisecondsSinceEpoch}';
+    final payload = Map<String, dynamic>.from(room)..['id'] = id;
+    final idx = _examRoomsStore.indexWhere((r) => r['id'] == id);
+    if (idx >= 0) {
+      _examRoomsStore[idx] = payload;
+    } else {
+      _examRoomsStore.add(payload);
+    }
+    return true;
+  }
+
+  /// Marks upload and evaluation progress for Exam Sessions
+  Future<List<Map<String, dynamic>>> getExamEvaluationProgress({String? sessionId}) async {
+    return [
+      {
+        'class_name': 'Class 10-A',
+        'subject': 'Mathematics Standard',
+        'teacher_name': 'Mrs. Sunita Sharma',
+        'total_students': 28,
+        'uploaded_marks': 28,
+        'is_locked': true,
+        'status': 'Evaluated & Locked',
+        'avg_score': 74.2,
+      },
+      {
+        'class_name': 'Class 10-A',
+        'subject': 'Science (Physics/Chem/Bio)',
+        'teacher_name': 'Mr. Rajesh Verma',
+        'total_students': 28,
+        'uploaded_marks': 28,
+        'is_locked': true,
+        'status': 'Evaluated & Locked',
+        'avg_score': 71.8,
+      },
+      {
+        'class_name': 'Class 10-A',
+        'subject': 'Hindi Course-A',
+        'teacher_name': 'Mr. Suresh Joshi',
+        'total_students': 28,
+        'uploaded_marks': 28,
+        'is_locked': true,
+        'status': 'Evaluated & Locked',
+        'avg_score': 81.0,
+      },
+      {
+        'class_name': 'Class 10-A',
+        'subject': 'English Language & Lit',
+        'teacher_name': 'Mrs. Anjali Rawat',
+        'total_students': 28,
+        'uploaded_marks': 22,
+        'is_locked': false,
+        'status': 'Evaluation in Progress (78%)',
+        'avg_score': 69.5,
+      },
+      {
+        'class_name': 'Class 10-A',
+        'subject': 'Social Science',
+        'teacher_name': 'Ms. Pooja Negi',
+        'total_students': 28,
+        'uploaded_marks': 15,
+        'is_locked': false,
+        'status': 'Evaluation in Progress (53%)',
+        'avg_score': 68.0,
+      },
+      {
+        'class_name': 'Class 10-A',
+        'subject': 'Information Technology',
+        'teacher_name': 'Mr. Amit Bhatt',
+        'total_students': 28,
+        'uploaded_marks': 28,
+        'is_locked': true,
+        'status': 'Evaluated & Locked',
+        'avg_score': 88.4,
+      },
+    ];
   }
 
   // ===== HELPERS =====
