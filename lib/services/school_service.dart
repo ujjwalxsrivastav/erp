@@ -17,6 +17,7 @@ class SchoolService {
   final Map<String, List<Map<String, dynamic>>> _marksStore = {};
   final List<Map<String, dynamic>> _circularsStore = [];
   final List<Map<String, dynamic>> _admissionsStore = [];
+  final List<Map<String, dynamic>> _enquiriesStore = [];
   final List<Map<String, dynamic>> _feePaymentsStore = [];
   final List<Map<String, dynamic>> _busAttendanceStore = [];
   final List<Map<String, dynamic>> _examSessionsStore = [];
@@ -3653,7 +3654,311 @@ class SchoolService {
   }
 
   // ===== ADMISSIONS =====
-  Future<List<Map<String, dynamic>>> getAdmissions({String? status}) async {
+  static final List<Map<String, dynamic>> _defaultEnterpriseAdmissions = [
+    {
+      'id': 'ADM-2026-081',
+      'application_no': 'SIS/2026/081',
+      'applicant_name': 'Kavya Singhania',
+      'gender': 'Female',
+      'dob': '2016-04-18',
+      'blood_group': 'B+',
+      'nationality': 'Indian',
+      'religion': 'Hindu',
+      'category': 'General',
+      'aadhaar_no': '4512-8891-2304',
+      'grade_applying': 'Class 5',
+      'stream': 'N/A',
+      'second_language': 'Sanskrit',
+      'transport_required': true,
+      'transport_stop': 'Jakhan Chowk',
+      'previous_school': 'St. Joseph Academy, Dehradun',
+      'previous_board': 'CBSE',
+      'previous_grade': 'Class 4 (A+ Grade - 91.2%)',
+      'parent_name': 'Vikram Singhania',
+      'mother_name': 'Radhika Singhania',
+      'parent_phone': '9897123450',
+      'email': 'vikram.singhania@gmail.com',
+      'parent_occupation': 'Chartered Accountant',
+      'annual_income': '₹18,00,000 / year',
+      'address': 'Plot 42, Rajpur Road, Dehradun, UK',
+      'distance_km': 3.5,
+      'sibling_priority': true,
+      'sibling_name': 'Aarav Singhania (Class 8-A)',
+      'rte_quota': false,
+      'status': 'Offer Letter Issued',
+      'doc_status': 'Verified',
+      'documents': {
+        'birth_cert': true,
+        'student_aadhaar': true,
+        'parent_aadhaar': true,
+        'transfer_cert': true,
+        'previous_report_card': true,
+        'medical_fitness': true,
+        'rte_income_cert': false,
+      },
+      'test_status': 'Completed',
+      'test_score': 45,
+      'interaction_notes': 'Exceptional academic aptitude, clear mathematics fundamentals and fluent communication skills. Recommended for admission.',
+      'interaction_date': '2026-10-18',
+      'offer_date': '2026-10-22',
+      'offer_valid_till': '2026-11-15',
+      'fee_demanded': 35000.0,
+      'fee_paid': 0.0,
+      'date': '2026-10-14',
+    },
+    {
+      'id': 'ADM-2026-082',
+      'application_no': 'SIS/2026/082',
+      'applicant_name': 'Advait Joshi',
+      'gender': 'Male',
+      'dob': '2015-08-11',
+      'blood_group': 'O+',
+      'nationality': 'Indian',
+      'religion': 'Hindu',
+      'category': 'General',
+      'aadhaar_no': '7821-4402-9918',
+      'grade_applying': 'Class 6',
+      'stream': 'N/A',
+      'second_language': 'Hindi',
+      'transport_required': true,
+      'transport_stop': 'Clock Tower',
+      'previous_school': 'Brightlands School, Dehradun',
+      'previous_board': 'ICSE',
+      'previous_grade': 'Class 5 (87.5%)',
+      'parent_name': 'Mahesh Joshi',
+      'mother_name': 'Deepa Joshi',
+      'parent_phone': '9897100222',
+      'email': 'mahesh.joshi@outlook.com',
+      'parent_occupation': 'Civil Engineer (PWD Uttarakhand)',
+      'annual_income': '₹14,50,000 / year',
+      'address': '54 Canal Road, Kishan Nagar, Dehradun',
+      'distance_km': 5.2,
+      'sibling_priority': false,
+      'sibling_name': '',
+      'rte_quota': false,
+      'status': 'Interview Scheduled',
+      'doc_status': 'Verified',
+      'documents': {
+        'birth_cert': true,
+        'student_aadhaar': true,
+        'parent_aadhaar': true,
+        'transfer_cert': true,
+        'previous_report_card': true,
+        'medical_fitness': true,
+        'rte_income_cert': false,
+      },
+      'test_status': 'Scheduled',
+      'test_score': 0,
+      'interaction_notes': 'Interaction scheduled with Vice Principal for Saturday 11:30 AM.',
+      'interaction_date': '2026-11-08',
+      'offer_date': '',
+      'offer_valid_till': '',
+      'fee_demanded': 35000.0,
+      'fee_paid': 0.0,
+      'date': '2026-10-25',
+    },
+    {
+      'id': 'ADM-2026-083',
+      'application_no': 'SIS/2026/083',
+      'applicant_name': 'Aarohi Negi',
+      'gender': 'Female',
+      'dob': '2019-02-14',
+      'blood_group': 'A+',
+      'nationality': 'Indian',
+      'religion': 'Hindu',
+      'category': 'EWS / RTE Quota',
+      'aadhaar_no': '9012-3341-8890',
+      'grade_applying': 'Class 1',
+      'stream': 'N/A',
+      'second_language': 'Hindi',
+      'transport_required': false,
+      'transport_stop': 'Self Drop',
+      'previous_school': 'Anganwadi Center Jakhan',
+      'previous_board': 'State Early Ed',
+      'previous_grade': 'Pre-Primary',
+      'parent_name': 'Santosh Negi',
+      'mother_name': 'Kamla Negi',
+      'parent_phone': '9756112233',
+      'email': '',
+      'parent_occupation': 'Daily Wage Artisan',
+      'annual_income': '₹1,10,000 / year',
+      'address': 'Jakhan Basti, Near Forest Rest House, Dehradun',
+      'distance_km': 1.2,
+      'sibling_priority': false,
+      'sibling_name': '',
+      'rte_quota': true,
+      'status': 'Enrolled',
+      'doc_status': 'Verified',
+      'documents': {
+        'birth_cert': true,
+        'student_aadhaar': true,
+        'parent_aadhaar': true,
+        'transfer_cert': false,
+        'previous_report_card': false,
+        'medical_fitness': true,
+        'rte_income_cert': true,
+      },
+      'test_status': 'Exempted (RTE 25%)',
+      'test_score': 50,
+      'interaction_notes': 'Admission under statutory RTE Act 25% EWS reservation. Revenue Inspector verified income certificate UK-EWS-2026/410.',
+      'interaction_date': '2026-10-12',
+      'offer_date': '2026-10-15',
+      'offer_valid_till': '2026-10-30',
+      'fee_demanded': 0.0,
+      'fee_paid': 0.0,
+      'date': '2026-10-10',
+    },
+    {
+      'id': 'ADM-2026-084',
+      'application_no': 'SIS/2026/084',
+      'applicant_name': 'Reyansh Gupta',
+      'gender': 'Male',
+      'dob': '2010-09-04',
+      'blood_group': 'AB+',
+      'nationality': 'Indian',
+      'religion': 'Hindu',
+      'category': 'General',
+      'aadhaar_no': '3321-7789-0012',
+      'grade_applying': 'Class 11',
+      'stream': 'Science (PCM + Computer Science)',
+      'second_language': 'English Core',
+      'transport_required': true,
+      'transport_stop': 'Ballupur Chowk',
+      'previous_school': 'Delhi Public School, Meerut',
+      'previous_board': 'CBSE',
+      'previous_grade': 'Class 10 CBSE Board (94.6%)',
+      'parent_name': 'Dr. Alok Gupta',
+      'mother_name': 'Dr. Shweta Gupta',
+      'parent_phone': '9810123456',
+      'email': 'alok.gupta@maxhealthcare.com',
+      'parent_occupation': 'Consultant Surgeon',
+      'annual_income': '₹32,00,000 / year',
+      'address': 'Villa 12, Doon IT Park Enclave, Sahastradhara Road',
+      'distance_km': 6.0,
+      'sibling_priority': false,
+      'sibling_name': '',
+      'rte_quota': false,
+      'status': 'Under Review',
+      'doc_status': 'Pending TC',
+      'documents': {
+        'birth_cert': true,
+        'student_aadhaar': true,
+        'parent_aadhaar': true,
+        'transfer_cert': false, // Awaited from Meerut
+        'previous_report_card': true,
+        'medical_fitness': true,
+        'rte_income_cert': false,
+      },
+      'test_status': 'Pending',
+      'test_score': 0,
+      'interaction_notes': 'Candidate scored 94.6% in 10th CBSE. Original TC from UP board/interstate countersignature pending.',
+      'interaction_date': '',
+      'offer_date': '',
+      'offer_valid_till': '',
+      'fee_demanded': 42000.0,
+      'fee_paid': 0.0,
+      'date': '2026-11-01',
+    },
+    {
+      'id': 'ADM-2026-085',
+      'application_no': 'SIS/2026/085',
+      'applicant_name': 'Tanya Kashyap',
+      'gender': 'Female',
+      'dob': '2013-12-22',
+      'blood_group': 'B-',
+      'nationality': 'Indian',
+      'religion': 'Hindu',
+      'category': 'OBC (Non-Creamy)',
+      'aadhaar_no': '6654-1123-9087',
+      'grade_applying': 'Class 8',
+      'stream': 'N/A',
+      'second_language': 'Sanskrit',
+      'transport_required': true,
+      'transport_stop': 'ISBT Dehradun',
+      'previous_school': 'Army Public School, Clement Town',
+      'previous_board': 'CBSE',
+      'previous_grade': 'Class 7 (79.0%)',
+      'parent_name': 'Subedar Major R.K. Kashyap',
+      'mother_name': 'Anita Kashyap',
+      'parent_phone': '9412098765',
+      'email': 'rk.kashyap.arm@gov.in',
+      'parent_occupation': 'Indian Army (Subedar Major)',
+      'annual_income': '₹9,80,000 / year',
+      'address': 'Quarter 14/B, Clement Town Cantonment, Dehradun',
+      'distance_km': 8.5,
+      'sibling_priority': false,
+      'sibling_name': '',
+      'rte_quota': false,
+      'status': 'Approved',
+      'doc_status': 'Verified',
+      'documents': {
+        'birth_cert': true,
+        'student_aadhaar': true,
+        'parent_aadhaar': true,
+        'transfer_cert': true,
+        'previous_report_card': true,
+        'medical_fitness': true,
+        'rte_income_cert': false,
+      },
+      'test_status': 'Completed',
+      'test_score': 39,
+      'interaction_notes': 'Defence personnel ward. All verified documents complete. Ready for offer letter issuance.',
+      'interaction_date': '2026-10-29',
+      'offer_date': '',
+      'offer_valid_till': '',
+      'fee_demanded': 32000.0,
+      'fee_paid': 0.0,
+      'date': '2026-10-20',
+    },
+  ];
+
+  static final List<Map<String, dynamic>> _defaultAdmissionEnquiries = [
+    {
+      'id': 'ENQ-2026-101',
+      'parent_name': 'Col. Harish Rawat',
+      'child_name': 'Dhruv Rawat',
+      'phone': '9837012399',
+      'email': 'h.rawat@nic.in',
+      'grade_seeking': 'Class 9',
+      'source': 'Defence Referral',
+      'date': '2026-10-28',
+      'follow_up_date': '2026-11-06',
+      'status': 'Follow-up Scheduled',
+      'notes': 'Recently posted to IMA Dehradun. Seeking CBSE English medium admission with bus transport facility.',
+    },
+    {
+      'id': 'ENQ-2026-102',
+      'parent_name': 'Mrs. Sunita Chauhan',
+      'child_name': 'Anvi Chauhan',
+      'phone': '9897654321',
+      'email': 'sunita.chauhan@gmail.com',
+      'grade_seeking': 'Class 1',
+      'source': 'Website Walk-in',
+      'date': '2026-11-02',
+      'follow_up_date': '2026-11-05',
+      'status': 'Fresh',
+      'notes': 'Inquired about Activity-based learning, Smart ICT Classrooms and Teacher-Student ratio.',
+    },
+    {
+      'id': 'ENQ-2026-103',
+      'parent_name': 'Mr. Arvind Saxena',
+      'child_name': 'Pranav Saxena',
+      'phone': '9811223344',
+      'email': 'arvind.saxena@tcs.com',
+      'grade_seeking': 'Class 11',
+      'source': 'Corporate Transfer',
+      'date': '2026-10-20',
+      'follow_up_date': '2026-10-24',
+      'status': 'Converted',
+      'notes': 'Relocated from Pune. Successfully converted to full admission application (ADM-2026-084).',
+    },
+  ];
+
+  Future<List<Map<String, dynamic>>> getAdmissions({String? status, String? grade}) async {
+    if (_admissionsStore.isEmpty) {
+      _admissionsStore.addAll(List<Map<String, dynamic>>.from(_defaultEnterpriseAdmissions));
+    }
+
     try {
       var query = _supabase.from('school_admissions').select();
       if (status != null && status != 'all') {
@@ -3665,35 +3970,66 @@ class SchoolService {
       final response = await query.order('created_at', ascending: false);
       final list = List<Map<String, dynamic>>.from(response);
       if (list.isNotEmpty) {
-        return list.map((a) => {
-          ...a,
-          'id': a['id']?.toString() ?? '',
-          'applicant_name': a['student_name'] ?? a['applicant_name'] ?? 'Applicant',
-          'grade_applying': a['class_applying'] ?? a['grade_applying'] ?? 'Class 1',
-          'parent_name': a['parent_name'] ?? 'Parent',
-          'parent_phone': a['phone'] ?? a['parent_phone'] ?? '',
-          'email': a['email'] ?? '',
-          'dob': a['dob'] ?? '2016-05-12',
-          'status': (a['status'] == 'approved' ? 'Approved' : (a['status'] == 'rejected' ? 'Rejected' : 'Under Review')),
-          'doc_status': a['doc_status'] ?? 'Verified',
-          'sibling_priority': a['sibling_priority'] ?? false,
-          'rte_quota': a['rte_quota'] ?? false,
-          'date': (a['created_at'] != null) ? a['created_at'].toString().substring(0, 10) : DateTime.now().toIso8601String().substring(0, 10),
-        }).toList();
+        for (final remote in list) {
+          final rid = remote['id']?.toString() ?? '';
+          final localIdx = _admissionsStore.indexWhere((l) => l['id'] == rid);
+          if (localIdx >= 0) {
+            _admissionsStore[localIdx] = {..._admissionsStore[localIdx], ...remote};
+          } else {
+            _admissionsStore.add({
+              'id': rid,
+              'application_no': 'SIS/2026/${rid.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}',
+              'applicant_name': remote['student_name'] ?? remote['applicant_name'] ?? 'Applicant',
+              'grade_applying': remote['class_applying'] ?? remote['grade_applying'] ?? 'Class 1',
+              'stream': 'General',
+              'parent_name': remote['parent_name'] ?? 'Parent',
+              'parent_phone': remote['phone'] ?? remote['parent_phone'] ?? '',
+              'email': remote['email'] ?? '',
+              'dob': remote['dob'] ?? '2016-05-12',
+              'status': (remote['status'] == 'approved' ? 'Approved' : (remote['status'] == 'rejected' ? 'Rejected' : 'Under Review')),
+              'doc_status': remote['doc_status'] ?? 'Verified',
+              'documents': {
+                'birth_cert': true,
+                'student_aadhaar': true,
+                'parent_aadhaar': true,
+                'transfer_cert': true,
+                'previous_report_card': true,
+                'medical_fitness': true,
+                'rte_income_cert': false,
+              },
+              'test_status': 'Scheduled',
+              'test_score': 40,
+              'fee_demanded': 30000.0,
+              'fee_paid': 0.0,
+              'date': (remote['created_at'] != null) ? remote['created_at'].toString().substring(0, 10) : DateTime.now().toIso8601String().substring(0, 10),
+            });
+          }
+        }
       }
     } catch (_) {}
 
-    if (_admissionsStore.isNotEmpty) {
-      if (status != null && status != 'all') {
-        return _admissionsStore.where((a) => a['status'] == status).toList();
-      }
-      return _admissionsStore;
+    var result = List<Map<String, dynamic>>.from(_admissionsStore);
+    if (status != null && status != 'all') {
+      result = result.where((a) => a['status'] == status).toList();
     }
-
-    return [];
+    if (grade != null && grade.isNotEmpty && grade != 'all') {
+      result = result.where((a) => (a['grade_applying'] ?? '').toString() == grade).toList();
+    }
+    return result;
   }
 
   Future<bool> checkDuplicateAdmission(String phone, String studentName) async {
+    final phoneClean = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final nameClean = studentName.trim().toLowerCase();
+
+    // In-memory check
+    final existsLocal = _admissionsStore.any((a) {
+      final p = (a['parent_phone'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '');
+      final n = (a['applicant_name'] ?? '').toString().trim().toLowerCase();
+      return (p.isNotEmpty && p == phoneClean) || (n.isNotEmpty && n == nameClean);
+    });
+    if (existsLocal) return true;
+
     try {
       final res = await _supabase
           .from('school_admissions')
@@ -3711,22 +4047,56 @@ class SchoolService {
     final phone = data['parent_phone'] ?? data['phone'] ?? '';
     final email = data['email'] ?? '';
     final classApplying = data['grade_applying'] ?? data['class_applying'] ?? 'Class 1';
+    final id = data['id'] ?? 'ADM-2026-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+    final appNo = data['application_no'] ?? 'SIS/2026/${id.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}';
 
     final normalized = {
-      'id': data['id'] ?? 'ADM-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+      ...data,
+      'id': id,
+      'application_no': appNo,
       'applicant_name': studentName,
       'parent_name': parentName,
       'grade_applying': classApplying,
       'parent_phone': phone,
       'email': email,
-      'dob': data['dob'] ?? '',
+      'dob': data['dob'] ?? '2016-05-12',
+      'gender': data['gender'] ?? 'Male',
+      'blood_group': data['blood_group'] ?? 'B+',
+      'category': data['category'] ?? 'General',
+      'aadhaar_no': data['aadhaar_no'] ?? '',
+      'stream': data['stream'] ?? 'N/A',
+      'second_language': data['second_language'] ?? 'Hindi',
+      'transport_required': data['transport_required'] ?? false,
+      'transport_stop': data['transport_stop'] ?? 'School Gate',
+      'previous_school': data['previous_school'] ?? '',
+      'previous_board': data['previous_board'] ?? 'CBSE',
+      'previous_grade': data['previous_grade'] ?? '',
       'status': data['status'] ?? 'Under Review',
       'doc_status': data['doc_status'] ?? 'Pending',
+      'documents': data['documents'] ?? {
+        'birth_cert': true,
+        'student_aadhaar': true,
+        'parent_aadhaar': true,
+        'transfer_cert': false,
+        'previous_report_card': true,
+        'medical_fitness': true,
+        'rte_income_cert': false,
+      },
+      'test_status': data['test_status'] ?? 'Pending',
+      'test_score': data['test_score'] ?? 0,
+      'fee_demanded': (data['fee_demanded'] as num?)?.toDouble() ?? 35000.0,
+      'fee_paid': 0.0,
       'sibling_priority': data['sibling_priority'] ?? false,
       'rte_quota': data['rte_quota'] ?? false,
       'date': DateTime.now().toIso8601String().substring(0, 10),
     };
-    _admissionsStore.insert(0, normalized);
+
+    final idx = _admissionsStore.indexWhere((a) => a['id'] == id);
+    if (idx >= 0) {
+      _admissionsStore[idx] = normalized;
+    } else {
+      _admissionsStore.insert(0, normalized);
+    }
 
     try {
       await _supabase.from('school_admissions').insert({
@@ -3756,10 +4126,58 @@ class SchoolService {
     return true;
   }
 
-  Future<bool> updateAdmissionDocStatus(String admissionId, String docStatus) async {
+  Future<bool> updateAdmissionDocStatus(
+    String admissionId,
+    String docStatus, {
+    Map<String, bool>? documents,
+  }) async {
     final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
-      _admissionsStore[idx] = {..._admissionsStore[idx], 'doc_status': docStatus};
+      final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
+      updated['doc_status'] = docStatus;
+      if (documents != null) {
+        updated['documents'] = documents;
+      }
+      _admissionsStore[idx] = updated;
+    }
+    return true;
+  }
+
+  Future<bool> recordAdmissionTestScore({
+    required String admissionId,
+    required int score,
+    required String notes,
+    required String verdict,
+  }) async {
+    final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+    if (idx >= 0) {
+      final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
+      updated['test_score'] = score;
+      updated['test_status'] = 'Completed';
+      updated['interaction_notes'] = notes;
+      if (verdict == 'Recommended') {
+        updated['status'] = 'Approved';
+      } else if (verdict == 'Not Recommended') {
+        updated['status'] = 'Rejected';
+      }
+      _admissionsStore[idx] = updated;
+    }
+    return true;
+  }
+
+  Future<bool> issueAdmissionOfferLetter({
+    required String admissionId,
+    required double feeDemanded,
+    required String validTill,
+  }) async {
+    final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+    if (idx >= 0) {
+      final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
+      updated['status'] = 'Offer Letter Issued';
+      updated['fee_demanded'] = feeDemanded;
+      updated['offer_date'] = DateTime.now().toIso8601String().substring(0, 10);
+      updated['offer_valid_till'] = validTill;
+      _admissionsStore[idx] = updated;
     }
     return true;
   }
@@ -3768,6 +4186,8 @@ class SchoolService {
     required Map<String, dynamic> admission,
     required String classId,
     required String section,
+    double? feePaid,
+    String? paymentMode,
   }) async {
     final studentName = admission['applicant_name'] ?? admission['student_name'] ?? 'New Student';
     final parentName = admission['parent_name'] ?? 'Parent';
@@ -3802,22 +4222,34 @@ class SchoolService {
       });
     } catch (_) {}
 
-    // 3. Create initial fee demand
+    // 3. Create initial fee demand & payment log
+    final double paid = feePaid ?? 25000.0;
     try {
       await _supabase.from('school_fee_payments').insert({
         'student_id': username,
         'class_id': classId,
-        'amount': 25000.0,
-        'paid_amount': 0.0,
-        'due_date': DateTime.now().add(const Duration(days: 15)).toIso8601String().substring(0, 10),
-        'payment_mode': 'Pending',
-        'status': 'pending',
-        'head': 'Admission & First Quarter Fee',
+        'amount': paid > 0 ? paid : 25000.0,
+        'paid_amount': paid,
+        'due_date': DateTime.now().toIso8601String().substring(0, 10),
+        'payment_mode': paymentMode ?? 'Online / UPI',
+        'status': paid > 0 ? 'paid' : 'pending',
+        'head': 'Admission & First Quarter Composite Fee',
+        'receipt_no': 'REC-ADM-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
       });
     } catch (_) {}
 
-    // 4. Update status to approved
+    // 4. Update status in local memory and database
     if (admission['id'] != null) {
+      final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admission['id']?.toString());
+      if (idx >= 0) {
+        _admissionsStore[idx] = {
+          ..._admissionsStore[idx],
+          'status': 'Enrolled',
+          'enrolled_class': className,
+          'admission_no': admissionNo,
+          'fee_paid': paid,
+        };
+      }
       await updateAdmissionStatus(admission['id'].toString(), 'Enrolled');
     }
 
@@ -3825,7 +4257,49 @@ class SchoolService {
       'student_id': newStudentId,
       'username': username,
       'admission_no': admissionNo,
+      'class_name': className,
+      'fee_paid': paid,
     };
+  }
+
+  // ===== ADMISSION ENQUIRIES / LEADS =====
+  Future<List<Map<String, dynamic>>> getAdmissionEnquiries() async {
+    if (_enquiriesStore.isEmpty) {
+      _enquiriesStore.addAll(List<Map<String, dynamic>>.from(_defaultAdmissionEnquiries));
+    }
+    return List<Map<String, dynamic>>.from(_enquiriesStore);
+  }
+
+  Future<bool> saveAdmissionEnquiry(Map<String, dynamic> enquiry) async {
+    final id = enquiry['id']?.toString() ?? 'ENQ-2026-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+    final payload = Map<String, dynamic>.from(enquiry)..['id'] = id;
+    final idx = _enquiriesStore.indexWhere((e) => e['id'] == id);
+    if (idx >= 0) {
+      _enquiriesStore[idx] = payload;
+    } else {
+      _enquiriesStore.insert(0, payload);
+    }
+    return true;
+  }
+
+  Future<Map<String, dynamic>?> convertEnquiryToApplication(String enquiryId) async {
+    final idx = _enquiriesStore.indexWhere((e) => e['id'] == enquiryId);
+    if (idx < 0) return null;
+
+    final enquiry = _enquiriesStore[idx];
+    enquiry['status'] = 'Converted';
+
+    final appData = {
+      'applicant_name': enquiry['child_name'],
+      'parent_name': enquiry['parent_name'],
+      'parent_phone': enquiry['phone'],
+      'email': enquiry['email'],
+      'grade_applying': enquiry['grade_seeking'],
+      'status': 'Under Review',
+      'doc_status': 'Pending',
+    };
+    await submitAdmission(appData);
+    return appData;
   }
 
   // ===== PROMOTION & SESSION CHANGEOVER ENGINE =====
