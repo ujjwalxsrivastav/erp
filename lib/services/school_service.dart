@@ -1134,7 +1134,7 @@ class SchoolService {
   /// Persist one attendance row per student for the selected date.
   /// Returns false when nothing could be written, so the UI never claims a
   /// silent success.
-  Future<bool> markAttendance(List<Map<String, dynamic>> records) async {
+  Future<bool> markAttendance(List<Map<String, dynamic>> records, {bool forceUpdate = false}) async {
     if (records.isEmpty) return false;
 
     final first = records.first;
@@ -1149,14 +1149,14 @@ class SchoolService {
         .toList();
     if (studentIds.isEmpty) return false;
 
-    // A register that is already complete for this date is final.
+    // A register that is already complete for this date is final, unless forceUpdate is specified.
     try {
       final existing = await _supabase
           .from('school_attendance')
           .select('id')
           .eq('date', dateStr)
           .inFilter('student_id', studentIds);
-      if (existing.length >= studentIds.length) return false;
+      if (!forceUpdate && existing.length >= studentIds.length) return false;
     } catch (_) {}
 
     try {
