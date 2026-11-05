@@ -1300,6 +1300,17 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               itemBuilder: (ctx, idx) {
                 final hw = _homework[idx];
                 final color = hw['color'] as Color;
+                final dueLabel = hw['due']?.toString() ?? 'Upcoming';
+                final isOverdue = dueLabel.contains('overdue');
+                final isDueToday = dueLabel.contains('today');
+
+                final badgeBg = isOverdue
+                    ? const Color(0xFFFFF1F2)
+                    : (isDueToday ? const Color(0xFFFFFBEB) : color.withValues(alpha: 0.10));
+                final badgeText = isOverdue
+                    ? const Color(0xFFE11D48)
+                    : (isDueToday ? const Color(0xFFD97706) : color);
+
                 return ListTile(
                   dense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1329,15 +1340,15 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.10),
+                      color: badgeBg,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      hw['due']?.toString() ?? 'Upcoming',
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: color),
+                      dueLabel,
+                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: badgeText),
                     ),
                   ),
-                  onTap: () => context.go('/school/homework'),
+                  onTap: () => _showInstantHomeworkModal(context, hw),
                 );
               },
             ),
@@ -1347,6 +1358,16 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
   }
 
   Widget _buildResultsCard(BuildContext context) {
+    double totalMarksObtained = 0.0;
+    double totalMaxMarks = 0.0;
+    for (final r in _recentResults) {
+      final pct = (r['percent'] as num?)?.toDouble() ?? 0.0;
+      totalMarksObtained += pct;
+      totalMaxMarks += 100.0;
+    }
+    final overallPct = totalMaxMarks > 0 ? (totalMarksObtained / totalMaxMarks) * 100 : 0.0;
+    final overallCbse = SchoolService.calculateCbseGrade(overallPct);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1363,15 +1384,25 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                 const Icon(Icons.grade_rounded, size: 17, color: Color(0xFF7C3AED)),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    _recentExamName,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _ink,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _recentExamName,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _ink,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_recentResults.isNotEmpty)
+                        Text(
+                          'Overall: ' + overallPct.toStringAsFixed(1) + '% • ' + (overallCbse['grade'] ?? 'A1'),
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF7C3AED)),
+                        ),
+                    ],
                   ),
                 ),
                 TextButton(
@@ -1431,9 +1462,20 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               itemBuilder: (ctx, idx) {
                 final r = _recentResults[idx];
                 final color = r['color'] as Color;
-                final grade = r['grade']?.toString() ?? 'A';
+                final grade = r['grade']?.toString() ?? 'A1';
                 final marks = r['marks']?.toString() ?? '';
                 final subject = r['subject']?.toString() ?? 'Subject';
+                final pct = (r['percent'] as num?)?.toDouble() ?? 80.0;
+
+                IconData trendIcon = Icons.arrow_forward_rounded;
+                Color trendColor = const Color(0xFF2563EB);
+                if (pct >= 85.0) {
+                  trendIcon = Icons.arrow_upward_rounded;
+                  trendColor = const Color(0xFF059669);
+                } else if (pct < 65.0) {
+                  trendIcon = Icons.arrow_downward_rounded;
+                  trendColor = const Color(0xFFE11D48);
+                }
 
                 return ListTile(
                   dense: true,
@@ -1449,22 +1491,31 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                       child: Text(
                         grade,
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w800,
                           color: color,
                         ),
                       ),
                     ),
                   ),
-                  title: Text(
-                    subject,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _ink,
-                    ),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          subject,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _ink,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Icon(trendIcon, size: 14, color: trendColor),
+                    ],
                   ),
-                  subtitle: Text('Score: $marks', style: const TextStyle(fontSize: 11, color: _muted)),
+                  subtitle: Text('Score: ' + marks + ' (' + pct.toStringAsFixed(0) + '%)', style: const TextStyle(fontSize: 11, color: _muted)),
                   trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFFCBD5E1)),
                   onTap: () => context.go('/school/report-card'),
                 );
@@ -4744,6 +4795,130 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+
+  // ==========================================
+  // STU6: M8 INSTANT HOMEWORK SUBMISSION MODAL
+  // ==========================================
+  void _showInstantHomeworkModal(BuildContext context, Map<String, dynamic> hw) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+          maxWidth: 600,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE11D48).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.assignment_rounded, color: Color(0xFFE11D48), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hw['title']?.toString() ?? 'Homework Assignment',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _ink),
+                      ),
+                      Text(
+                        (hw['subject']?.toString() ?? 'General') + ' • Due: ' + (hw['due']?.toString() ?? 'Upcoming'),
+                        style: const TextStyle(fontSize: 12, color: _muted),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _bg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Submission Status', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _muted)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text('PENDING SUBMISSION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFD97706))),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      context.go('/school/homework');
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _primary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Open in Homework Desk'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      context.go('/school/homework');
+                    },
+                    icon: const Icon(Icons.upload_file_rounded, size: 16),
+                    label: const Text('Submit Now'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

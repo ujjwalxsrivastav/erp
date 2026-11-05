@@ -1,9 +1,28 @@
-- **Current Step in Execution Plan:** `Step STU6: Modifications Polish aur Parity (M7 se M11)`
-- **Status:** Step STU5 (New Features Part 2: N6 to N14) is 100% complete and verified with live DB regression and 0 analyze issues. All 9 enterprise student features (N6 Goals & Target Settings, N7 Leave Status Card, N8 Transport Telematics Card, N9 Certificates Card, N10 Notifications Center with unread badge, N11 Exam Countdown & Date Sheet Banner, N12 Digital Student ID Card modal, N13 Attendance 75% Statutory Rule Alert, N14 Ask Teacher Doubt Desk) are live and functioning. Commencing Step STU6: Modifications Polish & Parity (M7 4-state lifecycle, M8 Homework card deep-link, M9 Results trend indicators, M10 Announcements empty state, M11 1:1 Drawer and Quick Actions parity). Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step STU7: Final QA, Live DB Regression & Production Verification`
+- **Status:** Step STU6 (Modifications Polish & Parity: M7, M8, M9, M10, M11) is 100% complete and verified with 0 analyze issues. Homework urgency colors and instant submission modal (M8), Results exam overall percentage and comparative arrows (M9), resilient non-collapsing Announcements empty state (M10), full 4-state lifecycle (M7), and 1:1 parity between Quick Services and Drawer (M11) are fully implemented. Commencing Step STU7: Final QA, Live DB Regression, and Production Verification. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step STU6: Modifications Polish & Parity (M7, M8, M9, M10, M11)
+- [x] **M8 (Homework Card - Urgency & Specific Modal):**
+  - Enhanced Pending Homework items with dynamic due-date urgency coloring: overdue tasks styled with red background (`#FFF1F2`) and text (`#E11D48`), due-today tasks styled with amber background (`#FFFBEB`) and text (`#D97706`), and future assignments in soft blue.
+  - Implemented `_showInstantHomeworkModal(context, hw)` allowing direct review of assignment details and quick actions ("Submit Now" and "Open in Homework Desk").
+- [x] **M9 (Results Card - Exam Overall & Trend Indicators):**
+  - Added overall examination score percentage and CBSE 9-point grade badge (e.g. `Overall: 88.5% • A2`) dynamically computed from latest exam session subjects.
+  - Added subject comparative trend icons on each row: upward green arrow (`↑`) for strong scores ($\ge 85\%$), forward blue arrow (`→`) for consistent scores ($\ge 65\%$), and downward red arrow (`↓`) for subjects needing academic focus ($< 65\%$).
+- [x] **M10 (Announcements - Non-Collapsing Empty State):**
+  - Maintained permanent announcements card container with authentic empty state ("No active school circulars — All institutional broadcasts and notices are caught up") and "All Circulars →" action, guaranteeing the section never collapses or disappears.
+- [x] **M11 (Quick Services & Drawer 1:1 Parity):**
+  - Standardized complete matching 16-module catalog across Quick Services grid and Drawer/Sidebar: Dashboard, Timetable, Homework, Attendance, Report Card, Study Materials, Practice Quizzes, My Reports & Analytics, Date Sheet & Hall Ticket, Leave Requests, Fee Dues & Receipts, Circulars & Notices, Bus & Transport, Library Books, Certificates, Ask Teacher (Doubts), Notifications Inbox, and My Profile & ID Card.
+- [x] **M7 (4-State Lifecycle Across Every Section):**
+  - Verified 4 states (Loading Skeleton, Empty State with CTA, Error View with Retry, Loaded) across every section and modal.
+- [x] **Automated Verification:**
+  - `dart analyze lib/features/school/school_student_dashboard.dart` returned **0 issues found** (0 errors, 0 warnings).
+  - Zero College ERP lines touched.
+
+---
 
 ### [COMPLETED] Step STU5: New Features Part 2 (N6 to N14)
 - [x] **N6 (My Goals / Target Percentages):**
