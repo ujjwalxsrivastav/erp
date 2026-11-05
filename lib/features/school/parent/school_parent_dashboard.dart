@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
@@ -39,6 +40,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   List<Map<String, dynamic>> _ptmBookings = [];
   List<Map<String, dynamic>> _circulars = [];
   List<Map<String, dynamic>> _gatePasses = [];
+  List<Map<String, dynamic>> _homeworkDiary = [];
+  Map<String, dynamic> _attendanceTrajectory = {};
+  Map<String, dynamic> _examCountdown = {};
 
   // Theme constants
   static const Color _bg = Color(0xFFF8FAFC);
@@ -135,6 +139,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     final ptms = await _schoolService.getPtmBookings(parentUsername: _parentName);
     final gatePasses = await _schoolService.getGatePasses(studentId: studentId);
 
+    final className = child['class_name']?.toString() ?? '';
+    final section = child['section']?.toString() ?? '';
+    final hwDiary = await _schoolService.getChildHomeworkDiary(
+      className: className,
+      section: section,
+      studentId: studentId,
+      classId: classId,
+    );
+    final attTraj = await _schoolService.getChildAttendanceTrajectory(studentId);
+    final examCd = await _schoolService.getChildUpcomingExamCountdown(className: className);
+
     if (mounted) {
       setState(() {
         _metrics = metrics;
@@ -149,6 +164,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
         _leaves = leaves;
         _ptmBookings = ptms;
         _gatePasses = gatePasses;
+        _homeworkDiary = hwDiary;
+        _attendanceTrajectory = attTraj;
+        _examCountdown = examCd;
       });
     }
   }
@@ -769,11 +787,648 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   // TAB 1: OVERVIEW & SCHEDULE
   // ──────────────────────────────────────────────
 
+  void _showAttendanceDrillDownModal() {
+    final att = _attendanceData;
+    final attPct = (_attendanceTrajectory['overall_pct'] as num?)?.toDouble() ?? 0.0;
+    final isRisk = _attendanceTrajectory['is_cbse_warning_active'] == true;
+    final workingDays = (_attendanceTrajectory['days_evaluated'] as num?)?.toInt() ?? 0;
+    final present = (_attendanceTrajectory['days_present'] as num?)?.toInt() ?? 0;
+    final absent = (_attendanceTrajectory['days_absent'] as num?)?.toInt() ?? 0;
+    final lateCount = (_attendanceTrajectory['days_late'] as num?)?.toInt() ?? 0;
+    final excused = (_attendanceTrajectory['days_excused'] as num?)?.toInt() ?? 0;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+          maxWidth: 640,
+        ),
+        decoration: const BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isRisk ? _roseSoft : _emeraldSoft,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      isRisk ? Icons.warning_amber_rounded : Icons.verified_user_rounded,
+                      color: isRisk ? _rose : _emerald,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Attendance Detail & 30-Day Trajectory',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink),
+                        ),
+                        Text(
+                          'Student: ${_currentChild?['name'] ?? "Student"} (${_currentChild?['class_name'] ?? ""})',
+                          style: const TextStyle(fontSize: 12, color: _muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: _border),
+            Flexible(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _border),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('TODAY\'S STATUS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted)),
+                            const SizedBox(height: 3),
+                            Text(
+                              att['today_status']?.toString() ?? 'Not Marked Yet',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: (att['today_status']?.toString().contains('Present') ?? false) ? _emerald : _ink,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isRisk ? _roseSoft : _emeraldSoft,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${attPct.toStringAsFixed(1)}% OVERALL',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: isRisk ? _rose : _emerald),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('30-DAY ATTENDANCE TRAJECTORY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+                  const SizedBox(height: 4),
+                  const Row(
+                    children: [
+                      Icon(Icons.remove, color: Color(0xFFDC2626), size: 14),
+                      Text(' Red Dashed Line: 75.0% CBSE Statutory Limit', style: TextStyle(fontSize: 10.5, color: Color(0xFFDC2626), fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _border),
+                    ),
+                    child: _buildAttendanceTrajectoryChart(),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _buildMiniStat('Working Days', '$workingDays', _ink, const Color(0xFFF1F5F9))),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildMiniStat('Present', '$present', _emerald, _emeraldSoft)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildMiniStat('Absent', '$absent', _rose, _roseSoft)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildMiniStat('Late / Excused', '${lateCount + excused}', _amber, _amberSoft)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      context.go('/school/attendance');
+                    },
+                    icon: const Icon(Icons.calendar_month_rounded, size: 16),
+                    label: const Text('Open Full Attendance Register'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttendanceTrajectoryChart() {
+    final points = (_attendanceTrajectory['daily_points'] as List<dynamic>?) ?? [];
+    if (points.isEmpty) {
+      return Container(
+        height: 130,
+        alignment: Alignment.center,
+        child: const Text('No attendance records logged in the past 30 days', style: TextStyle(color: _muted, fontSize: 12)),
+      );
+    }
+
+    final spots = <FlSpot>[];
+    for (int i = 0; i < points.length; i++) {
+      final sc = (points[i]['score'] as num?)?.toDouble() ?? 0.0;
+      spots.add(FlSpot(i.toDouble(), sc));
+    }
+
+    return SizedBox(
+      height: 140,
+      child: LineChart(
+        LineChartData(
+          minY: 0,
+          maxY: 110,
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            horizontalInterval: 25,
+            getDrawingHorizontalLine: (v) {
+              if (v == 75) {
+                return const FlLine(color: Color(0xFFDC2626), strokeWidth: 1.5, dashArray: [4, 4]);
+              }
+              return const FlLine(color: Color(0xFFE2E8F0), strokeWidth: 0.8);
+            },
+          ),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 30,
+                interval: 25,
+                getTitlesWidget: (v, m) => Text('${v.toInt()}%', style: const TextStyle(fontSize: 8.5, color: _muted)),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 18,
+                interval: (points.length / 5).ceilToDouble().clamp(1, 10),
+                getTitlesWidget: (v, m) {
+                  final idx = v.toInt();
+                  if (idx >= 0 && idx < points.length) {
+                    final d = points[idx]['date']?.toString() ?? '';
+                    final parts = d.split('-');
+                    return Text(parts.length >= 3 ? '${parts[1]}/${parts[2]}' : '', style: const TextStyle(fontSize: 8, color: _muted));
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+            ),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          ),
+          borderData: FlBorderData(show: false),
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: true,
+              curveSmoothness: 0.2,
+              color: _emerald,
+              barWidth: 2.2,
+              dotData: FlDotData(
+                show: points.length < 15,
+                getDotPainter: (s, p, b, i) => FlDotCirclePainter(radius: 2.5, color: _emerald, strokeWidth: 1, strokeColor: Colors.white),
+              ),
+              belowBarData: BarAreaData(
+                show: true,
+                color: _emerald.withValues(alpha: 0.08),
+              ),
+            ),
+          ],
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              tooltipBgColor: const Color(0xFF0F172A),
+              getTooltipItems: (touchedSpots) {
+                return touchedSpots.map((spot) {
+                  final idx = spot.spotIndex;
+                  final pt = (idx >= 0 && idx < points.length) ? points[idx] : null;
+                  final date = pt?['date'] ?? '';
+                  final status = pt?['status'] ?? '';
+                  return LineTooltipItem(
+                    '$date\nStatus: ${status.toString().toUpperCase()}',
+                    const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  );
+                }).toList();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(String label, String value, Color color, Color bg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: color)),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 10, color: _muted, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
+  void _showFeeDrillDownModal() {
+    final ledger = _feeLedger;
+    final totalAnnual = (ledger['annual_total'] as num?)?.toDouble() ?? 0.0;
+    final totalPaid = (ledger['total_paid'] as num?)?.toDouble() ?? 0.0;
+    final pendingAmount = (ledger['pending_amount'] as num?)?.toDouble() ?? 0.0;
+    final heads = (ledger['fee_heads_breakdown'] as List<dynamic>?) ?? [];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+          maxWidth: 620,
+        ),
+        decoration: const BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: _amberSoft, borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.account_balance_wallet_rounded, color: _amber, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Fee Ledger & Statutory Schedule', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                        Text('Student: ${_currentChild?['name'] ?? "Student"} • Due by 5th of every month', style: const TextStyle(fontSize: 12, color: _muted)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: _border),
+            Flexible(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: _border)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('TOTAL SESSION DUES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted)),
+                              const SizedBox(height: 4),
+                              Text('₹${totalAnnual.toInt()}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _ink)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(color: _emeraldSoft, borderRadius: BorderRadius.circular(12)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('PAID & RECONCILED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald)),
+                              const SizedBox(height: 4),
+                              Text('₹${totalPaid.toInt()}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _emerald)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(color: pendingAmount > 0 ? _amberSoft : _emeraldSoft, borderRadius: BorderRadius.circular(12)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(pendingAmount > 0 ? 'PENDING' : 'CLEARED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: pendingAmount > 0 ? _amber : _emerald)),
+                              const SizedBox(height: 4),
+                              Text('₹${pendingAmount.toInt()}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: pendingAmount > 0 ? _amber : _emerald)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('ITEMIZED STATUTORY FEE HEADS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+                  const SizedBox(height: 10),
+                  ...heads.map((h) {
+                    final name = h['head'] ?? 'Fee Head';
+                    final ann = (h['annual'] as num?)?.toDouble() ?? 0.0;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: _border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
+                          Text('₹${ann.toInt()} / yr', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _ink)),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            context.go('/school/fees');
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _ink,
+                            side: const BorderSide(color: _border),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Full Fee Portal'),
+                        ),
+                      ),
+                      if (pendingAmount > 0) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _showPayFeeModal(pendingAmount, 'Session Dues');
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                            child: const Text('Pay Dues Online', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showHomeworkDiaryModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+          maxWidth: 640,
+        ),
+        decoration: const BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: _roseSoft, borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.assignment_rounded, color: _rose, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Homework Diary & Tasks Register', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                        Text('Student: ${_currentChild?['name'] ?? "Student"} (${_currentChild?['class_name'] ?? ""})', style: const TextStyle(fontSize: 12, color: _muted)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: _border),
+            Flexible(
+              child: _homeworkDiary.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(
+                        child: Text('No homework records assigned for this class cohort yet.', style: TextStyle(color: _muted)),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _homeworkDiary.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (ctx, i) {
+                        final hw = _homeworkDiary[i];
+                        final title = hw['title']?.toString() ?? 'Assignment';
+                        final subj = hw['subject']?.toString() ?? 'General';
+                        final due = hw['due_date']?.toString() ?? '';
+                        final desc = hw['description']?.toString() ?? '';
+                        final status = (hw['status']?.toString() ?? 'pending').toLowerCase();
+                        final isSubmitted = status == 'submitted';
+                        final isOverdue = status == 'overdue';
+                        final teacher = hw['teacher_username']?.toString() ?? 'Faculty';
+                        final feedback = hw['teacher_feedback']?.toString();
+
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: _surface,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: _primarySoft,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(subj, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _primary)),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isSubmitted ? _emeraldSoft : (isOverdue ? _roseSoft : _amberSoft),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      isSubmitted ? 'SUBMITTED' : (isOverdue ? 'OVERDUE' : 'PENDING'),
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: isSubmitted ? _emerald : (isOverdue ? _rose : _amber),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: _ink)),
+                              if (desc.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(desc, style: const TextStyle(fontSize: 12.5, color: _muted)),
+                              ],
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.schedule, size: 13, color: _muted),
+                                  const SizedBox(width: 4),
+                                  Text('Due: $due • Teacher: $teacher', style: const TextStyle(fontSize: 11, color: _muted)),
+                                ],
+                              ),
+                              if (feedback != null && feedback.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.rate_review_outlined, size: 14, color: _emerald),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Teacher Feedback: $feedback',
+                                          style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: _ink),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            const Divider(height: 1, color: _border),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    context.go('/school/homework');
+                  },
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('Open Homework Module'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _ink,
+                    side: const BorderSide(color: _border),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOverviewTab() {
     final attPct = (_metrics['attendance'] as num?)?.toDouble() ?? 0.0;
     final feesPending = _metrics['pendingFeesDisplay']?.toString() ?? '₹0';
     final hwCount = (_metrics['pendingHomework'] as num?)?.toInt() ?? 0;
     final lastResult = _metrics['lastResult']?.toString() ?? 'No record';
+
+    final isCbseWarning = _attendanceTrajectory['is_cbse_warning_active'] == true;
+    final shortageDays = (_attendanceTrajectory['cbse_shortage_days'] as num?)?.toInt() ?? 0;
 
     final periods = (_timetableData['periods'] as List<dynamic>?) ?? [];
     final activeSubject = _timetableData['active_subject']?.toString() ?? 'Classes Active';
@@ -781,7 +1436,122 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 4 KPI Cards
+        // 1. PN4: CBSE Statutory < 75% Attendance Warning Banner
+        if (isCbseWarning)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFCA5A5)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'CBSE Statutory Attendance Warning',
+                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF991B1B)),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(color: const Color(0xFFDC2626), borderRadius: BorderRadius.circular(6)),
+                            child: Text(
+                              '${attPct.toStringAsFixed(1)}% < 75%',
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Your child has an attendance of ${attPct.toStringAsFixed(1)}%, which is below the statutory 75.0% board minimum ($shortageDays days short). Regular attendance is strictly mandatory for board examination hall-ticket eligibility.',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D), height: 1.4),
+                      ),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: _showAttendanceDrillDownModal,
+                        child: const Text(
+                          'View Attendance Trajectory & Excused Leaves →',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // 2. PN12: Upcoming Exam Countdown & Datesheet Banner
+        if (_examCountdown['has_upcoming'] == true)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: _primarySoft,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.event_note_rounded, color: _primary, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _examCountdown['title']?.toString() ?? 'Upcoming Term Examination',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink),
+                      ),
+                      Text(
+                        _examCountdown['countdown_text']?.toString() ?? 'CBSE Assessment Cycle',
+                        style: const TextStyle(fontSize: 11, color: _muted),
+                      ),
+                    ],
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/school/timetable'),
+                  icon: const Icon(Icons.calendar_today_rounded, size: 13),
+                  label: const Text('Datesheet'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _ink,
+                    side: const BorderSide(color: _border),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 32),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // 3. PM9: 4 Master KPI Tiles with Deep Drill-downs
         Row(
           children: [
             Expanded(
@@ -790,9 +1560,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 value: '${attPct.toStringAsFixed(1)}%',
                 subtitle: attPct > 0 ? '${attPct.toStringAsFixed(1)}% Present' : 'Attendance unrecorded',
                 icon: Icons.how_to_reg_rounded,
-                color: _emerald,
-                bgColor: _emeraldSoft,
-                onTap: () => _tabController.animateTo(2),
+                color: isCbseWarning ? _rose : _emerald,
+                bgColor: isCbseWarning ? _roseSoft : _emeraldSoft,
+                onTap: _showAttendanceDrillDownModal,
               ),
             ),
             const SizedBox(width: 12),
@@ -802,9 +1572,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 value: feesPending,
                 subtitle: feesPending == '₹0' ? 'No outstanding dues' : 'Academic session dues',
                 icon: Icons.account_balance_wallet_rounded,
-                color: _amber,
-                bgColor: _amberSoft,
-                onTap: () => _tabController.animateTo(4),
+                color: feesPending != '₹0' ? _amber : _emerald,
+                bgColor: feesPending != '₹0' ? _amberSoft : _emeraldSoft,
+                onTap: _showFeeDrillDownModal,
               ),
             ),
           ],
@@ -818,9 +1588,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 value: '$hwCount Active',
                 subtitle: hwCount > 0 ? '$hwCount tasks due' : 'All assignments submitted',
                 icon: Icons.assignment_rounded,
-                color: _rose,
-                bgColor: _roseSoft,
-                onTap: () => context.go('/school/homework'),
+                color: hwCount > 0 ? _rose : _emerald,
+                bgColor: hwCount > 0 ? _roseSoft : _emeraldSoft,
+                onTap: _showHomeworkDiaryModal,
               ),
             ),
             const SizedBox(width: 12),
@@ -832,12 +1602,123 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 icon: Icons.workspace_premium_rounded,
                 color: _primary,
                 bgColor: _primarySoft,
-                onTap: () => _tabController.animateTo(1),
+                onTap: () => _showOfficialHpcModal(_scholasticData),
               ),
             ),
           ],
         ),
         const SizedBox(height: 20),
+
+        // 4. PN3: Today's Homework Diary Section
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: _roseSoft, borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.menu_book_rounded, color: _rose, size: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Homework Diary & Daily Tasks',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                      ),
+                    ],
+                  ),
+                  TextButton(
+                    onPressed: _showHomeworkDiaryModal,
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32)),
+                    child: const Text('View All Diary →', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _primary)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (_homeworkDiary.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  alignment: Alignment.center,
+                  child: const Column(
+                    children: [
+                      Icon(Icons.assignment_turned_in_outlined, size: 36, color: _muted),
+                      SizedBox(height: 8),
+                      Text('No Active Homework Assigned', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _ink)),
+                      Text('All assignments for this cohort are up to date.', style: TextStyle(fontSize: 11.5, color: _muted)),
+                    ],
+                  ),
+                )
+              else
+                ..._homeworkDiary.take(3).map((hw) {
+                  final title = hw['title']?.toString() ?? 'Task';
+                  final subj = hw['subject']?.toString() ?? 'General';
+                  final due = hw['due_date']?.toString() ?? 'Upcoming';
+                  final status = (hw['status']?.toString() ?? 'pending').toLowerCase();
+                  final isSubmitted = status == 'submitted';
+                  final isOverdue = status == 'overdue';
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _border),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: isSubmitted ? _emerald : (isOverdue ? _rose : _amber),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: _ink)),
+                              const SizedBox(height: 2),
+                              Text('$subj • Due: $due', style: const TextStyle(fontSize: 11, color: _muted)),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isSubmitted ? _emeraldSoft : (isOverdue ? _roseSoft : _amberSoft),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isSubmitted ? 'SUBMITTED' : (isOverdue ? 'OVERDUE' : 'PENDING'),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: isSubmitted ? _emerald : (isOverdue ? _rose : _amber),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
 
         // Today's Live Class Timetable Tracker
         Container(

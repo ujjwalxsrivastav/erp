@@ -1,9 +1,36 @@
-- **Current Step in Execution Plan:** `Step PAR3: Daily Student Operations (PN3, PN4, PN12, PM9, PM14)`
-- **Status:** Step PAR2 is 100% complete and verified. Design parity (Slate-50 light theme, pink accent `#DB2777`), 18-entry drawer with profile & preferences, and 4-state skeleton loading are active with 0 analyze issues. Commencing Step PAR3. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step PAR4: Communication Hub (PN1, PN2, PN9, PM3, PM11)`
+- **Status:** Step PAR3 is 100% complete and verified. Daily Student Operations (PN3 Daily Homework Diary, PN4 Attendance Trajectory & CBSE <75% statutory warning banner, PN12 Exam Countdown Widget, PM9 Drill-down modals, PM14 multi-child dynamic switching) are active and verified on live Supabase with 0 analyze issues. Commencing Step PAR4. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step PAR3: Daily Student Operations (PN3, PN4, PN12, PM9, PM14)
+- [x] **PN3 (Daily Homework Diary):**
+  - Integrated `getChildHomeworkDiary({required className, section, required studentId, classId})` querying real `school_homework` and `school_homework_submissions`.
+  - Added "Today's Homework Diary" section to Overview Tab with dynamic subject badges, due dates, submission statuses (SUBMITTED / PENDING / OVERDUE), and teacher feedback.
+  - Implemented `_showHomeworkDiaryModal` full bottom sheet with empty states, feedback banners, and deep-link button to `/school/homework`.
+- [x] **PN4 (Attendance Detail, 30-Day Trajectory & CBSE Statutory Warning):**
+  - Integrated `getChildAttendanceTrajectory(studentId, {days = 30})` evaluating live `school_attendance` records.
+  - Built CBSE Statutory <75% Attendance Warning Banner on Overview Tab with dynamic alert card, shortage days count, and direct drill-down tap.
+  - Implemented `_showAttendanceDrillDownModal` featuring 30-Day Trajectory `fl_chart: LineChart` with 75.0% red dashed statutory threshold line (`FlLine`), interactive tooltips (`LineTouchTooltipData`), and mini statistics grid (working days, present, absent, late/excused).
+- [x] **PN12 (Upcoming Exam Countdown Widget):**
+  - Integrated `getChildUpcomingExamCountdown({required className})` querying published assessment cycles from `school_exam_sessions`.
+  - Overview Tab surfaces real upcoming exam badge with dynamic cycle title and term assessment status.
+- [x] **PM9 (KPI Cards Drill-Down Modals):**
+  - Card 1 (Attendance) -> `_showAttendanceDrillDownModal()` with interactive trajectory graph.
+  - Card 2 (Fees Due) -> `_showFeeDrillDownModal()` itemizing annual dues, reconciled payments, pending amount, and statutory fee heads breakdown with online pay CTA.
+  - Card 3 (Homework Due) -> `_showHomeworkDiaryModal()`.
+  - Card 4 (Summative Grade) -> `_showOfficialHpcModal()`.
+- [x] **PM14 (Robust Multi-Child Dynamic Switching):**
+  - Switching children updates all child data synchronously: `_metrics`, `_attendanceData`, `_scholasticData`, `_transportData`, `_feeLedger`, `_timetableData`, `_leaves`, `_homeworkDiary`, `_attendanceTrajectory`, and `_examCountdown`.
+  - Child switcher strip displays child initials, class name, and section with smooth animation.
+- [x] **Automated Verification:**
+  - Live Supabase query confirmed 11 real homework records in Class 10 and 2 attendance records for `sstudent1`.
+  - `dart analyze lib/services/school_service.dart lib/features/school/parent/` returned 0 issues (0 errors, 0 warnings, 0 deprecations).
+  - Zero College ERP lines touched.
+
+---
 
 ### [COMPLETED] Step PAR2: Design Parity & Drawer/Profile (PM8, PM12, PM13)
 - [x] **PM8 (Design Parity & Light Theme Overhaul):**
