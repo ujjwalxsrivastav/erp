@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
@@ -230,52 +231,136 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     if (id == null || !_isStudent) return;
 
     final noteController = TextEditingController();
+    PlatformFile? pickedFile;
+
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Submit Homework',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(hw['title']?.toString() ?? '',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text(hw['subject']?.toString() ?? '',
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 14),
-            TextField(
-              controller: noteController,
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: 'Note to teacher (optional)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.upload_file_rounded, color: Color(0xFF10B981), size: 22),
+              SizedBox(width: 8),
+              Text('Submit Homework',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(hw['title']?.toString() ?? '',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              const SizedBox(height: 3),
+              Text(' • Due ',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: pickedFile == null
+                    ? InkWell(
+                        onTap: () async {
+                          final result = await FilePicker.platform.pickFiles(
+                            type: FileType.custom,
+                            allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'docx', 'doc', 'txt'],
+                            withData: true,
+                          );
+                          if (result != null && result.files.isNotEmpty) {
+                            setDlgState(() => pickedFile = result.files.first);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.attach_file_rounded, size: 18, color: Color(0xFF2563EB)),
+                              SizedBox(width: 6),
+                              Text(
+                                'Attach File or Photo (Optional)',
+                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : Row(
+                        children: [
+                          const Icon(Icons.insert_drive_file_rounded, size: 20, color: Color(0xFF10B981)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  pickedFile!.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                                ),
+                                Text(
+                                  ' KB',
+                                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF94A3B8)),
+                            onPressed: () => setDlgState(() => pickedFile = null),
+                          ),
+                        ],
+                      ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'Note or comments to teacher (optional)',
+                  hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Confirm Submission'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Confirm Submission'),
-          ),
-        ],
       ),
     );
 
     if (confirmed != true) return;
+
+    String? attachmentUrl;
+    if (pickedFile != null && pickedFile!.bytes != null) {
+      attachmentUrl = await _schoolService.uploadHomeworkAttachment(
+        fileName: pickedFile!.name,
+        bytes: pickedFile!.bytes!,
+      );
+    }
 
     final ok = await _schoolService.submitHomework(
       homeworkId: id,
@@ -283,6 +368,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       studentId: _myProfile?['id']?.toString(),
       studentName: _myProfile?['name']?.toString(),
       note: noteController.text,
+      attachmentUrl: attachmentUrl,
     );
 
     if (!mounted) return;
@@ -299,7 +385,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content:
-              Text('Could not save submission. Database setup missing — run database/school_homework_submissions_setup.sql in Supabase.'),
+              Text('Could not save submission. Please check network connection and try again.'),
           backgroundColor: Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
@@ -307,7 +393,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     }
   }
 
-  /// Student: show the real backend record of what was submitted.
+  /// Student: show the real backend record of what was submitted + teacher feedback (N5).
   void _showMySubmission(Map<String, dynamic> hw) {
     final sub = _mySubmissions[hw['id']?.toString()];
     if (sub == null) return;
@@ -319,29 +405,153 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
           '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {}
 
+    final feedback = sub['teacher_feedback']?.toString() ?? '';
+    final status = (sub['status']?.toString() ?? 'submitted').toLowerCase();
+    final attachment = sub['attachment_url']?.toString();
+    final reviewedAt = sub['reviewed_at']?.toString();
+    String reviewDateLabel = '';
+    if (reviewedAt != null && reviewedAt.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(reviewedAt);
+        reviewDateLabel = '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      } catch (_) {}
+    }
+
+    final isGraded = status == 'graded' || status == 'evaluated';
+    final isResubmit = status == 'resubmit';
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
-            Icon(Icons.task_alt, color: Color(0xFF10B981)),
+            Icon(Icons.task_alt_rounded, color: Color(0xFF10B981), size: 22),
             SizedBox(width: 8),
-            Text('My Submission', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('My Submission & Feedback', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _detailRow('Homework', hw['title']?.toString() ?? '-'),
-            _detailRow('Subject', hw['subject']?.toString() ?? '-'),
-            _detailRow('Class', hw['class_name']?.toString() ?? '-'),
-            _detailRow('Submitted on', dateLabel),
-            _detailRow('Status',
-                (sub['status']?.toString() ?? 'submitted').toUpperCase()),
-            _detailRow('Note', sub['note']?.toString() ?? '—'),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detailRow('Homework', hw['title']?.toString() ?? '-'),
+              _detailRow('Subject', hw['subject']?.toString() ?? '-'),
+              _detailRow('Class', hw['class_name']?.toString() ?? '-'),
+              _detailRow('Submitted on', dateLabel),
+              _detailRow('Status', (sub['status']?.toString() ?? 'submitted').toUpperCase()),
+              _detailRow('Student Note', sub['note']?.toString() ?? '—'),
+              if (attachment != null && attachment.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.attach_file_rounded, size: 16, color: Color(0xFF475569)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          attachment.startsWith('attachment://') ? attachment.replaceFirst('attachment://', '') : 'Submitted Document',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              // Teacher Feedback Section
+              if (feedback.isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isGraded ? const Color(0xFFECFDF5) : (isResubmit ? const Color(0xFFFEF3C7) : const Color(0xFFEFF6FF)),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isGraded ? const Color(0xFFA7F3D0) : (isResubmit ? const Color(0xFFFDE68A) : const Color(0xFFBFDBFE)),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isGraded ? Icons.check_circle_rounded : (isResubmit ? Icons.warning_amber_rounded : Icons.rate_review_rounded),
+                            size: 16,
+                            color: isGraded ? const Color(0xFF059669) : (isResubmit ? const Color(0xFFD97706) : const Color(0xFF2563EB)),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isGraded ? 'Teacher Evaluation (Graded)' : (isResubmit ? 'Revision Requested' : 'Teacher Feedback'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: isGraded ? const Color(0xFF065F46) : (isResubmit ? const Color(0xFF92400E) : const Color(0xFF1E40AF)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        feedback,
+                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                      ),
+                      if (reviewDateLabel.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Evaluated on ',
+                          style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.hourglass_top_rounded, size: 16, color: Color(0xFFD97706)),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Awaiting Teacher Evaluation',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF92400E)),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Submission recorded. Teacher marks and evaluation comments will appear here.',
+                              style: TextStyle(fontSize: 11, color: Color(0xFFB45309)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
         actions: [
           TextButton(

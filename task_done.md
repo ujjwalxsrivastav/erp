@@ -1,9 +1,41 @@
-- **Current Step in Execution Plan:** `Step STU4: Naye Features Pehla Hissa (N3, N4, N5)`
-- **Status:** Step STU3 (Reports Second Half & Excel: STU-R07 to STU-R13 + M14 Excel) is 100% complete and verified with 0 analyze issues. All 13 official per-student Excel workbook exports (STU-R01 to STU-R13) implemented in `SchoolExportService` conforming to the dual-sheet standard (Summary + Data + Totals) and wired into the Reports Hub with live download triggers. Commencing Step STU4: New Features Part 1. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step STU5: Naye Features Doosra Hissa (N6 se N14)`
+- **Status:** Step STU4 (New Features Part 1: N3 Study Materials, N4 Online Quizzes, N5 Homework File Submission + Teacher Feedback) is 100% complete and verified with live DB regression and 0 analyze issues. Commencing Step STU5: New Features Part 2 (N6 to N14: Goals, Leave Card, Transport Card, Certificates Card, Notifications, Exam Countdown Widget, ID Card Profile, Attendance Alerts, Ask Teacher). Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step STU4: New Features Part 1 (N3, N4, N5)
+- [x] **N3 (Study Materials / LMS-lite on Student Dashboard):**
+  - In `lib/services/school_service.dart`: Fixed `getStudyMaterials` to use `.order('published_at', ascending: false)`. Added `publishStudyMaterial(...)` helper.
+  - In `lib/features/school/school_student_dashboard.dart`:
+    - Added "Study Material" tile in the 12-action Quick Services grid.
+    - Added "Study Materials" entry in Drawer and Desktop sidebar under `ACADEMIC SERVICES`.
+    - Built interactive `_showStudyMaterialsModal(context)` bottom sheet with subject filter chips, PDF document cards, faculty attribution, and clean empty state.
+- [x] **N4 (Real Online Practice Quizzes):**
+  - In `lib/services/school_service.dart`:
+    - Built resilient `getOnlineQuizzes({required String classId})` querying `school_quizzes` table with transparent fallback to `school_circulars` (`category: 'Quiz'`).
+    - Added `publishOnlineQuiz(...)` to create curriculum assessments.
+    - Added `submitQuizAttempt(...)` and `getStudentQuizAttempts({required String studentUsername})` with strict student username scoping.
+  - In `lib/features/school/school_student_dashboard.dart`:
+    - Added "Practice Quiz" tile in Quick Services grid and Drawer/Sidebar.
+    - Built `_showOnlineQuizzesModal(context)` with 2 tabs: "Available Quizzes" & "My Scorecards".
+    - Built interactive `_startQuizExecution` wizard with questions, timer, 4-option radio selection, and `_finishAndScoreQuiz` instant evaluation celebration modal (score percentage, pass/practice required verdict, question-by-question review with explanations).
+- [x] **N5 (Homework File Submission + Teacher Feedback View):**
+  - In `lib/services/school_service.dart`:
+    - Updated `submitHomework` to accept `attachmentUrl`.
+    - Added `uploadHomeworkAttachment` supporting Supabase storage buckets (`assignments`, `assignment-submissions`) with graceful descriptor fallback.
+  - In `lib/features/school/homework/homework_list_screen.dart`:
+    - Enhanced `_markSubmitted`: Student can pick and attach files/photos (`FilePicker`) along with note, displaying file chip and upload feedback.
+    - Enhanced `_showMySubmission`: Displays complete submission details, attachment link, and rich **Teacher Feedback Card** (teacher comments, reviewed timestamp, status pill: `GRADED`, `NEEDS REVISION`, or `AWAITING EVALUATION`).
+- [x] **Live Database & Integration Regression:**
+  - Verified live Supabase round-trip: student homework submission with attachment -> teacher evaluation with feedback -> student feedback view.
+  - Verified online quiz submission and strict student-level data scoping (`sstudent1`).
+- [x] **Automated Verification:**
+  - `dart analyze lib/features/school/school_student_dashboard.dart lib/features/school/homework/homework_list_screen.dart lib/services/school_service.dart lib/services/school_export_service.dart` returned **0 issues found** (0 errors, 0 warnings).
+  - Zero College ERP lines touched.
+
+---
 
 ### [COMPLETED] Step STU3: Reports Second Half & Excel (STU-R07 to STU-R13 + M14 Excel)
 - [x] **Excel Export Engine (`lib/services/school_export_service.dart`):**

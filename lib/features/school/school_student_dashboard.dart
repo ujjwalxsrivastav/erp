@@ -21,6 +21,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
   late AnimationController _fadeController;
 
   String _studentName = '';
+  String _username = '';
   String _studentClass = '';
   String _admissionNo = '';
   String _schoolName = 'Shivalik International School';
@@ -110,6 +111,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
       }
 
       setState(() {
+        _username = username;
         _studentName = profile?['name']?.toString() ?? username;
         _studentClass = fullClass.isNotEmpty ? fullClass : 'Class Not Assigned';
         _admissionNo = profile?['admission_no']?.toString() ?? '';
@@ -1037,7 +1039,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
   }
 
   // ==========================================
-  // 5. CURATED QUICK ACTIONS HUB (8 MODULES)
+  // 5. CURATED QUICK ACTIONS HUB (12 INTEGRATED MODULES — N3, N4, N2)
   // ==========================================
   Widget _buildQuickActionsSection(BuildContext context) {
     final actions = [
@@ -1045,10 +1047,14 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
       {'icon': Icons.assignment_rounded, 'label': 'Homework', 'color': const Color(0xFFE11D48), 'route': '/school/homework'},
       {'icon': Icons.fact_check_rounded, 'label': 'Attendance', 'color': const Color(0xFF059669), 'route': '/school/attendance'},
       {'icon': Icons.description_rounded, 'label': 'Report Card', 'color': const Color(0xFF7C3AED), 'route': '/school/report-card'},
+      {'icon': Icons.menu_book_rounded, 'label': 'Study Material', 'color': const Color(0xFF0D9488), 'action': 'materials'},
+      {'icon': Icons.quiz_rounded, 'label': 'Practice Quiz', 'color': const Color(0xFF6366F1), 'action': 'quiz'},
+      {'icon': Icons.assessment_rounded, 'label': 'My Reports', 'color': const Color(0xFF8B5CF6), 'action': 'reports'},
       {'icon': Icons.receipt_long_rounded, 'label': 'Fees & Dues', 'color': const Color(0xFFD97706), 'route': '/school/fees'},
       {'icon': Icons.event_busy_rounded, 'label': 'Apply Leave', 'color': const Color(0xFF0284C7), 'route': '/school/leave'},
-      {'icon': Icons.campaign_rounded, 'label': 'Circulars', 'color': const Color(0xFF8B5CF6), 'route': '/school/circulars'},
+      {'icon': Icons.campaign_rounded, 'label': 'Circulars', 'color': const Color(0xFFF59E0B), 'route': '/school/circulars'},
       {'icon': Icons.local_library_rounded, 'label': 'Library', 'color': const Color(0xFF10B981), 'route': '/school/library'},
+      {'icon': Icons.directions_bus_rounded, 'label': 'Transport', 'color': const Color(0xFF0EA5E9), 'route': '/school/transport'},
     ];
 
     return Column(
@@ -1072,7 +1078,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
-            final cols = constraints.maxWidth >= 900 ? 8 : (constraints.maxWidth >= 600 ? 4 : 4);
+            final cols = constraints.maxWidth >= 1000 ? 6 : (constraints.maxWidth >= 650 ? 4 : 3);
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -1087,7 +1093,18 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                 final a = actions[index];
                 final color = a['color'] as Color;
                 return InkWell(
-                  onTap: () => context.go(a['route'] as String),
+                  onTap: () {
+                    final action = a['action'] as String?;
+                    if (action == 'materials') {
+                      _showStudyMaterialsModal(context);
+                    } else if (action == 'quiz') {
+                      _showOnlineQuizzesModal(context);
+                    } else if (action == 'reports') {
+                      _showStudentReportsHubModal(context);
+                    } else if (a['route'] != null) {
+                      context.go(a['route'] as String);
+                    }
+                  },
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
@@ -1603,6 +1620,14 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               _buildDrawerItem(Icons.assignment_rounded, 'Homework', () => context.go('/school/homework')),
               _buildDrawerItem(Icons.fact_check_rounded, 'Attendance', () => context.go('/school/attendance')),
               _buildDrawerItem(Icons.description_rounded, 'Report Card', () => context.go('/school/report-card')),
+              _buildDrawerItem(Icons.menu_book_rounded, 'Study Materials', () {
+                if (isDrawer) Navigator.pop(context);
+                _showStudyMaterialsModal(context);
+              }),
+              _buildDrawerItem(Icons.quiz_rounded, 'Practice Quizzes', () {
+                if (isDrawer) Navigator.pop(context);
+                _showOnlineQuizzesModal(context);
+              }),
               _buildDrawerItem(Icons.assessment_rounded, 'My Reports & Analytics', () {
                 if (isDrawer) Navigator.pop(context);
                 _showStudentReportsHubModal(context);
@@ -2829,6 +2854,771 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           color: Color(0xFF64748B),
           letterSpacing: 0.6,
         ),
+      ),
+    );
+  }
+
+
+  // ==========================================
+  // N3: STUDY MATERIALS MODAL (LMS-LITE)
+  // ==========================================
+  void _showStudyMaterialsModal(BuildContext context) {
+    String selectedSubject = 'All';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+            maxWidth: 680,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.menu_book_rounded, color: Color(0xFF0D9488), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Study Materials & Worksheets',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink),
+                          ),
+                          Text(
+                            'Subject courseware & notes for $_studentClass',
+                            style: const TextStyle(fontSize: 12, color: _muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: _border),
+              Flexible(
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _schoolService.getStudyMaterials(classId: _studentClass),
+                  builder: (ctx, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: CircularProgressIndicator(color: Color(0xFF0D9488)),
+                        ),
+                      );
+                    }
+                    final list = snapshot.data ?? [];
+                    if (list.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.folder_open_rounded, size: 48, color: _muted),
+                              SizedBox(height: 12),
+                              Text(
+                                'No Course Materials Uploaded',
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _ink),
+                              ),
+                              SizedBox(height: 6),
+                              Text(
+                                'Subject teachers have not published downloadable worksheets or notes for this class cohort yet.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12.5, color: _muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    final subjects = {'All', ...list.map((m) => m['subject']?.toString() ?? 'General')}.toList();
+                    final filtered = selectedSubject == 'All'
+                        ? list
+                        : list.where((m) => (m['subject']?.toString() ?? 'General') == selectedSubject).toList();
+
+                    return Column(
+                      children: [
+                        if (subjects.length > 2)
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Row(
+                              children: subjects.map((subj) {
+                                final isSelected = selectedSubject == subj;
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: FilterChip(
+                                    selected: isSelected,
+                                    label: Text(subj, style: TextStyle(fontSize: 11.5, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500)),
+                                    onSelected: (val) {
+                                      setModalState(() => selectedSubject = subj);
+                                    },
+                                    selectedColor: const Color(0xFF0D9488).withValues(alpha: 0.15),
+                                    checkmarkColor: const Color(0xFF0D9488),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        Expanded(
+                          child: ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (ctx, idx) {
+                              final mat = filtered[idx];
+                              final subj = mat['subject']?.toString() ?? 'General';
+                              final title = mat['title']?.toString() ?? 'Course Material';
+                              final teacher = mat['uploaded_by']?.toString() ?? 'Faculty';
+                              String dateLabel = '';
+                              if (mat['created_at'] != null) {
+                                try {
+                                  final dt = DateTime.parse(mat['created_at'].toString());
+                                  dateLabel = '${dt.day}/${dt.month}/${dt.year}';
+                                } catch (_) {}
+                              }
+
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: _border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF0D9488).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFF0D9488), size: 22),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF1F5F9),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  subj.toUpperCase(),
+                                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF0D9488)),
+                                                ),
+                                              ),
+                                              if (dateLabel.isNotEmpty) ...[
+                                                const SizedBox(width: 8),
+                                                Text(dateLabel, style: const TextStyle(fontSize: 11, color: _muted)),
+                                              ],
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            title,
+                                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _ink),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text('Faculty: $teacher', style: const TextStyle(fontSize: 11.5, color: _muted)),
+                                        ],
+                                      ),
+                                    ),
+                                    OutlinedButton(
+                                      onPressed: () {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Opening document: $title')),
+                                        );
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: const Color(0xFF0D9488),
+                                        side: const BorderSide(color: Color(0xFF0D9488)),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      ),
+                                      child: const Text('Read', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // N4: ONLINE PRACTICE QUIZZES & ASSESSMENTS
+  // ==========================================
+  void _showOnlineQuizzesModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DefaultTabController(
+        length: 2,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.88,
+            maxWidth: 680,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.quiz_rounded, color: Color(0xFF6366F1), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Practice Quizzes & Assessments',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink),
+                          ),
+                          Text(
+                            'Class $_studentClass • Instant MCQ evaluation & review',
+                            style: const TextStyle(fontSize: 12, color: _muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const TabBar(
+                labelColor: Color(0xFF6366F1),
+                unselectedLabelColor: _muted,
+                indicatorColor: Color(0xFF6366F1),
+                labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                tabs: [
+                  Tab(text: 'Available Quizzes'),
+                  Tab(text: 'My Scorecards'),
+                ],
+              ),
+              const Divider(height: 1, color: _border),
+              Flexible(
+                child: TabBarView(
+                  children: [
+                    // Tab 1: Available Quizzes
+                    FutureBuilder<List<Map<String, dynamic>>>(
+                      future: _schoolService.getOnlineQuizzes(classId: _studentClass),
+                      builder: (ctx, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: Color(0xFF6366F1))));
+                        }
+                        final quizzes = snapshot.data ?? [];
+                        if (quizzes.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.all(40),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle_outline_rounded, size: 48, color: _muted),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'No Active Practice Quizzes',
+                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _ink),
+                                  ),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    'Subject teachers have not scheduled MCQ assessments for this class cohort yet.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 12.5, color: _muted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: quizzes.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (ctx, idx) {
+                            final q = quizzes[idx];
+                            final subj = q['subject']?.toString() ?? 'General';
+                            final title = q['title']?.toString() ?? 'Quiz';
+                            final duration = q['duration_minutes'] ?? 15;
+                            final qCount = q['total_questions'] ?? (q['questions'] as List?)?.length ?? 3;
+                            final weightage = q['weightage_percent'] ?? 10;
+
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: _border),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEEF2FF),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          subj.toUpperCase(),
+                                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF4F46E5)),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Text('$duration Mins', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _muted)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink)),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Text('$qCount Questions • $weightage% Weightage', style: const TextStyle(fontSize: 11.5, color: _muted)),
+                                      const Spacer(),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.pop(ctx);
+                                          _startQuizExecution(context, q);
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF6366F1),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                        ),
+                                        child: const Text('Start Quiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+
+                    // Tab 2: My Scorecards
+                    FutureBuilder<List<Map<String, dynamic>>>(
+                      future: _schoolService.getStudentQuizAttempts(studentUsername: _username),
+                      builder: (ctx, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: Color(0xFF6366F1))));
+                        }
+                        final attempts = snapshot.data ?? [];
+                        if (attempts.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.all(40),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.history_edu_rounded, size: 48, color: _muted),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'No Quiz Attempts Recorded',
+                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _ink),
+                                  ),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    'You have not taken any online practice quizzes yet. Take a quiz to test your mastery!',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 12.5, color: _muted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: attempts.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (ctx, idx) {
+                            final att = attempts[idx];
+                            final title = att['quiz_title']?.toString() ?? 'Assessment Quiz';
+                            final subj = att['subject']?.toString() ?? 'General';
+                            final score = (att['score'] as num?)?.toDouble() ?? 0.0;
+                            final total = (att['total'] as num?)?.toDouble() ?? 10.0;
+                            final pct = (att['percentage'] as num?)?.toDouble() ?? (total > 0 ? (score / total) * 100 : 0.0);
+                            final isPass = pct >= 60.0;
+                            String dateStr = '';
+                            if (att['attempted_at'] != null) {
+                              try {
+                                final dt = DateTime.parse(att['attempted_at'].toString());
+                                dateStr = '${dt.day}/${dt.month}/${dt.year}';
+                              } catch (_) {}
+                            }
+
+                            return Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _border),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: isPass ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${pct.toStringAsFixed(0)}%',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          color: isPass ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
+                                        const SizedBox(height: 2),
+                                        Text('$subj • ${score.toStringAsFixed(1)} / ${total.toStringAsFixed(1)} pts',
+                                            style: const TextStyle(fontSize: 11.5, color: _muted)),
+                                      ],
+                                    ),
+                                  ),
+                                  if (dateStr.isNotEmpty)
+                                    Text(dateStr, style: const TextStyle(fontSize: 11, color: _muted)),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _startQuizExecution(BuildContext context, Map<String, dynamic> quiz) {
+    final rawQuestions = quiz['questions'] as List? ?? [];
+    if (rawQuestions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This quiz does not have any active questions.')),
+      );
+      return;
+    }
+
+    final questions = rawQuestions.map((q) => Map<String, dynamic>.from(q as Map)).toList();
+    final Map<int, int> selectedAnswers = {};
+    int currentIndex = 0;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (context, setDlgState) {
+          final q = questions[currentIndex];
+          final qText = q['question']?.toString() ?? 'Question';
+          final options = (q['options'] as List?)?.map((o) => o.toString()).toList() ?? [];
+          final selectedOption = selectedAnswers[currentIndex];
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        quiz['title']?.toString() ?? 'Assessment Quiz',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _ink),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Question ${currentIndex + 1} of ${questions.length}',
+                        style: const TextStyle(fontSize: 11.5, color: _muted),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(6)),
+                  child: Text(
+                    '${quiz['duration_minutes'] ?? 15} Mins',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF4F46E5)),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    qText,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink, height: 1.3),
+                  ),
+                  const SizedBox(height: 16),
+                  for (var i = 0; i < options.length; i++) ...[
+                    InkWell(
+                      onTap: () {
+                        setDlgState(() => selectedAnswers[currentIndex] = i);
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: selectedOption == i ? const Color(0xFFEEF2FF) : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: selectedOption == i ? const Color(0xFF6366F1) : _border,
+                            width: selectedOption == i ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: selectedOption == i ? const Color(0xFF6366F1) : Colors.transparent,
+                                border: Border.all(color: selectedOption == i ? const Color(0xFF6366F1) : _muted),
+                              ),
+                              child: selectedOption == i
+                                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                  : Center(
+                                      child: Text(
+                                        String.fromCharCode(65 + i),
+                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _muted),
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                options[i],
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: selectedOption == i ? FontWeight.w600 : FontWeight.normal,
+                                  color: selectedOption == i ? const Color(0xFF312E81) : _ink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              if (currentIndex > 0)
+                TextButton(
+                  onPressed: () => setDlgState(() => currentIndex--),
+                  child: const Text('Previous'),
+                ),
+              TextButton(
+                onPressed: () => Navigator.pop(dlgCtx),
+                child: const Text('Quit', style: TextStyle(color: Color(0xFFEF4444))),
+              ),
+              if (currentIndex < questions.length - 1)
+                ElevatedButton(
+                  onPressed: () => setDlgState(() => currentIndex++),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Next'),
+                )
+              else
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(dlgCtx);
+                    await _finishAndScoreQuiz(context, quiz, questions, selectedAnswers);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Submit Quiz'),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _finishAndScoreQuiz(
+    BuildContext context,
+    Map<String, dynamic> quiz,
+    List<Map<String, dynamic>> questions,
+    Map<int, int> selectedAnswers,
+  ) async {
+    double score = 0;
+    for (var i = 0; i < questions.length; i++) {
+      final correctIdx = (questions[i]['correct_index'] as num?)?.toInt() ?? 0;
+      if (selectedAnswers[i] == correctIdx) {
+        score += 1;
+      }
+    }
+    final total = questions.length.toDouble();
+    final pct = total > 0 ? (score / total) * 100 : 0.0;
+    final isPass = pct >= 60;
+
+    await _schoolService.submitQuizAttempt(
+      quizId: quiz['id']?.toString() ?? '',
+      quizTitle: quiz['title']?.toString() ?? 'Assessment Quiz',
+      subject: quiz['subject']?.toString() ?? 'General',
+      studentUsername: _username,
+      studentName: _studentName,
+      score: score,
+      total: total,
+      answers: selectedAnswers.map((k, v) => MapEntry(k.toString(), v)),
+    );
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(isPass ? Icons.stars_rounded : Icons.info_outline_rounded,
+                color: isPass ? const Color(0xFF10B981) : const Color(0xFFF59E0B), size: 24),
+            const SizedBox(width: 8),
+            Text(isPass ? 'Quiz Passed! 🎉' : 'Quiz Completed',
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                color: isPass ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isPass ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    '${pct.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: isPass ? const Color(0xFF047857) : const Color(0xFFB45309),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${score.toInt()} of ${total.toInt()} Questions Correct',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              isPass
+                  ? 'Excellent command of this topic! Your score has been recorded to your scorecard ledger.'
+                  : 'Practice required to improve your retention. Review the chapter notes in Study Materials and retry.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: _muted),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6366F1),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Done'),
+          ),
+        ],
       ),
     );
   }
