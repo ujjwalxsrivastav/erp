@@ -1,9 +1,28 @@
-- **Current Step in Execution Plan:** `Step PAR2: Design Parity & Drawer/Profile (PM8, PM12, PM13)`
-- **Status:** Step PAR1 is 100% complete and verified on live Supabase. All 15 fake constants and privacy leaks purged with zero grep matches. Static analysis clean (0 issues). Ready to execute Step PAR2. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step PAR3: Daily Student Operations (PN3, PN4, PN12, PM9, PM14)`
+- **Status:** Step PAR2 is 100% complete and verified. Design parity (Slate-50 light theme, pink accent `#DB2777`), 18-entry drawer with profile & preferences, and 4-state skeleton loading are active with 0 analyze issues. Commencing Step PAR3. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step PAR2: Design Parity & Drawer/Profile (PM8, PM12, PM13)
+- [x] **PM8 (Design Parity & Light Theme Overhaul):**
+  - Eliminated blur orbs and heavy glass panels.
+  - Implemented Slate-50 canvas (`#F8FAFC`), pure white cards, hairline borders (`#E2E8F0`), deep ink `#0F172A` typography, and refined `#DB2777` pink accents.
+  - Updated AppBar with notifications badge and profile trigger.
+- [x] **PM12 (18-Entry Navigation Drawer & Profile Settings):**
+  - Overhauled navigation drawer to 18 structured entries matching PM12: Core & Comms, Daily Operations & Academics, Account & Settings.
+  - Implemented `_showProfileAndSettingsModal`: parent profile header, linked children counter, notification preference switches (absence alerts, homework alerts, fee dues, PTM reminders, emergency circulars), and "Report Incorrect Child Link" flow.
+  - Implemented `_showMyChildrenModal`: per-child cards with relation tag, admission number, roll number, and instant switching.
+  - Implemented `_showMaterialsSheet`: LMS study materials modal with authentic download actions and empty state.
+- [x] **PM13 (4-State Standard & Touch Targets):**
+  - Built comprehensive shimmer skeleton screen in `_buildLoadingState` (skeleton switcher, hero card, 4 KPI cards, and schedule).
+  - Ensured 48dp minimum touch targets across all interactive buttons and tiles.
+- [x] **Automated Verification:**
+  - `dart analyze lib/services/school_service.dart lib/features/school/parent/` returned 0 issues (0 errors, 0 warnings, 0 deprecations).
+  - Zero College ERP lines touched.
+
+---
 
 ### [COMPLETED] Step PAR1: Real-Data Purge & Privacy Fix (PM1, PM2, PM10, PM5, PM7)
 - [x] **PM2 (Privacy Fix in `getParentChildren`):** Eradicated `.limit(2)` leak when `parent_student_links` has no rows for a parent. Unlinked parents receive strictly an empty list `[]` — zero exposure of stranger students.

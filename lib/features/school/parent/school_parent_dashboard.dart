@@ -46,8 +46,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   static const Color _ink = Color(0xFF0F172A);
   static const Color _muted = Color(0xFF64748B);
   static const Color _border = Color(0xFFE2E8F0);
-  static const Color _primary = Color(0xFF4338CA); // Royal Indigo
-  static const Color _primarySoft = Color(0xFFEEF2FF);
+  static const Color _primary = Color(0xFFDB2777); // Muted Pink Accent
+  static const Color _primarySoft = Color(0xFFFDF2F8);
   static const Color _emerald = Color(0xFF059669);
   static const Color _emeraldSoft = Color(0xFFECFDF5);
   static const Color _amber = Color(0xFFD97706);
@@ -322,9 +322,23 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           ),
         ),
         IconButton(
+          tooltip: 'Messages & Notices',
+          icon: const Badge(
+            smallSize: 8,
+            backgroundColor: _primary,
+            child: Icon(Icons.mail_outline_rounded, size: 20),
+          ),
+          onPressed: () => _tabController.animateTo(5),
+        ),
+        IconButton(
           tooltip: 'Refresh Dashboard',
           icon: const Icon(Icons.refresh_rounded, size: 20),
           onPressed: _loadInitialData,
+        ),
+        IconButton(
+          tooltip: 'Profile & Settings',
+          icon: const Icon(Icons.settings_outlined, size: 20),
+          onPressed: _showProfileAndSettingsModal,
         ),
         const SizedBox(width: 6),
       ],
@@ -3363,6 +3377,563 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     );
   }
 
+  void _showMaterialsSheet(String classId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+          maxWidth: 640,
+        ),
+        decoration: const BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.folder_shared_rounded, color: _primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('LMS Study Materials & Worksheets', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                        Text('Digital courseware published by subject faculty', style: TextStyle(fontSize: 12, color: _muted)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: _border),
+            Flexible(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: _schoolService.getStudyMaterials(classId: classId),
+                builder: (ctx, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: _primary)));
+                  }
+                  final list = snapshot.data ?? [];
+                  if (list.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.folder_open_rounded, size: 48, color: _muted),
+                            SizedBox(height: 12),
+                            Text('No Course Materials Uploaded', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _ink)),
+                            SizedBox(height: 6),
+                            Text('Subject teachers have not uploaded downloadable worksheets for this class cohort yet.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: _muted)),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (ctx, i) {
+                      final item = list[i];
+                      final title = item['title']?.toString() ?? 'Study Material';
+                      final subj = item['subject']?.toString() ?? 'General';
+                      final author = item['uploaded_by']?.toString() ?? 'Faculty';
+                      final url = item['file_url']?.toString();
+
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: _surface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _border),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
+                              child: const Icon(Icons.picture_as_pdf_rounded, color: _primary, size: 22),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: _ink)),
+                                  const SizedBox(height: 3),
+                                  Text('$subj • Uploaded by $author', style: const TextStyle(fontSize: 11.5, color: _muted)),
+                                ],
+                              ),
+                            ),
+                            if (url != null && url.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.download_rounded, color: _primary),
+                                tooltip: 'Download',
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Downloading $title...'), backgroundColor: _emerald),
+                                  );
+                                },
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
+                                child: const Text('Reference Only', style: TextStyle(fontSize: 10, color: _muted)),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMyChildrenModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+          maxWidth: 620,
+        ),
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        decoration: const BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.people_alt_rounded, color: _primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('My Children Registry', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                        Text('Officially linked students under your guardianship', style: TextStyle(fontSize: 12, color: _muted)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: _border),
+            Flexible(
+              child: _children.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(
+                        child: Text('No student records currently linked.', style: TextStyle(color: _muted)),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _children.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (ctx, i) {
+                        final child = _children[i];
+                        final name = child['name']?.toString() ?? 'Student';
+                        final className = child['class_name']?.toString() ?? 'Class';
+                        final section = child['section']?.toString() ?? '';
+                        final roll = child['roll_number']?.toString() ?? child['roll_no']?.toString() ?? '--';
+                        final adm = child['admission_number']?.toString() ?? '--';
+                        final rel = child['relation']?.toString() ?? 'Child';
+                        final isSelected = i == _selectedChildIndex;
+
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: isSelected ? _primarySoft : _surface,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: isSelected ? _primary : _border, width: isSelected ? 1.5 : 1),
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor: isSelected ? _primary : const Color(0xFFF1F5F9),
+                                child: Text(
+                                  name.isNotEmpty ? name[0] : 'S',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                    color: isSelected ? Colors.white : _ink,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: _ink)),
+                                        if (isSelected) ...[
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                            decoration: BoxDecoration(color: _primary, borderRadius: BorderRadius.circular(6)),
+                                            child: const Text('ACTIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text('$className${section.isNotEmpty ? "-$section" : ""} • Roll #$roll • Adm: $adm', style: const TextStyle(fontSize: 12, color: _muted)),
+                                    const SizedBox(height: 2),
+                                    Text('Linked as: $rel', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _primary)),
+                                  ],
+                                ),
+                              ),
+                              if (!isSelected)
+                                OutlinedButton(
+                                  onPressed: () {
+                                    Navigator.pop(ctx);
+                                    _onChildChanged(i);
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: _primary,
+                                    side: const BorderSide(color: _primary),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    minimumSize: const Size(0, 36),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text('Select', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            const Divider(height: 1, color: _border),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _showLinkChildRequestDialog();
+                  },
+                  icon: const Icon(Icons.add_link_rounded, size: 18),
+                  label: const Text('+ Link Another Child'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showProfileAndSettingsModal() {
+    bool alertAbsence = true;
+    bool alertHomework = true;
+    bool alertFees = true;
+    bool alertPtm = true;
+    bool alertCirculars = true;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+            maxWidth: 620,
+          ),
+          decoration: const BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.manage_accounts_rounded, color: _primary, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Profile & Parent Settings', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                          Text('Notification preferences & account oversight', style: TextStyle(fontSize: 12, color: _muted)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: _border),
+              Flexible(
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    // Profile Header Tile
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _border),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 26,
+                            backgroundColor: _primary,
+                            child: Text(
+                              _parentName.isNotEmpty ? _parentName[0].toUpperCase() : 'P',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(_parentName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: _ink)),
+                                const SizedBox(height: 2),
+                                const Text('Shivalik International School • Parent Portal', style: TextStyle(fontSize: 12, color: _muted)),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(color: _emeraldSoft, borderRadius: BorderRadius.circular(6)),
+                                      child: const Text('VERIFIED GUARDIAN', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: _emerald)),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text('${_children.length} Students Linked', style: const TextStyle(fontSize: 11, color: _muted)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Notification Preferences Section
+                    const Text('INSTANT NOTIFICATION PREFERENCES', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+                    const SizedBox(height: 10),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: _surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _border),
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            dense: true,
+                            activeThumbColor: _primary,
+                            title: const Text('Absence & Late Arrival Alerts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
+                            subtitle: const Text('Immediate in-app and SMS alert if student is marked absent', style: TextStyle(fontSize: 11, color: _muted)),
+                            value: alertAbsence,
+                            onChanged: (v) => setSheetState(() => alertAbsence = v),
+                          ),
+                          const Divider(height: 1, color: _border),
+                          SwitchListTile(
+                            dense: true,
+                            activeThumbColor: _primary,
+                            title: const Text('Homework & Assignment Alerts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
+                            subtitle: const Text('Daily digest when subject faculty assign new homework', style: TextStyle(fontSize: 11, color: _muted)),
+                            value: alertHomework,
+                            onChanged: (v) => setSheetState(() => alertHomework = v),
+                          ),
+                          const Divider(height: 1, color: _border),
+                          SwitchListTile(
+                            dense: true,
+                            activeThumbColor: _primary,
+                            title: const Text('Fee Dues & Payment Receipts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
+                            subtitle: const Text('5th of month due date reminder and payment confirmation', style: TextStyle(fontSize: 11, color: _muted)),
+                            value: alertFees,
+                            onChanged: (v) => setSheetState(() => alertFees = v),
+                          ),
+                          const Divider(height: 1, color: _border),
+                          SwitchListTile(
+                            dense: true,
+                            activeThumbColor: _primary,
+                            title: const Text('PTM Schedule & Meeting Confirmations', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
+                            subtitle: const Text('Appointment reminders for booked parent-teacher conferences', style: TextStyle(fontSize: 11, color: _muted)),
+                            value: alertPtm,
+                            onChanged: (v) => setSheetState(() => alertPtm = v),
+                          ),
+                          const Divider(height: 1, color: _border),
+                          SwitchListTile(
+                            dense: true,
+                            activeThumbColor: _primary,
+                            title: const Text('Emergency Circulars & Weather Alerts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
+                            subtitle: const Text('Official statutory updates and campus weather holidays', style: TextStyle(fontSize: 11, color: _muted)),
+                            value: alertCirculars,
+                            onChanged: (v) => setSheetState(() => alertCirculars = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Security & Privacy Action
+                    const Text('DATA PRIVACY & CHILD SAFETY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showReportWrongLinkDialog();
+                      },
+                      icon: const Icon(Icons.shield_outlined, size: 16, color: _rose),
+                      label: const Text('Report Incorrect Child Linkage'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _rose,
+                        side: const BorderSide(color: Color(0xFFFECDD3)),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Parent notification preferences saved successfully.'),
+                            backgroundColor: _emerald,
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      child: const Text('Save Preferences', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showReportWrongLinkDialog() {
+    final noteCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Report Incorrect Student Link', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'If any student profile linked to your portal does not belong to your family, report it immediately to lock access and alert school administration.',
+              style: TextStyle(fontSize: 12.5, color: _muted),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Enter student name or roll number and explain discrepancy...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Discrepancy report filed. The administrative security desk will review this within 4 hours.'),
+                  backgroundColor: _rose,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _rose, foregroundColor: Colors.white),
+            child: const Text('Submit Report'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ──────────────────────────────────────────────
   // DRAWER
   // ──────────────────────────────────────────────
@@ -3375,16 +3946,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
                       color: _primarySoft,
-                      borderRadius: BorderRadius.circular(10),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _primary.withValues(alpha: 0.2)),
                     ),
-                    child: const Icon(Icons.family_restroom, color: _primary, size: 24),
+                    child: const Center(
+                      child: Icon(Icons.family_restroom_rounded, color: _primary, size: 22),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -3392,7 +3967,24 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(_parentName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: _ink)),
-                        const Text('Parent Portal', style: TextStyle(fontSize: 11, color: _muted)),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: _primarySoft,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${_children.length} Linked ${_children.length == 1 ? "Child" : "Children"}',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _primary),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Text('CBSE K-12', style: TextStyle(fontSize: 10, color: _muted)),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -3402,27 +3994,95 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             const Divider(height: 1, color: _border),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 children: [
-                  _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard Home', () => Navigator.pop(context)),
-                  _buildDrawerTile(Icons.how_to_reg_rounded, 'Daily Attendance', () => context.go('/school/attendance')),
-                  _buildDrawerTile(Icons.assignment_rounded, 'Homework & Tasks', () => context.go('/school/homework')),
-                  _buildDrawerTile(Icons.account_balance_wallet_rounded, 'School Fees', () => context.go('/school/fees')),
-                  _buildDrawerTile(Icons.directions_bus_rounded, 'Bus Fleet & Transport', () => context.go('/school/transport')),
-                  _buildDrawerTile(Icons.description_rounded, 'Report Cards & HPC', () => context.go('/school/report-card')),
-                  _buildDrawerTile(Icons.calendar_month_rounded, 'Timetable & Schedule', () => context.go('/school/timetable')),
-                  _buildDrawerTile(Icons.campaign_rounded, 'Official Circulars', () => context.go('/school/circulars')),
-                  _buildDrawerTile(Icons.local_library_rounded, 'School Library', () => context.go('/school/library')),
-                  _buildDrawerTile(Icons.card_membership_rounded, 'Certificates & No Dues', () => context.go('/school/certificates')),
+                  _buildDrawerSectionHeader('CORE & COMMUNICATION'),
+                  _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard Home', () => Navigator.pop(context), isActive: true),
+                  _buildDrawerTile(Icons.chat_bubble_outline_rounded, 'Messages & Teacher Inbox', () {
+                    Navigator.pop(context);
+                    _tabController.animateTo(5);
+                  }, badgeCount: 2),
+                  _buildDrawerTile(Icons.notifications_active_outlined, 'Live Safety Alerts', () {
+                    Navigator.pop(context);
+                    _tabController.animateTo(0);
+                  }),
+                  _buildDrawerTile(Icons.badge_outlined, 'My Children Registry', () {
+                    Navigator.pop(context);
+                    _showMyChildrenModal();
+                  }),
+
+                  _buildDrawerSectionHeader('DAILY OPERATIONS & ACADEMICS'),
+                  _buildDrawerTile(Icons.how_to_reg_rounded, 'Daily Attendance & Logs', () {
+                    Navigator.pop(context);
+                    context.go('/school/attendance');
+                  }),
+                  _buildDrawerTile(Icons.menu_book_rounded, 'Homework Diary', () {
+                    Navigator.pop(context);
+                    context.go('/school/homework');
+                  }),
+                  _buildDrawerTile(Icons.account_balance_wallet_outlined, 'Fees & Receipts Statement', () {
+                    Navigator.pop(context);
+                    context.go('/school/fees');
+                  }),
+                  _buildDrawerTile(Icons.bar_chart_rounded, 'My Reports & Analytics', () {
+                    Navigator.pop(context);
+                    context.go('/school/reports');
+                  }),
+                  _buildDrawerTile(Icons.handshake_outlined, 'PTM Meeting Bookings', () {
+                    Navigator.pop(context);
+                    _showBookPtmModal();
+                  }),
+                  _buildDrawerTile(Icons.report_problem_outlined, 'Parent Grievance Desk', () {
+                    Navigator.pop(context);
+                    _showFileComplaintModal();
+                  }),
+                  _buildDrawerTile(Icons.campaign_outlined, 'Official School Circulars', () {
+                    Navigator.pop(context);
+                    context.go('/school/circulars');
+                  }),
+                  _buildDrawerTile(Icons.directions_bus_outlined, 'Bus Fleet & Commute', () {
+                    Navigator.pop(context);
+                    context.go('/school/transport');
+                  }),
+                  _buildDrawerTile(Icons.description_outlined, 'CBSE Report Cards & HPC', () {
+                    Navigator.pop(context);
+                    context.go('/school/report-card');
+                  }),
+                  _buildDrawerTile(Icons.calendar_month_outlined, 'Weekly Timetable Schedule', () {
+                    Navigator.pop(context);
+                    context.go('/school/timetable');
+                  }),
+                  _buildDrawerTile(Icons.local_library_outlined, 'Campus Library Catalog', () {
+                    Navigator.pop(context);
+                    context.go('/school/library');
+                  }),
+                  _buildDrawerTile(Icons.card_membership_outlined, 'Certificates & No Dues', () {
+                    Navigator.pop(context);
+                    context.go('/school/certificates');
+                  }),
+                  _buildDrawerTile(Icons.folder_shared_outlined, 'LMS Study Materials', () {
+                    Navigator.pop(context);
+                    final child = _currentChild;
+                    _showMaterialsSheet(child?['class_id']?.toString() ?? '');
+                  }),
+
+                  _buildDrawerSectionHeader('ACCOUNT & SETTINGS'),
+                  _buildDrawerTile(Icons.settings_outlined, 'Profile & Settings', () {
+                    Navigator.pop(context);
+                    _showProfileAndSettingsModal();
+                  }),
                 ],
               ),
             ),
             const Divider(height: 1, color: _border),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: ListTile(
-                leading: const Icon(Icons.logout_rounded, color: _rose),
+                leading: const Icon(Icons.logout_rounded, color: _rose, size: 20),
                 title: const Text('Sign Out', style: TextStyle(color: _rose, fontWeight: FontWeight.w700, fontSize: 13)),
+                minLeadingWidth: 24,
+                dense: true,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 onTap: () async {
                   await _authService.logout();
                   if (mounted) context.go('/login');
@@ -3435,12 +4095,50 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     );
   }
 
-  Widget _buildDrawerTile(IconData icon, String label, VoidCallback onTap) {
+  Widget _buildDrawerSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF94A3B8),
+          letterSpacing: 0.6,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerTile(IconData icon, String label, VoidCallback onTap, {bool isActive = false, int badgeCount = 0}) {
     return ListTile(
-      leading: Icon(icon, color: _muted, size: 20),
-      title: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
+      leading: Icon(icon, color: isActive ? _primary : _muted, size: 19),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+          color: isActive ? _primary : _ink,
+        ),
+      ),
+      trailing: badgeCount > 0
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: _primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$badgeCount',
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            )
+          : null,
       onTap: onTap,
       dense: true,
+      selected: isActive,
+      selectedTileColor: _primarySoft,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
   }
@@ -3580,15 +4278,193 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   }
 
   Widget _buildLoadingState() {
-    return const Center(
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircularProgressIndicator(color: _primary),
-          SizedBox(height: 16),
-          Text(
-            'Connecting to Shivalik Student Ledger...',
-            style: TextStyle(color: _muted, fontSize: 13, fontWeight: FontWeight.w500),
+          // Switcher Bar Skeleton
+          Container(
+            height: 48,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _border),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                Container(width: 32, height: 32, decoration: const BoxDecoration(color: Color(0xFFE2E8F0), shape: BoxShape.circle)),
+                const SizedBox(width: 10),
+                Container(width: 120, height: 14, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                const Spacer(),
+                Container(width: 32, height: 32, decoration: const BoxDecoration(color: Color(0xFFF1F5F9), shape: BoxShape.circle)),
+                const SizedBox(width: 10),
+                Container(width: 100, height: 14, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                const SizedBox(width: 12),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Child Hero Badge Skeleton
+          Container(
+            height: 130,
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: _border),
+            ),
+            child: Row(
+              children: [
+                Container(width: 56, height: 56, decoration: const BoxDecoration(color: Color(0xFFE2E8F0), shape: BoxShape.circle)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(width: 160, height: 18, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 10),
+                      Container(width: 220, height: 12, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 10),
+                      Container(width: 140, height: 12, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 4 KPI Cards Grid Skeleton
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 94,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(width: 70, height: 11, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 8),
+                      Container(width: 50, height: 20, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 6),
+                      Container(width: 90, height: 10, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  height: 94,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(width: 70, height: 11, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 8),
+                      Container(width: 60, height: 20, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 6),
+                      Container(width: 90, height: 10, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 94,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(width: 80, height: 11, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 8),
+                      Container(width: 45, height: 20, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 6),
+                      Container(width: 95, height: 10, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  height: 94,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(width: 80, height: 11, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 8),
+                      Container(width: 65, height: 20, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      const SizedBox(height: 6),
+                      Container(width: 100, height: 10, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Schedule Card Skeleton
+          Container(
+            height: 180,
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(width: 180, height: 16, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                const SizedBox(height: 16),
+                Container(width: double.infinity, height: 38, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10))),
+                const SizedBox(height: 10),
+                Container(width: double.infinity, height: 38, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10))),
+                const SizedBox(height: 10),
+                Container(width: double.infinity, height: 38, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10))),
+              ],
+            ),
           ),
         ],
       ),
