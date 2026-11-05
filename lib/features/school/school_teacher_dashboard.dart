@@ -64,6 +64,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   Map<String, dynamic>? _weeklyWorkload; // N11
   String _scheduleViewMode = 'today'; // 'today' | 'weekly' (N11)
   Set<String> _attendanceMarkedClassesToday = {}; // N13
+  List<Map<String, dynamic>> _syllabusVelocity = []; // M5
+  List<Map<String, dynamic>> _pendingStudentLeaves = []; // M9
 
   @override
   void initState() {
@@ -207,9 +209,17 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             _notifications = notifs;
             _weeklyWorkload = workload;
             _attendanceMarkedClassesToday = markedClasses;
-            _isLoading = false;
-            _errorMessage = null;
+            _pendingStudentLeaves = pendingLeavesList;
           });
+
+          final velocity = await _schoolService.getTeacherSyllabusVelocity(username);
+          if (mounted) {
+            setState(() {
+              _syllabusVelocity = velocity;
+              _isLoading = false;
+              _errorMessage = null;
+            });
+          }
           _loadStudents();
         }
       }
@@ -353,6 +363,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       if (_gradingQueue.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         _buildHomeworkGradingQueueSection(),
+                      ],
+                      if (_pendingStudentLeaves.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        _buildPendingStudentLeavesQueue(),
                       ],
                       const SizedBox(height: 20),
                       _buildTeacherAnalyticsSection(),
@@ -1785,6 +1799,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             ),
           ],
         ),
+        if (_syllabusVelocity.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _buildLessonPlanVelocityCard(),
+        ],
       ],
     );
   }
@@ -2306,6 +2324,268 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               ],
             );
           }(),
+        ],
+      ),
+    );
+  }
+
+
+  // ──────────────────────────────────────────────
+  // T6.1: LESSON PLAN SYLLABUS VELOCITY CARD (M5)
+  // ──────────────────────────────────────────────
+  Widget _buildLessonPlanVelocityCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEF2FF),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.auto_stories_rounded, size: 16, color: Color(0xFF4F46E5)),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Curriculum Pacing & Syllabus Velocity',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                  ),
+                ],
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await SchoolExportService.exportLessonPlanVelocityExcel(
+                    context: context,
+                    teacherName: _teacherName,
+                    velocityList: _syllabusVelocity,
+                  );
+                },
+                icon: const Icon(Icons.file_download_outlined, size: 13),
+                label: const Text('Export Excel (T-R09)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF107C41),
+                  side: const BorderSide(color: Color(0xFFA7F3D0)),
+                  backgroundColor: const Color(0xFFECFDF5),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'CBSE curriculum coverage tracking across assigned cohorts and syllabus units.',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 12),
+          ..._syllabusVelocity.map((v) {
+            final cName = v['class_name']?.toString() ?? 'Class';
+            final total = v['total_plans'] ?? 0;
+            final taught = v['taught_count'] ?? 0;
+            final inProg = v['in_progress'] ?? 0;
+            final lagging = v['lagging_count'] ?? 0;
+            final rate = (v['completion_rate'] as num?)?.toDouble() ?? 0.0;
+            final isLagging = lagging > 0 || (rate < 60 && total > 0);
+
+            return InkWell(
+              onTap: () => context.push('/school/lesson-plans'),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('$cName (${v['role'] ?? 'Faculty'})', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A))),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isLagging ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isLagging ? 'LAGGING ALERT' : 'ON SCHEDULE',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: isLagging ? const Color(0xFFDC2626) : const Color(0xFF047857),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: (rate / 100).clamp(0.0, 1.0),
+                              backgroundColor: const Color(0xFFE2E8F0),
+                              valueColor: AlwaysStoppedAnimation<Color>(isLagging ? const Color(0xFFF59E0B) : const Color(0xFF10B981)),
+                              minHeight: 6,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text('${rate.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$taught of $total units taught • $inProg in progress${lagging > 0 ? " • $lagging need revision" : ""}',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // T6.2: PENDING STUDENT LEAVES QUEUE (M9)
+  // ──────────────────────────────────────────────
+  Widget _buildPendingStudentLeavesQueue() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEDD5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.event_busy_rounded, size: 16, color: Color(0xFFEA580C)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Student Leave Approvals Needed (${_pendingStudentLeaves.length})',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                  ),
+                ],
+              ),
+              TextButton(
+                onPressed: () => context.push('/school/leave'),
+                child: const Text('Leave Desk', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ..._pendingStudentLeaves.take(3).map((l) {
+            final sName = l['student_name']?.toString() ?? 'Student';
+            final cName = l['class_name']?.toString() ?? 'Class';
+            final reason = l['reason']?.toString() ?? 'Absence reason';
+            final from = l['start_date'] ?? l['from_date'] ?? '';
+            final to = l['end_date'] ?? l['to_date'] ?? '';
+            final lid = l['id']?.toString() ?? '';
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('$sName ($cName)', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A))),
+                        const SizedBox(height: 2),
+                        Text('$from to $to • Reason: $reason', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () async {
+                          final ok = await _schoolService.approveStudentLeave(
+                            leaveId: lid,
+                            approvedBy: _teacherName,
+                            remarks: 'Approved by Class Teacher',
+                          );
+                          if (ok && mounted) {
+                            setState(() => _pendingStudentLeaves.removeWhere((x) => x['id']?.toString() == lid));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave approved.')));
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                        child: const Text('Approve', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 6),
+                      OutlinedButton(
+                        onPressed: () async {
+                          final ok = await _schoolService.rejectStudentLeave(
+                            leaveId: lid,
+                            rejectedBy: _teacherName,
+                            remarks: 'Rejected by Class Teacher',
+                          );
+                          if (ok && mounted) {
+                            setState(() => _pendingStudentLeaves.removeWhere((x) => x['id']?.toString() == lid));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave rejected.')));
+                          }
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFEF4444),
+                          side: const BorderSide(color: Color(0xFFFECDD3)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('Reject', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

@@ -1,5 +1,5 @@
-- **Current Step in Execution Plan:** `Step T6: Modifications Polish & Parity (M5, M9, M10, M11, M13, M14)`
-- **Status:** Step T5 (New Features Suite N4 to N14) completed with 100% verification. Built and connected 11 enterprise features on the Teacher Dashboard (`/school/teacher-dashboard`): Period-wise Attendance State (N13), Substitution Duty Desk (N5), Upcoming Exam Countdown Banner (N9), Attention Needed / At-Risk Signals Card (N8), Homework Grading Queue (N12), Weekly Teaching Workload View & Analyzer (N11), Scoped Parent Messaging (N4), Faculty Leave Desk (N6), PTM Meeting Slots (N10), Student Pastoral & Behaviour Notes (N7), and Faculty Inbox & Notifications Center (N14). Verified across 8 automated live Supabase tests (`test/test_t5.dart` passed 8/8) and `dart analyze` (0 issues). Moving to Step T6 (Modifications Polish & Parity).
+- **Current Step in Execution Plan:** `Step T7: Final QA & Verification`
+- **Status:** Step T6 (Modifications Polish & Parity: M5, M9, M10, M11, M13, M14) completed with 100% verification. Added Curriculum Pacing & Lesson Plan Syllabus Velocity card (M5) with T-R09 Excel export, Pending Student Leave Approvals queue with one-click review (M9), 1:1 parity between dashboard actions and drawer tiles (M11), 4-state lifecycle review across all cards (M13), and CBSE statutory badges across all analytics (M14). Static analysis returned 0 errors across all school features and services. Moving to Step T7 (Final QA & Production Verification).
 
 ---
 
@@ -169,3 +169,14 @@
 - [x] **Drawer Parity (M11):**
   - Added direct navigation for: Message Class Parents (N4), Faculty Leave Desk (N6), PTM Meeting Slots (N10), Faculty Notifications & Inbox (N14).
 - [x] **Live Database Automated Verification:** Ran `test_t5.dart` on live Supabase — All 8 tests passed! `dart analyze` returned 0 issues.
+
+---
+
+### [COMPLETED] Step T6: Modifications Polish & Parity (M5, M9, M10, M11, M13, M14)
+- [x] **Lesson Plan Velocity Card on Dashboard (M5):** Added compact Curriculum Pacing & Syllabus Velocity card under Academics section, displaying total planned units, taught units, in-progress units, lagging count, coverage % with progress bar, pacing badge, and direct "Export Velocity Excel (T-R09)" button.
+- [x] **Pending Student Leave Approvals Queue (M9):** Added live queue card for class teachers displaying pending student leave requests with one-click "Approve" (green) and "Reject" (red) actions with reviewed feedback.
+- [x] **Quick Action Tiles Review (M10):** Verified all action tiles in Daily Operations and Academics route cleanly to their corresponding screens.
+- [x] **1:1 Dashboard to Drawer Parity (M11):** Verified all 18 dashboard sections and operations have corresponding entries in the faculty navigation drawer with exact matching nomenclature.
+- [x] **4-State Lifecycle Review (M13):** Verified all cards display graceful loading shimmers, error states with retry actions, and informative empty states without fake numbers or hardcoded fallbacks.
+- [x] **CBSE Compliance Terminology (M14):** Enforced statutory labels: CBSE Minimum 75.0% Attendance Requirement, CBSE 9-Point Grading Scale (A1 to E), and Term Assessment Cycles across all components.
+- [x] **Static Analysis Verification:** `dart analyze lib/services/ lib/features/school/` returned 0 issues.
