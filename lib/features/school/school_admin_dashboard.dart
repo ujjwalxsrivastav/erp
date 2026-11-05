@@ -32,7 +32,15 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
   int _activeTransportRoutes = 0;
   int _openParentComplaints = 0;
   int _pendingAdmissionsCount = 0;
+  int _pendingCertificatesCount = 0;
+  int _pendingTeacherLeavesCount = 0;
+  int _pendingStudentLeavesCount = 0;
   int _defaultersCount = 0;
+  Map<String, dynamic> _unifiedApprovals = {
+    'items': <Map<String, dynamic>>[],
+    'total_count': 0,
+    'counts_by_type': <String, int>{},
+  };
 
   bool _isLoading = true;
   bool _isRefreshing = false;
@@ -79,6 +87,11 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
         _schoolService.getCirculars().catchError((_) => <Map<String, dynamic>>[]),
         _schoolService.getDefaultersWithAgeing().catchError((_) => <String, dynamic>{}),
         _schoolService.getParentComplaints().catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService.getUnifiedExecutiveApprovals().catchError((_) => <String, dynamic>{
+          'items': <Map<String, dynamic>>[],
+          'total_count': 0,
+          'counts_by_type': <String, int>{},
+        }),
       ]);
 
       final stats = results[0] as Map<String, dynamic>;
@@ -87,6 +100,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
       final circulars = results[3] as List<Map<String, dynamic>>;
       final defaulters = results[4] as Map<String, dynamic>;
       final complaints = results[5] as List<Map<String, dynamic>>;
+      final approvals = results[6] as Map<String, dynamic>;
 
       // Parse admissions requiring review
       final pendingAdmissions = admissions.where((a) {
@@ -99,6 +113,8 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
         final status = (c['status']?.toString() ?? '').toLowerCase();
         return status == 'open' || status.contains('open');
       }).toList();
+
+      final countsByType = (approvals['counts_by_type'] as Map<String, dynamic>?) ?? {};
 
       if (mounted) {
         setState(() {
@@ -114,10 +130,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           _feeCollectedToday = (briefing['fee_collected'] as num?)?.toDouble() ?? 0.0;
           _feePendingDues = (briefing['fee_pending'] as num?)?.toDouble() ?? 0.0;
           _activeTransportRoutes = (briefing['active_transport_fleet'] as num?)?.toInt() ?? 0;
-          _openParentComplaints = openComplaints.isNotEmpty
-              ? openComplaints.length
-              : (briefing['open_complaints'] as num?)?.toInt() ?? 0;
-          _pendingAdmissionsCount = pendingAdmissions.length;
+          
+          _unifiedApprovals = approvals;
+          _pendingAdmissionsCount = countsByType['Admission'] ?? pendingAdmissions.length;
+          _pendingCertificatesCount = countsByType['Certificate'] ?? 0;
+          _pendingTeacherLeavesCount = countsByType['TeacherLeave'] ?? 0;
+          _pendingStudentLeavesCount = countsByType['StudentLeave'] ?? 0;
+          _openParentComplaints = countsByType['Grievance'] ?? openComplaints.length;
+          
           _defaultersCount = (defaulters['total_defaulters'] as num?)?.toInt() ??
               (stats['pending_fees_count'] as num?)?.toInt() ??
               0;
@@ -391,15 +411,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
   }
 
   // ==========================================
-  // 2. ATTENTION REQUIRED / EXECUTIVE ALERTS
+  // 2. UNIFIED EXECUTIVE APPROVALS & ATTENTION DESK (N2 + M5)
   // ==========================================
   Widget _buildAttentionRequiredStrip(BuildContext context) {
-    final hasPendingAdmissions = _pendingAdmissionsCount > 0;
-    final hasDefaulters = _defaultersCount > 0;
-    final hasComplaints = _openParentComplaints > 0;
-    final hasAttentionItems = hasPendingAdmissions || hasDefaulters || hasComplaints;
+    final totalApprovals = (_unifiedApprovals['total_count'] as int?) ?? 0;
+    final totalActionItems = totalApprovals + _defaultersCount;
+    final items = (_unifiedApprovals['items'] as List<Map<String, dynamic>>?) ?? [];
 
-    if (!hasAttentionItems) {
+    if (totalActionItems == 0) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
@@ -438,10 +457,10 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
         children: [
           Row(
             children: [
-              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 18),
+              const Icon(Icons.assignment_late_rounded, color: Color(0xFFDC2626), size: 18),
               const SizedBox(width: 8),
               const Text(
-                'Action Required • Executive Approvals Queue',
+                'Executive Approvals Desk & Action Queue',
                 style: TextStyle(
                   color: Color(0xFF991B1B),
                   fontSize: 13,
@@ -451,13 +470,13 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: const Color(0xFFDC2626),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '${_pendingAdmissionsCount + (_defaultersCount > 0 ? 1 : 0) + _openParentComplaints} Items',
+                  '$totalActionItems Pending Actions',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 11,
@@ -472,21 +491,42 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              if (hasPendingAdmissions)
+              if (_pendingAdmissionsCount > 0)
                 _buildActionChip(
                   icon: Icons.person_add_alt_1_rounded,
-                  label: '$_pendingAdmissionsCount Admissions Under Review',
+                  label: '$_pendingAdmissionsCount Admissions (KYC)',
                   actionText: 'Scrutinize',
                   onTap: () => context.go('/school/admissions'),
                 ),
-              if (hasDefaulters)
+              if (_pendingCertificatesCount > 0)
+                _buildActionChip(
+                  icon: Icons.verified_user_rounded,
+                  label: '$_pendingCertificatesCount Certificates Pending',
+                  actionText: 'Review',
+                  onTap: () => _showUnifiedApprovalsModal(context, filterType: 'Certificate'),
+                ),
+              if (_pendingTeacherLeavesCount > 0)
+                _buildActionChip(
+                  icon: Icons.event_busy_rounded,
+                  label: '$_pendingTeacherLeavesCount Faculty Leaves',
+                  actionText: 'Review',
+                  onTap: () => _showUnifiedApprovalsModal(context, filterType: 'TeacherLeave'),
+                ),
+              if (_pendingStudentLeavesCount > 0)
+                _buildActionChip(
+                  icon: Icons.time_to_leave_rounded,
+                  label: '$_pendingStudentLeavesCount Student Leaves',
+                  actionText: 'Oversight',
+                  onTap: () => _showUnifiedApprovalsModal(context, filterType: 'StudentLeave'),
+                ),
+              if (_defaultersCount > 0)
                 _buildActionChip(
                   icon: Icons.account_balance_wallet_outlined,
-                  label: '$_defaultersCount Fee Defaulters in Queue',
+                  label: '$_defaultersCount Accounts Overdue in Queue',
                   actionText: 'Inspect',
                   onTap: () => context.go('/school/fees'),
                 ),
-              if (hasComplaints)
+              if (_openParentComplaints > 0)
                 _buildActionChip(
                   icon: Icons.chat_bubble_outline_rounded,
                   label: '$_openParentComplaints Parent Grievances Open',
@@ -494,6 +534,772 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   onTap: () => _showComplaintsModal(context),
                 ),
             ],
+          ),
+          if (items.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(color: Color(0xFFFECACA), height: 1),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text(
+                  'Top Priority Items Awaiting Decision:',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF991B1B)),
+                ),
+                const Spacer(),
+                InkWell(
+                  onTap: () => _showUnifiedApprovalsModal(context),
+                  child: const Text(
+                    'Open Unified Approvals Desk →',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ...items.take(3).map((item) => _buildTopApprovalItemCard(context, item)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopApprovalItemCard(BuildContext context, Map<String, dynamic> item) {
+    final type = item['type']?.toString() ?? '';
+    final typeLabel = item['type_label']?.toString() ?? type;
+    final colorVal = item['category_color'] as int? ?? 0xFF2563EB;
+    final color = Color(colorVal);
+    final days = (item['days_pending'] as int?) ?? 0;
+    final isOverdue = days >= 3;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              typeLabel,
+              style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['title']?.toString() ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF0F172A)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  item['subtitle']?.toString() ?? '',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isOverdue ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '$days d pending',
+              style: TextStyle(
+                color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFF475569),
+                fontSize: 10,
+                fontWeight: isOverdue ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              if (type == 'TeacherLeave') {
+                _showReviewTeacherLeaveDialog(context, item);
+              } else if (type == 'Certificate') {
+                _showReviewCertificateDialog(context, item);
+              } else if (type == 'Grievance') {
+                _showResolveGrievanceDialog(context, item);
+              } else if (type == 'Admission') {
+                context.go('/school/admissions');
+              } else if (type == 'StudentLeave') {
+                context.go('/school/leave');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F172A),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: const Size(64, 26),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+            child: const Text('Review', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReviewTeacherLeaveDialog(BuildContext context, Map<String, dynamic> item) {
+    final remarksController = TextEditingController();
+    final raw = item['raw_data'] as Map<String, dynamic>? ?? {};
+    final id = item['id']?.toString() ?? '';
+    final name = raw['teacher_name']?.toString() ?? item['title']?.toString() ?? 'Faculty';
+    final type = raw['type']?.toString() ?? 'Leave';
+    final dates = '${raw['start_date']} to ${raw['end_date']}';
+    final reason = raw['reason']?.toString() ?? 'Official Faculty Leave';
+    final days = item['days_pending'] ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.event_busy_rounded, color: Color(0xFFD97706), size: 22),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Faculty Leave Application',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF92400E)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Type: $type • Period: $dates', style: const TextStyle(fontSize: 12, color: Color(0xFF78350F))),
+                    const SizedBox(height: 2),
+                    Text('Reason: $reason', style: const TextStyle(fontSize: 12, color: Color(0xFF78350F))),
+                    const SizedBox(height: 4),
+                    Text('Age in Queue: $days days pending review', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFB45309))),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text('Administrative Remarks (Mandatory for rejection):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+              const SizedBox(height: 6),
+              TextField(
+                controller: remarksController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'Enter executive decision remarks...',
+                  hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final remarks = remarksController.text.trim();
+              if (remarks.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please provide rejection remarks.'), backgroundColor: Color(0xFFDC2626)),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              final ok = await _schoolService.updateTeacherLeaveStatus(
+                circularId: id,
+                status: 'Rejected',
+                reviewedBy: _adminName,
+                remarks: remarks,
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? 'Faculty leave application rejected.' : 'Failed to update leave.'),
+                    backgroundColor: ok ? const Color(0xFFDC2626) : Colors.red,
+                  ),
+                );
+                _loadData(showRefreshing: true);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+            child: const Text('Reject Leave'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final remarks = remarksController.text.trim();
+              final ok = await _schoolService.updateTeacherLeaveStatus(
+                circularId: id,
+                status: 'Approved',
+                reviewedBy: _adminName,
+                remarks: remarks.isEmpty ? 'Approved by Principal' : remarks,
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? 'Faculty leave application approved.' : 'Failed to approve leave.'),
+                    backgroundColor: ok ? const Color(0xFF059669) : Colors.red,
+                  ),
+                );
+                _loadData(showRefreshing: true);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+            child: const Text('Approve Leave'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReviewCertificateDialog(BuildContext context, Map<String, dynamic> item) {
+    final remarksController = TextEditingController();
+    final raw = item['raw_data'] as Map<String, dynamic>? ?? {};
+    final id = item['id']?.toString() ?? '';
+    final studentName = item['title']?.toString() ?? 'Student';
+    final className = raw['class']?.toString() ?? 'Class 10-A';
+    final certType = raw['cert_type']?.toString() ?? 'Bonafide Certificate';
+    final reason = raw['reason']?.toString() ?? 'Official Request';
+    final days = item['days_pending'] ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.verified_user_rounded, color: Color(0xFF7C3AED), size: 22),
+            SizedBox(width: 8),
+            Text(
+              'Certificate Request Review',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F3FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFDDD6FE)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      studentName,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF5B21B6)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('$certType • $className', style: const TextStyle(fontSize: 12, color: Color(0xFF6D28D9))),
+                    const SizedBox(height: 2),
+                    Text('Purpose: $reason', style: const TextStyle(fontSize: 12, color: Color(0xFF6D28D9))),
+                    const SizedBox(height: 4),
+                    Text('Age in Queue: $days days pending', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF7C3AED))),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text('Remarks (Required for rejection):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+              const SizedBox(height: 6),
+              TextField(
+                controller: remarksController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'Enter certificate review remarks...',
+                  hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final remarks = remarksController.text.trim();
+              if (remarks.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please provide rejection remarks.'), backgroundColor: Color(0xFFDC2626)),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              final ok = await _schoolService.rejectCertificateRequest(
+                requestId: id,
+                remarks: remarks,
+                rejectedBy: _adminName,
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? 'Certificate request rejected.' : 'Failed to reject certificate.'),
+                    backgroundColor: ok ? const Color(0xFFDC2626) : Colors.red,
+                  ),
+                );
+                _loadData(showRefreshing: true);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+            child: const Text('Reject'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await _schoolService.issueSchoolCertificate(
+                  requestId: id,
+                  studentName: studentName,
+                  className: className,
+                  certType: certType,
+                  authorizedBy: _adminName,
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Certificate issued and digitally sealed with QR verification.'),
+                      backgroundColor: Color(0xFF059669),
+                    ),
+                  );
+                  _loadData(showRefreshing: true);
+                }
+              } catch (_) {}
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+            child: const Text('Issue Certificate'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showResolveGrievanceDialog(BuildContext context, Map<String, dynamic> item) {
+    final notesController = TextEditingController();
+    final id = item['id']?.toString() ?? '';
+    final title = item['title']?.toString() ?? 'Parent Complaint';
+    final subtitle = item['subtitle']?.toString() ?? '';
+    final days = item['days_pending'] ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFFDC2626), size: 22),
+            SizedBox(width: 8),
+            Text(
+              'Resolve Parent Grievance',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF991B1B)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D))),
+                    const SizedBox(height: 4),
+                    Text('Pending in queue: $days days', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFB91C1C))),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text('Resolution Notes (Mandatory for parent notification):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+              const SizedBox(height: 6),
+              TextField(
+                controller: notesController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Enter specific corrective actions taken and response to parent...',
+                  hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final notes = notesController.text.trim();
+              if (notes.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter resolution notes before resolving.'),
+                    backgroundColor: Color(0xFFDC2626),
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              final ok = await _schoolService.resolveParentComplaint(
+                complaintId: id,
+                resolutionNotes: notes,
+              );
+              if (ok) {
+                await _schoolService.logAuditEvent(
+                  actorUsername: _adminName,
+                  action: 'Parent Grievance Resolved',
+                  entityType: 'Grievance',
+                  entityId: id,
+                  details: notes,
+                );
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? 'Parent grievance resolved and recorded.' : 'Failed to resolve grievance.'),
+                    backgroundColor: ok ? const Color(0xFF059669) : Colors.red,
+                  ),
+                );
+                _loadData(showRefreshing: true);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+            child: const Text('Confirm Resolution'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUnifiedApprovalsModal(BuildContext context, {String? filterType}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (modalCtx, setModalState) {
+          String activeFilter = filterType ?? 'All';
+          final allItems = (_unifiedApprovals['items'] as List<Map<String, dynamic>>?) ?? [];
+          final filteredItems = activeFilter == 'All'
+              ? allItems
+              : allItems.where((i) => i['type'] == activeFilter).toList();
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.85,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.assignment_late_rounded, color: Color(0xFFDC2626), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Unified Executive Approvals Desk',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                          ),
+                          Text(
+                            '${allItems.length} Total items awaiting executive review & decision',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                // Filter chips
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  color: const Color(0xFFF8FAFC),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildFilterChip('All', allItems.length, activeFilter == 'All', () => setModalState(() => activeFilter = 'All')),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Admissions', _pendingAdmissionsCount, activeFilter == 'Admission', () => setModalState(() => activeFilter = 'Admission')),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Certificates', _pendingCertificatesCount, activeFilter == 'Certificate', () => setModalState(() => activeFilter = 'Certificate')),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Faculty Leaves', _pendingTeacherLeavesCount, activeFilter == 'TeacherLeave', () => setModalState(() => activeFilter = 'TeacherLeave')),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Student Leaves', _pendingStudentLeavesCount, activeFilter == 'StudentLeave', () => setModalState(() => activeFilter = 'StudentLeave')),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Grievances', _openParentComplaints, activeFilter == 'Grievance', () => setModalState(() => activeFilter = 'Grievance')),
+                      ],
+                    ),
+                  ),
+                ),
+                // Items List
+                Expanded(
+                  child: filteredItems.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.check_circle_outline_rounded, size: 48, color: Color(0xFF059669)),
+                                SizedBox(height: 12),
+                                Text(
+                                  'No pending items in this queue category',
+                                  style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'All student, faculty and administrative requests are nominal.',
+                                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: filteredItems.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (lCtx, idx) {
+                            final item = filteredItems[idx];
+                            return _buildQueueItemTile(context, item);
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, int count, bool isSelected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFCBD5E1)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF334155),
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF38BDF8) : const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF334155),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQueueItemTile(BuildContext context, Map<String, dynamic> item) {
+    final type = item['type']?.toString() ?? '';
+    final typeLabel = item['type_label']?.toString() ?? type;
+    final colorVal = item['category_color'] as int? ?? 0xFF2563EB;
+    final color = Color(colorVal);
+    final days = (item['days_pending'] as int?) ?? 0;
+    final isOverdue = days >= 3;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              typeLabel,
+              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['title']?.toString() ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item['subtitle']?.toString() ?? '',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: isOverdue ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '$days days pending',
+              style: TextStyle(
+                color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFF475569),
+                fontSize: 11,
+                fontWeight: isOverdue ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (type == 'TeacherLeave') {
+                _showReviewTeacherLeaveDialog(context, item);
+              } else if (type == 'Certificate') {
+                _showReviewCertificateDialog(context, item);
+              } else if (type == 'Grievance') {
+                _showResolveGrievanceDialog(context, item);
+              } else if (type == 'Admission') {
+                context.go('/school/admissions');
+              } else if (type == 'StudentLeave') {
+                context.go('/school/leave');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F172A),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Review', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -1733,21 +2539,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                         ),
                         subtitle: Text('From: $parent • Status: Open', style: const TextStyle(fontSize: 11)),
                         trailing: ElevatedButton(
-                          onPressed: () async {
+                          onPressed: () {
                             Navigator.pop(ctx);
-                            await _schoolService.resolveParentComplaint(
-                              complaintId: id,
-                              resolutionNotes: 'Reviewed & Resolved by Principal',
-                            );
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Complaint marked as resolved.'),
-                                  backgroundColor: Color(0xFF059669),
-                                ),
-                              );
-                              _loadData(showRefreshing: true);
-                            }
+                            _showResolveGrievanceDialog(context, {
+                              'id': id,
+                              'title': title,
+                              'subtitle': 'From: $parent • Status: Open',
+                              'days_pending': 0,
+                            });
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF059669),
@@ -1832,6 +2631,15 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 children: [
                   _buildDrawerItem(Icons.dashboard_rounded, 'Command Center', () => Navigator.pop(context), isActive: true),
+                  _buildDrawerItem(
+                    Icons.assignment_late_rounded,
+                    'Executive Approvals Desk',
+                    () {
+                      Navigator.pop(context);
+                      _showUnifiedApprovalsModal(context);
+                    },
+                    badgeCount: (_unifiedApprovals['total_count'] as int?) ?? 0,
+                  ),
                   _buildDrawerCategory('ACADEMICS & CURRICULUM'),
                   _buildDrawerItem(Icons.menu_book_rounded, 'Lesson Plans & 5E Studio', () => context.go('/school/lesson-plans')),
                   _buildDrawerItem(Icons.fact_check_rounded, 'Examination & Hall Tickets', () => context.go('/school/examination')),
@@ -1888,7 +2696,13 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
     );
   }
 
-  Widget _buildDrawerItem(IconData icon, String label, VoidCallback onTap, {bool isActive = false}) {
+  Widget _buildDrawerItem(
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    bool isActive = false,
+    int? badgeCount,
+  }) {
     return ListTile(
       leading: Icon(
         icon,
@@ -1903,6 +2717,19 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
+      trailing: (badgeCount != null && badgeCount > 0)
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$badgeCount',
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            )
+          : null,
       selected: isActive,
       selectedTileColor: const Color(0xFF1E293B),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

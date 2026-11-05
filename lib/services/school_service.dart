@@ -740,6 +740,234 @@ class SchoolService {
     }
   }
 
+  /// Update faculty leave status (Approve / Reject) by Admin
+  Future<bool> updateTeacherLeaveStatus({
+    required String circularId,
+    required String status,
+    required String reviewedBy,
+    String? remarks,
+  }) async {
+    try {
+      final row = await _supabase.from('school_circulars').select().eq('id', circularId).single();
+      final content = row['content']?.toString() ?? '';
+      final updatedContent = content.replaceAll(
+        RegExp(r'Status:\s*[^\|]+'),
+        'Status: $status | ReviewedBy: $reviewedBy | Remarks: ${remarks ?? ""} | ReviewedAt: ${DateTime.now().toIso8601String()}',
+      );
+      await _supabase.from('school_circulars').update({'content': updatedContent}).eq('id', circularId);
+      await logAuditEvent(
+        actorUsername: reviewedBy,
+        action: 'Faculty Leave $status',
+        entityType: 'TeacherLeave',
+        entityId: circularId,
+        details: remarks,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Basic Audit Logging hook (N4 basic)
+  Future<void> logAuditEvent({
+    required String actorUsername,
+    required String action,
+    required String entityType,
+    required String entityId,
+    String? details,
+  }) async {
+    try {
+      await _supabase.from('school_circulars').insert({
+        'institute_code': 'SHIV-SCH',
+        'title': 'AUDIT: $action ($entityType #$entityId)',
+        'content': 'AUDIT_TRAIL | Actor: $actorUsername | Action: $action | Entity: $entityType | EntityId: $entityId | Details: ${details ?? ""} | Timestamp: ${DateTime.now().toIso8601String()}',
+        'category': 'AuditLog',
+        'target_audience': 'admin',
+        'published_by': actorUsername,
+        'published_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {}
+  }
+
+  /// Fetch pending certificate requests
+  Future<List<Map<String, dynamic>>> getPendingCertificateRequests() async {
+    try {
+      final res = await _supabase
+          .from('school_certificate_requests')
+          .select()
+          .order('requested_date', ascending: false);
+      return List<Map<String, dynamic>>.from(res).where((r) {
+        final s = (r['status']?.toString() ?? '').toLowerCase();
+        return s == 'pending' || s == 'under review' || s == 'applied';
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Reject certificate request with mandatory remarks
+  Future<bool> rejectCertificateRequest({
+    required String requestId,
+    required String remarks,
+    required String rejectedBy,
+  }) async {
+    try {
+      await _supabase.from('school_certificate_requests').update({
+        'status': 'Rejected',
+        'processed_date': DateTime.now().toIso8601String().split('T')[0],
+      }).eq('id', requestId);
+      await logAuditEvent(
+        actorUsername: rejectedBy,
+        action: 'Certificate Request Rejected',
+        entityType: 'Certificate',
+        entityId: requestId,
+        details: remarks,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Unified Approvals Aggregator (N2 + M5)
+  Future<Map<String, dynamic>> getUnifiedExecutiveApprovals() async {
+    final now = DateTime.now();
+
+    int calculateDaysPending(String? dateStr) {
+      if (dateStr == null || dateStr.isEmpty) return 0;
+      try {
+        final parsed = DateTime.parse(dateStr);
+        final diff = now.difference(parsed).inDays;
+        return diff < 0 ? 0 : diff;
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    final unifiedList = <Map<String, dynamic>>[];
+
+    // 1. Admissions pending scrutiny
+    try {
+      final admissions = await getAdmissions();
+      for (final a in admissions) {
+        final s = (a['status']?.toString() ?? '').toLowerCase();
+        if (s == 'under review' || s == 'pending') {
+          final reqDate = a['created_at']?.toString().split('T')[0] ?? a['applied_date']?.toString();
+          unifiedList.add({
+            'id': a['id']?.toString() ?? '',
+            'type': 'Admission',
+            'type_label': 'New Intake',
+            'title': a['student_name']?.toString() ?? 'Admission Applicant',
+            'subtitle': 'Class: ${a['class_applied'] ?? a['class_name'] ?? 'General'} • Quota: ${a['quota'] ?? 'General'}',
+            'category_color': 0xFF2563EB,
+            'requested_date': reqDate ?? '',
+            'days_pending': calculateDaysPending(a['created_at']?.toString()),
+            'raw_data': a,
+          });
+        }
+      }
+    } catch (_) {}
+
+    // 2. Certificate requests pending
+    try {
+      final certs = await getPendingCertificateRequests();
+      for (final c in certs) {
+        final reqDate = c['requested_date']?.toString() ?? c['created_at']?.toString().split('T')[0];
+        unifiedList.add({
+          'id': c['id']?.toString() ?? '',
+          'type': 'Certificate',
+          'type_label': 'Certificate',
+          'title': c['student_name']?.toString() ?? 'Student Request',
+          'subtitle': '${c['cert_type'] ?? 'Certificate'} • ${c['class'] ?? 'Class'} (${c['reason'] ?? 'Official'})',
+          'category_color': 0xFF7C3AED,
+          'requested_date': reqDate ?? '',
+          'days_pending': calculateDaysPending(c['created_at']?.toString() ?? c['requested_date']?.toString()),
+          'raw_data': c,
+        });
+      }
+    } catch (_) {}
+
+    // 3. Faculty Leave Requests
+    try {
+      final leaves = await getTeacherLeaves('');
+      for (final l in leaves) {
+        final s = (l['status']?.toString() ?? '').toLowerCase();
+        if (s == 'pending') {
+          unifiedList.add({
+            'id': l['id']?.toString() ?? '',
+            'type': 'TeacherLeave',
+            'type_label': 'Faculty Leave',
+            'title': l['teacher_name']?.toString() ?? 'Faculty Member',
+            'subtitle': '${l['type'] ?? 'Leave'} • ${l['start_date']} to ${l['end_date']} • Reason: ${l['reason']}',
+            'category_color': 0xFFD97706,
+            'requested_date': l['created_at']?.toString().split('T')[0] ?? '',
+            'days_pending': calculateDaysPending(l['created_at']?.toString()),
+            'raw_data': l,
+          });
+        }
+      }
+    } catch (_) {}
+
+    // 4. Student Leave Requests
+    try {
+      final studentLeaves = await getLeaveRequestsForClassTeacher('');
+      for (final sl in studentLeaves) {
+        final s = (sl['status']?.toString() ?? '').toLowerCase();
+        if (s == 'pending' || s.contains('pending')) {
+          unifiedList.add({
+            'id': sl['id']?.toString() ?? '',
+            'type': 'StudentLeave',
+            'type_label': 'Student Leave',
+            'title': sl['student_name']?.toString() ?? 'Student',
+            'subtitle': '${sl['class_name'] ?? 'Class'} • ${sl['start_date']} to ${sl['end_date']} (${sl['leave_type'] ?? 'Leave'})',
+            'category_color': 0xFF059669,
+            'requested_date': sl['start_date']?.toString() ?? '',
+            'days_pending': calculateDaysPending(sl['created_at']?.toString() ?? sl['start_date']?.toString()),
+            'raw_data': sl,
+          });
+        }
+      }
+    } catch (_) {}
+
+    // 5. Parent Grievances Open
+    try {
+      final complaints = await getParentComplaints();
+      for (final g in complaints) {
+        final s = (g['status']?.toString() ?? '').toLowerCase();
+        if (s == 'open' || s.contains('open')) {
+          unifiedList.add({
+            'id': g['id']?.toString() ?? '',
+            'type': 'Grievance',
+            'type_label': 'Grievance',
+            'title': g['student_name']?.toString() ?? 'Parent Complaint',
+            'subtitle': '${g['category'] ?? 'Issue'} • ${g['complaint'] ?? ''}',
+            'category_color': 0xFFDC2626,
+            'requested_date': g['created_at']?.toString().split('T')[0] ?? '',
+            'days_pending': calculateDaysPending(g['created_at']?.toString()),
+            'raw_data': g,
+          });
+        }
+      }
+    } catch (_) {}
+
+    // Sort descending by days_pending (longest pending first)
+    unifiedList.sort((a, b) => (b['days_pending'] as int).compareTo(a['days_pending'] as int));
+
+    final countsByType = <String, int>{
+      'Admission': unifiedList.where((u) => u['type'] == 'Admission').length,
+      'Certificate': unifiedList.where((u) => u['type'] == 'Certificate').length,
+      'TeacherLeave': unifiedList.where((u) => u['type'] == 'TeacherLeave').length,
+      'StudentLeave': unifiedList.where((u) => u['type'] == 'StudentLeave').length,
+      'Grievance': unifiedList.where((u) => u['type'] == 'Grievance').length,
+    };
+
+    return {
+      'items': unifiedList,
+      'total_count': unifiedList.length,
+      'counts_by_type': countsByType,
+    };
+  }
+
   /// 12. Scoped Parent & Class Messaging (N4)
   Future<bool> sendClassAnnouncement({
     required String teacherUsername,

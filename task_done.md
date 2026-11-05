@@ -1,5 +1,5 @@
-- **Current Step in Execution Plan:** `Step ADM1: Real-Data Purge (Completed) -> Moving to Step ADM2 (Approvals Centre + Attention Strip)`
-- **Status:** Step ADM1 (Real-Data Purge: M1, M2, M3, M12 + Library Fallback) completed with 100% verification. Purged all hardcoded KPI constants (450, 68, 24, 94.8, ₹45L, ₹2.8L, 3) from dashboard and `getPrincipalMorningBriefing()`. Eradicated fake statutory assumptions (52/48 split, UK-FS-2026/8911, 45/38 RTE) in `generateUdisePlusReport()`, replacing with real calculations and honest missing-field markers. Purged fake RTE string in `admissions_screen.dart` and deleted `_defaultIssued` list in `school_library_screen.dart`. Added 4-state error screen with retry. Grep verification confirmed 0 fake constants. `dart analyze` returned 0 issues. Moving to Step ADM2 (Approvals Centre + Attention Strip).
+- **Current Step in Execution Plan:** `Step ADM2: Approvals Centre + Attention Strip (Completed) -> Moving to Step ADM3 (Analytics + Reports First Half)`
+- **Status:** Step ADM2 (Unified Approvals Centre & Attention Desk: N2 + M5) completed with 100% verification. Built unified executive approvals engine in `SchoolService` aggregating admissions under review, certificate requests, faculty leaves, student leaves, and parent grievances with exact age/SLA days. Upgraded dashboard attention strip into a comprehensive Executive Approvals Desk showing accurate total item counts, category chips with real counts, top priority decision cards with quick actions, interactive review dialogs (faculty leave with mandatory remarks on reject, certificate authorization & rejection, grievance resolution with mandatory notes), and full modal queue. Added drawer tile with live badge. Verified via live Supabase automated test `test/adm2_test.dart` (All tests passed!). `dart analyze` returned 0 issues. Moving to Step ADM3.
 
 ---
 
@@ -237,5 +237,29 @@
   - Grep audit confirmed 0 occurrences of fake fallback constants across all touched files.
   - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
 
+---
 
+### [COMPLETED] Step ADM2: Approvals Centre + Attention Strip (N2 + M5)
+- [x] **Unified Executive Approvals Backend (`lib/services/school_service.dart`):**
+  - Built `getUnifiedExecutiveApprovals()` aggregating pending items across admissions under review, certificate requests, faculty leaves, student leaves, and parent grievances.
+  - Implemented accurate age computation: calculating exact days pending per request with overdue flagging (> 3 days).
+  - Added `updateTeacherLeaveStatus({required circularId, required status, required reviewedBy, remarks})` updating leave status in `school_circulars` and logging audit events.
+  - Added `getPendingCertificateRequests()` and `rejectCertificateRequest()` with mandatory remarks.
+  - Added `logAuditEvent()` foundation for executive audit trail.
+- [x] **Executive Approvals Desk UI (`lib/features/school/school_admin_dashboard.dart`):**
+  - Completely overhauled Attention Required strip into the **Executive Approvals Desk & Action Queue**.
+  - True mathematical count: sum of all actual pending approvals across all categories plus fee defaulters (no fake counts; 40 defaulters = 40 items).
+  - Nominal banner renders only when strictly 0 actions remain.
+  - Category pill chips with live counters for Admissions, Certificates, Faculty Leaves, Student Leaves, Fee Overdue, and Grievances.
+  - Top Priority items list directly previewing pending requests with age tags (`X d pending`, red highlight if overdue) and quick "Review" triggers.
+  - Built interactive review dialogs:
+    - `_showReviewTeacherLeaveDialog`: displays full leave details and provides one-click Approve / Reject with mandatory rejection remarks.
+    - `_showReviewCertificateDialog`: displays student request and allows immediate authorization/issuance with QR seal or rejection.
+    - `_showResolveGrievanceDialog`: replaces hardcoded resolution notes with mandatory administrative resolution remarks input field.
+    - `_showUnifiedApprovalsModal`: comprehensive bottom sheet queue with category filter chips, search/status tags, and direct action triggers.
+- [x] **Drawer Parity (M11):**
+  - Added "Executive Approvals Desk" item in admin drawer with dynamic live badge counter.
+- [x] **Automated Live DB Verification:**
+  - Ran `test/adm2_test.dart` asserting live Supabase data: verified approvals aggregation, faculty leave approval round-trip, and grievance resolution with audit log. All 3 tests passed!
+  - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
 
