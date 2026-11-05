@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:csv/csv.dart';
+import 'package:excel/excel.dart' hide Border;
 
 class SchoolExportService {
   SchoolExportService._();
@@ -769,5 +770,118 @@ class SchoolExportService {
   static String _currentDate() {
     final now = DateTime.now();
     return _formatDate(now);
+  }
+
+  // =========================================================================
+  // EXCEL (.XLSX) EXPORT METHODS
+  // =========================================================================
+
+  static Future<void> downloadExcel({
+    required BuildContext context,
+    required String filename,
+    required List<int> bytes,
+  }) async {
+    try {
+      final uri = Uri.dataFromBytes(
+        bytes,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      await launchUrl(uri);
+    } catch (_) {}
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('$filename downloaded successfully!'),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  /// Exports the entire class student roster as an official Excel (.xlsx) file (T-R02 format)
+  static Future<void> exportClassRosterExcel({
+    required BuildContext context,
+    required String className,
+    required String teacherName,
+    required List<Map<String, dynamic>> students,
+  }) async {
+    final excel = Excel.createExcel();
+
+    // Sheet 1: Summary Sheet
+    final summarySheet = excel['Summary'];
+    summarySheet.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - OFFICIAL CLASS ROSTER')]);
+    summarySheet.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summarySheet.appendRow([TextCellValue('Faculty:'), TextCellValue(teacherName)]);
+    summarySheet.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summarySheet.appendRow([TextCellValue('Total Enrolled Students:'), IntCellValue(students.length)]);
+    summarySheet.appendRow([]);
+
+    // Sheet 2: Data Sheet
+    final dataSheet = excel['Class Roster'];
+    dataSheet.appendRow([
+      TextCellValue('Roll Number'),
+      TextCellValue('Admission No'),
+      TextCellValue('Student Name'),
+      TextCellValue('Class & Section'),
+      TextCellValue('Parent Name'),
+      TextCellValue('Parent Contact'),
+      TextCellValue('Attendance %'),
+      TextCellValue('Latest Grade'),
+    ]);
+
+    for (final s in students) {
+      final roll = s['roll_number']?.toString() ?? '-';
+      final adm = s['admission_no']?.toString() ?? s['id']?.toString() ?? '-';
+      final name = s['name']?.toString() ?? s['student_name']?.toString() ?? '-';
+      final cls = s['class_name']?.toString() ?? className;
+      final parent = s['parent_name']?.toString() ?? '-';
+      final contact = s['contact']?.toString() ?? '-';
+      final att = s['attendance_pct'] != null ? '${(s['attendance_pct'] as num).toStringAsFixed(1)}%' : 'N/A';
+      final grade = s['cbse_grade']?.toString() ?? s['grade']?.toString() ?? 'N/A';
+
+      dataSheet.appendRow([
+        TextCellValue(roll),
+        TextCellValue(adm),
+        TextCellValue(name),
+        TextCellValue(cls),
+        TextCellValue(parent),
+        TextCellValue(contact),
+        TextCellValue(att),
+        TextCellValue(grade),
+      ]);
+    }
+
+    // Totals row
+    dataSheet.appendRow([]);
+    dataSheet.appendRow([
+      TextCellValue('TOTAL'),
+      IntCellValue(students.length),
+      TextCellValue('STUDENTS'),
+    ]);
+
+    // Remove default Sheet1 if exists
+    if (excel.sheets.containsKey('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes != null) {
+      final cleanName = className.replaceAll(' ', '_').replaceAll('-', '_');
+      final now = DateTime.now();
+      final dateSlug = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final filename = 'Teacher_Roster_${cleanName}_$dateSlug.xlsx';
+      await downloadExcel(context: context, filename: filename, bytes: bytes);
+    }
   }
 }

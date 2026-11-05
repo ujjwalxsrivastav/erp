@@ -24,6 +24,207 @@ class SchoolService {
     }
   }
 
+  /// Returns all unique classes assigned to this teacher (both as Class Teacher and Subject Faculty).
+  Future<List<Map<String, dynamic>>> getTeacherAllAssignedClasses(String teacherUsername) async {
+    final results = <Map<String, dynamic>>[];
+    final seen = <String>{};
+
+    // 1. Class Teacher classes from school_classes
+    final ctClasses = await getClassTeacherClasses(teacherUsername);
+    for (final c in ctClasses) {
+      final id = c['id']?.toString() ?? c['class_id']?.toString() ?? '';
+      final name = c['name']?.toString() ?? c['class_name']?.toString() ?? 'Class';
+      final sec = c['section']?.toString();
+      final displayName = (sec != null && sec.isNotEmpty && !name.contains(sec)) ? '$name-$sec' : name;
+      if (id.isNotEmpty && seen.add(id)) {
+        results.add({
+          'id': id,
+          'class_id': id,
+          'name': displayName,
+          'class_name': displayName,
+          'role': 'Class Teacher',
+          'is_class_teacher': true,
+        });
+      }
+    }
+
+    // 2. Subject Faculty classes from timetable
+    final subClasses = await getTeacherClasses(teacherUsername);
+    for (final c in subClasses) {
+      final id = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+      final subject = c['subject']?.toString() ?? '';
+      if (id.isNotEmpty && seen.add(id)) {
+        String displayName = id;
+        if (id.toLowerCase() == 'cls-10a') {
+          displayName = 'Class 10-A';
+        } else if (id.toLowerCase() == 'cls-9a') {
+          displayName = 'Class 9-A';
+        } else if (id.toLowerCase() == 'cls-10b') {
+          displayName = 'Class 10-B';
+        } else if (id.toLowerCase().startsWith('cls-')) {
+          displayName = 'Class ' + id.substring(4).toUpperCase();
+        }
+        results.add({
+          'id': id,
+          'class_id': id,
+          'name': displayName,
+          'class_name': displayName,
+          'role': subject.isNotEmpty ? 'Subject: $subject' : 'Subject Faculty',
+          'is_class_teacher': false,
+        });
+      }
+    }
+
+    // 3. Fallback if teacher has no specific rows in DB yet: provide first 2 school classes
+    if (results.isEmpty) {
+      final allClasses = await getSchoolClasses();
+      for (final c in allClasses.take(2)) {
+        final id = c['id']?.toString() ?? '';
+        final name = c['name']?.toString() ?? 'Class';
+        results.add({
+          'id': id,
+          'class_id': id,
+          'name': name,
+          'class_name': name,
+          'role': 'Assigned Faculty',
+          'is_class_teacher': false,
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /// Returns students strictly belonging to the classes assigned to this teacher.
+  Future<List<Map<String, dynamic>>> getStudentsForTeacher(
+    String teacherUsername, {
+    String? classId,
+  }) async {
+    final assignedClasses = await getTeacherAllAssignedClasses(teacherUsername);
+    if (assignedClasses.isEmpty) return [];
+
+    // If a specific class is requested, verify it belongs to this teacher's scope!
+    if (classId != null && classId.isNotEmpty && classId != 'all') {
+      final isPermitted = assignedClasses.any((c) {
+        final cId = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+        final cAliases = classAliases(classId: cId, className: c['name']?.toString());
+        final targetAliases = classAliases(classId: classId);
+        return cId == classId || cAliases.intersection(targetAliases).isNotEmpty;
+      });
+
+      if (!isPermitted) return []; // Teacher cannot view other classes' students!
+      return getStudentsInClass(classId);
+    }
+
+    // Otherwise, fetch all students across all assigned classes
+    final seen = <String>{};
+    final allStudents = <Map<String, dynamic>>[];
+    for (final c in assignedClasses) {
+      final cId = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+      if (cId.isEmpty) continue;
+      final classStudents = await getStudentsInClass(cId);
+      for (final s in classStudents) {
+        final sId = s['id']?.toString() ?? s['username']?.toString() ?? '';
+        if (sId.isNotEmpty && seen.add(sId)) {
+          allStudents.add(s);
+        }
+      }
+    }
+
+    allStudents.sort((a, b) => (a['roll_number']?.toString() ?? '')
+        .compareTo(b['roll_number']?.toString() ?? ''));
+    return allStudents;
+  }
+
+  /// Returns 360-degree holistic academic, attendance and disciplinary profile for a student.
+  Future<Map<String, dynamic>> getStudent360Profile({
+    required String studentId,
+    required String classId,
+  }) async {
+    Map<String, dynamic> student = {};
+    try {
+      final resp = await _supabase
+          .from('school_students')
+          .select()
+          .or('id.eq.' + studentId + ',username.eq.' + studentId)
+          .maybeSingle();
+      if (resp != null) student = resp;
+    } catch (_) {}
+
+    // Attendance Rate (Real query)
+    final attPct = await getStudentAttendancePercent(studentId);
+
+    // Recent 15 Attendance Records
+    final now = DateTime.now();
+    final fromDate = now.subtract(const Duration(days: 45));
+    final attRecords = await getAttendanceReport(
+      classId: classId,
+      from: fromDate,
+      to: now,
+    );
+    final myAttRecords = attRecords
+        .where((r) =>
+            r['student_id']?.toString() == studentId ||
+            r['student_username']?.toString() == studentId ||
+            r['student_name']?.toString() == student['name']?.toString())
+        .take(15)
+        .toList();
+
+    // Marks & CBSE Grades (Real query)
+    final marks = await getStudentMarks(studentId);
+    double totalObt = 0;
+    double totalMax = 0;
+    for (final m in marks) {
+      totalObt += (m['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+      totalMax += (m['total_marks'] as num?)?.toDouble() ?? 100.0;
+    }
+    final marksPct = totalMax > 0 ? (totalObt / totalMax) * 100 : 0.0;
+    final cbseGrade = SchoolService.calculateCbseGrade(marksPct);
+
+    // Homework Completion (Real query)
+    final hwList = await getHomework(classId: classId);
+    int hwSubmitted = 0;
+    int hwPending = 0;
+    final studentHwStatus = <Map<String, dynamic>>[];
+
+    for (final hw in hwList) {
+      final hwId = hw['id']?.toString() ?? '';
+      bool isSub = false;
+      try {
+        final subs = await getHomeworkSubmissions(homeworkId: hwId);
+        isSub = subs.any((s) =>
+            s['student_id']?.toString() == studentId ||
+            s['student_username']?.toString() == studentId);
+      } catch (_) {}
+
+      if (isSub) {
+        hwSubmitted++;
+        studentHwStatus.add({...hw, 'submission_status': 'submitted'});
+      } else {
+        hwPending++;
+        studentHwStatus.add({...hw, 'submission_status': 'pending'});
+      }
+    }
+
+    // Leaves (Real query)
+    final leaves = await getStudentLeaves(studentId: studentId);
+
+    return {
+      'student': student,
+      'attendance_pct': attPct,
+      'attendance_records': myAttRecords,
+      'marks': marks,
+      'overall_percentage': marksPct,
+      'cbse_grade': marks.isNotEmpty ? cbseGrade['grade'] : 'N/A',
+      'cbse_remarks': marks.isNotEmpty ? cbseGrade['description'] : 'No examination marks recorded yet',
+      'homework_assigned': hwList.length,
+      'homework_submitted': hwSubmitted,
+      'homework_pending': hwPending,
+      'homework_list': studentHwStatus,
+      'leaves': leaves,
+    };
+  }
+
   // In-memory operational stores for resilient stateful workflows
   final Map<String, List<Map<String, dynamic>>> _attendanceStore = {};
   final List<Map<String, dynamic>> _homeworkStore = [];

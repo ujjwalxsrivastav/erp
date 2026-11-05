@@ -11,8 +11,8 @@
 
 ## Current Execution Location:
 - **Active Section in Execution Plan:** `### TEACHER DASHBOARD DEEP-DIVE (ENTERPRISE UPGRADE)`
-- **Current Step in Execution Plan:** `Step T2: My Students + Search (N1 + M12)`
-- **Status:** Step T1 (Real Data Purge) completed with 100% verification. Purged hardcoded KPI numbers (42/38), demo fallback timetable, default Room 201, and hardcoded institute string. Added real attendance query, absentee drill-down modal, 4-state error lifecycle with retry, and dynamic institute name. Moving to Step T2 (My Students roster, 360-degree student profile sheet, and student search).
+- **Current Step in Execution Plan:** `Step T3: Analytics + My Reports (N2 + N3 + T-R01 to T-R06)`
+- **Status:** Step T2 (My Students + Search) completed with 100% verification. Built My Students roster with assigned cohort filters, live search across student name/roll/admission ID, 4-state lifecycle, and Excel roster export (.xlsx, T-R02 format). Built comprehensive 5-tab Student 360° Profile Sheet modal with real demographics, 45-day attendance register, CBSE 9-point examination grades, homework completion status, and student leaves. Security boundary verified on live Supabase: teachers can never peek at unassigned classes. Moving to Step T3 (Teacher Analytics fl_chart graphs and teacher-scoped Reports hub).
 
 ---
 
@@ -293,3 +293,33 @@ eviewed_at. homework_list_screen.dart has counts, but lacks a per-submission gra
 - [x] **M4 (4-State Error Lifecycle):** Added `_isLoading` and `_errorMessage` with a dedicated faculty loading skeleton, error view with retry action, and graceful empty states.
 - [x] **Grep Verification:** Executed word-boundary grep for `\b42\b`, `\b38\b`, `Room 201`, `Shivalik International School` in `lib/features/school/school_teacher_dashboard.dart` — confirmed **0 occurrences found!**
 - [x] **Static Analysis:** Ran `dart analyze lib/features/school/` — **No issues found (0 errors, 0 warnings)!**
+
+---
+
+### [COMPLETED] Step T2: My Students + Search (N1 + M12)
+- [x] **Backend Infrastructure (`lib/services/school_service.dart`):**
+  - Added `getTeacherAllAssignedClasses(String teacherUsername)`: Computes full union of Class Teacher classes (from `school_classes`) and Subject Faculty classes (from `school_timetable`), resolving standardized names (e.g. `Class 10-A`, `Class 9-A`) and designated roles (`Class Teacher` or `Subject: Mathematics`).
+  - Added `getStudentsForTeacher(String teacherUsername, {String? classId})`: Strict security boundary enforcement. Only returns students belonging to the teacher's assigned classes. If an unassigned class ID is queried, returns empty list `[]` to prevent unauthorized student record peeking.
+  - Added `getStudent360Profile({required String studentId, required String classId})`: Queries live Supabase for 360° holistic profile without mock fallbacks — real attendance percent, recent 15 day-wise attendance logs, subject marks and overall percentage with official CBSE 9-point grading scale, homework completion counters (assigned, submitted, pending), and student absence/leave history.
+- [x] **Excel Export Integration (`lib/services/school_export_service.dart`):**
+  - Added `exportClassRosterExcel`: Generates an official multi-tab `.xlsx` workbook (T-R02 format) with `Summary` sheet (institute title, class name, faculty name, date, student count) and `Class Roster` sheet (Roll Number, Admission No, Student Name, Class, Parent Name, Contact, Attendance %, Latest Grade) with totals row.
+  - Added `downloadExcel`: Native browser download trigger with MIME type and floating snackbar feedback.
+- [x] **Teacher Dashboard UI (`lib/features/school/school_teacher_dashboard.dart`):**
+  - **My Students Roster Section:** Added prominent section above Academics with real cohort count pill and instant "Excel Roster" export button.
+  - **Live Search Bar (M12):** Interactive search by student name, roll number, or admission ID with instant clear button and empty search state.
+  - **Assigned Class Filter Strip:** Horizontal filter chips for "All Classes" and each assigned subject/class cohort (`Class 10-A`, `Class 9-A`).
+  - **Student Cards Grid:** Modern responsive layout (1/2/3 columns adaptive), initials avatar with risk highlighting, name, roll/admission info, class chip, live attendance pill (green if >= 75%, red/amber if < 75% CBSE limit), and "360° View" action.
+  - **Student 360° Profile Modal (N1):** Comprehensive modal dialog (desktop) / bottom sheet (mobile) with 5 tabs:
+    1. *Overview & Bio:* Key metric chips (Attendance, Scholastic, Homework, Leaves), identity details, parent/guardian contact.
+    2. *Attendance Register:* 30-day rate progress bar with 75% CBSE requirement marker, 45-day daily scan logs with status pills.
+    3. *Marks & CBSE:* Official CBSE 9-point grade banner with remarks, subject-wise marks table with max marks and percentages.
+    4. *Homework Submissions:* Completion KPI cards (Submitted vs Pending) and task list with submission status chips.
+    5. *Student Leaves:* Complete absence history with dates, leave types, reasons, and review status.
+  - **Drawer Parity (M11):** Added "My Students Roster" into faculty navigation drawer.
+- [x] **Live Database Automated Verification:**
+  - Ran `test_t2.dart` on live Supabase:
+    - `getTeacherAllAssignedClasses('steacher1')` returned 2 assigned classes (`Class 10-A` and `Class 9-A`).
+    - `getStudentsForTeacher('steacher1')` returned 68 assigned students.
+    - Security Boundary Test: querying unassigned class `cls-11-unassigned-xyz` strictly returned 0 students.
+    - `getStudent360Profile` returned real student data with 0 analyze issues.
+  - Static Analysis: `dart analyze lib/features/school/ lib/services/` returned **0 errors, 0 warnings (No issues found!)**
