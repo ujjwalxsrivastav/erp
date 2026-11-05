@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
+import '../../../services/school_export_service.dart';
 
 class HomeworkListScreen extends StatefulWidget {
   const HomeworkListScreen({super.key});
@@ -85,7 +86,14 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
   }
 
   Future<void> _loadClasses() async {
-    final classes = await _schoolService.getSchoolClasses();
+    final username = await _authService.getCurrentUsername() ?? '';
+    List<Map<String, dynamic>> classes = [];
+    if (_role == 'teacher' || _role == 'steacher') {
+      classes = await _schoolService.getTeacherAllAssignedClasses(username);
+    }
+    if (classes.isEmpty) {
+      classes = await _schoolService.getSchoolClasses();
+    }
     if (!mounted) return;
     setState(() {
       _classes = classes;
@@ -368,61 +376,328 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     );
   }
 
-  /// Teacher: real backend submission list for a homework item.
+  /// Teacher: real backend submission list with live evaluation & Excel export.
   Future<void> _showTeacherSubmissions(Map<String, dynamic> hw) async {
     final id = hw['id']?.toString();
     if (id == null) return;
-    final subs = await _schoolService.getHomeworkSubmissions(homeworkId: id);
+    List<Map<String, dynamic>> subs = await _schoolService.getHomeworkSubmissions(homeworkId: id);
     if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Submissions — ${hw['title']?.toString() ?? ''}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('${subs.length} student(s) submitted',
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 14),
-            if (subs.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(12),
-                child: Text('No submissions yet.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey)),
-              )
-            else
-              ...subs.map((s) {
-                final name = s['student_name']?.toString() ??
-                    s['student_username']?.toString() ??
-                    'Student';
-                String when = s['submitted_at']?.toString() ?? '';
-                try {
-                  final dt = DateTime.parse(when);
-                  when =
-                      '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-                } catch (_) {}
-                final note = s['note']?.toString();
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  leading: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 20),
-                  title: Text(name,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: note != null && note.isNotEmpty
-                      ? Text(note, maxLines: 1, overflow: TextOverflow.ellipsis)
-                      : null,
-                  trailing: Text(when,
-                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                );
-              }),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.82,
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Submissions: ${hw['title']?.toString() ?? 'Homework'}',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${subs.length} student(s) submitted • Class ${hw['class_grade'] ?? hw['class_name'] ?? 'Cohort'}',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: subs.isEmpty
+                        ? null
+                        : () async {
+                            final cGrade = hw['class_grade']?.toString() ?? hw['class_name']?.toString() ?? 'Class 10';
+                            final sec = hw['section']?.toString() ?? 'A';
+                            final title = hw['title']?.toString() ?? 'Homework';
+                            final subj = hw['subject']?.toString() ?? 'General';
+                            await SchoolExportService.exportHomeworkSubmissionsExcel(
+                              context: context,
+                              homeworkTitle: title,
+                              subject: subj,
+                              className: '$cGrade - $sec',
+                              teacherName: hw['teacher_name']?.toString() ?? (_username.isNotEmpty ? _username : 'Faculty'),
+                              submissions: subs,
+                            );
+                          },
+                    icon: const Icon(Icons.file_download_outlined, size: 14),
+                    label: const Text('Export Excel (T-R08)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF107C41),
+                      side: const BorderSide(color: Color(0xFFA7F3D0)),
+                      backgroundColor: const Color(0xFFECFDF5),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              if (subs.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Text('No submissions received yet for this task.',
+                        style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: subs.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final s = subs[index];
+                      final name = s['student_name']?.toString() ??
+                          s['student_username']?.toString() ??
+                          'Student';
+                      final subId = s['id']?.toString() ?? '';
+                      final status = (s['status']?.toString() ?? 'submitted').toLowerCase();
+                      final feedback = s['teacher_feedback']?.toString() ?? '';
+                      final note = s['note']?.toString();
+
+                      String when = s['submitted_at']?.toString() ?? '';
+                      try {
+                        final dt = DateTime.parse(when);
+                        when = '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                      } catch (_) {}
+
+                      final isGraded = status == 'graded' || status == 'evaluated';
+                      final isResubmit = status == 'resubmit';
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: isGraded
+                                  ? const Color(0xFFECFDF5)
+                                  : isResubmit
+                                      ? const Color(0xFFFEF3C7)
+                                      : const Color(0xFFEFF6FF),
+                              child: Icon(
+                                isGraded
+                                    ? Icons.check_circle_rounded
+                                    : isResubmit
+                                        ? Icons.refresh_rounded
+                                        : Icons.assignment_turned_in_rounded,
+                                size: 18,
+                                color: isGraded
+                                    ? const Color(0xFF10B981)
+                                    : isResubmit
+                                        ? const Color(0xFFD97706)
+                                        : const Color(0xFF2563EB),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: isGraded
+                                              ? const Color(0xFFECFDF5)
+                                              : isResubmit
+                                                  ? const Color(0xFFFEF3C7)
+                                                  : const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          isGraded
+                                              ? 'GRADED'
+                                              : isResubmit
+                                                  ? 'NEEDS REVISION'
+                                                  : 'PENDING EVALUATION',
+                                          style: TextStyle(
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: isGraded
+                                                ? const Color(0xFF047857)
+                                                : isResubmit
+                                                    ? const Color(0xFFB45309)
+                                                    : const Color(0xFF475569),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (note != null && note.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text('Note: $note', style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569))),
+                                  ],
+                                  if (feedback.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text('Feedback: $feedback', style: const TextStyle(fontSize: 11.5, color: Color(0xFF0F766E), fontWeight: FontWeight.w600)),
+                                  ],
+                                  const SizedBox(height: 2),
+                                  Text(when, style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
+                                ],
+                              ),
+                            ),
+                            OutlinedButton(
+                              onPressed: () => _openGradingDialog(
+                                context: context,
+                                submissionId: subId,
+                                currentStatus: status,
+                                currentFeedback: feedback,
+                                studentName: name,
+                                onSaved: (newStatus, newFeedback) {
+                                  setModalState(() {
+                                    s['status'] = newStatus;
+                                    s['teacher_feedback'] = newFeedback;
+                                  });
+                                },
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF2563EB),
+                                side: const BorderSide(color: Color(0xFFBFDBFE)),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              child: Text(
+                                isGraded ? 'Edit Grade' : 'Grade',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openGradingDialog({
+    required BuildContext context,
+    required String submissionId,
+    required String currentStatus,
+    required String currentFeedback,
+    required String studentName,
+    required void Function(String status, String feedback) onSaved,
+  }) {
+    String selectedStatus = currentStatus == 'resubmit' ? 'resubmit' : 'graded';
+    final feedbackController = TextEditingController(text: currentFeedback);
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Grade Submission • $studentName', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Evaluation Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              const SizedBox(height: 6),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'graded', label: Text('Accept / Graded', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(value: 'resubmit', label: Text('Needs Revision', style: TextStyle(fontSize: 11))),
+                ],
+                selected: {selectedStatus},
+                onSelectionChanged: (val) {
+                  setDlgState(() => selectedStatus = val.first);
+                },
+              ),
+              const SizedBox(height: 14),
+              const Text('Teacher Feedback / Remarks', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              const SizedBox(height: 6),
+              TextField(
+                controller: feedbackController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Well researched, keep it up or please revise question 4.',
+                  hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.all(10),
+                ),
+                style: const TextStyle(fontSize: 12.5),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dlgCtx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      setDlgState(() => isSaving = true);
+                      final ok = await _schoolService.gradeHomeworkSubmission(
+                        submissionId: submissionId,
+                        status: selectedStatus,
+                        feedback: feedbackController.text.trim(),
+                      );
+                      if (context.mounted) {
+                        Navigator.pop(dlgCtx);
+                        if (ok) {
+                          onSaved(selectedStatus, feedbackController.text.trim());
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Submission graded successfully.')),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Failed to save grade.')),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+              ),
+              child: isSaving
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Save Grade'),
+            ),
           ],
         ),
       ),

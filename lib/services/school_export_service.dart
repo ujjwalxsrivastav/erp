@@ -495,13 +495,14 @@ class SchoolExportService {
   // 4. COMMON EXPORT DIALOG / MODAL (PDF / CSV / CLIPBOARD)
   // =========================================================================
 
-  /// Shows a clean, modern export chooser modal with options for PDF and CSV
+  /// Shows a clean, modern export chooser modal with options for PDF, CSV, and Excel
   static void showExportOptionsModal({
     required BuildContext context,
     required String title,
     required String subtitle,
     required Future<void> Function() onExportPdf,
     required Future<void> Function() onExportCsv,
+    Future<void> Function()? onExportExcel,
   }) {
     showModalBottomSheet(
       context: context,
@@ -583,6 +584,22 @@ class SchoolExportService {
                   onExportCsv();
                 },
               ),
+              if (onExportExcel != null) ...[
+                const SizedBox(height: 12),
+                // Option 3: Excel Workbook (.xlsx)
+                _buildExportActionTile(
+                  icon: Icons.grid_on_rounded,
+                  iconColor: const Color(0xFF107C41),
+                  iconBg: const Color(0xFFE6F4EA),
+                  title: 'Microsoft Excel (.xlsx)',
+                  subtitle: 'Multi-sheet styled workbook with headers, formulas & summary cards',
+                  badgeText: 'XLSX / EXCEL',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onExportExcel();
+                  },
+                ),
+              ],
               const SizedBox(height: 24),
             ],
           ),
@@ -1169,6 +1186,214 @@ class SchoolExportService {
       final now = DateTime.now();
       final dateSlug = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
       final filename = 'Teacher_Subject_Averages_$dateSlug.xlsx';
+      await downloadExcel(context: context, filename: filename, bytes: bytes);
+    }
+  }
+
+  /// T-R08: Exports Homework Submissions & Grading Register as an official Excel (.xlsx) workbook
+  static Future<void> exportHomeworkSubmissionsExcel({
+    required BuildContext context,
+    required String homeworkTitle,
+    required String subject,
+    required String className,
+    required String teacherName,
+    required List<Map<String, dynamic>> submissions,
+    List<Map<String, dynamic>> allEnrolledStudents = const [],
+  }) async {
+    final excel = Excel.createExcel();
+
+    // Sheet 1: Summary
+    final summarySheet = excel['Summary'];
+    summarySheet.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - HOMEWORK SUBMISSION AUDIT')]);
+    summarySheet.appendRow([TextCellValue('Homework Task:'), TextCellValue(homeworkTitle)]);
+    summarySheet.appendRow([TextCellValue('Subject:'), TextCellValue(subject)]);
+    summarySheet.appendRow([TextCellValue('Class Cohort:'), TextCellValue(className)]);
+    summarySheet.appendRow([TextCellValue('Faculty:'), TextCellValue(teacherName)]);
+    summarySheet.appendRow([TextCellValue('Audit Date:'), TextCellValue(_currentDate())]);
+    summarySheet.appendRow([TextCellValue('Total Submissions Received:'), IntCellValue(submissions.length)]);
+    summarySheet.appendRow([TextCellValue('Total Enrolled Students:'), IntCellValue(allEnrolledStudents.length)]);
+    summarySheet.appendRow([]);
+
+    // Sheet 2: Data
+    final dataSheet = excel['Submissions Register'];
+    dataSheet.appendRow([
+      TextCellValue('Roll Number'),
+      TextCellValue('Student Name'),
+      TextCellValue('Submission Status'),
+      TextCellValue('Submitted Date/Time'),
+      TextCellValue('Student Note'),
+      TextCellValue('Teacher Feedback'),
+      TextCellValue('Reviewed Date'),
+    ]);
+
+    final subMap = <String, Map<String, dynamic>>{};
+    for (final s in submissions) {
+      final key = (s['student_id'] ?? s['student_username'] ?? s['id'] ?? '').toString();
+      if (key.isNotEmpty) subMap[key] = s;
+    }
+
+    final targetList = allEnrolledStudents.isNotEmpty ? allEnrolledStudents : submissions;
+
+    for (final std in targetList) {
+      final sId = (std['id'] ?? std['username'] ?? '').toString();
+      final name = (std['name'] ?? std['student_name'] ?? 'Student').toString();
+      final roll = (std['roll_number'] ?? std['roll_no'] ?? '-').toString();
+      final sub = subMap[sId];
+
+      final status = sub != null ? (sub['status']?.toString().toUpperCase() ?? 'SUBMITTED') : 'MISSING';
+      final when = sub?['submitted_at']?.toString() ?? '-';
+      final note = sub?['note']?.toString() ?? '-';
+      final feedback = sub?['teacher_feedback']?.toString() ?? '-';
+      final reviewed = sub?['reviewed_at']?.toString() ?? '-';
+
+      dataSheet.appendRow([
+        TextCellValue(roll),
+        TextCellValue(name),
+        TextCellValue(status),
+        TextCellValue(when),
+        TextCellValue(note),
+        TextCellValue(feedback),
+        TextCellValue(reviewed),
+      ]);
+    }
+
+    dataSheet.appendRow([]);
+    dataSheet.appendRow([
+      TextCellValue('TOTAL ENROLLED'),
+      IntCellValue(allEnrolledStudents.length),
+      TextCellValue('SUBMITTED: ${submissions.length}'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes != null) {
+      final cleanTask = homeworkTitle.replaceAll(' ', '_').replaceAll('-', '_');
+      final now = DateTime.now();
+      final dateSlug = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final filename = 'Teacher_Homework_${cleanTask}_$dateSlug.xlsx';
+      await downloadExcel(context: context, filename: filename, bytes: bytes);
+    }
+  }
+
+  /// T-R09: Exports Lesson Plan Syllabus Velocity as an official Excel (.xlsx) workbook
+  static Future<void> exportLessonPlanVelocityExcel({
+    required BuildContext context,
+    required String teacherName,
+    required List<Map<String, dynamic>> velocityList,
+  }) async {
+    final excel = Excel.createExcel();
+
+    // Sheet 1: Summary
+    final summarySheet = excel['Summary'];
+    summarySheet.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - LESSON PLAN SYLLABUS VELOCITY')]);
+    summarySheet.appendRow([TextCellValue('Faculty:'), TextCellValue(teacherName)]);
+    summarySheet.appendRow([TextCellValue('Audit Date:'), TextCellValue(_currentDate())]);
+    summarySheet.appendRow([TextCellValue('Total Cohorts Tracked:'), IntCellValue(velocityList.length)]);
+    summarySheet.appendRow([]);
+
+    // Sheet 2: Data
+    final dataSheet = excel['Syllabus Pacing'];
+    dataSheet.appendRow([
+      TextCellValue('Class Cohort'),
+      TextCellValue('Assigned Role'),
+      TextCellValue('Total Planned Units'),
+      TextCellValue('Completed / Taught'),
+      TextCellValue('In Progress Units'),
+      TextCellValue('Lagging / Review Topics'),
+      TextCellValue('Curriculum Coverage (%)'),
+      TextCellValue('Pacing Status'),
+    ]);
+
+    for (final v in velocityList) {
+      final cName = v['class_name']?.toString() ?? 'Class';
+      final role = v['role']?.toString() ?? 'Faculty';
+      final total = (v['total_plans'] as num?)?.toInt() ?? 0;
+      final taught = (v['taught_count'] as num?)?.toInt() ?? 0;
+      final inProg = (v['in_progress'] as num?)?.toInt() ?? 0;
+      final lagging = (v['lagging_count'] as num?)?.toInt() ?? 0;
+      final rate = (v['completion_rate'] as num?)?.toDouble() ?? 0.0;
+      final status = rate >= 70 ? 'ON SCHEDULE' : (lagging > 0 ? 'LAGGING ALERT' : 'IN PROGRESS');
+
+      dataSheet.appendRow([
+        TextCellValue(cName),
+        TextCellValue(role),
+        IntCellValue(total),
+        IntCellValue(taught),
+        IntCellValue(inProg),
+        IntCellValue(lagging),
+        TextCellValue('${rate.toStringAsFixed(1)}%'),
+        TextCellValue(status),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes != null) {
+      final now = DateTime.now();
+      final dateSlug = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final filename = 'Teacher_Syllabus_Velocity_$dateSlug.xlsx';
+      await downloadExcel(context: context, filename: filename, bytes: bytes);
+    }
+  }
+
+  /// T-R12: Exports Weekly Teaching Workload as an official Excel (.xlsx) workbook
+  static Future<void> exportWeeklyWorkloadExcel({
+    required BuildContext context,
+    required String teacherName,
+    required Map<String, dynamic> workload,
+  }) async {
+    final excel = Excel.createExcel();
+
+    // Sheet 1: Summary
+    final summarySheet = excel['Summary'];
+    summarySheet.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - WEEKLY FACULTY WORKLOAD')]);
+    summarySheet.appendRow([TextCellValue('Faculty Name:'), TextCellValue(teacherName)]);
+    summarySheet.appendRow([TextCellValue('Audit Date:'), TextCellValue(_currentDate())]);
+    summarySheet.appendRow([TextCellValue('Total Weekly Lectures:'), IntCellValue((workload['total_lectures'] as num?)?.toInt() ?? 0)]);
+    summarySheet.appendRow([TextCellValue('Weekly Periods Capacity:'), IntCellValue(48)]);
+    summarySheet.appendRow([TextCellValue('Free Periods Total:'), IntCellValue((workload['free_periods_total'] as num?)?.toInt() ?? 0)]);
+    summarySheet.appendRow([TextCellValue('Utilization Rate:'), TextCellValue('${((workload['utilization_rate'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(1)}%')]);
+    summarySheet.appendRow([]);
+
+    // Sheet 2: Data
+    final dataSheet = excel['Day-Wise Load'];
+    dataSheet.appendRow([
+      TextCellValue('Day of Week'),
+      TextCellValue('Scheduled Lectures'),
+      TextCellValue('Free Periods (of 8)'),
+      TextCellValue('Load Status'),
+    ]);
+
+    final days = (workload['days'] as List?) ?? [];
+    for (final d in days) {
+      final dayName = d['day']?.toString() ?? '-';
+      final lecs = (d['lectures'] as num?)?.toInt() ?? 0;
+      final free = (d['free_periods'] as num?)?.toInt() ?? 0;
+      final isOver = (d['is_overloaded'] as bool?) ?? false;
+
+      dataSheet.appendRow([
+        TextCellValue(dayName),
+        IntCellValue(lecs),
+        IntCellValue(free),
+        TextCellValue(isOver ? 'HEAVY LOAD (>7)' : 'BALANCED'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes != null) {
+      final now = DateTime.now();
+      final dateSlug = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final filename = 'Teacher_Weekly_Workload_$dateSlug.xlsx';
       await downloadExcel(context: context, filename: filename, bytes: bytes);
     }
   }

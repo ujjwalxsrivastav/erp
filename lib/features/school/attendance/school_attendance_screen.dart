@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../../services/school_export_service.dart';
 
 class SchoolAttendanceScreen extends StatefulWidget {
@@ -136,14 +137,14 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
     try {
       final List<Map<String, dynamic>> classes;
       if (_isTeacher && !_isAdmin) {
-        classes = await _schoolService.getClassTeacherClasses(_username ?? '');
+        classes = await _schoolService.getTeacherAllAssignedClasses(_username ?? '');
         if (classes.isEmpty) {
           if (!mounted) return;
           setState(() {
             _classes = [];
             _selectedClass = null;
             _loadingClasses = false;
-            _classesError = 'No class is assigned to you as Class Teacher.';
+            _classesError = 'No classes are assigned to you.';
           });
           return;
         }
@@ -1257,6 +1258,171 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           ),
           const SizedBox(height: 16),
 
+          if (sortedDates.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.show_chart_rounded, size: 16, color: Color(0xFF2563EB)),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Monthly Attendance Trajectory',
+                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                          ),
+                        ],
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _showExportModal,
+                        icon: const Icon(Icons.file_download_outlined, size: 13),
+                        label: const Text('Export Excel (T-R01)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF107C41),
+                          side: const BorderSide(color: Color(0xFFA7F3D0)),
+                          backgroundColor: const Color(0xFFECFDF5),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Daily attendance percentage against CBSE 75.0% statutory threshold.',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 180,
+                    child: LineChart(
+                      LineChartData(
+                        minX: 0,
+                        maxX: (sortedDates.length - 1).toDouble().clamp(1.0, 31.0),
+                        minY: 0,
+                        maxY: 100,
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          horizontalInterval: 25,
+                          getDrawingHorizontalLine: (val) => const FlLine(
+                            color: Color(0xFFF1F5F9),
+                            strokeWidth: 1,
+                          ),
+                        ),
+                        titlesData: FlTitlesData(
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 32,
+                              interval: 25,
+                              getTitlesWidget: (val, meta) => Text(
+                                '${val.toInt()}%',
+                                style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8)),
+                              ),
+                            ),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 22,
+                              interval: (sortedDates.length / 5).ceilToDouble().clamp(1.0, 10.0),
+                              getTitlesWidget: (val, meta) {
+                                final idx = val.toInt();
+                                if (idx < 0 || idx >= sortedDates.length) return const SizedBox.shrink();
+                                final parts = sortedDates[idx].split('-');
+                                return Text(
+                                  parts.length >= 3 ? '${parts[1]}/${parts[2]}' : '',
+                                  style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8)),
+                                );
+                              },
+                            ),
+                          ),
+                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        extraLinesData: ExtraLinesData(
+                          horizontalLines: [
+                            HorizontalLine(
+                              y: 75,
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.7),
+                              strokeWidth: 1.5,
+                              dashArray: [4, 4],
+                              label: HorizontalLineLabel(
+                                show: true,
+                                alignment: Alignment.topRight,
+                                padding: const EdgeInsets.only(right: 6, bottom: 2),
+                                style: const TextStyle(
+                                  color: Color(0xFFEF4444),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                labelResolver: (_) => '75% CBSE Limit',
+                              ),
+                            ),
+                          ],
+                        ),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: [
+                              for (int i = 0; i < sortedDates.length; i++) ...[
+                                () {
+                                  final d = sortedDates[i];
+                                  final data = _monthlySummary[d]!;
+                                  final pres = data['present'] as int? ?? 0;
+                                  final tot = data['total'] as int? ?? 0;
+                                  final rate = tot == 0 ? 0.0 : (pres / tot) * 100;
+                                  return FlSpot(i.toDouble(), rate);
+                                }(),
+                              ],
+                            ],
+                            isCurved: true,
+                            curveSmoothness: 0.25,
+                            color: const Color(0xFF2563EB),
+                            barWidth: 2.5,
+                            isStrokeCapRound: true,
+                            dotData: FlDotData(
+                              show: true,
+                              getDotPainter: (spot, percent, bar, index) {
+                                final isLow = spot.y < 75.0;
+                                return FlDotCirclePainter(
+                                  radius: 3,
+                                  color: isLow ? const Color(0xFFEF4444) : const Color(0xFF2563EB),
+                                  strokeWidth: 1.5,
+                                  strokeColor: Colors.white,
+                                );
+                              },
+                            ),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: const Color(0xFF2563EB).withValues(alpha: 0.08),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           // Day-by-Day Register Table
           const Text(
             'Daily Register Breakdown',
@@ -2058,6 +2224,22 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         overallPct: overallPct,
         attendanceRows: rows,
       ),
+      onExportExcel: () async {
+        final trendRows = rows.map((r) => {
+          'date': r['date'],
+          'day': '',
+          'present': r['present'],
+          'total': r['total'],
+          'percent': r['rate'],
+          'is_marked': (r['total'] as int? ?? 0) > 0,
+        }).toList();
+        await SchoolExportService.exportAttendanceTrendExcel(
+          context: context,
+          className: className,
+          teacherName: _myName.isNotEmpty ? _myName : (_username ?? 'Faculty'),
+          trendRows: trendRows,
+        );
+      },
     );
   }
 

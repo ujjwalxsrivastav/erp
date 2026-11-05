@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
+import '../../../services/school_export_service.dart';
 
 class MarksEntryScreen extends StatefulWidget {
   const MarksEntryScreen({super.key});
@@ -85,7 +86,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     // Load classes: if teacher, prefer their assigned classes
     List<Map<String, dynamic>> classes = [];
     if (role == 'teacher' || role == 'steacher') {
-      classes = await _schoolService.getClassTeacherClasses(username);
+      classes = await _schoolService.getTeacherAllAssignedClasses(username);
     }
     if (classes.isEmpty) {
       classes = await _schoolService.getSchoolClasses();
@@ -819,6 +820,51 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: Color(0xFF64748B)),
           ),
           const Spacer(),
+          OutlinedButton.icon(
+            onPressed: _students.isEmpty
+                ? null
+                : () {
+                    final studentRows = <Map<String, dynamic>>[];
+                    for (int i = 0; i < _students.length; i++) {
+                      final s = _students[i];
+                      final sid = s['id']?.toString() ?? '';
+                      final obtStr = _marksControllers[sid]?.text.trim() ?? '';
+                      final obt = double.tryParse(obtStr) ?? 0.0;
+                      final pct = _maxMarks > 0 ? (obt / _maxMarks) * 100 : 0.0;
+                      final grade = SchoolService.calculateCbseGrade(pct)['grade'];
+                      final remark = _remarksControllers[sid]?.text.trim();
+
+                      studentRows.add({
+                        'rank': i + 1,
+                        'roll_number': s['roll_number'] ?? '-',
+                        'name': s['name'] ?? 'Student',
+                        'marks_obtained': obt,
+                        'total_marks': _maxMarks,
+                        'percentage': pct,
+                        'grade': grade,
+                        'remarks': remark ?? '',
+                      });
+                    }
+
+                    final cName = _selectedClass?['name']?.toString() ?? 'Class';
+                    SchoolExportService.exportGradebookExcel(
+                      context: context,
+                      className: cName,
+                      examType: _selectedExam,
+                      teacherName: 'Faculty',
+                      students: studentRows,
+                      classAverage: _computedClassAverage > 0 && _maxMarks > 0 ? (_computedClassAverage / _maxMarks) * 100 : 0.0,
+                    );
+                  },
+            icon: const Icon(Icons.file_download_outlined, size: 14),
+            label: const Text('Export Excel', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF0F172A),
+              side: const BorderSide(color: Color(0xFFCBD5E1)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            ),
+          ),
+          const SizedBox(width: 8),
           TextButton.icon(
             onPressed: _autoFillPassingMarks,
             icon: const Icon(Icons.bolt_rounded, size: 14),

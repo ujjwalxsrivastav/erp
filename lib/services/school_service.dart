@@ -429,6 +429,89 @@ class SchoolService {
     };
   }
 
+  /// 5. Grade / Review student homework submission (M8 + N12)
+  Future<bool> gradeHomeworkSubmission({
+    required String submissionId,
+    required String status,
+    String? feedback,
+  }) async {
+    try {
+      await _supabase.from('school_homework_submissions').update({
+        'status': status,
+        if (feedback != null && feedback.trim().isNotEmpty) 'teacher_feedback': feedback.trim(),
+        'reviewed_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', submissionId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 6. Weekly teaching workload calculation across all days (T-R12)
+  Future<Map<String, dynamic>> getTeacherWeeklyWorkload(String teacherUsername) async {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    final dayLoads = <Map<String, dynamic>>[];
+    int totalLectures = 0;
+
+    for (final day in days) {
+      final timetable = await getTeacherTimetable(teacherUsername, day: day);
+      final lectureCount = timetable.length;
+      totalLectures += lectureCount;
+      final freePeriods = (8 - lectureCount).clamp(0, 8);
+
+      dayLoads.add({
+        'day': day,
+        'short_day': day.substring(0, 3),
+        'lectures': lectureCount,
+        'free_periods': freePeriods,
+        'periods': timetable,
+        'is_overloaded': lectureCount >= 7,
+      });
+    }
+
+    return {
+      'days': dayLoads,
+      'total_lectures': totalLectures,
+      'weekly_capacity': 48, // 8 periods * 6 days
+      'free_periods_total': 48 - totalLectures,
+      'utilization_rate': (totalLectures / 48) * 100,
+    };
+  }
+
+  /// 7. Syllabus pacing velocity for teacher's subjects (T-R09)
+  Future<List<Map<String, dynamic>>> getTeacherSyllabusVelocity(String teacherUsername) async {
+    final assigned = await getTeacherAllAssignedClasses(teacherUsername);
+    if (assigned.isEmpty) return [];
+
+    final result = <Map<String, dynamic>>[];
+    for (final c in assigned) {
+      final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+      if (cid.isEmpty) continue;
+
+      final plans = await getEnterpriseLessonPlans(classId: cid);
+      final total = plans.length;
+      final taught = plans.where((p) => p['status'] == 'Taught').length;
+      final inProgress = plans.where((p) => p['status'] == 'In Progress' || p['status'] == 'Approved').length;
+      final lagging = plans.where((p) => (p['is_lagging'] as bool?) == true || p['status'] == 'Needs Revision').length;
+      final rate = total > 0 ? (taught / total) * 100 : 0.0;
+
+      result.add({
+        'class_id': cid,
+        'class_name': c['name'] ?? 'Class',
+        'role': c['role'] ?? 'Faculty',
+        'total_plans': total,
+        'taught_count': taught,
+        'in_progress': inProgress,
+        'lagging_count': lagging,
+        'completion_rate': rate,
+        'plans': plans,
+      });
+    }
+
+    return result;
+  }
+
   // In-memory operational stores for resilient stateful workflows
   final Map<String, List<Map<String, dynamic>>> _attendanceStore = {};
   final List<Map<String, dynamic>> _homeworkStore = [];
