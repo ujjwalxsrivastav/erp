@@ -112,8 +112,26 @@ import '../features/school/certificates/school_certificates_screen.dart';
 import '../features/school/promotion/school_promotion_screen.dart';
 import '../features/school/examination/school_examination_screen.dart';
 import '../features/school/academics/school_lesson_plan_screen.dart';
+import '../services/auth_service.dart';
 
 final router = GoRouter(
+  redirect: (context, state) async {
+    final path = state.uri.path;
+    if (path == '/school/admin-dashboard') {
+      final authService = AuthService();
+      final isLoggedIn = await authService.isLoggedIn();
+      if (!isLoggedIn) return '/login';
+      final role = await authService.getCurrentUserRole();
+      final instType = await authService.getCurrentInstituteType();
+      if (instType != 'school' || (role != 'admin' && role != 'sadmin')) {
+        if (role == 'teacher') return '/school/teacher-dashboard';
+        if (role == 'student') return '/school/student-dashboard';
+        if (role == 'parent') return '/school/parent-dashboard';
+        return '/login';
+      }
+    }
+    return null;
+  },
   routes: [
     // ===== COMMON =====
     GoRoute(path: '/', builder: (context, state) => const SplashScreen()),

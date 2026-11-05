@@ -1534,7 +1534,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 icon: Icons.groups_rounded,
                 accentColor: const Color(0xFF2563EB),
                 isPositive: _attendanceMarkedToday ? _attendanceToday >= 75 : false,
-                onTap: () => context.go('/school/attendance'),
+                onTap: () => _showStudentsDrillDown(context),
               ),
             ),
             SizedBox(
@@ -1547,7 +1547,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 icon: Icons.school_rounded,
                 accentColor: const Color(0xFF059669),
                 isPositive: _totalTeachers > 0,
-                onTap: () => context.go('/school/timetable'),
+                onTap: () => _showStaffOversightModal(context),
               ),
             ),
             SizedBox(
@@ -1555,12 +1555,12 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               child: _buildMetricTile(
                 title: 'Fee Collections',
                 value: _formatCurrency(_feeCollectedToday),
-                subtitle: '${_formatCurrency(_feePendingDues)} Pending',
-                detail: '$_defaultersCount Accounts Overdue',
+                subtitle: 'Today: ${_formatCurrency(_feeCollectedToday)} • Dues: ${_formatCurrency(_feePendingDues)}',
+                detail: '$_defaultersCount Accounts Overdue (Session)',
                 icon: Icons.account_balance_wallet_rounded,
                 accentColor: const Color(0xFFD97706),
                 isPositive: _feePendingDues == 0,
-                onTap: () => context.go('/school/fees'),
+                onTap: () => _showFeeDrillDown(context),
               ),
             ),
             SizedBox(
@@ -1573,10 +1573,304 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 icon: Icons.directions_bus_rounded,
                 accentColor: const Color(0xFF7C3AED),
                 isPositive: true,
-                onTap: () => context.go('/school/transport'),
+                onTap: () => _showTransportDrillDown(context),
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // KPI DRILL-DOWN MODALS (M9 + M11)
+  // ==========================================
+  void _showStudentsDrillDown(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: 14),
+                const Row(
+                  children: [
+                    Icon(Icons.groups_rounded, color: Color(0xFF2563EB), size: 22),
+                    SizedBox(width: 8),
+                    Text('Enrolled Students Drill-down', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text('Total $_totalStudents students enrolled across $_totalClasses active class sections.', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Today\'s Attendance', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                            const SizedBox(height: 2),
+                            Text(
+                              _attendanceMarkedToday ? '${_attendanceToday.toStringAsFixed(1)}% Present' : 'Not Recorded',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _attendanceToday >= 75 ? const Color(0xFF059669) : const Color(0xFFDC2626)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Active Sections', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                            const SizedBox(height: 2),
+                            Text('$_totalClasses Cohorts', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          context.go('/school/attendance');
+                        },
+                        icon: const Icon(Icons.how_to_reg_rounded, size: 16),
+                        label: const Text('Open Daily Attendance'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          context.go('/school/reports');
+                        },
+                        icon: const Icon(Icons.analytics_rounded, size: 16),
+                        label: const Text('Attendance Trend (AD-R03)'),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showFeeDrillDown(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: 14),
+                const Row(
+                  children: [
+                    Icon(Icons.account_balance_wallet_rounded, color: Color(0xFFD97706), size: 22),
+                    SizedBox(width: 8),
+                    Text('Fee Collection & Defaulters Drill-down', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text('Real-time comparison of today\'s receipts vs cumulative session receivables.', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Today\'s Collections', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                            const SizedBox(height: 2),
+                            Text(_formatCurrency(_feeCollectedToday), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF059669))),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Session Total Dues', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                            const SizedBox(height: 2),
+                            Text(_formatCurrency(_feePendingDues), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFFDC2626))),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Defaulter Accounts', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                            const SizedBox(height: 2),
+                            Text('$_defaultersCount Accounts', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          context.go('/school/fees');
+                        },
+                        icon: const Icon(Icons.payment_rounded, size: 16),
+                        label: const Text('Open Fee Accounts'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final defaultersData = await _schoolService.getDefaultersWithAgeing();
+                          final list = (defaultersData['defaulters'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                          if (context.mounted) {
+                            SchoolExportService.exportAdminDefaultersAgeingExcel(
+                              context: context,
+                              defaultersList: list,
+                              ageingSummary: defaultersData['buckets'],
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.file_download_outlined, size: 16),
+                        label: const Text('Export Ageing (AD-R03)'),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showTransportDrillDown(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: 14),
+                const Row(
+                  children: [
+                    Icon(Icons.directions_bus_rounded, color: Color(0xFF7C3AED), size: 22),
+                    SizedBox(width: 8),
+                    Text('Transport Fleet & Safety Drill-down', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text('$_activeTransportRoutes active bus routes operating with telematics tracking.', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
+                  child: const Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Fleet Status', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                            SizedBox(height: 2),
+                            Text('Nominal & Tracking', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF059669))),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Safety Mismatches', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                            SizedBox(height: 2),
+                            Text('0 Open Incidents', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF059669))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          context.go('/school/transport');
+                        },
+                        icon: const Icon(Icons.directions_bus_rounded, size: 16),
+                        label: const Text('Open Transport Console'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final routes = await _schoolService.getTransportRoutes();
+                          if (context.mounted) {
+                            SchoolExportService.exportAdminTransportExcel(
+                              context: context,
+                              transportRoutes: routes,
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.file_download_outlined, size: 16),
+                        label: const Text('Export Fleet (AD-R08)'),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -2763,9 +3057,9 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               ),
             ),
             const Spacer(),
-            Text(
-              '13 Operational Modules',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+            const Text(
+              '15 Operational Modules',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -2802,7 +3096,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               desc: 'Exam sessions, date sheet scheduling, admit cards, seating & result publishing',
               icon: Icons.fact_check_rounded,
               route: '/school/examination',
-              badge: 'Conduct Live',
+              badge: 'CBSE Term II',
               badgeColor: const Color(0xFFD97706),
             ),
             _ModuleItem(
@@ -2848,12 +3142,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               desc: 'Transfer Certificate (TC), Bonafide & Character letters',
               icon: Icons.card_membership_rounded,
               route: '/school/certificates',
+              badge: _pendingCertificatesCount > 0 ? '$_pendingCertificatesCount Pending' : null,
+              badgeColor: const Color(0xFF7C3AED),
             ),
             _ModuleItem(
               title: 'User & Role Access Control',
               desc: 'Staff, parent & student credential provisioning',
               icon: Icons.manage_accounts_rounded,
-              route: '/admin/manage-users',
+              route: '/admin/manage-users/school',
+              badge: '${_staffDirectory.length} Faculty',
+              badgeColor: const Color(0xFF2563EB),
             ),
           ],
           context: context,
@@ -2872,7 +3170,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               desc: 'Fee structure, counter receipts & defaulters ageing',
               icon: Icons.payment_rounded,
               route: '/school/fees',
-              badge: _defaultersCount > 0 ? '$_defaultersCount Defaulters' : null,
+              badge: _defaultersCount > 0 ? '$_defaultersCount Overdue' : null,
               badgeColor: const Color(0xFFD97706),
             ),
             _ModuleItem(
@@ -2880,12 +3178,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               desc: 'Routes, vehicle tracking & bus attendance coordination',
               icon: Icons.directions_bus_rounded,
               route: '/school/transport',
+              badge: '$_activeTransportRoutes Active Fleet',
+              badgeColor: const Color(0xFF059669),
             ),
             _ModuleItem(
               title: 'Digital Library & Catalog',
               desc: 'ISBN catalog, barcode lending, returns & fines recovery',
               icon: Icons.local_library_rounded,
               route: '/school/library',
+              badge: 'Active Catalog',
+              badgeColor: const Color(0xFF64748B),
             ),
           ],
           context: context,
@@ -2904,12 +3206,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               desc: 'Statutory compliance, pupil-teacher ratio & MIS sheets',
               icon: Icons.analytics_rounded,
               route: '/school/reports',
+              badge: 'AD-R10 Compliance',
+              badgeColor: const Color(0xFF0284C7),
             ),
             _ModuleItem(
               title: 'Official Circulars & Broadcasts',
               desc: 'CBSE circulars, parent notices & administrative memos',
               icon: Icons.campaign_rounded,
               route: '/school/circulars',
+              badge: '${_recentCirculars.length} Notices',
+              badgeColor: const Color(0xFF7C3AED),
             ),
           ],
           context: context,

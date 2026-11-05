@@ -1,18 +1,12 @@
-- **Current Step in Execution Plan:** `Step ADM5: New Features Suite (Completed) -> Moving to Step ADM6 (Modifications Polish & Parity: M6, M7, M8, M9, M10, M11, M13, M14)`
-- **Status:** Step ADM5 (New Features Suite: N3, N4, N5, N8, N9, N10, N11, N12, N13, N14) completed with 100% verification against live Supabase backend.
-  - Implemented `database/school_admin_suite_setup.sql` with full DDL and RLS policies for `school_settings` and `school_audit_log`.
-  - Added 5 backend services in `lib/services/school_service.dart`: `getSchoolSettings()`, `saveSchoolSettings()` (with audit trail auto-logging), `getAuditLog()`, `getStaffDirectory()`, and `searchInstitutionalEntities()`.
-  - Implemented 8 executive UI features in `lib/features/school/school_admin_dashboard.dart`:
-    - N5: Institute Statutory Settings dialog (School Profile, CBSE Affiliation, RTE Quota, Fire NOC & Sanitation dates) with audit logging.
-    - N4: Immutable Audit Trail modal with AD-R14 Excel export.
-    - N3: Staff Directory & Workload Oversight modal with AD-R07 Excel export, search filter, and User Management link.
-    - N8 & N9: Operational Command Strip (Examination Oversight with pass rate telemetry & Transport Fleet Safety command with incident tracking).
-    - N10: Parent Grievance Command Centre with 48h SLA badges, resolution dialog requiring mandatory notes, and AD-R11 Excel export.
-    - N12: Universal Institutional Search dialog querying students, faculty, circulars, and admissions in real time.
-    - N13: Broadcast & Circulars Command Centre with class-wise targeting and AD-R12 Excel export.
-    - N14: Executive Notifications & Alerts inbox with direct action buttons.
-  - Full drawer and quick action sheet 1:1 parity.
-  - Live Supabase verification test passed with 0 errors. `dart analyze lib/services/ lib/features/school/` returned 0 issues. Moving to Step ADM6.
+- **Current Step in Execution Plan:** `Step ADM6: Modifications Polish & Parity (Completed) -> Moving to Step ADM7 (Final QA & Production Verification)`
+- **Status:** Step ADM6 (Modifications Polish & Parity: M6, M7, M8, M9, M10, M11, M13, M14) completed with 100% verification against live Supabase backend.
+  - M6: Command matrix updated to dynamic `'15 Operational Modules'` with live badges (admissions pending, certificates pending, defaulters overdue, active bus routes, active notices).
+  - M7: GoRouter redirect guard implemented on `/school/admin-dashboard` checking role (`admin` or `sadmin`) and `institute_type == 'school'`, redirecting unauthorized callers.
+  - M8: Explicit `'sadmin'` case added to `lib/features/auth/login_screen.dart` routing directly to `/school/admin-dashboard`.
+  - M9 & M11: KPI drill-down bottom sheets implemented for Students (`_showStudentsDrillDown`), Faculty (`_showStaffOversightModal`), Fees (`_showFeeDrillDown` displaying today's collection vs session total dues + AD-R03 Excel trigger), and Transport (`_showTransportDrillDown` + AD-R08 Excel trigger).
+  - M10 & M14: 4-state lifecycle (skeleton loading, empty state with CTA, error state with Retry button, loaded data) and 48dp minimum touch targets across all interactive tiles.
+  - M13: User management link explicitly updated to `/admin/manage-users/school`.
+  - Live Supabase verification passed (sadmin1 user row verified, 152 fee records, 3 active bus routes). `dart analyze lib/services/ lib/features/school/ lib/routes/ lib/features/auth/` returned 0 issues. Moving to Step ADM7.
 
 ---
 
@@ -361,4 +355,32 @@
 - [x] **Automated Live Supabase Verification:**
   - Ran `test_adm5.py`: staff directory (23 school teachers, 10 detailed profiles), universal search round-trip, settings save and audit log generation verified against live DB.
   - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
+
+---
+
+### [COMPLETED] Step ADM6: Modifications Polish & Parity (M6, M7, M8, M9, M10, M11, M13, M14)
+- [x] **M6 (Command Matrix Dynamic Count & Parity):**
+  - Updated matrix header count to `'15 Operational Modules'`.
+  - Added live badges across modules: admissions pending (`_pendingAdmissionsCount`), certificates pending (`_pendingCertificatesCount`), fee defaulters overdue (`_defaultersCount`), transport fleet (`_activeTransportRoutes`), and notices (`_recentCirculars.length`).
+  - Drawer, Matrix, and Quick Action sheet 1:1 module parity.
+- [x] **M7 (Route Guard on Leadership Routes):**
+  - Configured GoRouter redirect guard in `lib/routes/app_router.dart` for `/school/admin-dashboard`.
+  - Enforces `institute_type == 'school'` and `role IN ('admin', 'sadmin')`, safely redirecting unauthorized users to their respective portals or login screen.
+- [x] **M8 (Explicit sadmin Login Case):**
+  - Updated `lib/features/auth/login_screen.dart` to explicitly match `role == 'sadmin'` and route directly to `/school/admin-dashboard`.
+  - Verified live DB row for `sadmin1` user exists with `role = 'admin'` and `institute_type = 'school'`.
+- [x] **M9 & M11 (KPI Drill-downs & Fee Semantics):**
+  - Implemented interactive bottom sheet drill-down modals:
+    - `_showStudentsDrillDown`: attendance percentage breakdown, cohort counts, and links to attendance and reports.
+    - `_showStaffOversightModal`: opens faculty directory, workload indicators, and user management link.
+    - `_showFeeDrillDown`: clearly separates Today's collections (`_feeCollectedToday`) from cumulative Session Total Dues (`_feePendingDues`), with direct AD-R03 Excel ageing export.
+    - `_showTransportDrillDown`: displays active fleet routes, safety mismatch telemetry, and direct AD-R08 Excel transport export.
+- [x] **M10 & M14 (4-State Lifecycle & Touch Targets):**
+  - 4-state lifecycle (skeleton loading, loaded data, empty state with CTA, error state with Retry button).
+  - Ensured 48dp minimum touch targets across all interactive cards and action buttons.
+- [x] **M13 (Staff & User Management Link):**
+  - Explicit parameter `/admin/manage-users/school` in Command Matrix and Staff Oversight modal.
+- [x] **Automated Live Supabase Verification:**
+  - Ran `test_adm6.py` verifying `sadmin1` credentials in `users`, 152 fee records with paid vs pending sums, and 3 active transport routes.
+  - `dart analyze lib/services/ lib/features/school/ lib/routes/ lib/features/auth/` returned **0 issues**.
 

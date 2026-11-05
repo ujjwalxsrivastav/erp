@@ -1,6 +1,5 @@
 // Login Screen with Beautiful UI
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/gradient_button.dart';
@@ -72,6 +71,11 @@ class _LoginScreenState extends State<LoginScreen>
         final instituteType = result['institute_type'] as String? ?? 'college';
         final isSchool = instituteType == 'school';
 
+        if (role == 'sadmin') {
+          context.go('/school/admin-dashboard');
+          return;
+        }
+
         if (isSchool) {
           switch (role) {
             case 'student':
@@ -81,6 +85,7 @@ class _LoginScreenState extends State<LoginScreen>
               context.go('/school/teacher-dashboard');
               break;
             case 'admin':
+            case 'sadmin':
               context.go('/school/admin-dashboard');
               break;
             case 'parent':
