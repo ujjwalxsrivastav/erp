@@ -1,5 +1,5 @@
-- **Current Step in Execution Plan:** `Step T7: Final QA & Verification`
-- **Status:** Step T6 (Modifications Polish & Parity: M5, M9, M10, M11, M13, M14) completed with 100% verification. Added Curriculum Pacing & Lesson Plan Syllabus Velocity card (M5) with T-R09 Excel export, Pending Student Leave Approvals queue with one-click review (M9), 1:1 parity between dashboard actions and drawer tiles (M11), 4-state lifecycle review across all cards (M13), and CBSE statutory badges across all analytics (M14). Static analysis returned 0 errors across all school features and services. Moving to Step T7 (Final QA & Production Verification).
+- **Current Step in Execution Plan:** `All Steps Completed: T0 through T7 (Teacher Dashboard Deep-Dive Complete)`
+- **Status:** Complete 100% verification and sign-off on School ERP Teacher Dashboard Deep-Dive. Steps T0 through T7 are fully implemented, verified with live Supabase regression suites, 0 static analysis errors (`dart analyze lib/services/ lib/features/school/`), and production web compilation verified. All features, analytics, multi-sheet Excel exports, CBSE statutory metrics, and parity requirements delivered with zero college regressions.
 
 ---
 
@@ -180,3 +180,26 @@
 - [x] **4-State Lifecycle Review (M13):** Verified all cards display graceful loading shimmers, error states with retry actions, and informative empty states without fake numbers or hardcoded fallbacks.
 - [x] **CBSE Compliance Terminology (M14):** Enforced statutory labels: CBSE Minimum 75.0% Attendance Requirement, CBSE 9-Point Grading Scale (A1 to E), and Term Assessment Cycles across all components.
 - [x] **Static Analysis Verification:** `dart analyze lib/services/ lib/features/school/` returned 0 issues.
+
+---
+
+### [COMPLETED] Step T7: Final QA & Production Verification
+- [x] **Full E2E Live Database Regression Suite:**
+  - 1. Security Scoping: Verified `getTeacherAllAssignedClasses` & `getStudentsForTeacher` correctly bound to teacher credentials (2 classes, 68 students).
+  - 2. Student 360° Profile: Verified holistic aggregation with CBSE 9-point scale, attendance %, scan logs, homework portfolio, and leaves.
+  - 3. Analytics Engine: Verified 30-day attendance trajectory line and CBSE grade distribution (A1–E) calculation against real live data.
+  - 4. Subject Benchmarks & Homework Velocity: Verified comparative subject averages and homework completion velocity stats.
+  - 5. Weekly Workload & Syllabus Velocity: Verified 48-period weekly capacity utilization and curriculum pacing audits.
+  - 6. Early Warning At-Risk Evaluation & Grading Queue: Verified deterministic CBSE < 75%, exam failure, overdue homework flagging, and pending grading queue.
+  - 7. Pastoral Care & Leave Flow Round-Trip: Verified live database record creation and retrieval for pastoral notes (`school_circulars` / Pastoral) and faculty leaves.
+  - 8. Actionable Alerts & Notification Center: Verified real-time aggregation of substitution alerts, grading reminders, and circular notices.
+  - **Result: 8 of 8 tests passed with code 0 on live Supabase!**
+- [x] **Static Analysis Verification:**
+  - `dart analyze lib/services/ lib/features/school/` returned **0 errors and 0 issues**.
+- [x] **Zero College ERP Regressions:**
+  - Verified 0 lines modified in College ERP (`lib/features/college/`, college services, college routes).
+- [x] **Production Web Compilation Verification:**
+  - Executed `flutter build web --base-href /erp/` to confirm zero Web runtime / bundling errors.
+- [x] **Signoff & Ready for Hand-off / Next Dashboard:**
+  - Teacher Dashboard (#1) completely finished according to `School-ERP-Teacher-Dashboard-Deep-Dive.md`.
+
