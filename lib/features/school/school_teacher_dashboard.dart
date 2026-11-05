@@ -489,6 +489,13 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         'route': '/school/attendance',
       },
       {
+        'title': 'Lesson Plan & 5E Studio',
+        'subtitle': '5E constructivist plans & Bloom\'s levels',
+        'icon': Icons.menu_book_rounded,
+        'color': const Color(0xFF4338CA),
+        'route': '/school/lesson-plans',
+      },
+      {
         'title': 'Homework & Tasks',
         'subtitle': 'Assign exercises & view submissions',
         'icon': Icons.assignment_add,
@@ -793,6 +800,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 children: [
                   _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard', () => Navigator.pop(context)),
+                  _buildDrawerTile(Icons.menu_book_rounded, 'Lesson Plans & 5E Studio', () {
+                    Navigator.pop(context);
+                    context.push('/school/lesson-plans');
+                  }),
                   _buildDrawerTile(Icons.edit_note_rounded, 'Enter & Upload Marks', () {
                     Navigator.pop(context);
                     context.push('/school/marks-entry');

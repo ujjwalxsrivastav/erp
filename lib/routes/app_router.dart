@@ -111,6 +111,7 @@ import '../features/school/library/school_library_screen.dart';
 import '../features/school/certificates/school_certificates_screen.dart';
 import '../features/school/promotion/school_promotion_screen.dart';
 import '../features/school/examination/school_examination_screen.dart';
+import '../features/school/academics/school_lesson_plan_screen.dart';
 
 final router = GoRouter(
   routes: [
@@ -299,6 +300,17 @@ final router = GoRouter(
     GoRoute(
       path: '/school/examination',
       builder: (context, state) => const SchoolExaminationScreen(),
+    ),
+    GoRoute(
+      path: '/school/lesson-plans',
+      builder: (context, state) {
+        final classId = state.uri.queryParameters['classId'];
+        final subject = state.uri.queryParameters['subject'];
+        return SchoolLessonPlanScreen(
+          initialClassId: classId,
+          initialSubject: subject,
+        );
+      },
     ),
 
     // ===== SCHOOL - PARENT =====

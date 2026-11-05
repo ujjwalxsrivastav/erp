@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
@@ -1541,17 +1542,35 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
               'Curriculum Units & Lesson Plans',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                minimumSize: const Size(60, 30),
-              ),
-              onPressed: _showAddLessonPlanDialog,
-              icon: const Icon(Icons.add_rounded, size: 14),
-              label: const Text('Add Plan', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF4338CA),
+                    side: const BorderSide(color: Color(0xFFC7D2FE)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(60, 30),
+                  ),
+                  onPressed: () => context.push('/school/lesson-plans?classId=$_selectedClassId'),
+                  icon: const Icon(Icons.auto_stories_rounded, size: 14),
+                  label: const Text('Open 5E Studio', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(60, 30),
+                  ),
+                  onPressed: _showAddLessonPlanDialog,
+                  icon: const Icon(Icons.add_rounded, size: 14),
+                  label: const Text('Add Plan', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                ),
+              ],
             ),
           ],
         ),

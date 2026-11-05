@@ -745,6 +745,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           accentColor: const Color(0xFF2563EB),
           modules: [
             _ModuleItem(
+              title: 'Lesson Plan & 5E Studio',
+              desc: 'Constructivist 5E plans, Bloom\'s cognitive mapping, HOD scrutiny & syllabus pacing velocity',
+              icon: Icons.menu_book_rounded,
+              route: '/school/lesson-plans',
+              badge: 'NEP 2020',
+              badgeColor: const Color(0xFF4338CA),
+            ),
+            _ModuleItem(
               title: 'Timetable & Substitutions',
               desc: 'Period scheduling, clash detection & substitution engine',
               icon: Icons.calendar_month_rounded,
@@ -1183,6 +1191,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                   ),
                   const SizedBox(height: 14),
+                  _buildQuickActionRow(
+                    icon: Icons.menu_book_rounded,
+                    iconColor: const Color(0xFF4338CA),
+                    title: 'Scrutinize NEP 2020 Lesson Plans',
+                    subtitle: 'Audit 5E pedagogical models, Bloom\'s cognitive levels & approve plans',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.go('/school/lesson-plans');
+                    },
+                  ),
                   _buildQuickActionRow(
                     icon: Icons.fact_check_rounded,
                     iconColor: const Color(0xFFD97706),
@@ -1746,6 +1764,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 children: [
                   _buildDrawerItem(Icons.dashboard_rounded, 'Command Center', () => Navigator.pop(context), isActive: true),
                   _buildDrawerCategory('ACADEMICS & CURRICULUM'),
+                  _buildDrawerItem(Icons.menu_book_rounded, 'Lesson Plans & 5E Studio', () => context.go('/school/lesson-plans')),
                   _buildDrawerItem(Icons.fact_check_rounded, 'Examination & Hall Tickets', () => context.go('/school/examination')),
                   _buildDrawerItem(Icons.calendar_month_rounded, 'Timetable & Substitution', () => context.go('/school/timetable')),
                   _buildDrawerItem(Icons.assignment_rounded, 'Homework & Syllabus', () => context.go('/school/homework')),
