@@ -884,4 +884,292 @@ class SchoolExportService {
       await downloadExcel(context: context, filename: filename, bytes: bytes);
     }
   }
+
+  /// T-R01: Exports 30-Day Attendance Trend as an official Excel (.xlsx) workbook
+  static Future<void> exportAttendanceTrendExcel({
+    required BuildContext context,
+    required String className,
+    required String teacherName,
+    required List<Map<String, dynamic>> trendRows,
+  }) async {
+    final excel = Excel.createExcel();
+
+    // Sheet 1: Summary
+    final summarySheet = excel['Summary'];
+    summarySheet.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - ATTENDANCE TREND AUDIT')]);
+    summarySheet.appendRow([TextCellValue('Class Cohort:'), TextCellValue(className)]);
+    summarySheet.appendRow([TextCellValue('Faculty:'), TextCellValue(teacherName)]);
+    summarySheet.appendRow([TextCellValue('Audit Date:'), TextCellValue(_currentDate())]);
+    summarySheet.appendRow([TextCellValue('Statutory Rule:'), TextCellValue('CBSE Minimum 75.0% Attendance Requirement')]);
+    summarySheet.appendRow([]);
+
+    // Sheet 2: Data
+    final dataSheet = excel['Attendance Trend'];
+    dataSheet.appendRow([
+      TextCellValue('Date'),
+      TextCellValue('Day'),
+      TextCellValue('Present Students'),
+      TextCellValue('Total Marked'),
+      TextCellValue('Attendance Rate (%)'),
+      TextCellValue('Statutory Compliance'),
+    ]);
+
+    double totalPct = 0;
+    int markedDays = 0;
+
+    for (final r in trendRows) {
+      final date = r['date']?.toString() ?? '-';
+      final day = r['day']?.toString() ?? '-';
+      final present = (r['present'] as num?)?.toInt() ?? 0;
+      final total = (r['total'] as num?)?.toInt() ?? 0;
+      final pct = (r['percent'] as num?)?.toDouble() ?? 0.0;
+      final isMarked = (r['is_marked'] as bool?) ?? (total > 0);
+
+      if (isMarked) {
+        totalPct += pct;
+        markedDays++;
+      }
+
+      dataSheet.appendRow([
+        TextCellValue(date),
+        TextCellValue(day),
+        IntCellValue(present),
+        IntCellValue(total),
+        TextCellValue(isMarked ? '${pct.toStringAsFixed(1)}%' : 'Not Recorded'),
+        TextCellValue(!isMarked ? 'UNRECORDED' : (pct >= 75.0 ? 'MEETS STATUTORY RULE' : 'BELOW 75% TARGET')),
+      ]);
+    }
+
+    final avgRate = markedDays > 0 ? totalPct / markedDays : 0.0;
+    dataSheet.appendRow([]);
+    dataSheet.appendRow([
+      TextCellValue('30-DAY AVERAGE'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('${avgRate.toStringAsFixed(1)}%'),
+      TextCellValue(avgRate >= 75.0 ? 'COMPLIANT' : 'DEFICIT ALERT'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes != null) {
+      final clean = className.replaceAll(' ', '_').replaceAll('-', '_');
+      final now = DateTime.now();
+      final dateSlug = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final filename = 'Teacher_Attendance_Trend_${clean}_$dateSlug.xlsx';
+      await downloadExcel(context: context, filename: filename, bytes: bytes);
+    }
+  }
+
+  /// T-R03: Exports Attendance Defaulters List (<75%) as an official Excel (.xlsx) workbook
+  static Future<void> exportDefaultersExcel({
+    required BuildContext context,
+    required String className,
+    required String teacherName,
+    required List<Map<String, dynamic>> defaulters,
+  }) async {
+    final excel = Excel.createExcel();
+
+    // Sheet 1: Summary
+    final summarySheet = excel['Summary'];
+    summarySheet.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - ATTENDANCE DEFAULTERS REGISTER')]);
+    summarySheet.appendRow([TextCellValue('Class Cohort:'), TextCellValue(className)]);
+    summarySheet.appendRow([TextCellValue('Faculty:'), TextCellValue(teacherName)]);
+    summarySheet.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summarySheet.appendRow([TextCellValue('Defaulter Criteria:'), TextCellValue('Attendance Rate Strictly < 75.0%')]);
+    summarySheet.appendRow([TextCellValue('Total Defaulters:'), IntCellValue(defaulters.length)]);
+    summarySheet.appendRow([]);
+
+    // Sheet 2: Data
+    final dataSheet = excel['Defaulters List'];
+    dataSheet.appendRow([
+      TextCellValue('Roll Number'),
+      TextCellValue('Admission No'),
+      TextCellValue('Student Name'),
+      TextCellValue('Class'),
+      TextCellValue('Attendance %'),
+      TextCellValue('Deficit Reason'),
+      TextCellValue('Parent / Guardian'),
+      TextCellValue('Contact Number'),
+    ]);
+
+    for (final s in defaulters) {
+      final roll = s['roll_number']?.toString() ?? '-';
+      final adm = s['admission_no']?.toString() ?? s['id']?.toString() ?? '-';
+      final name = s['name']?.toString() ?? s['student_name']?.toString() ?? '-';
+      final cls = s['class_name']?.toString() ?? className;
+      final att = (s['attendance_pct'] as num?)?.toDouble() ?? 0.0;
+      final reason = s['reason']?.toString() ?? 'Attendance below 75% statutory threshold';
+      final parent = s['parent_name']?.toString() ?? '-';
+      final contact = s['contact']?.toString() ?? '-';
+
+      dataSheet.appendRow([
+        TextCellValue(roll),
+        TextCellValue(adm),
+        TextCellValue(name),
+        TextCellValue(cls),
+        TextCellValue('${att.toStringAsFixed(1)}%'),
+        TextCellValue(reason),
+        TextCellValue(parent),
+        TextCellValue(contact),
+      ]);
+    }
+
+    dataSheet.appendRow([]);
+    dataSheet.appendRow([
+      TextCellValue('TOTAL DEFAULTERS'),
+      IntCellValue(defaulters.length),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes != null) {
+      final clean = className.replaceAll(' ', '_').replaceAll('-', '_');
+      final now = DateTime.now();
+      final dateSlug = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final filename = 'Teacher_Defaulters_${clean}_$dateSlug.xlsx';
+      await downloadExcel(context: context, filename: filename, bytes: bytes);
+    }
+  }
+
+  /// T-R04: Exports Class Performance / Gradebook as an official Excel (.xlsx) workbook
+  static Future<void> exportGradebookExcel({
+    required BuildContext context,
+    required String className,
+    required String examType,
+    required String teacherName,
+    required List<Map<String, dynamic>> students,
+    double? classAverage,
+  }) async {
+    final excel = Excel.createExcel();
+
+    // Sheet 1: Summary
+    final summarySheet = excel['Summary'];
+    summarySheet.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - OFFICIAL CLASS GRADEBOOK')]);
+    summarySheet.appendRow([TextCellValue('Class Cohort:'), TextCellValue(className)]);
+    summarySheet.appendRow([TextCellValue('Examination Term:'), TextCellValue(examType)]);
+    summarySheet.appendRow([TextCellValue('Faculty:'), TextCellValue(teacherName)]);
+    summarySheet.appendRow([TextCellValue('Date Generated:'), TextCellValue(_currentDate())]);
+    summarySheet.appendRow([TextCellValue('Class Average:'), TextCellValue('${classAverage?.toStringAsFixed(1) ?? "0.0"}%')]);
+    summarySheet.appendRow([TextCellValue('Total Students Evaluated:'), IntCellValue(students.length)]);
+    summarySheet.appendRow([]);
+
+    // Sheet 2: Data
+    final dataSheet = excel['Gradebook'];
+    dataSheet.appendRow([
+      TextCellValue('Rank'),
+      TextCellValue('Roll Number'),
+      TextCellValue('Student Name'),
+      TextCellValue('Marks Obtained'),
+      TextCellValue('Total Max Marks'),
+      TextCellValue('Percentage (%)'),
+      TextCellValue('CBSE Grade'),
+      TextCellValue('Remarks / Narrative'),
+      TextCellValue('Verdict'),
+    ]);
+
+    for (int i = 0; i < students.length; i++) {
+      final s = students[i];
+      final rank = s['rank']?.toString() ?? '${i + 1}';
+      final roll = s['roll_number']?.toString() ?? '-';
+      final name = s['name']?.toString() ?? s['student_name']?.toString() ?? s['student']?.toString() ?? '-';
+      final obt = (s['marks_obtained'] as num?)?.toDouble() ?? (s['marks'] as num?)?.toDouble() ?? 0.0;
+      final maxM = (s['total_marks'] as num?)?.toDouble() ?? (s['max'] as num?)?.toDouble() ?? 100.0;
+      final pct = maxM > 0 ? (obt / maxM) * 100 : 0.0;
+      final grade = s['grade']?.toString() ?? s['cbse_grade']?.toString() ?? 'D';
+      final remark = s['remarks']?.toString() ?? s['cbse_remarks']?.toString() ?? '-';
+      final isPassed = pct >= 33.0;
+
+      dataSheet.appendRow([
+        TextCellValue('#$rank'),
+        TextCellValue(roll),
+        TextCellValue(name),
+        TextCellValue(obt.toStringAsFixed(1)),
+        TextCellValue(maxM.toStringAsFixed(0)),
+        TextCellValue('${pct.toStringAsFixed(1)}%'),
+        TextCellValue(grade),
+        TextCellValue(remark),
+        TextCellValue(isPassed ? 'PASSED' : 'REMEDIAL SUPPORT'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes != null) {
+      final cleanClass = className.replaceAll(' ', '_').replaceAll('-', '_');
+      final cleanExam = examType.replaceAll(' ', '_').replaceAll('-', '_');
+      final now = DateTime.now();
+      final dateSlug = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final filename = 'Teacher_Gradebook_${cleanClass}_${cleanExam}_$dateSlug.xlsx';
+      await downloadExcel(context: context, filename: filename, bytes: bytes);
+    }
+  }
+
+  /// T-R05: Exports Subject-Wise Comparison Averages as an official Excel (.xlsx) workbook
+  static Future<void> exportSubjectAveragesExcel({
+    required BuildContext context,
+    required String teacherName,
+    required List<Map<String, dynamic>> subjectAverages,
+  }) async {
+    final excel = Excel.createExcel();
+
+    // Sheet 1: Summary
+    final summarySheet = excel['Summary'];
+    summarySheet.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - SUBJECT PERFORMANCE AVERAGES')]);
+    summarySheet.appendRow([TextCellValue('Faculty:'), TextCellValue(teacherName)]);
+    summarySheet.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summarySheet.appendRow([TextCellValue('Total Subjects Compared:'), IntCellValue(subjectAverages.length)]);
+    summarySheet.appendRow([]);
+
+    // Sheet 2: Data
+    final dataSheet = excel['Subject Averages'];
+    dataSheet.appendRow([
+      TextCellValue('Subject Name'),
+      TextCellValue('Evaluated Students Count'),
+      TextCellValue('Class Average (%)'),
+      TextCellValue('Highest Score (%)'),
+      TextCellValue('Lowest Score (%)'),
+      TextCellValue('Performance Band'),
+    ]);
+
+    for (final sa in subjectAverages) {
+      final sub = sa['subject']?.toString() ?? 'Subject';
+      final count = (sa['count'] as num?)?.toInt() ?? 0;
+      final avg = (sa['average'] as num?)?.toDouble() ?? 0.0;
+      final high = (sa['highest'] as num?)?.toDouble() ?? 0.0;
+      final low = (sa['lowest'] as num?)?.toDouble() ?? 0.0;
+      final band = avg >= 80 ? 'EXEMPLARY' : (avg >= 60 ? 'PROFICIENT' : 'NEEDS INTERVENTION');
+
+      dataSheet.appendRow([
+        TextCellValue(sub),
+        IntCellValue(count),
+        TextCellValue('${avg.toStringAsFixed(1)}%'),
+        TextCellValue('${high.toStringAsFixed(1)}%'),
+        TextCellValue('${low.toStringAsFixed(1)}%'),
+        TextCellValue(band),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) {
+      excel.delete('Sheet1');
+    }
+
+    final bytes = excel.encode();
+    if (bytes != null) {
+      final now = DateTime.now();
+      final dateSlug = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final filename = 'Teacher_Subject_Averages_$dateSlug.xlsx';
+      await downloadExcel(context: context, filename: filename, bytes: bytes);
+    }
+  }
 }

@@ -225,6 +225,210 @@ class SchoolService {
     };
   }
 
+  /// 1. Attendance trend for teacher's assigned classes over the last [days] days (T-R01)
+  Future<List<Map<String, dynamic>>> getTeacherAttendanceTrend(
+    String teacherUsername, {
+    int days = 30,
+  }) async {
+    final assigned = await getTeacherAllAssignedClasses(teacherUsername);
+    if (assigned.isEmpty) return [];
+
+    final now = DateTime.now();
+    final fromDate = DateTime(now.year, now.month, now.day).subtract(Duration(days: days - 1));
+    final toDate = DateTime(now.year, now.month, now.day);
+
+    final allRecords = <Map<String, dynamic>>[];
+    for (final c in assigned) {
+      final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+      if (cid.isEmpty) continue;
+      final recs = await getAttendanceReport(classId: cid, from: fromDate, to: toDate);
+      allRecords.addAll(recs);
+    }
+
+    final byDate = <String, List<Map<String, dynamic>>>{};
+    for (final r in allRecords) {
+      final d = r['date']?.toString() ?? '';
+      if (d.isNotEmpty) {
+        byDate.putIfAbsent(d, () => []).add(r);
+      }
+    }
+
+    final result = <Map<String, dynamic>>[];
+    final daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    DateTime cursor = fromDate;
+    while (!cursor.isAfter(toDate)) {
+      if (cursor.weekday != 7) {
+        final dStr = '${cursor.year}-${cursor.month.toString().padLeft(2, '0')}-${cursor.day.toString().padLeft(2, '0')}';
+        final dayName = daysOfWeek[cursor.weekday - 1];
+        final dayRecs = byDate[dStr] ?? [];
+        final present = dayRecs.where((r) => r['status'] == 'present' || r['status'] == 'excused').length;
+        final total = dayRecs.length;
+        final pct = total > 0 ? (present / total) * 100 : 0.0;
+
+        result.add({
+          'date': dStr,
+          'day': dayName,
+          'day_number': cursor.day,
+          'present': present,
+          'total': total,
+          'percent': pct,
+          'is_marked': total > 0,
+        });
+      }
+      cursor = cursor.add(const Duration(days: 1));
+    }
+
+    return result;
+  }
+
+  /// 2. Performance grade distribution across CBSE scale (A1, A2, B1, B2, C1, C2, D, E) (T-R04)
+  Future<Map<String, dynamic>> getTeacherClassGradeDistribution(
+    String teacherUsername, {
+    String? classId,
+  }) async {
+    final assigned = await getTeacherAllAssignedClasses(teacherUsername);
+    if (assigned.isEmpty) {
+      return {'counts': <String, int>{}, 'total': 0, 'average': 0.0};
+    }
+
+    final targetClasses = (classId != null && classId.isNotEmpty && classId != 'all')
+        ? assigned.where((c) => c['class_id'] == classId || c['id'] == classId).toList()
+        : assigned;
+
+    final allMarks = <Map<String, dynamic>>[];
+    for (final c in targetClasses) {
+      final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+      if (cid.isEmpty) continue;
+      final classMarks = await getMarksReport(classId: cid, className: c['name']?.toString());
+      allMarks.addAll(classMarks);
+    }
+
+    final counts = <String, int>{
+      'A1': 0,
+      'A2': 0,
+      'B1': 0,
+      'B2': 0,
+      'C1': 0,
+      'C2': 0,
+      'D': 0,
+      'E': 0,
+    };
+
+    double totalPct = 0;
+    int count = 0;
+
+    for (final m in allMarks) {
+      final obt = (m['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+      final maxM = (m['total_marks'] as num?)?.toDouble() ?? 100.0;
+      final pct = maxM > 0 ? (obt / maxM) * 100 : 0.0;
+      totalPct += pct;
+      count++;
+
+      final gradeInfo = SchoolService.calculateCbseGrade(pct);
+      final g = (m['grade']?.toString() ?? gradeInfo['grade']) as String;
+      if (counts.containsKey(g)) {
+        counts[g] = (counts[g] ?? 0) + 1;
+      } else if (g.startsWith('A')) {
+        counts['A1'] = (counts['A1'] ?? 0) + 1;
+      } else if (g.startsWith('B')) {
+        counts['B1'] = (counts['B1'] ?? 0) + 1;
+      } else if (g.startsWith('C')) {
+        counts['C1'] = (counts['C1'] ?? 0) + 1;
+      } else {
+        counts['D'] = (counts['D'] ?? 0) + 1;
+      }
+    }
+
+    return {
+      'counts': counts,
+      'total': count,
+      'average': count > 0 ? totalPct / count : 0.0,
+    };
+  }
+
+  /// 3. Subject-wise performance averages comparison (T-R05)
+  Future<List<Map<String, dynamic>>> getTeacherSubjectAverages(String teacherUsername) async {
+    final assigned = await getTeacherAllAssignedClasses(teacherUsername);
+    if (assigned.isEmpty) return [];
+
+    final allMarks = <Map<String, dynamic>>[];
+    for (final c in assigned) {
+      final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+      if (cid.isEmpty) continue;
+      final mList = await getMarksReport(classId: cid, className: c['name']?.toString());
+      allMarks.addAll(mList);
+    }
+
+    final Map<String, List<double>> subjectScores = {};
+    for (final m in allMarks) {
+      final sub = m['subject']?.toString() ?? 'Subject';
+      final obt = (m['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+      final maxM = (m['total_marks'] as num?)?.toDouble() ?? 100.0;
+      final pct = maxM > 0 ? (obt / maxM) * 100 : 0.0;
+
+      subjectScores.putIfAbsent(sub, () => []).add(pct);
+    }
+
+    final result = <Map<String, dynamic>>[];
+    for (final entry in subjectScores.entries) {
+      final scores = entry.value;
+      if (scores.isEmpty) continue;
+      final avg = scores.reduce((a, b) => a + b) / scores.length;
+      scores.sort();
+      result.add({
+        'subject': entry.key,
+        'average': avg,
+        'highest': scores.last,
+        'lowest': scores.first,
+        'count': scores.length,
+      });
+    }
+
+    return result;
+  }
+
+  /// 4. Homework completion statistics (Submitted / Late / Missing) (T-R07)
+  Future<Map<String, dynamic>> getTeacherHomeworkCompletionStats(String teacherUsername) async {
+    final assigned = await getTeacherAllAssignedClasses(teacherUsername);
+    if (assigned.isEmpty) {
+      return {'submitted': 0, 'late': 0, 'missing': 0, 'total': 0, 'completion_rate': 0.0};
+    }
+
+    int submitted = 0;
+    int late = 0;
+    int missing = 0;
+
+    for (final c in assigned) {
+      final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+      if (cid.isEmpty) continue;
+      final hwList = await getHomework(classId: cid);
+      for (final hw in hwList) {
+        final hwId = hw['id']?.toString() ?? '';
+        final subs = await getHomeworkSubmissions(homeworkId: hwId);
+        final subCount = subs.where((s) => s['status'] == 'submitted' || s['status'] == 'completed').length;
+        final lateCount = subs.where((s) => s['status'] == 'late').length;
+        submitted += subCount;
+        late += lateCount;
+
+        final enrolled = (await getStudentsInClass(cid)).length;
+        final missingForThisHw = (enrolled - subCount - lateCount).clamp(0, 999);
+        missing += missingForThisHw;
+      }
+    }
+
+    final allTasks = submitted + late + missing;
+    final rate = allTasks > 0 ? (submitted / allTasks) * 100 : 0.0;
+
+    return {
+      'submitted': submitted,
+      'late': late,
+      'missing': missing,
+      'total': allTasks,
+      'completion_rate': rate,
+    };
+  }
+
   // In-memory operational stores for resilient stateful workflows
   final Map<String, List<Map<String, dynamic>>> _attendanceStore = {};
   final List<Map<String, dynamic>> _homeworkStore = [];

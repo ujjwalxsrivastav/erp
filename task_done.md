@@ -11,8 +11,8 @@
 
 ## Current Execution Location:
 - **Active Section in Execution Plan:** `### TEACHER DASHBOARD DEEP-DIVE (ENTERPRISE UPGRADE)`
-- **Current Step in Execution Plan:** `Step T3: Analytics + My Reports (N2 + N3 + T-R01 to T-R06)`
-- **Status:** Step T2 (My Students + Search) completed with 100% verification. Built My Students roster with assigned cohort filters, live search across student name/roll/admission ID, 4-state lifecycle, and Excel roster export (.xlsx, T-R02 format). Built comprehensive 5-tab Student 360° Profile Sheet modal with real demographics, 45-day attendance register, CBSE 9-point examination grades, homework completion status, and student leaves. Security boundary verified on live Supabase: teachers can never peek at unassigned classes. Moving to Step T3 (Teacher Analytics fl_chart graphs and teacher-scoped Reports hub).
+- **Current Step in Execution Plan:** `Step T4: Reports Second Half + Excel (T-R07 to T-R14 + M6/M7/M8 Excel)`
+- **Status:** Step T3 (Analytics + My Reports) completed with 100% verification. First official production use of `fl_chart` in School ERP. Built 4 interactive analytics cards on Teacher Dashboard: 30-Day Attendance Trajectory LineChart with 75% CBSE statutory threshold marker (T-R01), CBSE 9-Point Grade Distribution BarChart (T-R04), Subject Performance Comparison Benchmarks BarChart (T-R05), and Homework Completion Donut Chart (T-R07). Upgraded School Reports Hub (`/school/reports`) for teacher role with full teacher scoping: hidden admin Fees tab, hidden Principal Morning Briefing, and replaced with dedicated Teacher Attendance & Defaulters tab, Marks & Merit with CBSE grade distribution and Excel gradebook export, and pure real queries with zero mock fallbacks. Moving to Step T4 (Remaining Reports + Excel suites).
 
 ---
 
@@ -322,4 +322,38 @@ eviewed_at. homework_list_screen.dart has counts, but lacks a per-submission gra
     - `getStudentsForTeacher('steacher1')` returned 68 assigned students.
     - Security Boundary Test: querying unassigned class `cls-11-unassigned-xyz` strictly returned 0 students.
     - `getStudent360Profile` returned real student data with 0 analyze issues.
+  - Static Analysis: `dart analyze lib/features/school/ lib/services/` returned **0 errors, 0 warnings (No issues found!)**
+
+---
+
+### [COMPLETED] Step T3: Analytics + My Reports (N2 + N3 + T-R01 to T-R06)
+- [x] **Backend Analytics Methods (`lib/services/school_service.dart`):**
+  - Added `getTeacherAttendanceTrend(String teacherUsername, {int days = 30})` (T-R01): Computes daily present, total, and percentage across teacher's assigned classes from `school_attendance`, filtering out non-instructional days (Sundays) and outputting day-wise records.
+  - Added `getTeacherClassGradeDistribution(String teacherUsername, {String? classId})` (T-R04): Aggregates marks across all 8 CBSE 9-point evaluation bands (`A1`, `A2`, `B1`, `B2`, `C1`, `C2`, `D`, `E`), total evaluated, and class mean.
+  - Added `getTeacherSubjectAverages(String teacherUsername)` (T-R05): Computes comparative subject performance benchmarks (class mean, highest score, lowest score, evaluated student count) for subjects taught by the teacher.
+  - Added `getTeacherHomeworkCompletionStats(String teacherUsername)` (T-R07): Computes real submission velocity: submitted count, late submissions count, missing/overdue tasks, and overall completion rate.
+- [x] **Multi-Tab Excel Export Integration (`lib/services/school_export_service.dart`):**
+  - Added `exportAttendanceTrendExcel` (T-R01): Generates multi-sheet `.xlsx` workbook with Summary (statutory policy, class name, faculty, audit date) and 30-Day daily attendance records with compliance verdict and 30-day average.
+  - Added `exportDefaultersExcel` (T-R03): Generates official Defaulters register (.xlsx) for students strictly below 75% attendance.
+  - Added `exportGradebookExcel` (T-R04): Generates class gradebook (.xlsx) with rank, roll number, student name, marks obtained, total marks, percentage, CBSE grade, teacher remarks, and passed/remedial verdict with totals.
+  - Added `exportSubjectAveragesExcel` (T-R05): Generates comparative subject performance averages sheet (.xlsx) with performance bands.
+- [x] **Teacher Dashboard Analytics UI (`lib/features/school/school_teacher_dashboard.dart`):**
+  - Built **Class Analytics & Academic Velocity Section (N2)**:
+    1. *30-Day Attendance Trajectory (T-R01):* `LineChart` (`fl_chart`) with smooth curve, teal-green fill gradient, and horizontal dashed red reference line at 75% with `75% CBSE Limit` badge.
+    2. *CBSE Grade Distribution (T-R04):* `BarChart` (`fl_chart`) displaying evaluated student counts across `A1` to `E` with dynamic Y-axis scaling.
+    3. *Subject Performance Benchmarks (T-R05):* `BarChart` (`fl_chart`) comparing average score percentages across subjects.
+    4. *Homework Completion Velocity (T-R07):* `PieChart` (`fl_chart`) donut chart with center completion % and legend.
+  - Header links directly to `/school/reports` with a "My Reports Hub" action button.
+  - Added "My Reports & Analytics" to the faculty navigation drawer (M11 parity).
+- [x] **Teacher-Scoped Reports Hub (`lib/features/school/reports/school_reports_screen.dart`):**
+  - Teacher Role Gate: When `_isTeacher == true`, admin Fees tab is hidden, and Principal Morning Briefing is replaced with dedicated **Teacher Attendance & Defaulters tab (T-R01, T-R02, T-R03)**.
+  - Class selector strictly limited to teacher's assigned classes from `getTeacherAllAssignedClasses`.
+  - Purged mock data: eliminated hardcoded `_generateFallbackMarks` and `38 + (i % 3)` fallback attendance loop. Zero fake records!
+  - Added `fl_chart` Grade Distribution BarChart and `exportGradebookExcel` button to the Marks & Merit tab.
+- [x] **Live Database Automated Verification:**
+  - Ran `test_t3.dart` on live Supabase:
+    - `getTeacherAttendanceTrend` returned 26 instructional day points from real attendance logs.
+    - `getTeacherClassGradeDistribution` evaluated 12 real student examination records across CBSE bands with 88.25% class average.
+    - `getTeacherSubjectAverages` aggregated 6 real curriculum subjects (Mathematics 90.5%, Science 88.5%, English 86.5%, Social Science 85.5%, Hindi 84.5%, Computer Applications 94.0%).
+    - `getTeacherHomeworkCompletionStats` returned real homework counts.
   - Static Analysis: `dart analyze lib/features/school/ lib/services/` returned **0 errors, 0 warnings (No issues found!)**

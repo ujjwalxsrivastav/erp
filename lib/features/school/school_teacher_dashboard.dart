@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
 import '../../services/school_service.dart';
 import '../../services/school_export_service.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class SchoolTeacherDashboard extends StatefulWidget {
   const SchoolTeacherDashboard({super.key});
@@ -37,6 +38,12 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
 
   // Real Schedule
   List<Map<String, dynamic>> _todaySchedule = [];
+
+  // Teacher Analytics State (N2: T-R01, T-R04, T-R05, T-R07)
+  List<Map<String, dynamic>> _attendanceTrend = [];
+  Map<String, dynamic> _gradeDistribution = {};
+  List<Map<String, dynamic>> _subjectAverages = [];
+  Map<String, dynamic> _homeworkStats = {};
 
   // My Students Roster & Filter State (N1 + M12)
   List<Map<String, dynamic>> _assignedClasses = [];
@@ -79,6 +86,12 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
 
       // Real Assigned Classes (Union of Class Teacher and Subject Faculty)
       final allAssigned = await _schoolService.getTeacherAllAssignedClasses(username);
+
+      // Real Teacher Analytics (N2 + T-R01, T-R04, T-R05, T-R07)
+      final attTrend = await _schoolService.getTeacherAttendanceTrend(username);
+      final gradeDist = await _schoolService.getTeacherClassGradeDistribution(username);
+      final subAvgs = await _schoolService.getTeacherSubjectAverages(username);
+      final hwStats = await _schoolService.getTeacherHomeworkCompletionStats(username);
 
       // Real Attendance for Class Teacher's assigned class today
       int? totalStd;
@@ -133,6 +146,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           _presentToday = presentStd;
           _todayAbsentees = absentees;
           _assignedClasses = allAssigned;
+          _attendanceTrend = attTrend;
+          _gradeDistribution = gradeDist;
+          _subjectAverages = subAvgs;
+          _homeworkStats = hwStats;
           _isLoading = false;
           _errorMessage = null;
         });
@@ -248,6 +265,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       _buildFacultyHeroCard(),
                       const SizedBox(height: 16),
                       _buildKpiGrid(),
+                      const SizedBox(height: 20),
+                      _buildTeacherAnalyticsSection(),
                       const SizedBox(height: 20),
                       _buildMyStudentsSection(),
                       const SizedBox(height: 20),
@@ -521,6 +540,644 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           ),
         ),
       ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // 2.5 TEACHER ANALYTICS & FL_CHART MATRICES (N2)
+  // ──────────────────────────────────────────────
+  Widget _buildTeacherAnalyticsSection() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.analytics_outlined, size: 18, color: Color(0xFF2563EB)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Class Analytics & Academic Velocity',
+                      style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      '30-day attendance trajectory, CBSE evaluation distribution, and subject benchmarks',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => context.push('/school/reports'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                label: const Text('My Reports Hub', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 2x2 Analytics Charts Grid
+          LayoutBuilder(
+            builder: (ctx, constraints) {
+              final isWide = constraints.maxWidth > 850;
+              return Column(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildAttendanceTrendChartCard()),
+                      if (isWide) ...[
+                        const SizedBox(width: 14),
+                        Expanded(child: _buildGradeDistributionChartCard()),
+                      ],
+                    ],
+                  ),
+                  if (!isWide) ...[
+                    const SizedBox(height: 14),
+                    _buildGradeDistributionChartCard(),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildSubjectAveragesChartCard()),
+                      if (isWide) ...[
+                        const SizedBox(width: 14),
+                        Expanded(child: _buildHomeworkDonutChartCard()),
+                      ],
+                    ],
+                  ),
+                  if (!isWide) ...[
+                    const SizedBox(height: 14),
+                    _buildHomeworkDonutChartCard(),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 1. 30-Day Attendance Trajectory Chart (T-R01)
+  Widget _buildAttendanceTrendChartCard() {
+    double totalPct = 0;
+    int count = 0;
+    final spots = <FlSpot>[];
+
+    for (int i = 0; i < _attendanceTrend.length; i++) {
+      final r = _attendanceTrend[i];
+      final pct = (r['percent'] as num?)?.toDouble() ?? 0.0;
+      final isMarked = (r['is_marked'] as bool?) ?? false;
+      if (isMarked) {
+        totalPct += pct;
+        count++;
+      }
+      spots.add(FlSpot(i.toDouble(), pct));
+    }
+    final avg = count > 0 ? totalPct / count : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Attendance Trajectory (30 Days)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  Text('CBSE 75% Statutory Limit Reference', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: avg >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  count > 0 ? '${avg.toStringAsFixed(1)}% Avg' : 'Unrecorded',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: avg >= 75 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: spots.isEmpty
+                ? const Center(child: Text('No attendance trajectory data available', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))))
+                : LineChart(
+                    LineChartData(
+                      minY: 0,
+                      maxY: 100,
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        getDrawingHorizontalLine: (val) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      titlesData: FlTitlesData(
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 28,
+                            getTitlesWidget: (v, m) {
+                              if (v == 0 || v == 50 || v == 75 || v == 100) {
+                                return Text('${v.toInt()}%', style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                              }
+                              return const SizedBox();
+                            },
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 18,
+                            interval: 5,
+                            getTitlesWidget: (v, m) {
+                              final idx = v.toInt();
+                              if (idx >= 0 && idx < _attendanceTrend.length) {
+                                final dayNum = _attendanceTrend[idx]['day_number']?.toString() ?? '$idx';
+                                return Text(dayNum, style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                              }
+                              return const SizedBox();
+                            },
+                          ),
+                        ),
+                      ),
+                      extraLinesData: ExtraLinesData(
+                        horizontalLines: [
+                          HorizontalLine(
+                            y: 75.0,
+                            color: const Color(0xFFEF4444),
+                            strokeWidth: 1.5,
+                            dashArray: [4, 4],
+                            label: HorizontalLineLabel(
+                              show: true,
+                              alignment: Alignment.topRight,
+                              labelResolver: (l) => '75% CBSE',
+                              style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: spots,
+                          isCurved: true,
+                          color: const Color(0xFF10B981),
+                          barWidth: 2.5,
+                          isStrokeCapRound: true,
+                          dotData: const FlDotData(show: false),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Trend reflects active cohort attendance', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              InkWell(
+                onTap: () => context.push('/school/reports'),
+                child: const Row(
+                  children: [
+                    Text('Full Register (T-R02)', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                    SizedBox(width: 2),
+                    Icon(Icons.arrow_forward_rounded, size: 11, color: Color(0xFF2563EB)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 2. CBSE Class Grade Distribution Chart (T-R04)
+  Widget _buildGradeDistributionChartCard() {
+    final counts = (_gradeDistribution['counts'] as Map?)?.cast<String, int>() ?? {};
+    final total = (_gradeDistribution['total'] as num?)?.toInt() ?? 0;
+    final avg = (_gradeDistribution['average'] as num?)?.toDouble() ?? 0.0;
+    const grades = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D', 'E'];
+
+    int maxCount = 0;
+    for (final g in grades) {
+      final c = counts[g] ?? 0;
+      if (c > maxCount) maxCount = c;
+    }
+    final maxY = maxCount > 0 ? (maxCount * 1.3).ceilToDouble() : 10.0;
+
+    final barGroups = <BarChartGroupData>[];
+    for (int i = 0; i < grades.length; i++) {
+      final g = grades[i];
+      final c = (counts[g] ?? 0).toDouble();
+      barGroups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: c,
+              color: const Color(0xFF2563EB),
+              width: 14,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Evaluation Grade Distribution', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  Text('CBSE 9-Point Performance Scale', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '$total Evaluated (${avg.toStringAsFixed(0)}% Avg)',
+                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: total == 0
+                ? const Center(child: Text('No examination evaluation records available', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))))
+                : BarChart(
+                    BarChartData(
+                      maxY: maxY,
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        getDrawingHorizontalLine: (v) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      titlesData: FlTitlesData(
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 24,
+                            getTitlesWidget: (v, m) {
+                              if (v == 0 || v == (maxY / 2).round() || v == maxY) {
+                                return Text('${v.toInt()}', style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                              }
+                              return const SizedBox();
+                            },
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 18,
+                            getTitlesWidget: (v, m) {
+                              final idx = v.toInt();
+                              if (idx >= 0 && idx < grades.length) {
+                                return Text(grades[idx], style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)));
+                              }
+                              return const SizedBox();
+                            },
+                          ),
+                        ),
+                      ),
+                      barGroups: barGroups,
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('A1 (Top 1/8th) to E2 (Essential Repeat)', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              InkWell(
+                onTap: () => context.push('/school/reports'),
+                child: const Row(
+                  children: [
+                    Text('Gradebook (T-R04)', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                    SizedBox(width: 2),
+                    Icon(Icons.arrow_forward_rounded, size: 11, color: Color(0xFF2563EB)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 3. Subject-Wise Performance Benchmarks Chart (T-R05)
+  Widget _buildSubjectAveragesChartCard() {
+    final barGroups = <BarChartGroupData>[];
+    for (int i = 0; i < _subjectAverages.length; i++) {
+      final sa = _subjectAverages[i];
+      final avg = (sa['average'] as num?)?.toDouble() ?? 0.0;
+      barGroups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: avg,
+              color: const Color(0xFF0D9488),
+              width: 18,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Subject Performance Averages', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  Text('Comparative Cohort Benchmark', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDFA),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${_subjectAverages.length} Subjects',
+                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF0F766E)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: _subjectAverages.isEmpty
+                ? const Center(child: Text('No subject benchmarks available', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))))
+                : BarChart(
+                    BarChartData(
+                      maxY: 100,
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        getDrawingHorizontalLine: (v) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      titlesData: FlTitlesData(
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 28,
+                            getTitlesWidget: (v, m) {
+                              if (v == 0 || v == 50 || v == 100) {
+                                return Text('${v.toInt()}%', style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                              }
+                              return const SizedBox();
+                            },
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 18,
+                            getTitlesWidget: (v, m) {
+                              final idx = v.toInt();
+                              if (idx >= 0 && idx < _subjectAverages.length) {
+                                final sub = _subjectAverages[idx]['subject']?.toString() ?? '';
+                                final shortName = sub.length > 5 ? sub.substring(0, 4) : sub;
+                                return Text(shortName, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)));
+                              }
+                              return const SizedBox();
+                            },
+                          ),
+                        ),
+                      ),
+                      barGroups: barGroups,
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Marks mean across all class cohorts', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              InkWell(
+                onTap: () => context.push('/school/reports'),
+                child: const Row(
+                  children: [
+                    Text('Subject Comparison (T-R05)', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                    SizedBox(width: 2),
+                    Icon(Icons.arrow_forward_rounded, size: 11, color: Color(0xFF2563EB)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 4. Homework Completion Distribution Donut Chart (T-R07)
+  Widget _buildHomeworkDonutChartCard() {
+    final sub = (_homeworkStats['submitted'] as num?)?.toInt() ?? 0;
+    final late = (_homeworkStats['late'] as num?)?.toInt() ?? 0;
+    final missing = (_homeworkStats['missing'] as num?)?.toInt() ?? 0;
+    final rate = (_homeworkStats['completion_rate'] as num?)?.toDouble() ?? 0.0;
+    final total = sub + late + missing;
+
+    final sections = <PieChartSectionData>[];
+    if (total == 0) {
+      sections.add(PieChartSectionData(value: 1, color: const Color(0xFFE2E8F0), title: '', radius: 24));
+    } else {
+      if (sub > 0) {
+        sections.add(PieChartSectionData(value: sub.toDouble(), color: const Color(0xFF10B981), title: '$sub', radius: 24, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)));
+      }
+      if (late > 0) {
+        sections.add(PieChartSectionData(value: late.toDouble(), color: const Color(0xFFF59E0B), title: '$late', radius: 24, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)));
+      }
+      if (missing > 0) {
+        sections.add(PieChartSectionData(value: missing.toDouble(), color: const Color(0xFFEF4444), title: '$missing', radius: 24, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)));
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Homework Completion Velocity', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  Text('Submission & Grading Distribution', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: rate >= 70 ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${rate.toStringAsFixed(0)}% Submitted',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: rate >= 70 ? const Color(0xFF059669) : const Color(0xFFD97706),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                PieChart(
+                  PieChartData(
+                    sections: sections,
+                    centerSpaceRadius: 36,
+                    sectionsSpace: 2,
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${rate.toStringAsFixed(0)}%',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    ),
+                    const Text('Completed', style: TextStyle(fontSize: 8.5, color: Color(0xFF64748B))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildChartLegendDot(const Color(0xFF10B981), 'Done ($sub)'),
+              const SizedBox(width: 12),
+              _buildChartLegendDot(const Color(0xFFF59E0B), 'Late ($late)'),
+              const SizedBox(width: 12),
+              _buildChartLegendDot(const Color(0xFFEF4444), 'Missing ($missing)'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChartLegendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontWeight: FontWeight.w600)),
+      ],
     );
   }
 
@@ -1515,6 +2172,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   _buildDrawerTile(Icons.people_alt_rounded, 'My Students Roster', () {
                     Navigator.pop(context);
                     _loadStudents();
+                  }),
+                  _buildDrawerTile(Icons.analytics_rounded, 'My Reports & Analytics', () {
+                    Navigator.pop(context);
+                    context.push('/school/reports');
                   }),
                   _buildDrawerTile(Icons.menu_book_rounded, 'Lesson Plans & 5E Studio', () {
                     Navigator.pop(context);

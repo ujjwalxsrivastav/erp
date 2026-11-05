@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/school_export_service.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class SchoolReportsScreen extends StatefulWidget {
   const SchoolReportsScreen({super.key});
@@ -21,6 +22,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
   static const Color _primary = Color(0xFF0F766E); // Deep Teal
   static const Color _gold = Color(0xFFF59E0B);    // Gold / Amber
   static const Color _bg = Color(0xFFF8FAFC);
+
 
   // Authentication & Role
   bool _isInitialized = false;
@@ -117,7 +119,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       try {
         final dName = await _schoolService.getTeacherDisplayName(username);
         if (dName != null && dName.isNotEmpty) teacherName = dName;
-        teacherClasses = await _schoolService.getClassTeacherClasses(username);
+        teacherClasses = await _schoolService.getTeacherAllAssignedClasses(username);
       } catch (_) {}
     } else {
       teacherName = 'Administrator';
@@ -129,23 +131,26 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     } catch (_) {}
 
     final dynamicClassNames = <String>[];
-    if (allClasses.isNotEmpty) {
+    if (isTeacher) {
+      for (final c in teacherClasses) {
+        final name = c['name']?.toString() ?? '';
+        if (name.isNotEmpty && !dynamicClassNames.contains(name)) {
+          dynamicClassNames.add(name);
+        }
+      }
+      if (dynamicClassNames.isEmpty) dynamicClassNames.add('Class 10-A');
+    } else {
       for (final c in allClasses) {
         final name = c['name']?.toString() ?? '';
         if (name.isNotEmpty && !dynamicClassNames.contains(name)) {
           dynamicClassNames.add(name);
         }
       }
+      if (!dynamicClassNames.contains('Class 10-A')) dynamicClassNames.add('Class 10-A');
+      if (!dynamicClassNames.contains('Class 9-A')) dynamicClassNames.add('Class 9-A');
     }
-    if (!dynamicClassNames.contains('Class 10-A')) dynamicClassNames.add('Class 10-A');
-    if (!dynamicClassNames.contains('Class 9-A')) dynamicClassNames.add('Class 9-A');
 
-    String defaultClass = 'Class 10-A';
-    if (isTeacher && teacherClasses.isNotEmpty) {
-      defaultClass = teacherClasses.first['name']?.toString() ?? 'Class 10-A';
-    } else if (dynamicClassNames.isNotEmpty) {
-      defaultClass = dynamicClassNames.first;
-    }
+    String defaultClass = dynamicClassNames.first;
 
     if (!mounted) return;
 
@@ -157,9 +162,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       _isTeacher = isTeacher;
       _teacherClasses = teacherClasses;
       _allClasses = allClasses;
-      _classes = ['All', ...dynamicClassNames];
+      _classes = isTeacher ? dynamicClassNames : ['All', ...dynamicClassNames];
       _marksClass = defaultClass;
       _attClass = isTeacher ? defaultClass : 'All';
+      _hwClass = defaultClass;
       _isInitialized = true;
     });
 
@@ -403,14 +409,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
         examType: _examType,
       );
 
-      if (raw.isEmpty) {
-        raw = _generateFallbackMarks(
-          classId: targetClassId,
-          className: targetClassName,
-          examType: _examType,
-          subjectFilter: subjectFilter,
-        );
-      }
+// No mock fallbacks: if raw is empty, report displays clean empty state!
 
       if (isAllSubjects) {
         final Map<String, List<Map<String, dynamic>>> byStudent = {};
@@ -542,62 +541,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     if (mounted) setState(() => _marksLoading = false);
   }
 
-  List<Map<String, dynamic>> _generateFallbackMarks({
-    required String classId,
-    required String className,
-    required String examType,
-    String? subjectFilter,
-  }) {
-    final students = [
-      {'id': 's10s01', 'name': 'Aarav Sharma', 'roll': '01'},
-      {'id': 's10s02', 'name': 'Diya Patel', 'roll': '02'},
-      {'id': 's10s03', 'name': 'Vivaan Gupta', 'roll': '03'},
-      {'id': 's10s04', 'name': 'Ananya Iyer', 'roll': '04'},
-      {'id': 's10s05', 'name': 'Rohan Verma', 'roll': '05'},
-      {'id': 's10s06', 'name': 'Ishaan Joshi', 'roll': '06'},
-      {'id': 's10s07', 'name': 'Priya Nair', 'roll': '07'},
-      {'id': 's10s08', 'name': 'Kabir Singh', 'roll': '08'},
-      {'id': 's10s09', 'name': 'Aditi Rao', 'roll': '09'},
-      {'id': 's10s10', 'name': 'Arjun Kapoor', 'roll': '10'},
-      {'id': 's10s11', 'name': 'Meera Sen', 'roll': '11'},
-      {'id': 's10s12', 'name': 'Devansh Trivedi', 'roll': '12'},
-      {'id': 's10s13', 'name': 'Tanvi Kulkarni', 'roll': '13'},
-      {'id': 's10s14', 'name': 'Yashwardhan', 'roll': '14'},
-      {'id': 's10s15', 'name': 'Ritu Agarwal', 'roll': '15'},
-    ];
+  // Fallback marks method purged per Part E standards
 
-    final subjects = ['Mathematics', 'Science', 'English', 'Social Science', 'Hindi'];
-    final isHalfYearly = examType.toLowerCase().contains('half');
-    final List<Map<String, dynamic>> rows = [];
-    final baseScores = [96, 94, 91, 88, 85, 82, 79, 75, 71, 68, 64, 59, 54, 48, 38];
-
-    for (int i = 0; i < students.length; i++) {
-      final s = students[i];
-      final base = baseScores[i % baseScores.length];
-      for (int j = 0; j < subjects.length; j++) {
-        final subj = subjects[j];
-        if (subjectFilter != null && subjectFilter != subj) continue;
-
-        final variance = ((i * 3 + j * 7) % 9) - 4;
-        final mark = (base + variance + (isHalfYearly ? -2 : 1)).clamp(25, 99).toDouble();
-        final grade = SchoolService.calculateCbseGrade(mark)['grade'];
-
-        rows.add({
-          'student_id': s['id'],
-          'student_name': s['name'],
-          'roll_number': s['roll'],
-          'class_id': classId,
-          'class_name': className,
-          'subject': subj,
-          'exam_type': examType,
-          'marks_obtained': mark,
-          'total_marks': 100.0,
-          'grade': grade,
-        });
-      }
-    }
-    return rows;
-  }
 
   // ===================== HOMEWORK =====================
   Future<void> _generateHwReport() async {
@@ -688,10 +633,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   controller: _tabController,
                   physics: const BouncingScrollPhysics(),
                   children: [
-                    _buildBriefingTab(), // Operational Briefing + Full Attendance
+                    _isTeacher ? _buildTeacherAttendanceTab() : _buildBriefingTab(),
                     if (!_isTeacher)
-                      _buildFeeTab(),   // Admin Only
-                    _buildMarksTab(),     // Filter for Half Yearly & Annual + Rank-wise list
+                      _buildFeeTab(),
+                    _buildMarksTab(),
                     _buildHomeworkTab(),
                     _buildUdiseTab(),
                   ],
@@ -895,7 +840,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
             unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
             tabs: [
-              const Tab(icon: Icon(Icons.dashboard_outlined, size: 16), text: 'Morning Briefing'),
+              Tab(
+                icon: Icon(_isTeacher ? Icons.how_to_reg_outlined : Icons.dashboard_outlined, size: 16),
+                text: _isTeacher ? 'Attendance & Defaulters' : 'Morning Briefing',
+              ),
               if (!_isTeacher)
                 const Tab(icon: Icon(Icons.payment, size: 16), text: 'Fees'),
               const Tab(icon: Icon(Icons.military_tech_outlined, size: 16), text: 'Marks & Merit'),
@@ -908,6 +856,283 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     );
   }
 
+
+  // ============================
+  // TAB 1 (TEACHER): ATTENDANCE & DEFAULTERS (T-R01, T-R02, T-R03)
+  // ============================
+  Widget _buildTeacherAttendanceTab() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Filter Hub Card
+          _buildGlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.how_to_reg_rounded, color: _primary, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Cohort Attendance & Statutory Audit', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                          Text('$_teacherDisplayName • Assigned Classes Only', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                        ],
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        SchoolExportService.exportAttendanceTrendExcel(
+                          context: context,
+                          className: _attClass,
+                          teacherName: _teacherDisplayName,
+                          trendRows: _attRows,
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F172A),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.file_download_outlined, size: 15),
+                      label: const Text('Export Excel', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: _dropdownField(
+                        'Assigned Cohort',
+                        _attClass,
+                        _classes,
+                        (v) {
+                          if (v != null) {
+                            setState(() => _attClass = v);
+                            _generateAttendanceReport();
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 3,
+                      child: _dateTile('Start Date', _attFromDate, (d) {
+                        setState(() => _attFromDate = d);
+                        _generateAttendanceReport();
+                      }),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 3,
+                      child: _dateTile('End Date', _attToDate, (d) {
+                        setState(() => _attToDate = d);
+                        _generateAttendanceReport();
+                      }),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // T-R01: 30-Day Attendance Trajectory LineChart
+          _buildGlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Attendance Trajectory (T-R01)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                        Text('Daily percentage with 75% CBSE threshold benchmark', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _attOverallPct >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${_attOverallPct.toStringAsFixed(1)}% Overall',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: _attOverallPct >= 75 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 180,
+                  child: _attRows.isEmpty
+                      ? const Center(child: Text('No attendance records found for this cohort in selected range.', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))))
+                      : LineChart(
+                          LineChartData(
+                            minY: 0,
+                            maxY: 100,
+                            gridData: FlGridData(
+                              show: true,
+                              drawVerticalLine: false,
+                              getDrawingHorizontalLine: (v) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                            ),
+                            borderData: FlBorderData(show: false),
+                            titlesData: FlTitlesData(
+                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 32,
+                                  getTitlesWidget: (v, m) {
+                                    if (v == 0 || v == 50 || v == 75 || v == 100) {
+                                      return Text('${v.toInt()}%', style: const TextStyle(fontSize: 9, color: Color(0xFF64748B)));
+                                    }
+                                    return const SizedBox();
+                                  },
+                                ),
+                              ),
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 20,
+                                  interval: (_attRows.length / 6).clamp(1.0, 10.0),
+                                  getTitlesWidget: (v, m) {
+                                    final idx = v.toInt();
+                                    if (idx >= 0 && idx < _attRows.length) {
+                                      final rawD = _attRows[idx]['date']?.toString() ?? '';
+                                      final parts = rawD.split('-');
+                                      final label = parts.length >= 3 ? '${parts[2]}/${parts[1]}' : rawD;
+                                      return Text(label, style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                                    }
+                                    return const SizedBox();
+                                  },
+                                ),
+                              ),
+                            ),
+                            extraLinesData: ExtraLinesData(
+                              horizontalLines: [
+                                HorizontalLine(
+                                  y: 75.0,
+                                  color: const Color(0xFFEF4444),
+                                  strokeWidth: 1.5,
+                                  dashArray: [5, 5],
+                                  label: HorizontalLineLabel(
+                                    show: true,
+                                    alignment: Alignment.topRight,
+                                    labelResolver: (l) => '75% CBSE Limit',
+                                    style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            lineBarsData: [
+                              LineChartBarData(
+                                spots: _attRows.asMap().entries.map((e) {
+                                  final pct = (e.value['pct'] as num?)?.toDouble() ?? 0.0;
+                                  return FlSpot(e.key.toDouble(), pct);
+                                }).toList(),
+                                isCurved: true,
+                                color: const Color(0xFF0F766E),
+                                barWidth: 2.5,
+                                dotData: const FlDotData(show: false),
+                                belowBarData: BarAreaData(
+                                  show: true,
+                                  color: const Color(0xFF0F766E).withValues(alpha: 0.12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // T-R02: Attendance Register Table
+          _buildGlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Daily Register Breakdown (T-R02)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                    Text('${_attRows.length} Days Audited', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_attRows.isEmpty)
+                  const Center(child: Padding(padding: EdgeInsets.all(16), child: Text('No register records found.', style: TextStyle(color: Color(0xFF64748B), fontSize: 12))))
+                else
+                  ..._attRows.map((r) {
+                    final d = r['date']?.toString() ?? '-';
+                    final p = r['present'] ?? 0;
+                    final a = r['absent'] ?? 0;
+                    final l = r['late'] ?? 0;
+                    // final tot = r['total'] ?? 0;
+                    final pct = (r['pct'] as num?)?.toDouble() ?? 0.0;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 3, child: Text(d, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)))),
+                          Expanded(flex: 2, child: Text('$p Present', style: const TextStyle(fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.w600))),
+                          Expanded(flex: 2, child: Text('$a Absent', style: const TextStyle(fontSize: 11.5, color: Color(0xFFDC2626), fontWeight: FontWeight.w600))),
+                          Expanded(flex: 2, child: Text('$l Late', style: const TextStyle(fontSize: 11.5, color: Color(0xFFD97706), fontWeight: FontWeight.w600))),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: pct >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${pct.toStringAsFixed(1)}%',
+                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: pct >= 75 ? const Color(0xFF059669) : const Color(0xFFDC2626)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   // ============================
   // TAB 1: MORNING BRIEFING (NOW WITH CLASS ATTENDANCE & AUDIT LOG)
   // ============================
@@ -1758,6 +1983,110 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
               const SizedBox(height: 18),
             ],
 
+            // T-R04: CBSE Grade Distribution Chart
+            _buildGlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('CBSE Grade Distribution (T-R04)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                          Text('Student count across 9-point evaluation bands', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${_marksRows.length} Students Evaluated',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 170,
+                    child: Builder(
+                      builder: (ctx) {
+                        const grades = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D', 'E'];
+                        final counts = <String, int>{};
+                        for (final g in grades) counts[g] = 0;
+                        for (final r in _marksRows) {
+                          final g = (r['grade']?.toString() ?? 'D');
+                          counts[g] = (counts[g] ?? 0) + 1;
+                        }
+                        int maxC = 0;
+                        for (final c in counts.values) if (c > maxC) maxC = c;
+                        final maxY = maxC > 0 ? (maxC * 1.3).ceilToDouble() : 10.0;
+
+                        return BarChart(
+                          BarChartData(
+                            maxY: maxY,
+                            gridData: FlGridData(
+                              show: true,
+                              drawVerticalLine: false,
+                              getDrawingHorizontalLine: (v) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                            ),
+                            borderData: FlBorderData(show: false),
+                            titlesData: FlTitlesData(
+                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 24,
+                                  getTitlesWidget: (v, m) {
+                                    if (v == 0 || v == (maxY / 2).round() || v == maxY) {
+                                      return Text('${v.toInt()}', style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                                    }
+                                    return const SizedBox();
+                                  },
+                                ),
+                              ),
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 18,
+                                  getTitlesWidget: (v, m) {
+                                    final idx = v.toInt();
+                                    if (idx >= 0 && idx < grades.length) {
+                                      return Text(grades[idx], style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)));
+                                    }
+                                    return const SizedBox();
+                                  },
+                                ),
+                              ),
+                            ),
+                            barGroups: grades.asMap().entries.map((e) {
+                              return BarChartGroupData(
+                                x: e.key,
+                                barRods: [
+                                  BarChartRodData(
+                                    toY: (counts[e.value] ?? 0).toDouble(),
+                                    color: const Color(0xFF0F766E),
+                                    width: 16,
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             // Complete Rank-Wise Student Register
             _buildGlassCard(
               child: Column(
@@ -1780,10 +2109,26 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                           ),
                         ],
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.download, color: _primary),
-                        tooltip: 'Export Full Merit Sheet',
-                        onPressed: _showExportSnackbar,
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F766E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                        icon: const Icon(Icons.file_download_outlined, size: 16),
+                        label: const Text('Export Excel (T-R04)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                        onPressed: () {
+                          SchoolExportService.exportGradebookExcel(
+                            context: context,
+                            className: _marksClass,
+                            examType: _examType,
+                            teacherName: _teacherDisplayName,
+                            students: _marksRows,
+                            classAverage: _marksAvg,
+                          );
+                        },
                       ),
                     ],
                   ),
