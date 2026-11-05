@@ -16,19 +16,25 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
 
   String _teacherName = 'Teacher';
   String _teacherClass = 'Class Teacher';
-  // Stats
-  final int _totalStudents = 42;
-  final int _presentToday = 38;
-  int _pendingAssignments = 5;
-  int _upcomingClasses = 3;
-  int _pendingLeaves = 2;
+  String? _instituteName;
 
-  // Today's classes
-  List<Map<String, dynamic>> _todaySchedule = [
-    {'time': '08:00 - 08:45 AM', 'subject': 'Mathematics', 'class': 'Class 10-A', 'room': 'Room 201', 'period': 'Period 1'},
-    {'time': '09:00 - 09:45 AM', 'subject': 'Mathematics', 'class': 'Class 10-B', 'room': 'Room 301', 'period': 'Period 2'},
-    {'time': '11:15 - 12:00 PM', 'subject': 'Mathematics', 'class': 'Class 9-A', 'room': 'Room 101', 'period': 'Period 4'},
-  ];
+  // Real Attendance State
+  int? _totalStudents;
+  int? _presentToday;
+  bool _isAttendanceMarkedToday = false;
+  List<Map<String, dynamic>> _todayAbsentees = [];
+
+  // Real Activity Stats
+  int _pendingAssignments = 0;
+  int _upcomingClasses = 0;
+  int _pendingLeaves = 0;
+
+  // 4-State Lifecycle
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  // Real Schedule
+  List<Map<String, dynamic>> _todaySchedule = [];
 
   @override
   void initState() {
@@ -37,39 +43,86 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   }
 
   Future<void> _loadData() async {
-    final username = await _authService.getCurrentUsername() ?? '';
-
-    final displayName = await _schoolService.getTeacherDisplayName(username);
-    final teacherClasses = await _schoolService.getClassTeacherClasses(username);
-
     if (mounted) {
       setState(() {
-        _teacherName = (displayName != null && displayName.isNotEmpty)
-            ? displayName
-            : (username.isEmpty ? 'Teacher' : username);
-        _teacherClass = teacherClasses.isEmpty
-            ? 'Subject Faculty'
-            : 'Class Teacher • ${teacherClasses.first['name'] ?? ''}'.trim();
+        _isLoading = true;
+        _errorMessage = null;
       });
     }
 
     try {
+      final username = await _authService.getCurrentUsername() ?? '';
+      final displayName = await _schoolService.getTeacherDisplayName(username);
+      final teacherClasses = await _schoolService.getClassTeacherClasses(username);
+      final instName = await _schoolService.getSchoolInstituteName();
+
       final schedule = await _schoolService.getTeacherTimetable(username);
       final pendingHw = await _schoolService.getPendingHomeworkToGrade(username);
       final pendingLeavesList = await _schoolService.getLeaveRequestsForClassTeacher(username);
 
+      // Real Attendance for Class Teacher's assigned class today
+      int? totalStd;
+      int? presentStd;
+      bool isMarked = false;
+      List<Map<String, dynamic>> absentees = [];
+
+      if (teacherClasses.isNotEmpty) {
+        final classId = teacherClasses.first['id']?.toString() ?? '';
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final attSummary = await _schoolService.getAttendanceSummary(
+          classId: classId,
+          from: today,
+          to: today,
+        );
+        final total = (attSummary['total'] as num?)?.toInt() ?? 0;
+        final present = (attSummary['present'] as num?)?.toInt() ?? 0;
+        if (total > 0) {
+          isMarked = true;
+          totalStd = total;
+          presentStd = present;
+          final attReport = await _schoolService.getAttendanceReport(
+            classId: classId,
+            from: today,
+            to: today,
+          );
+          absentees = attReport.where((r) => r['status'] == 'absent').toList();
+        } else {
+          isMarked = false;
+          final students = await _schoolService.getStudentsByClass(classId);
+          totalStd = students.isNotEmpty ? students.length : null;
+          presentStd = null;
+        }
+      }
+
       if (mounted) {
         setState(() {
-          if (schedule.isNotEmpty) {
-            _todaySchedule = schedule;
-            _upcomingClasses = schedule.length;
-          }
+          _teacherName = (displayName != null && displayName.isNotEmpty)
+              ? displayName
+              : (username.isEmpty ? 'Teacher' : username);
+          _teacherClass = teacherClasses.isEmpty
+              ? 'Subject Faculty'
+              : 'Class Teacher • ${teacherClasses.first['name'] ?? ''}'.trim();
+          _instituteName = instName;
+          _todaySchedule = schedule;
+          _upcomingClasses = schedule.length;
           _pendingAssignments = pendingHw;
           _pendingLeaves = pendingLeavesList.length;
+          _isAttendanceMarkedToday = isMarked;
+          _totalStudents = totalStd;
+          _presentToday = presentStd;
+          _todayAbsentees = absentees;
+          _isLoading = false;
+          _errorMessage = null;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Unable to load teacher workspace. Please check your connection and tap retry.';
+        });
+      }
     }
   }
 
@@ -95,7 +148,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
             ),
             Text(
-              'Shivalik International School • $dateStr',
+              _instituteName != null && _instituteName!.isNotEmpty
+                  ? '$_instituteName • $dateStr'
+                  : dateStr,
               style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
             ),
           ],
@@ -118,10 +173,14 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         ],
       ),
       drawer: _buildDrawer(),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        color: const Color(0xFF0F172A),
-        child: ListView(
+      body: _isLoading
+          ? _buildLoadingSkeleton()
+          : _errorMessage != null
+              ? _buildErrorState()
+              : RefreshIndicator(
+                  onRefresh: _loadData,
+                  color: const Color(0xFF0F172A),
+                  child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
           children: [
             _buildFacultyHeroCard(),
@@ -142,6 +201,53 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   // ──────────────────────────────────────────────
   // 1. HERO FACULTY BANNER
   // ──────────────────────────────────────────────
+  Widget _buildLoadingSkeleton() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(color: Color(0xFF2563EB)),
+          SizedBox(height: 16),
+          Text(
+            'Connecting to Faculty Ledger...',
+            style: TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
+            const SizedBox(height: 14),
+            Text(
+              _errorMessage ?? 'Unable to connect to school faculty ledger.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Retry Connection'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFacultyHeroCard() {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -229,17 +335,31 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   // 2. 4-KPI SUMMARY GRID
   // ──────────────────────────────────────────────
   Widget _buildKpiGrid() {
-    final attPct = _totalStudents == 0 ? 0.0 : (_presentToday / _totalStudents) * 100;
+    final hasAttendance = _isAttendanceMarkedToday && _presentToday != null && _totalStudents != null && _totalStudents! > 0;
+    final attPct = hasAttendance ? (_presentToday! / _totalStudents!) * 100 : 0.0;
+    final attValue = hasAttendance
+        ? '$_presentToday / $_totalStudents'
+        : (_totalStudents != null ? 'Not Marked' : 'No Class');
+    final attBadge = hasAttendance
+        ? '${attPct.toStringAsFixed(0)}% Rate'
+        : (_totalStudents != null ? 'Mark Now' : 'Subject Faculty');
+
     return Row(
       children: [
         _buildKpiCard(
           title: "Attendance Today",
-          value: '$_presentToday / $_totalStudents',
-          badgeText: '${attPct.toStringAsFixed(0)}% Rate',
-          badgeBg: const Color(0xFFECFDF5),
-          badgeColor: const Color(0xFF10B981),
+          value: attValue,
+          badgeText: attBadge,
+          badgeBg: hasAttendance ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
+          badgeColor: hasAttendance ? const Color(0xFF10B981) : const Color(0xFFD97706),
           icon: Icons.how_to_reg_outlined,
-          onTap: () => context.push('/school/attendance'),
+          onTap: () {
+            if (_todayAbsentees.isNotEmpty) {
+              _showAbsenteesDialog(context);
+            } else {
+              context.push('/school/attendance');
+            }
+          },
         ),
         const SizedBox(width: 10),
         _buildKpiCard(
@@ -658,8 +778,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
 
   Widget _buildScheduleItem(Map<String, dynamic> item) {
     final subject = item['subject']?.toString() ?? 'Subject';
-    final className = item['class'] ?? item['class_name'] ?? item['class_id'] ?? 'Class';
-    final room = item['room']?.toString() ?? 'Room 201';
+    final className = (item['class'] ?? item['class_name'] ?? item['class_id'] ?? 'Class').toString();
+    final room = item['room']?.toString().trim();
     final time = (item['time'] ?? (item['start_time'] != null && item['end_time'] != null ? '${item['start_time']} - ${item['end_time']}' : (item['start_time']?.toString() ?? 'Scheduled'))).toString();
     final period = item['period']?.toString() ?? 'Period';
 
@@ -719,7 +839,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$className • $room',
+                  room != null && room.isNotEmpty ? '$className • Room $room' : className,
                   style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                 ),
               ],
@@ -741,9 +861,12 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           const SizedBox(width: 8),
 
           IconButton(
-            tooltip: 'Take Attendance for $className',
+            tooltip: 'Take Attendance for $className ($period)',
             icon: const Icon(Icons.how_to_reg_rounded, size: 20, color: Color(0xFF10B981)),
-            onPressed: () => context.push('/school/attendance'),
+            onPressed: () {
+              final cId = item['class_id']?.toString() ?? item['class']?.toString() ?? '';
+              context.push('/school/attendance?classId=$cId&period=$period');
+            },
           ),
         ],
       ),
@@ -753,6 +876,86 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   // ──────────────────────────────────────────────
   // 6. MINIMALIST DRAWER
   // ──────────────────────────────────────────────
+  void _showAbsenteesDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.person_off_rounded, color: Color(0xFFEF4444)),
+            const SizedBox(width: 8),
+            Text(
+              'Absentees Today (${_todayAbsentees.length})',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$_teacherClass • Today',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 12),
+              ..._todayAbsentees.map((a) {
+                final name = a['student_name']?.toString() ?? a['name']?.toString() ?? 'Student';
+                final roll = a['roll_no']?.toString() ?? a['roll_number']?.toString() ?? '';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFECDD3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 12,
+                        backgroundColor: Color(0xFFFEE2E2),
+                        child: Icon(Icons.person, size: 14, color: Color(0xFFEF4444)),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '$name ${roll.isNotEmpty ? "(Roll: $roll)" : ""}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                        ),
+                      ),
+                      const Text(
+                        'Absent',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/school/attendance');
+            },
+            child: const Text('Open Register'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDrawer() {
     return Drawer(
       backgroundColor: Colors.white,

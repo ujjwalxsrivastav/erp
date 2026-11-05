@@ -10,9 +10,9 @@
 ---
 
 ## Current Execution Location:
-- **Active Section in Execution Plan:** `### ENTERPRISE ADMISSIONS & STUDENT INTAKE REDESIGN`
-- **Current Line in Execution Plan:** Line 355 (`Enterprise Admissions Overhaul: 5-Stage Pipeline, Document Scrutiny, RTE 25% Quota & Multi-Step Intake`)
-- **Status:** Completely redesigned `lib/features/school/admissions/admissions_screen.dart` and elevated `lib/services/school_service.dart` into an enterprise-grade School Admissions Master. Features: (1) 5-stage lifecycle pipeline (Under Review -> Interview Scheduled -> Offer Letter Issued -> Enrolled -> Rejected); (2) 4-step intake wizard (Identity & Demographics, Parent KYC & Residence, Academic Grade/Stream Mapping, Mandatory Document Checklist); (3) CBSE Statutory Document Scrutiny Desk (Birth Certificate, Aadhaar, TC, Report Card, Medical Fitness, RTE Income Proof) with 1-click verification stamping; (4) Entrance test & faculty interaction scoring with recommendation verdicts; (5) Official Provisional Offer Letter preview with fee breakdown and acceptance validity; (6) Prospect Leads & Walk-in Enquiries with 1-click conversion to applications; (7) Automated final enrollment creating Student Master, Parent link, and Admission Fee Receipt. 0 analyze errors, 0 warnings! Built and deployed to GitHub Pages (`https://ujjwalxsrivastav.github.io/erp/`).
+- **Active Section in Execution Plan:** `### TEACHER DASHBOARD DEEP-DIVE (ENTERPRISE UPGRADE)`
+- **Current Step in Execution Plan:** `Step T2: My Students + Search (N1 + M12)`
+- **Status:** Step T1 (Real Data Purge) completed with 100% verification. Purged hardcoded KPI numbers (42/38), demo fallback timetable, default Room 201, and hardcoded institute string. Added real attendance query, absentee drill-down modal, 4-state error lifecycle with retry, and dynamic institute name. Moving to Step T2 (My Students roster, 360-degree student profile sheet, and student search).
 
 ---
 
@@ -269,3 +269,27 @@
 - [x] **Line 354 (Action 7):** Static Analysis & Production Web Build:
   - Ran `dart analyze lib/features/school/`: **0 errors, 0 warnings, No issues found!**
   - Compiled production web build with `--base-href /erp/` and synced with GitHub Pages (`https://ujjwalxsrivastav.github.io/erp/`).
+
+---
+
+### [COMPLETED] Step T0: Teacher Dashboard Deep-Dive — Verify-First Baseline Audit
+- [x] **Item (a) — Route & Role Guard:** UserRole.teacher exists in lib/core/security/role_guard.dart with dedicated permissions. login_screen.dart routes 	eacher to /school/teacher-dashboard when institution == 'school'. Demo credential: steacher1 / password.
+- [x] **Item (b) — Institute Name Source:** institutes table exists in Supabase schema (code = 'SHIV-SCH', 
+ame = 'Shivalik International School'). Current dashboard hardcodes 'Shivalik International School • ' — will wire to real DB service query in T1.
+- [x] **Item (c) — Circulars Audience Model:** school_circulars table has 	arget_audience TEXT DEFAULT 'all' ('all', 'parents', 'students', 'teachers') without a dedicated class_id column.
+- [x] **Item (d) — Homework Grading Flow:** school_homework_submissions table has 	eacher_feedback TEXT, status ('submitted', 'returned', 'graded'), and 
+eviewed_at. homework_list_screen.dart has counts, but lacks a per-submission grading modal (to be built in N12).
+- [x] **Item (e) — Teacher Leave Flow:** College HR uses 	eacher_leaves tied to 	eacher_details. School ERP currently has school_student_leaves for students, but lacks a dedicated school_teacher_leaves table.
+- [x] **Item (f) — PTM Booking Storage:** Stored in school_circulars with category: 'PTMSlot' and structured pipe-delimited payload (PTM_SLOT_BOOKING | ...).
+- [x] **Item (g) — Attendance Period Column:** school_attendance is a daily date-level register with UNIQUE(student_id, date). No period column exists in the database.
+- [x] **Item (h) — Notifications Central System:** No central school_notifications table exists; notifications are currently handled via circulars and status checks.
+
+---
+
+### [COMPLETED] Step T1: Real Data Purge (M1, M2, M3, M4)
+- [x] **M1 (Attendance KPI Purge):** Eliminated hardcoded `_totalStudents = 42` and `_presentToday = 38`. Dynamic attendance query computes real enrolled count and today's present count from `school_attendance`. If attendance is unrecorded, card displays "Not Marked" with a "Mark Now" badge. On tap, if absentees exist, an interactive drill-down modal displays today's absent students with a direct button to open the register.
+- [x] **M2 (Schedule Purge):** Completely deleted hardcoded demo fallback timetable (`_todaySchedule = [{'subject': 'Mathematics', 'room': 'Room 201', ...}]`). Now defaults to real empty list with the official "No lectures scheduled for today. Free day!" empty state. Deleted default `'Room 201'` string in `_buildScheduleItem`. Period attendance icon now passes exact `classId` and `period` via query parameters.
+- [x] **M3 (Institute Name Dynamic Fetch):** Added `getSchoolInstituteName()` in `SchoolService` querying the `institutes` table (`code = 'SHIV-SCH'`). AppBar now dynamically displays the actual institute name without hardcoding.
+- [x] **M4 (4-State Error Lifecycle):** Added `_isLoading` and `_errorMessage` with a dedicated faculty loading skeleton, error view with retry action, and graceful empty states.
+- [x] **Grep Verification:** Executed word-boundary grep for `\b42\b`, `\b38\b`, `Room 201`, `Shivalik International School` in `lib/features/school/school_teacher_dashboard.dart` — confirmed **0 occurrences found!**
+- [x] **Static Analysis:** Ran `dart analyze lib/features/school/` — **No issues found (0 errors, 0 warnings)!**
