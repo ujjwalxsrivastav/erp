@@ -1,42 +1,33 @@
-- **Current Step in Execution Plan:** `Step STU7: Final QA, Live DB Regression & Production Verification [COMPLETED]`
-- **Status:** **School ERP Student Dashboard Deep-Dive (STU0 to STU7) is 100% COMPLETE!** Full live database regression suite passed with 100% assertions (41/41 tests): privacy isolation strictly verified on live Supabase across all modules (0 data leakage between students), zero mock/fake data across the entire codebase confirmed via automated grep audit, all 13 per-student Excel reports (STU-R01 to STU-R13) active and adhering to dual-sheet standard with strict naming, 16-module 1:1 parity between Drawer and Quick Services, static analysis clean with 0 errors and 0 warnings (`flutter analyze lib/features/school/ lib/services/`), and 100% dual-ERP isolation preserved (0 college files modified). Ready for client handover.
+- **Current Step in Execution Plan:** `Step SP0: Baseline Audit & Verification (Super Enterprise Deep-Dive) [COMPLETED]`
+- **Status:** **SP0 Baseline Audit completed with 100% verification:** (a) Deploy failure cause confirmed: `pubspec.yaml` lists `.env` as an asset, but `.env` is gitignored; (b) Live `users` table audited: 76/77 school users already use `s`-prefix; only 1 account (`parent1`, role `parent`) lacks `s`-prefix (flagged for owner approval); (c) College payroll tables (`payroll_runs`, `payslips`, `teacher_details`, `teacher_salary`, `teacher_leaves`) inspected and absence of ESI confirmed; (d) Settings storage via SystemSetting document verified, statutory rates prepared; (e) Library fine auto-posting on return confirmed; (f) Circulars audience verified for 'Alumni' extension; (g) Transport GPS confirmed as label-only; (h) Provided Groq (`gsk_...`) and Gemini (`AQ.Ab...`) API keys tested and validated 100% live. Ready to commence **Step SP1: Deploy Pipeline Fix (Item 11)**.
 
 ---
 
 ## Detailed Step & Line Progress Log
 
-### [COMPLETED] Step STU7: Final QA, Live DB Regression & Production Verification
-- [x] **Live Supabase Privacy Isolation Test (41/41 Assertions Passed):**
-  - Verified Attendance Privacy: strictly scoped by `student_id = username`, 0 overlap between distinct students.
-  - Verified Marks Privacy: strictly scoped by `student_id = username`, 0 overlap between distinct students.
-  - Verified Homework Submissions Privacy: strictly scoped by `student_id = username`, 0 overlap.
-  - Verified Fee Payments Privacy: strictly scoped by `student_id = username`, 0 overlap.
-  - Verified Leave Requests Privacy: service layer strictly isolates by `studentId` / `student_username`.
-  - Verified Library Issues Privacy: strictly scoped to student, 0 overlap between students.
-  - Verified Certificate Requests Privacy: strictly scoped by `username`, 0 overlap.
-- [x] **Zero Mock / Hardcoded Purge Codebase Audit:**
-  - Automated regex/grep verification confirmed complete absence of banned mock constants: `Mr. R. Sharma`, `Ms. A. Sen`, `Dr. K. Verma`, `Mrs. P. Joshi`, `Room 102`, `94.2`, `SHIV-2024-89`, `mat-01`, `quiz-sci-01`, `_defaultIssued`, `_defaultCertificateRequests`.
-- [x] **13 Per-Student Excel Workbooks Verification (STU-R01 to STU-R13):**
-  - Confirmed all 13 report generator methods in `SchoolExportService`:
-    1. `exportStudentAttendanceTrendExcel` (STU-R01)
-    2. `exportStudentAttendanceRegisterExcel` (STU-R02)
-    3. `exportStudentMarksTrendExcel` (STU-R03)
-    4. `exportStudentSubjectPerformanceExcel` (STU-R04)
-    5. `exportStudentReportCardExcel` (STU-R05)
-    6. `exportStudentHomeworkCompletionExcel` (STU-R06)
-    7. `exportStudentHomeworkSubmissionsLogExcel` (STU-R07)
-    8. `exportStudentFeeStatementExcel` (STU-R08)
-    9. `exportStudentFeeReceiptsExcel` (STU-R09)
-    10. `exportStudentLeaveHistoryExcel` (STU-R10)
-    11. `exportStudentLibraryHistoryExcel` (STU-R11)
-    12. `exportStudentStudyProgressExcel` (STU-R12)
-    13. `exportStudentCertificatesLogExcel` (STU-R13)
-  - Verified Dual-Sheet structure (`Summary` + `Data` with total row) and naming standard `Student_<username>_<CODE>_<YYYYMMDD>.xlsx`.
-- [x] **Dual-ERP Strict Isolation:**
-  - `git status --porcelain lib/features/college` verified completely clean (0 modified or uncommitted files).
-  - Git log analysis confirmed ZERO college files touched across all student dashboard commits.
-- [x] **Static Analysis & Flutter Verification:**
-  - `flutter analyze lib/features/school/ lib/services/` returned **0 issues found** (0 errors, 0 warnings).
+### [COMPLETED] Step SP0: Baseline Audit & Verification (Super Enterprise Deep-Dive)
+- [x] **Item (a) — Deploy Pipeline Error Analysis:**
+  - Inspected `.github/workflows/deploy.yml` and `pubspec.yaml` (line 96).
+  - Confirmed build fails at `flutter build web` during asset bundling because `.env` is gitignored and missing in CI checkout.
+- [x] **Item (b) — Live Users Table School Accounts Audit:**
+  - Audited `users` table via Supabase REST API: 77 school users found.
+  - 76 accounts correctly formatted with `s`-prefix (`sadmin1`, `steacher1`, `sstudent1`, etc.).
+  - Exactly 1 account without `s`-prefix: `parent1` (`role: 'parent'`). Zero accounts renamed without owner permission.
+- [x] **Item (c) — College Payroll Tables & ESI Audit:**
+  - Queried `PayrollService`: tables used are `payroll_runs`, `payslips`, `teacher_details`, `teacher_salary`, `teacher_leaves`.
+  - Confirmed ESI is completely absent across college payroll.
+- [x] **Item (d) — Settings & Statutory Rates Audit:**
+  - Confirmed `school_settings`, `settings`, and `school_config` tables 404 in REST API. Settings managed via `school_circulars` SystemSetting document.
+  - Formulated standard statutory defaults: PF 12%, ESI 0.75% for gross <= ₹21,000, library fine ₹5/day, depreciation 10%.
+- [x] **Item (e) — Library Fine Auto-Posting Audit:**
+  - Confirmed `SchoolService.returnLibraryBook` computes ₹5/day fine and auto-inserts into `school_fee_payments` (`head: 'LibraryFine'`).
+- [x] **Item (f) — Circulars Target Audience Model:**
+  - Confirmed dropdown `['All', 'Students', 'Parents', 'Teachers']` can seamlessly be extended with `'Alumni'`.
+- [x] **Item (g) — Transport GPS Real Telematics Audit:**
+  - Confirmed `transport_screen.dart` has route, vehicle, and gate pass management, but no live GPS streaming or coordinates.
+- [x] **Item (h) — Groq & Gemini API Keys Validation:**
+  - Tested Groq key with `openai/gpt-oss-120b`: response received successfully.
+  - Tested Gemini key with `generativelanguage.googleapis.com`: response 200 OK received successfully.
 
 ---
 
