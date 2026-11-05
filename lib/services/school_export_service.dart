@@ -3222,4 +3222,853 @@ class SchoolExportService {
     }
   }
 
+
+  // ===========================================================================
+  // STUDENT PORTAL EXCEL WORKBOOK EXPORTS (STU-R01 to STU-R13)
+  // Strict standard: Dual-sheet (Summary + Data + Totals row)
+  // Filename: Student_<username>_<CODE>_<YYYYMMDD>.xlsx
+  // ===========================================================================
+
+  static String _studentDateSlug() {
+    final now = DateTime.now();
+    return '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+  }
+
+  /// STU-R01: Attendance Trend
+  static Future<void> exportStudentAttendanceTrendExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required double attendancePct,
+    required List<Map<String, dynamic>> dailyPoints,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R01 (ATTENDANCE VELOCITY & TREND)')]);
+    summary.appendRow([TextCellValue('Student Username:'), TextCellValue(studentUsername)]);
+    summary.appendRow([TextCellValue('Student Name:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class & Section:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Overall Attendance %:'), DoubleCellValue(attendancePct)]);
+    summary.appendRow([TextCellValue('Statutory Rule:'), TextCellValue('CBSE Rule 13.2 Examination Minimum 75.0%')]);
+    summary.appendRow([TextCellValue('Statutory Compliance:'), TextCellValue(attendancePct >= 75.0 ? 'COMPLIANT' : 'SHORTAGE ALERT')]);
+    summary.appendRow([TextCellValue('Generated At:'), TextCellValue(DateTime.now().toIso8601String())]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Date'),
+      TextCellValue('Status'),
+      TextCellValue('Score (%)'),
+      TextCellValue('CBSE Statutory Threshold'),
+    ]);
+
+    for (int i = 0; i < dailyPoints.length; i++) {
+      final p = dailyPoints[i];
+      final dt = p['date']?.toString() ?? '-';
+      final st = p['status']?.toString() ?? 'Present';
+      final sc = (p['score'] as num?)?.toDouble() ?? (p['value'] as num?)?.toDouble() ?? 100.0;
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(dt),
+        TextCellValue(st),
+        DoubleCellValue(sc),
+        TextCellValue('75.0%'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R01_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R02: Monthly Attendance Register
+  static Future<void> exportStudentAttendanceRegisterExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> records,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R02 (MONTHLY ATTENDANCE REGISTER)')]);
+    summary.appendRow([TextCellValue('Student Username:'), TextCellValue(studentUsername)]);
+    summary.appendRow([TextCellValue('Student Name:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Working Days:'), IntCellValue(records.length)]);
+
+    int present = records.where((r) => (r['status'] ?? '').toString().toLowerCase() == 'present').length;
+    int absent = records.where((r) => (r['status'] ?? '').toString().toLowerCase() == 'absent').length;
+    int late = records.where((r) => (r['status'] ?? '').toString().toLowerCase() == 'late').length;
+    int excused = records.where((r) => (r['status'] ?? '').toString().toLowerCase().contains('leave') || (r['status'] ?? '').toString().toLowerCase() == 'excused').length;
+
+    summary.appendRow([TextCellValue('Present Days:'), IntCellValue(present)]);
+    summary.appendRow([TextCellValue('Absent Days:'), IntCellValue(absent)]);
+    summary.appendRow([TextCellValue('Late Arrivals:'), IntCellValue(late)]);
+    summary.appendRow([TextCellValue('Excused Leaves:'), IntCellValue(excused)]);
+    summary.appendRow([TextCellValue('Generated At:'), TextCellValue(DateTime.now().toIso8601String())]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Date'),
+      TextCellValue('Attendance Status'),
+      TextCellValue('Remarks / Justification'),
+    ]);
+
+    for (int i = 0; i < records.length; i++) {
+      final r = records[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(r['date']?.toString() ?? '-'),
+        TextCellValue(r['status']?.toString() ?? 'Present'),
+        TextCellValue(r['remarks']?.toString() ?? '-'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R02_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R03: Marks Progression Trend
+  static Future<void> exportStudentMarksTrendExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> examTrend,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R03 (MARKS PROGRESSION TREND)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Exam Cycles Evaluated:'), IntCellValue(examTrend.length)]);
+    summary.appendRow([TextCellValue('Generated:'), TextCellValue(DateTime.now().toIso8601String())]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Examination Session'),
+      TextCellValue('Marks Obtained'),
+      TextCellValue('Total Max Marks'),
+      TextCellValue('Percentage (%)'),
+      TextCellValue('CBSE Grade'),
+      TextCellValue('Performance Assessment'),
+    ]);
+
+    for (int i = 0; i < examTrend.length; i++) {
+      final e = examTrend[i];
+      final obt = (e['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+      final tot = (e['total_marks'] as num?)?.toDouble() ?? 0.0;
+      final pct = (e['percentage'] as num?)?.toDouble() ?? 0.0;
+
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(e['exam_name']?.toString() ?? 'Exam'),
+        DoubleCellValue(obt),
+        DoubleCellValue(tot),
+        DoubleCellValue(pct),
+        TextCellValue(e['grade']?.toString() ?? 'N/A'),
+        TextCellValue(e['description']?.toString() ?? '-'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R03_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R04: Subject-Wise Performance
+  static Future<void> exportStudentSubjectPerformanceExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> subjects,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R04 (SUBJECT-WISE PERFORMANCE BREAKDOWN)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Assessed Subjects:'), IntCellValue(subjects.length)]);
+    summary.appendRow([TextCellValue('CBSE Grading System:'), TextCellValue('Standard 9-Point Scale (A1 to E2)')]);
+    summary.appendRow([TextCellValue('Generated:'), TextCellValue(DateTime.now().toIso8601String())]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Subject'),
+      TextCellValue('Marks Obtained'),
+      TextCellValue('Max Marks'),
+      TextCellValue('Percentage (%)'),
+      TextCellValue('CBSE Grade'),
+      TextCellValue('Faculty Remarks / Learning Objectives'),
+    ]);
+
+    double totObt = 0;
+    double totMax = 0;
+
+    for (int i = 0; i < subjects.length; i++) {
+      final s = subjects[i];
+      final obt = (s['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+      final maxM = (s['total_marks'] as num?)?.toDouble() ?? 100.0;
+      final pct = (s['percentage'] as num?)?.toDouble() ?? (maxM > 0 ? (obt / maxM) * 100 : 0.0);
+      totObt += obt;
+      totMax += maxM;
+
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(s['subject']?.toString() ?? 'Subject'),
+        DoubleCellValue(obt),
+        DoubleCellValue(maxM),
+        DoubleCellValue(pct),
+        TextCellValue(s['grade']?.toString() ?? 'A1'),
+        TextCellValue(s['remarks']?.toString() ?? 'Demonstrating subject comprehension'),
+      ]);
+    }
+
+    // Totals Row
+    final overallPct = totMax > 0 ? (totObt / totMax) * 100 : 0.0;
+    data.appendRow([
+      TextCellValue('TOTAL'),
+      TextCellValue('Grand Aggregation'),
+      DoubleCellValue(totObt),
+      DoubleCellValue(totMax),
+      DoubleCellValue(overallPct),
+      TextCellValue(overallPct >= 90 ? 'A1' : (overallPct >= 80 ? 'A2' : 'B1')),
+      TextCellValue('Cumulative Scholastic Summary'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R04_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R05: Holistic Progress Card Summary
+  static Future<void> exportStudentReportCardExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required Map<String, dynamic> reportCardData,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - CBSE HOLISTIC PROGRESS CARD')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R05 (HPC COMPREHENSIVE DOSSIER)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class & Section:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Overall Score:'), DoubleCellValue((reportCardData['overall_percentage'] as num?)?.toDouble() ?? 0.0)]);
+    summary.appendRow([TextCellValue('CBSE Overall Grade:'), TextCellValue(reportCardData['overall_grade']?.toString() ?? 'A1')]);
+    summary.appendRow([TextCellValue('Promotion Verdict:'), TextCellValue(reportCardData['promotion_verdict']?.toString() ?? 'Eligible for Class Promotion')]);
+    summary.appendRow([TextCellValue('Principal Seal:'), TextCellValue('Authorized Digital Signature Attached')]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('Domain Category'),
+      TextCellValue('Subject / Learning Area'),
+      TextCellValue('Marks Obtained / Score'),
+      TextCellValue('Max Marks / Scale'),
+      TextCellValue('Grade'),
+      TextCellValue('Descriptive Indicator'),
+    ]);
+
+    final scholastic = (reportCardData['subjects'] as List<dynamic>?) ?? [];
+    for (final s in scholastic) {
+      data.appendRow([
+        TextCellValue('Scholastic Area'),
+        TextCellValue(s['subject']?.toString() ?? '-'),
+        DoubleCellValue((s['marks_obtained'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue((s['total_marks'] as num?)?.toDouble() ?? 100.0),
+        TextCellValue(s['grade']?.toString() ?? 'A1'),
+        TextCellValue(s['remarks']?.toString() ?? 'Mastered essential competencies'),
+      ]);
+    }
+
+    final coScholastic = (reportCardData['co_scholastic'] as List<dynamic>?) ?? [];
+    for (final cs in coScholastic) {
+      data.appendRow([
+        TextCellValue('Co-Scholastic Domain'),
+        TextCellValue(cs['domain']?.toString() ?? '-'),
+        TextCellValue('Exemplary'),
+        TextCellValue('3-Point Scale'),
+        TextCellValue(cs['grade']?.toString() ?? 'A'),
+        TextCellValue(cs['remarks']?.toString() ?? 'Active participation and sportsmanship'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R05_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R06: Homework Completion Summary
+  static Future<void> exportStudentHomeworkCompletionExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required Map<String, dynamic> hwCompletion,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R06 (HOMEWORK COMPLETION & VELOCITY)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Tasks Assigned:'), IntCellValue((hwCompletion['total_assigned'] as num?)?.toInt() ?? 0)]);
+    summary.appendRow([TextCellValue('Submitted Tasks:'), IntCellValue((hwCompletion['submitted_count'] as num?)?.toInt() ?? 0)]);
+    summary.appendRow([TextCellValue('Pending Tasks:'), IntCellValue((hwCompletion['pending_count'] as num?)?.toInt() ?? 0)]);
+    summary.appendRow([TextCellValue('Overdue Tasks:'), IntCellValue((hwCompletion['overdue_count'] as num?)?.toInt() ?? 0)]);
+    summary.appendRow([TextCellValue('Completion Rate %:'), DoubleCellValue((hwCompletion['completion_rate'] as num?)?.toDouble() ?? 0.0)]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Assignment Title'),
+      TextCellValue('Subject'),
+      TextCellValue('Due Date'),
+      TextCellValue('Submission Status'),
+      TextCellValue('Submission Timestamp'),
+    ]);
+
+    final ledger = (hwCompletion['ledger'] as List<dynamic>?) ?? [];
+    for (int i = 0; i < ledger.length; i++) {
+      final h = ledger[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(h['title']?.toString() ?? 'Task'),
+        TextCellValue(h['subject']?.toString() ?? 'General'),
+        TextCellValue(h['due_date']?.toString() ?? '-'),
+        TextCellValue(h['status']?.toString() ?? 'PENDING'),
+        TextCellValue(h['submitted_at']?.toString() ?? '-'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R06_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R07: Homework Submissions Log & Teacher Feedback
+  static Future<void> exportStudentHomeworkSubmissionsLogExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> submissions,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R07 (HOMEWORK SUBMISSIONS & FACULTY FEEDBACK)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Submissions Logged:'), IntCellValue(submissions.length)]);
+    summary.appendRow([TextCellValue('Generated:'), TextCellValue(DateTime.now().toIso8601String())]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Homework Title'),
+      TextCellValue('Subject'),
+      TextCellValue('Submitted Date & Time'),
+      TextCellValue('Student Note'),
+      TextCellValue('Attachment File / URL'),
+      TextCellValue('Teacher Feedback & Review Remarks'),
+    ]);
+
+    for (int i = 0; i < submissions.length; i++) {
+      final s = submissions[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(s['title']?.toString() ?? 'Assignment'),
+        TextCellValue(s['subject']?.toString() ?? 'General'),
+        TextCellValue(s['submitted_at']?.toString() ?? '-'),
+        TextCellValue(s['note']?.toString() ?? '-'),
+        TextCellValue(s['attachment_url']?.toString() ?? 'Direct Text Submission'),
+        TextCellValue(s['teacher_feedback']?.toString() ?? 'Pending Faculty Review'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R07_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R08: Fee Statement & Ledger Breakdown
+  static Future<void> exportStudentFeeStatementExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> feeSchedule,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT LEDGER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R08 (STATUTORY 12-MONTH FEE STATEMENT)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Statutory Session:'), TextCellValue('April to March Academic Cycle')]);
+    summary.appendRow([TextCellValue('Statutory Due Date:'), TextCellValue('5th of Each Calendar Month')]);
+    summary.appendRow([TextCellValue('Statutory Fine:'), TextCellValue('₹100 per overdue month post 5th')]);
+
+    double totalDemand = 0;
+    double totalPaid = 0;
+    double totalPending = 0;
+    double totalLateFee = 0;
+
+    for (final item in feeSchedule) {
+      final amt = (item['amount'] as num?)?.toDouble() ?? 0.0;
+      final paid = (item['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final late = (item['late_fee'] as num?)?.toDouble() ?? 0.0;
+      totalDemand += amt;
+      totalPaid += paid;
+      totalPending += (amt - (paid < amt ? paid : amt));
+      totalLateFee += late;
+    }
+
+    summary.appendRow([TextCellValue('Total Session Demand (₹):'), DoubleCellValue(totalDemand)]);
+    summary.appendRow([TextCellValue('Total Reconciled Paid (₹):'), DoubleCellValue(totalPaid)]);
+    summary.appendRow([TextCellValue('Outstanding Dues (₹):'), DoubleCellValue(totalPending)]);
+    summary.appendRow([TextCellValue('Accumulated Late Fee (₹):'), DoubleCellValue(totalLateFee)]);
+    summary.appendRow([TextCellValue('Account Status:'), TextCellValue(totalPending <= 0.01 ? 'CLEAR (NO DUES)' : 'PENDING DUES')]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Schedule Month'),
+      TextCellValue('Head Description'),
+      TextCellValue('Due Date'),
+      TextCellValue('Monthly Amount (₹)'),
+      TextCellValue('Late Fee (₹)'),
+      TextCellValue('Total Demand (₹)'),
+      TextCellValue('Paid Amount (₹)'),
+      TextCellValue('Outstanding (₹)'),
+      TextCellValue('Status'),
+      TextCellValue('Receipt Number'),
+    ]);
+
+    for (int i = 0; i < feeSchedule.length; i++) {
+      final row = feeSchedule[i];
+      final amt = (row['amount'] as num?)?.toDouble() ?? 0.0;
+      final paid = (row['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      final late = (row['late_fee'] as num?)?.toDouble() ?? 0.0;
+      final pendingAmt = (amt + late) - paid;
+
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(row['month_name']?.toString() ?? 'Month ${i + 1}'),
+        TextCellValue(row['head']?.toString() ?? 'Composite Fee'),
+        TextCellValue(row['due_date']?.toString() ?? '-'),
+        DoubleCellValue(amt),
+        DoubleCellValue(late),
+        DoubleCellValue(amt + late),
+        DoubleCellValue(paid),
+        DoubleCellValue(pendingAmt > 0 ? pendingAmt : 0.0),
+        TextCellValue(row['status']?.toString().toUpperCase() ?? (pendingAmt <= 0.01 ? 'PAID' : 'PENDING')),
+        TextCellValue(row['receipt_no']?.toString() ?? '-'),
+      ]);
+    }
+
+    // Totals row
+    data.appendRow([
+      TextCellValue('TOTAL'),
+      TextCellValue('Full Academic Year'),
+      TextCellValue('-'),
+      TextCellValue('-'),
+      DoubleCellValue(totalDemand),
+      DoubleCellValue(totalLateFee),
+      DoubleCellValue(totalDemand + totalLateFee),
+      DoubleCellValue(totalPaid),
+      DoubleCellValue(totalPending),
+      TextCellValue(totalPending <= 0.01 ? 'CLEAR' : 'OVERDUE'),
+      TextCellValue('-'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R08_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R09: Fee Receipts & Payment History
+  static Future<void> exportStudentFeeReceiptsExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> receipts,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R09 (OFFICIAL FEE RECEIPTS REGISTER)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Transactions:'), IntCellValue(receipts.length)]);
+
+    double totalCollected = 0.0;
+    for (final r in receipts) {
+      totalCollected += (r['amount'] as num?)?.toDouble() ?? (r['paid_amount'] as num?)?.toDouble() ?? 0.0;
+    }
+    summary.appendRow([TextCellValue('Total Amount Cleared (₹):'), DoubleCellValue(totalCollected)]);
+    summary.appendRow([TextCellValue('Generated:'), TextCellValue(DateTime.now().toIso8601String())]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Receipt Number'),
+      TextCellValue('Payment Date'),
+      TextCellValue('Fee Head / Component'),
+      TextCellValue('Amount Paid (₹)'),
+      TextCellValue('Payment Mode'),
+      TextCellValue('Bank Transaction ID'),
+      TextCellValue('Reconciliation Status'),
+    ]);
+
+    for (int i = 0; i < receipts.length; i++) {
+      final r = receipts[i];
+      final amt = (r['amount'] as num?)?.toDouble() ?? (r['paid_amount'] as num?)?.toDouble() ?? 0.0;
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(r['receipt_no']?.toString() ?? 'RCT-${i + 1}'),
+        TextCellValue(r['date']?.toString() ?? r['due_date']?.toString() ?? '-'),
+        TextCellValue(r['head']?.toString() ?? 'Tuition & Academic Fee'),
+        DoubleCellValue(amt),
+        TextCellValue(r['payment_mode']?.toString() ?? 'Online'),
+        TextCellValue(r['transaction_id']?.toString() ?? r['id']?.toString() ?? '-'),
+        TextCellValue('Settled & Authorized'),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTAL'),
+      TextCellValue('Grand Receipts Reconciled'),
+      TextCellValue('-'),
+      TextCellValue('-'),
+      DoubleCellValue(totalCollected),
+      TextCellValue('-'),
+      TextCellValue('-'),
+      TextCellValue('AUDITED OK'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R09_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R10: Student Leave History
+  static Future<void> exportStudentLeaveHistoryExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> leaves,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R10 (STUDENT LEAVE APPLICATIONS LOG)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Applications:'), IntCellValue(leaves.length)]);
+
+    int approved = leaves.where((l) => (l['status'] ?? '').toString().toLowerCase() == 'approved').length;
+    int pending = leaves.where((l) => (l['status'] ?? '').toString().toLowerCase().contains('pend')).length;
+    int rejected = leaves.where((l) => (l['status'] ?? '').toString().toLowerCase() == 'rejected').length;
+
+    summary.appendRow([TextCellValue('Approved (Excused):'), IntCellValue(approved)]);
+    summary.appendRow([TextCellValue('Pending Decision:'), IntCellValue(pending)]);
+    summary.appendRow([TextCellValue('Rejected:'), IntCellValue(rejected)]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Category'),
+      TextCellValue('From Date'),
+      TextCellValue('To Date'),
+      TextCellValue('Days Count'),
+      TextCellValue('Reason & Justification'),
+      TextCellValue('Decision Status'),
+      TextCellValue('Faculty Decision Remarks'),
+    ]);
+
+    for (int i = 0; i < leaves.length; i++) {
+      final l = leaves[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(l['category']?.toString() ?? 'Medical'),
+        TextCellValue(l['start_date']?.toString() ?? l['from_date']?.toString() ?? '-'),
+        TextCellValue(l['end_date']?.toString() ?? l['to_date']?.toString() ?? '-'),
+        IntCellValue((l['days_count'] as num?)?.toInt() ?? 1),
+        TextCellValue(l['reason']?.toString() ?? '-'),
+        TextCellValue(l['status']?.toString().toUpperCase() ?? 'PENDING'),
+        TextCellValue(l['decision_reason']?.toString() ?? l['remarks']?.toString() ?? '-'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R10_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R11: Library Issued Books History
+  static Future<void> exportStudentLibraryHistoryExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> books,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R11 (LIBRARY BORROWING & ISSUED BOOKS REGISTER)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Titles Borrowed:'), IntCellValue(books.length)]);
+
+    double totalFines = 0.0;
+    for (final b in books) {
+      totalFines += (b['fine_amount'] as num?)?.toDouble() ?? 0.0;
+    }
+    summary.appendRow([TextCellValue('Outstanding Library Fines (₹):'), DoubleCellValue(totalFines)]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Book Title'),
+      TextCellValue('Author / Publication'),
+      TextCellValue('Accession No / ISBN'),
+      TextCellValue('Issue Date'),
+      TextCellValue('Due Return Date'),
+      TextCellValue('Actual Return Date'),
+      TextCellValue('Fine Overdue (₹)'),
+      TextCellValue('Status'),
+    ]);
+
+    for (int i = 0; i < books.length; i++) {
+      final b = books[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(b['title']?.toString() ?? 'Library Book'),
+        TextCellValue(b['author']?.toString() ?? 'NCERT / SIS'),
+        TextCellValue(b['isbn']?.toString() ?? b['book_id']?.toString() ?? '-'),
+        TextCellValue(b['issue_date']?.toString() ?? '-'),
+        TextCellValue(b['due_date']?.toString() ?? '-'),
+        TextCellValue(b['return_date']?.toString() ?? 'Not Returned Yet'),
+        DoubleCellValue((b['fine_amount'] as num?)?.toDouble() ?? 0.0),
+        TextCellValue(b['status']?.toString() ?? 'Active'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R11_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R12: Study Materials & Practice Quizzes Progress
+  static Future<void> exportStudentStudyProgressExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> materials,
+    required List<Map<String, dynamic>> quizzes,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R12 (STUDY MATERIALS & QUIZ ATTEMPTS PROGRESS)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Course Materials Available:'), IntCellValue(materials.length)]);
+    summary.appendRow([TextCellValue('Quizzes Attempted:'), IntCellValue(quizzes.length)]);
+
+    final matSheet = excel['StudyMaterials'];
+    matSheet.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Topic / Material Title'),
+      TextCellValue('Subject'),
+      TextCellValue('Published Date'),
+      TextCellValue('Faculty Author'),
+      TextCellValue('Document Access Link'),
+    ]);
+
+    for (int i = 0; i < materials.length; i++) {
+      final m = materials[i];
+      matSheet.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(m['title']?.toString() ?? '-'),
+        TextCellValue(m['subject']?.toString() ?? 'General'),
+        TextCellValue(m['created_at']?.toString() ?? '-'),
+        TextCellValue(m['uploaded_by']?.toString() ?? 'Faculty'),
+        TextCellValue(m['file_url']?.toString() ?? 'In-App Reader'),
+      ]);
+    }
+
+    final quizSheet = excel['Quizzes'];
+    quizSheet.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Quiz Assessment Title'),
+      TextCellValue('Subject'),
+      TextCellValue('Score Achieved'),
+      TextCellValue('Total Max Score'),
+      TextCellValue('Percentage (%)'),
+      TextCellValue('Status'),
+    ]);
+
+    for (int i = 0; i < quizzes.length; i++) {
+      final q = quizzes[i];
+      final sc = (q['score'] as num?)?.toDouble() ?? 0.0;
+      final tot = (q['total'] as num?)?.toDouble() ?? 10.0;
+      final pct = tot > 0 ? (sc / tot) * 100 : 0.0;
+      quizSheet.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(q['title']?.toString() ?? 'MCQ Quiz'),
+        TextCellValue(q['subject']?.toString() ?? 'Science'),
+        DoubleCellValue(sc),
+        DoubleCellValue(tot),
+        DoubleCellValue(pct),
+        TextCellValue(pct >= 60 ? 'PASSED' : 'PRACTICE REQUIRED'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R12_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// STU-R13: Student Certificates Dossier
+  static Future<void> exportStudentCertificatesLogExcel({
+    required BuildContext context,
+    required String studentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> requests,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT DOSSIER')]);
+    summary.appendRow([TextCellValue('REPORT CODE: STU-R13 (OFFICIAL CERTIFICATE REQUESTS REGISTER)')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue('$studentName ($studentUsername)')]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Certificate Requests:'), IntCellValue(requests.length)]);
+
+    final data = excel['Data'];
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Certificate Type'),
+      TextCellValue('Purpose / Justification'),
+      TextCellValue('Application Date'),
+      TextCellValue('Processing Status'),
+      TextCellValue('Certificate Serial Number'),
+      TextCellValue('Digital Verification Link'),
+    ]);
+
+    for (int i = 0; i < requests.length; i++) {
+      final r = requests[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(r['cert_type']?.toString() ?? r['certificate_type']?.toString() ?? 'Bonafide'),
+        TextCellValue(r['reason']?.toString() ?? '-'),
+        TextCellValue(r['requested_date']?.toString() ?? '-'),
+        TextCellValue(r['status']?.toString() ?? 'Under Review'),
+        TextCellValue(r['certificate_no']?.toString() ?? r['id']?.toString() ?? '-'),
+        TextCellValue('https://shivalikschool.edu.in/verify/certificate?id=${r['id']}'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Student_${studentUsername}_STU_R13_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }

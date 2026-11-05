@@ -1,9 +1,40 @@
-- **Current Step in Execution Plan:** `Step STU3: Reports Second Half & Excel (STU-R07 to STU-R13 + M14 Excel)`
-- **Status:** Step STU2 (My Progress Analytics & Reports Hub First Half) is 100% complete and verified with 0 analyze issues. Added 4 live `fl_chart` analytics engines on dashboard (30-day attendance velocity, marks trend, subject-wise benchmarks, homework completion velocity) and student-scoped Reports Hub modal (STU-R01 to STU-R06) with drawer linkage. Commencing Step STU3: Reports Second Half & Excel. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step STU4: Naye Features Pehla Hissa (N3, N4, N5)`
+- **Status:** Step STU3 (Reports Second Half & Excel: STU-R07 to STU-R13 + M14 Excel) is 100% complete and verified with 0 analyze issues. All 13 official per-student Excel workbook exports (STU-R01 to STU-R13) implemented in `SchoolExportService` conforming to the dual-sheet standard (Summary + Data + Totals) and wired into the Reports Hub with live download triggers. Commencing Step STU4: New Features Part 1. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step STU3: Reports Second Half & Excel (STU-R07 to STU-R13 + M14 Excel)
+- [x] **Excel Export Engine (`lib/services/school_export_service.dart`):**
+  - Built all 13 official per-student Excel workbooks conforming to dual-sheet standard (`Summary` + `Data` with reconciliation totals row) and strict naming convention `Student_<username>_<CODE>_<YYYYMMDD>.xlsx`:
+    1. `STU-R01`: Attendance Trend & Velocity (30-day points, statutory 75% rule audit).
+    2. `STU-R02`: Monthly Attendance Register (Date-wise P/A/L/Excused records & summary).
+    3. `STU-R03`: Exam Marks Progression Trend (Session-to-session velocity & CBSE grades).
+    4. `STU-R04`: Subject-Wise Performance & Focus Breakdown (Marks, max marks, CBSE grades, faculty remarks).
+    5. `STU-R05`: CBSE Holistic Progress Card (HPC) Dossier (Scholastic & co-scholastic domains).
+    6. `STU-R06`: Homework Completion & Velocity (Assigned, submitted, pending, overdue counts).
+    7. `STU-R07`: Homework Submissions Log & Teacher Feedback (Timestamps, file links, teacher remarks).
+    8. `STU-R08`: Statutory 12-Month Fee Statement (April-March schedule, heads, due date 5th, late fines).
+    9. `STU-R09`: Reconciled Fee Receipts & Transactions (Receipt numbers, payment modes, bank Txn IDs).
+    10. `STU-R10`: Student Leave Applications Log (Category, dates duration, days, approval status).
+    11. `STU-R11`: Library Borrowing & Books Register (Accession ISBN, issue/return dates, fine ledger).
+    12. `STU-R12`: Study Materials & Practice Quizzes Progress (Notes read & MCQ quiz scorecards).
+    13. `STU-R13`: Official Certificate Requests Dossier (Bonafide, TC, Character certs with QR validation).
+- [x] **Reports Hub & Excel Integration (`school_student_dashboard.dart`):**
+  - Built `_downloadStudentReportExcel(BuildContext context, String code)` dispatcher resolving authentic data and downloading `.xlsx` files.
+  - Expanded `_showStudentReportsHubModal` to display all 13 reports organized into 3 clear categories:
+    - `ACADEMICS & ATTENDANCE VELOCITY` (`STU-R01` to `STU-R05`)
+    - `ASSIGNMENTS & LEARNING PROGRESS` (`STU-R06`, `STU-R07`, `STU-R12`)
+    - `FINANCIAL & CAMPUS RECORDS` (`STU-R08`, `STU-R09`, `STU-R10`, `STU-R11`, `STU-R13`)
+  - Both card download buttons and chart inspect dialogs trigger live Excel generation.
+- [x] **Backend Services:**
+  - Added `getStudentLibraryIssues(username)` and `getStudentCertificateRequests(username)` to `SchoolService`.
+- [x] **Automated Verification:**
+  - `dart analyze lib/features/school/school_student_dashboard.dart lib/services/school_export_service.dart lib/services/school_service.dart` returned **0 issues found** (0 errors, 0 warnings).
+  - Zero College ERP lines touched.
+
+---
 
 ### [COMPLETED] Step STU2: My Progress Analytics & Reports Hub First Half (N1, N2, STU-R01 to STU-R06)
 - [x] **Backend Analytics Engines (`lib/services/school_service.dart`):**

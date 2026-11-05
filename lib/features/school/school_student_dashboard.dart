@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../services/auth_service.dart';
 import '../../services/school_service.dart';
+import '../../services/school_export_service.dart';
 
 class SchoolStudentDashboard extends StatefulWidget {
   const SchoolStudentDashboard({super.key});
@@ -2286,6 +2287,154 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
   // ==========================================
   // N2: MY REPORTS HUB MODAL (STU-R01 to STU-R06)
   // ==========================================
+  Future<void> _downloadStudentReportExcel(BuildContext context, String code) async {
+    final username = await _authService.getCurrentUsername() ?? '';
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              Text('Generating official $code Excel workbook...'),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      if (code == 'STU-R01') {
+        final rawPoints = _attendanceTrajectory['points'];
+        final points = rawPoints is List ? List<Map<String, dynamic>>.from(rawPoints) : <Map<String, dynamic>>[];
+        await SchoolExportService.exportStudentAttendanceTrendExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          attendancePct: (_attendanceTrajectory['percentage'] as num?)?.toDouble() ?? _attendancePercent ?? 0.0,
+          dailyPoints: points,
+        );
+      } else if (code == 'STU-R02') {
+        final reg = await _schoolService.getStudentMonthlyAttendanceRegister(username);
+        await SchoolExportService.exportStudentAttendanceRegisterExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          records: reg,
+        );
+      } else if (code == 'STU-R03') {
+        await SchoolExportService.exportStudentMarksTrendExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          examTrend: _marksTrend,
+        );
+      } else if (code == 'STU-R04') {
+        await SchoolExportService.exportStudentSubjectPerformanceExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          subjects: _subjectPerformance,
+        );
+      } else if (code == 'STU-R05') {
+        final hpc = await _schoolService.getHolisticProgressCard(studentId: username);
+        await SchoolExportService.exportStudentReportCardExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          reportCardData: hpc,
+        );
+      } else if (code == 'STU-R06') {
+        await SchoolExportService.exportStudentHomeworkCompletionExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          hwCompletion: _homeworkCompletion,
+        );
+      } else if (code == 'STU-R07') {
+        final subs = (await _schoolService.getStudentHomeworkCompletion(username))['ledger'] ?? [];
+        await SchoolExportService.exportStudentHomeworkSubmissionsLogExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          submissions: List<Map<String, dynamic>>.from(subs as List),
+        );
+      } else if (code == 'STU-R08') {
+        final sched = await _schoolService.getMonthlyFeeSchedule(username);
+        await SchoolExportService.exportStudentFeeStatementExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          feeSchedule: sched,
+        );
+      } else if (code == 'STU-R09') {
+        final rcpts = await _schoolService.getStudentReceipts(username);
+        await SchoolExportService.exportStudentFeeReceiptsExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          receipts: rcpts,
+        );
+      } else if (code == 'STU-R10') {
+        final leaves = await _schoolService.getStudentLeaves(studentId: username);
+        await SchoolExportService.exportStudentLeaveHistoryExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          leaves: leaves,
+        );
+      } else if (code == 'STU-R11') {
+        final bks = await _schoolService.getStudentLibraryIssues(username);
+        await SchoolExportService.exportStudentLibraryHistoryExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          books: bks,
+        );
+      } else if (code == 'STU-R12') {
+        final mat = await _schoolService.getStudyMaterials(classId: 'cls-10a');
+        final qz = await _schoolService.getOnlineQuizzes(classId: 'cls-10a');
+        await SchoolExportService.exportStudentStudyProgressExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          materials: mat,
+          quizzes: qz,
+        );
+      } else if (code == 'STU-R13') {
+        final certs = await _schoolService.getStudentCertificateRequests(username);
+        await SchoolExportService.exportStudentCertificatesLogExcel(
+          context: context,
+          studentUsername: username,
+          studentName: _studentName,
+          className: _studentClass,
+          requests: certs,
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export error: $e')),
+        );
+      }
+    }
+  }
+
   void _showStudentReportsHubModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -2360,6 +2509,8 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                   controller: scrollController,
                   padding: const EdgeInsets.all(20),
                   children: [
+                    // CATEGORY 1: ACADEMICS & ATTENDANCE PROGRESS
+                    _buildCategoryHeader('ACADEMICS & ATTENDANCE VELOCITY'),
                     _buildReportItemCard(
                       ctx,
                       code: 'STU-R01',
@@ -2400,6 +2551,10 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                       icon: Icons.workspace_premium_rounded,
                       accent: const Color(0xFF7C3AED),
                     ),
+
+                    const SizedBox(height: 12),
+                    // CATEGORY 2: ASSIGNMENTS & LEARNING MATERIALS
+                    _buildCategoryHeader('ASSIGNMENTS & LEARNING PROGRESS'),
                     _buildReportItemCard(
                       ctx,
                       code: 'STU-R06',
@@ -2407,6 +2562,66 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                       desc: 'Complete submission history, submission timestamps, teacher notes, and overdue tracking.',
                       icon: Icons.assignment_turned_in_rounded,
                       accent: const Color(0xFFE11D48),
+                    ),
+                    _buildReportItemCard(
+                      ctx,
+                      code: 'STU-R07',
+                      title: 'My Homework Submissions & Teacher Feedback',
+                      desc: 'Granular submission timestamps, file attachments, and direct faculty feedback comments.',
+                      icon: Icons.rate_review_rounded,
+                      accent: const Color(0xFFD97706),
+                    ),
+                    _buildReportItemCard(
+                      ctx,
+                      code: 'STU-R12',
+                      title: 'My Study Materials & Practice Quizzes Progress',
+                      desc: 'Curriculum notes, textbook chapters read, and online MCQ practice quiz scorecards.',
+                      icon: Icons.menu_book_rounded,
+                      accent: const Color(0xFF8B5CF6),
+                    ),
+
+                    const SizedBox(height: 12),
+                    // CATEGORY 3: FINANCIAL & CAMPUS LIFE
+                    _buildCategoryHeader('FINANCIAL & CAMPUS RECORDS'),
+                    _buildReportItemCard(
+                      ctx,
+                      code: 'STU-R08',
+                      title: 'My Statutory 12-Month Fee Statement',
+                      desc: 'April to March schedule, monthly fee heads breakdown, statutory due date (5th), and late fees.',
+                      icon: Icons.account_balance_wallet_rounded,
+                      accent: const Color(0xFF0284C7),
+                    ),
+                    _buildReportItemCard(
+                      ctx,
+                      code: 'STU-R09',
+                      title: 'My Reconciled Fee Receipts Register',
+                      desc: 'Official receipt numbers, transaction modes (UPI/NetBanking), and cleared bank payment IDs.',
+                      icon: Icons.receipt_long_rounded,
+                      accent: const Color(0xFF059669),
+                    ),
+                    _buildReportItemCard(
+                      ctx,
+                      code: 'STU-R10',
+                      title: 'My Student Leave Applications Log',
+                      desc: 'Personal leave applications history, category, date duration, and class teacher decisions.',
+                      icon: Icons.event_busy_rounded,
+                      accent: const Color(0xFFDC2626),
+                    ),
+                    _buildReportItemCard(
+                      ctx,
+                      code: 'STU-R11',
+                      title: 'My Library Borrowing & Books Register',
+                      desc: 'Active book issues, ISBN accessions, due return dates, and late fine calculation ledger.',
+                      icon: Icons.local_library_rounded,
+                      accent: const Color(0xFF7C3AED),
+                    ),
+                    _buildReportItemCard(
+                      ctx,
+                      code: 'STU-R13',
+                      title: 'My Official Certificate Requests Dossier',
+                      desc: 'Bonafide, Transfer (TC), and Character certificates request status and QR verification seal.',
+                      icon: Icons.verified_user_rounded,
+                      accent: const Color(0xFF0D9488),
                     ),
                   ],
                 ),
@@ -2511,14 +2726,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Exporting official Excel workbook for $code...'),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
+                onPressed: () => _downloadStudentReportExcel(context, code),
                 icon: const Icon(Icons.file_download_outlined, size: 15),
                 label: const Text('Download Excel (.xlsx)'),
                 style: ElevatedButton.styleFrom(
@@ -2595,9 +2803,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Downloading Excel dossier for $code...')),
-              );
+              _downloadStudentReportExcel(context, code);
             },
             icon: const Icon(Icons.download_rounded, size: 14),
             label: const Text('Excel Export'),
@@ -2607,6 +2813,22 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+
+  Widget _buildCategoryHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF64748B),
+          letterSpacing: 0.6,
+        ),
       ),
     );
   }

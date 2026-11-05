@@ -9912,6 +9912,34 @@ class SchoolService {
     }
   }
 
+  /// 6. Student Issued Books (STU-R11)
+  Future<List<Map<String, dynamic>>> getStudentLibraryIssues(String username) async {
+    try {
+      final resp = await _supabase
+          .from('school_library_issues')
+          .select()
+          .ilike('student_name', '%$username%')
+          .order('issued_date', ascending: false);
+      return List<Map<String, dynamic>>.from(resp);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 7. Student Certificate Requests (STU-R13)
+  Future<List<Map<String, dynamic>>> getStudentCertificateRequests(String username) async {
+    try {
+      final resp = await _supabase
+          .from('school_certificate_requests')
+          .select()
+          .eq('username', username)
+          .order('requested_date', ascending: false);
+      return List<Map<String, dynamic>>.from(resp);
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ===== HELPERS =====
   String _weekdayName(int weekday) {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
