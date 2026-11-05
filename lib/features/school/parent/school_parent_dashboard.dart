@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
+import '../../../services/school_export_service.dart';
 
 class SchoolParentDashboard extends StatefulWidget {
   const SchoolParentDashboard({super.key});
@@ -2665,6 +2666,69 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
         ),
         const SizedBox(height: 20),
 
+        // PN5: My Reports Hub & 14 Official Excel Exports
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: _emeraldSoft,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.table_chart_rounded, color: _emerald, size: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'My Reports Hub (14 Official Excel Packs)',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                      ),
+                    ],
+                  ),
+                  TextButton.icon(
+                    onPressed: _showParentReportsHubModal,
+                    icon: const Icon(Icons.download_rounded, size: 14, color: _emerald),
+                    label: const Text('Open Hub', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _emerald)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Generate authentic per-child Excel (.xlsx) dossiers: Attendance Velocity (PAR-R01), CBSE Statutory 75% Audit (PAR-R03), Subject Progress (PAR-R05), Fee Ledgers (PAR-R08), and Monthly Progress Pack (PAR-R14).',
+                style: const TextStyle(fontSize: 11.5, color: _muted),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _showParentReportsHubModal,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _ink,
+                    side: const BorderSide(color: _border),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.assessment_rounded, size: 16, color: _emerald),
+                  label: const Text('Browse All 14 Per-Child Reports', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+
         // Official Circulars
         Container(
           padding: const EdgeInsets.all(16),
@@ -4913,6 +4977,458 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     );
   }
 
+  void _showParentReportsHubModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final child = _currentChild;
+          final sName = child?['name']?.toString() ?? 'Student';
+          final cName = child?['class_name']?.toString() ?? 'Class';
+          final attPct = (_attendanceTrajectory['overall_pct'] as num?)?.toDouble() ?? (_metrics['attendance'] as num?)?.toDouble() ?? 0.0;
+          final dailyPoints = (_attendanceTrajectory['daily_points'] as List<dynamic>?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? <Map<String, dynamic>>[];
+          final workingDays = (_attendanceTrajectory['days_evaluated'] as num?)?.toInt() ?? 0;
+          final present = (_attendanceTrajectory['days_present'] as num?)?.toInt() ?? 0;
+          final absent = (_attendanceTrajectory['days_absent'] as num?)?.toInt() ?? 0;
+          final lateCount = (_attendanceTrajectory['days_late'] as num?)?.toInt() ?? 0;
+          final excused = (_attendanceTrajectory['days_excused'] as num?)?.toInt() ?? 0;
+          final shortage = (_attendanceTrajectory['cbse_shortage_days'] as num?)?.toInt() ?? 0;
+
+          final subs = (_scholasticData['subjects'] as List<dynamic>?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? <Map<String, dynamic>>[];
+          final hwList = _homeworkDiary;
+          final ledger = _feeLedger;
+          final leavesList = _leaves;
+          final ptmList = _ptmBookings;
+          final transport = _transportData;
+
+          return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.90,
+              maxWidth: 720,
+            ),
+            decoration: const BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: _emeraldSoft, borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.table_chart_rounded, color: _emerald, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Official Per-Child Reports Hub', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                            Text('Active Student: $sName ($cName) • Dual-Sheet Excel (.xlsx) Standards', style: const TextStyle(fontSize: 12, color: _muted)),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: _border),
+
+                // Multi-child switcher inside reports hub (PM14)
+                if (_children.length > 1)
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: List.generate(_children.length, (idx) {
+                        final isSel = idx == _selectedChildIndex;
+                        final k = _children[idx];
+                        final name = k['name']?.toString() ?? 'Child';
+                        final cls = k['class_name']?.toString() ?? '';
+                        return Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              _onChildChanged(idx);
+                              setSheetState(() {});
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 7),
+                              decoration: BoxDecoration(
+                                color: isSel ? _primary : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$name ($cls)',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSel ? Colors.white : _muted),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+
+                Flexible(
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      // PAR-R01
+                      _buildReportItem(
+                        code: 'PAR-R01',
+                        title: 'Attendance Trend (30-Day Velocity)',
+                        desc: 'Line chart trajectory with red dashed 75% CBSE statutory threshold. Daily rows + monthly summary.',
+                        hasChart: true,
+                        onChart: () => _showAttendanceDrillDownModal(),
+                        onDownload: () => SchoolExportService.exportParentAttendanceTrendExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          attendancePct: attPct,
+                          dailyPoints: dailyPoints,
+                        ),
+                      ),
+
+                      // PAR-R02
+                      _buildReportItem(
+                        code: 'PAR-R02',
+                        title: 'Attendance Register (Date-Wise Log)',
+                        desc: 'Complete register rows of Present, Absent, Late, and Excused entries with summary totals.',
+                        hasChart: false,
+                        onDownload: () => SchoolExportService.exportParentAttendanceRegisterExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          totalDays: workingDays,
+                          presentDays: present,
+                          absentDays: absent,
+                          lateDays: lateCount,
+                          excusedDays: excused,
+                          records: dailyPoints,
+                        ),
+                      ),
+
+                      // PAR-R03
+                      _buildReportItem(
+                        code: 'PAR-R03',
+                        title: 'CBSE Statutory 75% Attendance Warning Audit',
+                        desc: 'Board exam hall ticket eligibility evaluation. Monthly rows, shortage recovery days, and condonation flags.',
+                        hasChart: true,
+                        onChart: () => _showAttendanceDrillDownModal(),
+                        onDownload: () => SchoolExportService.exportParentAttendanceWarningExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          attendancePct: attPct,
+                          totalWorkingDays: workingDays,
+                          shortageDays: shortage,
+                        ),
+                      ),
+
+                      // PAR-R04
+                      _buildReportItem(
+                        code: 'PAR-R04',
+                        title: 'Marks Trend (Exam-to-Exam Progression)',
+                        desc: 'Exam-wise progression line across Half Yearly and Final terms with CBSE 9-point scale grading.',
+                        hasChart: true,
+                        onChart: () => _showOfficialHpcModal(_scholasticData),
+                        onDownload: () => SchoolExportService.exportParentMarksTrendExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          subjectRows: subs,
+                        ),
+                      ),
+
+                      // PAR-R05
+                      _buildReportItem(
+                        code: 'PAR-R05',
+                        title: 'Subject-Wise Performance & Focus Breakdown',
+                        desc: 'Bar chart averages per subject, max marks vs marks obtained, percentage, and teacher feedback.',
+                        hasChart: true,
+                        onChart: () => _showOfficialHpcModal(_scholasticData),
+                        onDownload: () => SchoolExportService.exportParentSubjectPerformanceExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          subjects: subs,
+                        ),
+                      ),
+
+                      // PAR-R06
+                      _buildReportItem(
+                        code: 'PAR-R06',
+                        title: 'CBSE Holistic Progress Card (HPC) Summary',
+                        desc: 'Comprehensive scholastic and co-scholastic domain scores, rank in cohort, and Principal validation remarks.',
+                        hasChart: false,
+                        onDownload: () => SchoolExportService.exportParentReportCardSummaryExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          scholasticData: _scholasticData,
+                        ),
+                      ),
+
+                      // PAR-R07
+                      _buildReportItem(
+                        code: 'PAR-R07',
+                        title: 'Homework Completion & Task Register',
+                        desc: 'Task-by-task submission ledger: title, subject, due date, submission timestamp, and faculty grading remarks.',
+                        hasChart: true,
+                        onChart: () => _showHomeworkDiaryModal(),
+                        onDownload: () => SchoolExportService.exportParentHomeworkCompletionExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          homeworkDiary: hwList,
+                        ),
+                      ),
+
+                      // PAR-R08
+                      _buildReportItem(
+                        code: 'PAR-R08',
+                        title: 'Statutory Fee Statement & Ledger Breakdown',
+                        desc: '12-Month schedule (April-March), itemized fee heads (Tuition, IT, Lab, Sports), paid vs due, and late fines.',
+                        hasChart: true,
+                        onChart: () => _showFeeDrillDownModal(),
+                        onDownload: () => SchoolExportService.exportParentFeeStatementExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          feeLedger: ledger,
+                        ),
+                      ),
+
+                      // PAR-R09
+                      _buildReportItem(
+                        code: 'PAR-R09',
+                        title: 'Fee Receipts & Reconciled Payments History',
+                        desc: 'Chronological payment receipts register: official receipt no, amount, payment mode, bank transaction ID.',
+                        hasChart: false,
+                        onDownload: () async {
+                          final receipts = await _schoolService.getStudentReceipts(child?['username']?.toString() ?? child?['id']?.toString() ?? '');
+                          if (ctx.mounted) {
+                            SchoolExportService.exportParentFeeReceiptsExcel(
+                              context: context,
+                              parentUsername: _parentName,
+                              studentName: sName,
+                              className: cName,
+                              receipts: receipts,
+                            );
+                          }
+                        },
+                      ),
+
+                      // PAR-R10
+                      _buildReportItem(
+                        code: 'PAR-R10',
+                        title: 'Student Leave Applications & Medical Decisions',
+                        desc: 'Dossier of student leave requests: category (Medical, Casual), start date, end date, days count, and decision status.',
+                        hasChart: false,
+                        onDownload: () => SchoolExportService.exportParentLeaveHistoryExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          leaves: leavesList,
+                        ),
+                      ),
+
+                      // PAR-R11
+                      _buildReportItem(
+                        code: 'PAR-R11',
+                        title: 'Parent-Teacher Meeting (PTM) Appointment Register',
+                        desc: 'History of booked appointments: faculty member, date, time slot, discussion agenda, and status.',
+                        hasChart: false,
+                        onDownload: () => SchoolExportService.exportParentPtmHistoryExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          ptmBookings: ptmList,
+                        ),
+                      ),
+
+                      // PAR-R12
+                      _buildReportItem(
+                        code: 'PAR-R12',
+                        title: 'Parent Grievance Dossier & Resolution Audit',
+                        desc: 'Statutory escalation log: ticket no, domain category, description, and school leadership response remarks.',
+                        hasChart: false,
+                        onDownload: () async {
+                          final grievances = await _schoolService.getParentComplaints(parentUsername: _parentName);
+                          if (ctx.mounted) {
+                            SchoolExportService.exportParentGrievanceHistoryExcel(
+                              context: context,
+                              parentUsername: _parentName,
+                              studentName: sName,
+                              className: cName,
+                              grievances: grievances,
+                            );
+                          }
+                        },
+                      ),
+
+                      // PAR-R13
+                      _buildReportItem(
+                        code: 'PAR-R13',
+                        title: 'Transport Attendance & Commute Safety Telematics',
+                        desc: 'RFID stop verification logs: morning home pickup, campus gate in-sensor scan, and afternoon drop ETA.',
+                        hasChart: false,
+                        onDownload: () => SchoolExportService.exportParentTransportAttendanceExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          transportData: transport,
+                        ),
+                      ),
+
+                      // PAR-R14
+                      _buildReportItem(
+                        code: 'PAR-R14',
+                        title: 'Monthly Progress Pack (Multi-Sheet Comprehensive Dossier)',
+                        desc: 'The master dossier: 5 specialized sheets covering Executive Summary, Attendance Velocity, Academics, Tasks, and Fees.',
+                        hasChart: true,
+                        isPrimary: true,
+                        onChart: () => _showOfficialHpcModal(_scholasticData),
+                        onDownload: () => SchoolExportService.exportParentMonthlyProgressPackExcel(
+                          context: context,
+                          parentUsername: _parentName,
+                          studentName: sName,
+                          className: cName,
+                          attendancePct: attPct,
+                          scholasticData: _scholasticData,
+                          homeworkDiary: hwList,
+                          feeLedger: ledger,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildReportItem({
+    required String code,
+    required String title,
+    required String desc,
+    required VoidCallback onDownload,
+    bool hasChart = false,
+    VoidCallback? onChart,
+    bool isPrimary = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isPrimary ? _primarySoft : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isPrimary ? _primary.withValues(alpha: 0.3) : _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isPrimary ? _primary : _ink,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  code,
+                  style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w900),
+                ),
+              ),
+              if (isPrimary)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _emeraldSoft,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text('MASTER PACK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: _ink)),
+          const SizedBox(height: 4),
+          Text(desc, style: const TextStyle(fontSize: 11.5, color: _muted)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (hasChart && onChart != null) ...[
+                OutlinedButton.icon(
+                  onPressed: onChart,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _ink,
+                    side: const BorderSide(color: _border),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.show_chart_rounded, size: 14),
+                  label: const Text('Chart View', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: onDownload,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isPrimary ? _primary : _emerald,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.download_rounded, size: 14),
+                  label: Text(
+                    isPrimary ? 'Download Master Pack (.xlsx)' : 'Download Excel (.xlsx)',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showGrievancesDeskModal() {
     showModalBottomSheet(
       context: context,
@@ -5909,7 +6425,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   }),
                   _buildDrawerTile(Icons.bar_chart_rounded, 'My Reports & Analytics', () {
                     Navigator.pop(context);
-                    context.go('/school/reports');
+                    _showParentReportsHubModal();
                   }),
                   _buildDrawerTile(Icons.handshake_outlined, 'PTM Meeting Bookings', () {
                     Navigator.pop(context);

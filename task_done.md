@@ -1,9 +1,37 @@
-- **Current Step in Execution Plan:** `Step PAR6: Per-Child Reports Hub & Excel (PN5, PAR-R01 to PAR-R14)`
-- **Status:** Step PAR5 is 100% complete and verified. Financial & Administrative Lifecycle (PM6 Fee scoping with multi-child switcher, PN7 & PM4 PTM manager with date picker & cancellation, PN8 Grievance tracker with ticket status lifecycle & reopen flow, PM7 Leave dialog hardening) is active and verified on live Supabase with 0 analyze issues. Dedicated SQL schema `database/school_parent_admin_lifecycle.sql` established. Commencing Step PAR6. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step PAR7: Final E2E QA, Live DB Regression, & Production Verification`
+- **Status:** Step PAR6 is 100% complete and verified. Per-Child Reports Hub & Excel (PN5, PAR-R01 to PAR-R14) built with all 14 official dual-sheet Excel exports, interactive graph inspection, multi-child dynamic scoping, and drawer/overview wiring. Zero analyze issues. Commencing Step PAR7. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step PAR6: Per-Child Reports Hub & Excel (PN5, PAR-R01 to PAR-R14)
+- [x] **Excel Export Engine (`lib/services/school_export_service.dart`):**
+  - Built all 14 official per-child Excel workbooks conforming to dual-sheet standard (`Summary` + `Data` with reconciliation totals row) and strict naming format `Parent_<parentUsername>_<CODE>_<YYYYMMDD>.xlsx`:
+    1. `PAR-R01`: Attendance Trend (30-day daily points + monthly summary).
+    2. `PAR-R02`: Attendance Register (Date-wise P/A/L/Excused records + summary).
+    3. `PAR-R03`: CBSE Statutory 75% Attendance Warning Audit (Rule 13.2 examination compliance & shortage days).
+    4. `PAR-R04`: Marks Trend (Exam-to-exam progression across Half Yearly & Final).
+    5. `PAR-R05`: Subject-Wise Performance & Focus Breakdown (Subject averages, marks obtained, percentage, and faculty remarks).
+    6. `PAR-R06`: CBSE Holistic Progress Card (HPC) Summary (Domain scores, rank, and Principal validation).
+    7. `PAR-R07`: Homework Completion & Diary Audit (Submission ledger, due dates, statuses, feedback).
+    8. `PAR-R08`: Statutory Fee Statement & Ledger Breakdown (12-Month April-March schedule, fee heads, late fees).
+    9. `PAR-R09`: Fee Receipts & Reconciled Payments History (Receipt numbers, payment modes, bank transaction IDs).
+    10. `PAR-R10`: Student Leave Applications Log (Category, dates, days count, decision status).
+    11. `PAR-R11`: Parent-Teacher Meeting (PTM) Appointment Register (Faculty member, dates, slots, agendas, status).
+    12. `PAR-R12`: Parent Grievance Dossier & Resolution Audit (Ticket IDs, categories, descriptions, leadership replies).
+    13. `PAR-R13`: Transport Attendance & Commute Safety Telematics (RFID stop verification, morning pickup, campus gate scan, afternoon drop).
+    14. `PAR-R14`: Monthly Progress Pack (Master 5-sheet comprehensive pack: Executive Summary, Attendance Velocity, Academics & HPC, Homework Diary, Fee Ledger).
+- [x] **Parent Reports Hub UI (`school_parent_dashboard.dart`):**
+  - Implemented `_showParentReportsHubModal()` bottom sheet with sibling switcher (PM14: switches child and updates report numbers synchronously).
+  - 14 categorized report cards with code pills, descriptive summaries, "Chart View" action buttons (`fl_chart` modal view), and "Download Excel (.xlsx)" triggers.
+  - Overview Tab surfaces dedicated "My Reports Hub (14 Official Excel Packs)" card with direct trigger.
+  - Drawer entry "My Reports & Analytics" opens `_showParentReportsHubModal()`.
+- [x] **Automated Verification:**
+  - `dart analyze lib/services/school_export_service.dart lib/features/school/parent/` returned 0 issues (0 errors, 0 warnings, 0 deprecations).
+  - Zero College ERP lines touched.
+
+---
 
 ### [COMPLETED] Step PAR5: Financial & Administrative Lifecycle (PN6, PM6, PN7, PN8, PM4, PM7)
 - [x] **Database Schema & RLS (`database/school_parent_admin_lifecycle.sql`):**

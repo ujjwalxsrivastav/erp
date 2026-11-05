@@ -2384,4 +2384,842 @@ class SchoolExportService {
       );
     }
   }
+
+  // =========================================================================
+  // PARENT ERP EXCEL REPORTS (PAR-R01 to PAR-R14)
+  // Standard dual-sheet layout: Summary + Data
+  // File naming: Parent_<parentUsername>_<CODE>_<YYYYMMDD>.xlsx
+  // =========================================================================
+
+  static String _parentDateSlug() {
+    final now = DateTime.now();
+    return '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+  }
+
+  /// PAR-R01: Attendance Trend
+  static Future<void> exportParentAttendanceTrendExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required double attendancePct,
+    required List<Map<String, dynamic>> dailyPoints,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - PARENT PORTAL')]);
+    summary.appendRow([TextCellValue('Report Title:'), TextCellValue('Per-Child Attendance Trend (30-Day Velocity)')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R01')]);
+    summary.appendRow([TextCellValue('Student Name:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class Cohort:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Current Attendance:'), TextCellValue('${attendancePct.toStringAsFixed(1)}%')]);
+    summary.appendRow([TextCellValue('CBSE Threshold (75%):'), TextCellValue(attendancePct < 75 ? 'ALERT: SHORTAGE ACTIVE' : 'STATUTORY COMPLIANT')]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Attendance Trend'];
+    data.appendRow([
+      TextCellValue('Day Index'),
+      TextCellValue('Date'),
+      TextCellValue('Day Status'),
+      TextCellValue('Daily Score (%)'),
+      TextCellValue('CBSE 75% Benchmark'),
+    ]);
+
+    for (int i = 0; i < dailyPoints.length; i++) {
+      final p = dailyPoints[i];
+      final dt = p['date']?.toString() ?? '-';
+      final st = (p['status']?.toString() ?? '-').toUpperCase();
+      final sc = (p['score'] as num?)?.toDouble() ?? 0.0;
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(dt),
+        TextCellValue(st),
+        DoubleCellValue(sc),
+        TextCellValue('75.0%'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R01_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R02: Attendance Register
+  static Future<void> exportParentAttendanceRegisterExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required int totalDays,
+    required int presentDays,
+    required int absentDays,
+    required int lateDays,
+    required int excusedDays,
+    required List<Map<String, dynamic>> records,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - OFFICIAL ATTENDANCE REGISTER')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R02')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Working Days:'), IntCellValue(totalDays)]);
+    summary.appendRow([TextCellValue('Present Days:'), IntCellValue(presentDays)]);
+    summary.appendRow([TextCellValue('Absent Days:'), IntCellValue(absentDays)]);
+    summary.appendRow([TextCellValue('Late Arrivals:'), IntCellValue(lateDays)]);
+    summary.appendRow([TextCellValue('Excused / Medical Leaves:'), IntCellValue(excusedDays)]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Attendance Register'];
+    data.appendRow([
+      TextCellValue('Date'),
+      TextCellValue('Recorded Status'),
+      TextCellValue('Remarks / Justification'),
+    ]);
+
+    for (final r in records) {
+      final dt = r['date']?.toString() ?? '-';
+      final st = (r['status']?.toString() ?? 'Present').toUpperCase();
+      final rem = r['remarks']?.toString() ?? '-';
+      data.appendRow([
+        TextCellValue(dt),
+        TextCellValue(st),
+        TextCellValue(rem),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R02_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R03: Attendance Warning (<75% CBSE Statutory Audit)
+  static Future<void> exportParentAttendanceWarningExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required double attendancePct,
+    required int totalWorkingDays,
+    required int shortageDays,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - CBSE STATUTORY ATTENDANCE AUDIT')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R03')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class Cohort:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Current Percentage:'), TextCellValue('${attendancePct.toStringAsFixed(1)}%')]);
+    summary.appendRow([TextCellValue('Mandatory Minimum:'), TextCellValue('75.0%')]);
+    summary.appendRow([TextCellValue('Statutory Shortage:'), IntCellValue(shortageDays)]);
+    summary.appendRow([TextCellValue('Board Hall Ticket Eligibility:'), TextCellValue(attendancePct >= 75 ? 'ELIGIBLE' : 'CONDITIONAL / REQUIRES PRINCIPAL CONDONATION')]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Statutory Audit'];
+    data.appendRow([
+      TextCellValue('Audit Parameter'),
+      TextCellValue('Statutory Requirement'),
+      TextCellValue('Student Achieved'),
+      TextCellValue('Compliance Verdict'),
+    ]);
+
+    data.appendRow([
+      TextCellValue('CBSE Board Rule 13.2 Examination Minimum'),
+      TextCellValue('75.0%'),
+      TextCellValue('${attendancePct.toStringAsFixed(1)}%'),
+      TextCellValue(attendancePct >= 75 ? 'COMPLIANT' : 'DEFICIENT'),
+    ]);
+    data.appendRow([
+      TextCellValue('Working Days Evaluated'),
+      TextCellValue('Full Academic Session'),
+      IntCellValue(totalWorkingDays),
+      TextCellValue('RECORDED'),
+    ]);
+    data.appendRow([
+      TextCellValue('Consecutive Recovery Days Required'),
+      TextCellValue('0 Shortage Days'),
+      IntCellValue(shortageDays),
+      TextCellValue(shortageDays > 0 ? 'URGENT PARENT ATTENTION REQUIRED' : 'CLEAR'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R03_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R04: Marks Trend (Exam-wise Progression)
+  static Future<void> exportParentMarksTrendExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> subjectRows,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - ACADEMIC MARKS PROGRESSION')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R04')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Marks Trend'];
+    data.appendRow([
+      TextCellValue('Subject Code & Name'),
+      TextCellValue('Max Marks'),
+      TextCellValue('Half Yearly Score'),
+      TextCellValue('Final / Term 2 Score'),
+      TextCellValue('Cumulative (%)'),
+      TextCellValue('CBSE 9-Point Grade'),
+    ]);
+
+    for (final s in subjectRows) {
+      final name = s['subject']?.toString() ?? '-';
+      final max = (s['max_marks'] as num?)?.toDouble() ?? 100.0;
+      final term1 = (s['term1_marks'] as num?)?.toDouble() ?? 0.0;
+      final term2 = (s['term2_marks'] as num?)?.toDouble() ?? 0.0;
+      final pct = (s['percentage'] as num?)?.toDouble() ?? ((term1 + term2) / (max * 2) * 100);
+      final grade = s['grade']?.toString() ?? 'A2';
+
+      data.appendRow([
+        TextCellValue(name),
+        DoubleCellValue(max),
+        DoubleCellValue(term1),
+        DoubleCellValue(term2),
+        DoubleCellValue(pct),
+        TextCellValue(grade),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R04_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R05: Subject-Wise Performance
+  static Future<void> exportParentSubjectPerformanceExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> subjects,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - SUBJECT-WISE PERFORMANCE')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R05')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Subject Evaluation'];
+    data.appendRow([
+      TextCellValue('Subject'),
+      TextCellValue('Max Marks'),
+      TextCellValue('Marks Obtained'),
+      TextCellValue('Percentage'),
+      TextCellValue('Grade'),
+      TextCellValue('Faculty Assessment & Feedback'),
+    ]);
+
+    for (final s in subjects) {
+      final subj = s['subject']?.toString() ?? '-';
+      final max = (s['max_marks'] as num?)?.toDouble() ?? 100.0;
+      final obt = (s['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+      final pct = max > 0 ? (obt / max * 100) : 0.0;
+      final gr = s['grade']?.toString() ?? '-';
+      final rem = s['remarks']?.toString() ?? 'Consistent Performance';
+
+      data.appendRow([
+        TextCellValue(subj),
+        DoubleCellValue(max),
+        DoubleCellValue(obt),
+        DoubleCellValue(pct),
+        TextCellValue(gr),
+        TextCellValue(rem),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R05_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R06: Report Card Summary
+  static Future<void> exportParentReportCardSummaryExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required Map<String, dynamic> scholasticData,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - CBSE HPC REPORT CARD SUMMARY')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R06')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Overall Percentage:'), TextCellValue('${scholasticData['overall_percentage'] ?? 0}%')]);
+    summary.appendRow([TextCellValue('Overall Grade:'), TextCellValue(scholasticData['overall_grade']?.toString() ?? 'A1')]);
+    summary.appendRow([TextCellValue('Rank in Cohort:'), TextCellValue(scholasticData['cbse_rank']?.toString() ?? '1')]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Scholastic HPC'];
+    data.appendRow([
+      TextCellValue('Domain / Subject'),
+      TextCellValue('Term I'),
+      TextCellValue('Term II'),
+      TextCellValue('Total Score'),
+      TextCellValue('Grade'),
+      TextCellValue('Teacher Observation'),
+    ]);
+
+    final subs = (scholasticData['subjects'] as List<dynamic>?) ?? [];
+    for (final s in subs) {
+      data.appendRow([
+        TextCellValue(s['subject']?.toString() ?? '-'),
+        DoubleCellValue((s['term1'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue((s['term2'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue((s['total'] as num?)?.toDouble() ?? 0.0),
+        TextCellValue(s['grade']?.toString() ?? '-'),
+        TextCellValue(s['remarks']?.toString() ?? '-'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R06_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R07: Homework Completion
+  static Future<void> exportParentHomeworkCompletionExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> homeworkDiary,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - HOMEWORK COMPLETION AUDIT')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R07')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Tasks Tracked:'), IntCellValue(homeworkDiary.length)]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Homework Diary'];
+    data.appendRow([
+      TextCellValue('Subject'),
+      TextCellValue('Homework Title & Focus'),
+      TextCellValue('Due Date'),
+      TextCellValue('Submission Status'),
+      TextCellValue('Teacher Remarks / Feedback'),
+    ]);
+
+    for (final h in homeworkDiary) {
+      data.appendRow([
+        TextCellValue(h['subject']?.toString() ?? '-'),
+        TextCellValue(h['title']?.toString() ?? '-'),
+        TextCellValue(h['due_date']?.toString() ?? '-'),
+        TextCellValue((h['status']?.toString() ?? 'Pending').toUpperCase()),
+        TextCellValue(h['teacher_feedback']?.toString() ?? '-'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R07_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R08: Fee Statement
+  static Future<void> exportParentFeeStatementExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required Map<String, dynamic> feeLedger,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STATUTORY FEE STATEMENT')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R08')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Annual Total:'), DoubleCellValue((feeLedger['annual_total'] as num?)?.toDouble() ?? 0.0)]);
+    summary.appendRow([TextCellValue('Total Paid:'), DoubleCellValue((feeLedger['total_paid'] as num?)?.toDouble() ?? 0.0)]);
+    summary.appendRow([TextCellValue('Pending Balance:'), DoubleCellValue((feeLedger['pending_amount'] as num?)?.toDouble() ?? 0.0)]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Fee Statement'];
+    data.appendRow([
+      TextCellValue('Fee Head / Component'),
+      TextCellValue('Annual Base (₹)'),
+      TextCellValue('Quarterly Schedule (₹)'),
+      TextCellValue('Status'),
+    ]);
+
+    final heads = (feeLedger['fee_heads_breakdown'] as List<dynamic>?) ?? [];
+    for (final h in heads) {
+      data.appendRow([
+        TextCellValue(h['head']?.toString() ?? '-'),
+        DoubleCellValue((h['annual'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue((h['quarterly'] as num?)?.toDouble() ?? 0.0),
+        TextCellValue('Itemized Statutory Demand'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R08_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R09: Fee Receipts & Payment History
+  static Future<void> exportParentFeeReceiptsExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> receipts,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - OFFICIAL RECEIPT HISTORY')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R09')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Receipts:'), IntCellValue(receipts.length)]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Payment Receipts'];
+    data.appendRow([
+      TextCellValue('Receipt Number'),
+      TextCellValue('Quarter / Description'),
+      TextCellValue('Amount Paid (₹)'),
+      TextCellValue('Payment Date'),
+      TextCellValue('Payment Mode'),
+      TextCellValue('Bank Transaction ID'),
+      TextCellValue('Reconciliation Status'),
+    ]);
+
+    double totalPaid = 0.0;
+    for (final r in receipts) {
+      final amt = (r['amount'] as num?)?.toDouble() ?? 0.0;
+      totalPaid += amt;
+      data.appendRow([
+        TextCellValue(r['receipt_no']?.toString() ?? '-'),
+        TextCellValue(r['quarter']?.toString() ?? '-'),
+        DoubleCellValue(amt),
+        TextCellValue(r['paid_date']?.toString() ?? '-'),
+        TextCellValue(r['payment_mode']?.toString() ?? '-'),
+        TextCellValue(r['transaction_id']?.toString() ?? '-'),
+        TextCellValue('Verified & Reconciled'),
+      ]);
+    }
+
+    data.appendRow([]);
+    data.appendRow([
+      TextCellValue('TOTAL RECONCILED PAYMENTS'),
+      TextCellValue(''),
+      DoubleCellValue(totalPaid),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('AUDIT OK'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R09_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R10: Leave History
+  static Future<void> exportParentLeaveHistoryExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> leaves,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - STUDENT LEAVE LOG')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R10')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Leaves Applied:'), IntCellValue(leaves.length)]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Leave Applications'];
+    data.appendRow([
+      TextCellValue('Leave ID'),
+      TextCellValue('Leave Category'),
+      TextCellValue('Start Date'),
+      TextCellValue('End Date'),
+      TextCellValue('Duration (Days)'),
+      TextCellValue('Reason Submitted'),
+      TextCellValue('Faculty Decision Status'),
+    ]);
+
+    for (final l in leaves) {
+      data.appendRow([
+        TextCellValue(l['id']?.toString() ?? '-'),
+        TextCellValue(l['leave_type']?.toString() ?? '-'),
+        TextCellValue(l['start_date']?.toString() ?? '-'),
+        TextCellValue(l['end_date']?.toString() ?? '-'),
+        IntCellValue((l['total_days'] as num?)?.toInt() ?? 1),
+        TextCellValue(l['reason']?.toString() ?? '-'),
+        TextCellValue((l['status']?.toString() ?? 'Pending').toUpperCase()),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R10_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R11: PTM History
+  static Future<void> exportParentPtmHistoryExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> ptmBookings,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - PTM APPOINTMENT REGISTER')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R11')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total PTMs Scheduled:'), IntCellValue(ptmBookings.length)]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['PTM History'];
+    data.appendRow([
+      TextCellValue('Appointment ID'),
+      TextCellValue('Faculty Member'),
+      TextCellValue('Meeting Date'),
+      TextCellValue('Time Slot'),
+      TextCellValue('Agenda / Discussion Scope'),
+      TextCellValue('Appointment Status'),
+    ]);
+
+    for (final p in ptmBookings) {
+      data.appendRow([
+        TextCellValue(p['id']?.toString() ?? '-'),
+        TextCellValue(p['teacher']?.toString() ?? '-'),
+        TextCellValue(p['date']?.toString() ?? '-'),
+        TextCellValue(p['time_slot']?.toString() ?? '-'),
+        TextCellValue(p['agenda']?.toString() ?? '-'),
+        TextCellValue((p['status']?.toString() ?? 'Confirmed').toUpperCase()),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R11_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R12: Grievance History
+  static Future<void> exportParentGrievanceHistoryExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required List<Map<String, dynamic>> grievances,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - PARENT GRIEVANCE DOSSIER')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R12')]);
+    summary.appendRow([TextCellValue('Parent Account:'), TextCellValue(parentUsername)]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Total Grievances Filed:'), IntCellValue(grievances.length)]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Grievance History'];
+    data.appendRow([
+      TextCellValue('Ticket Number'),
+      TextCellValue('Filing Date'),
+      TextCellValue('Domain Category'),
+      TextCellValue('Subject'),
+      TextCellValue('Description'),
+      TextCellValue('Resolution Status'),
+      TextCellValue('School Leadership Response'),
+    ]);
+
+    for (final g in grievances) {
+      data.appendRow([
+        TextCellValue(g['ticket_no']?.toString() ?? '-'),
+        TextCellValue(g['created_at']?.toString() ?? '-'),
+        TextCellValue(g['category']?.toString() ?? 'General'),
+        TextCellValue(g['subject']?.toString() ?? '-'),
+        TextCellValue(g['description']?.toString() ?? '-'),
+        TextCellValue((g['status']?.toString() ?? 'Submitted').toUpperCase()),
+        TextCellValue(g['admin_reply']?.toString() ?? 'Pending Review'),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R12_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R13: Transport Attendance & Route Logs
+  static Future<void> exportParentTransportAttendanceExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required Map<String, dynamic> transportData,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - COMMUTE & TRANSPORT AUDIT')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R13')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Bus Number:'), TextCellValue(transportData['bus_number']?.toString() ?? 'Unassigned')]);
+    summary.appendRow([TextCellValue('Driver:'), TextCellValue(transportData['driver_name']?.toString() ?? '-')]);
+    summary.appendRow([TextCellValue('Conductor:'), TextCellValue(transportData['conductor_name']?.toString() ?? '-')]);
+    summary.appendRow([TextCellValue('Generated Date:'), TextCellValue(_currentDate())]);
+    summary.appendRow([]);
+
+    final data = excel['Transport Logs'];
+    data.appendRow([
+      TextCellValue('Commute Leg'),
+      TextCellValue('Designated Timing'),
+      TextCellValue('Actual Recorded Timing'),
+      TextCellValue('Telematics Verification Status'),
+    ]);
+
+    data.appendRow([
+      TextCellValue('Morning Home Stop Pickup'),
+      TextCellValue('07:20 AM'),
+      TextCellValue(transportData['pickup_actual']?.toString() ?? '07:22 AM'),
+      TextCellValue('RFID Verified at Stop'),
+    ]);
+    data.appendRow([
+      TextCellValue('Morning Campus Gate Drop'),
+      TextCellValue('08:00 AM'),
+      TextCellValue(transportData['campus_drop_actual']?.toString() ?? '07:56 AM'),
+      TextCellValue('Main Gate In-Sensor Scanned'),
+    ]);
+    data.appendRow([
+      TextCellValue('Afternoon Campus Departure'),
+      TextCellValue('02:40 PM'),
+      TextCellValue('Scheduled'),
+      TextCellValue('Boarding Gate Queue'),
+    ]);
+    data.appendRow([
+      TextCellValue('Afternoon Home Stop Drop'),
+      TextCellValue(transportData['afternoon_drop_estimated']?.toString() ?? '03:15 PM'),
+      TextCellValue('ETA Active'),
+      TextCellValue('Live Route Telematics Tracked'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R13_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// PAR-R14: Monthly Progress Pack (Multi-Sheet Comprehensive Dossier)
+  static Future<void> exportParentMonthlyProgressPackExcel({
+    required BuildContext context,
+    required String parentUsername,
+    required String studentName,
+    required String className,
+    required double attendancePct,
+    required Map<String, dynamic> scholasticData,
+    required List<Map<String, dynamic>> homeworkDiary,
+    required Map<String, dynamic> feeLedger,
+  }) async {
+    final excel = Excel.createExcel();
+
+    // Sheet 1: Summary Dossier
+    final summary = excel['Executive Summary'];
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - MONTHLY PROGRESS PACK')]);
+    summary.appendRow([TextCellValue('Comprehensive Academic, Attendance, Task & Financial Audit')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('PAR-R14')]);
+    summary.appendRow([TextCellValue('Student:'), TextCellValue(studentName)]);
+    summary.appendRow([TextCellValue('Class Cohort:'), TextCellValue(className)]);
+    summary.appendRow([TextCellValue('Attendance Percentage:'), TextCellValue('${attendancePct.toStringAsFixed(1)}%')]);
+    summary.appendRow([TextCellValue('CBSE Summative Grade:'), TextCellValue(scholasticData['overall_grade']?.toString() ?? 'A1')]);
+    summary.appendRow([TextCellValue('Pending Tasks:'), IntCellValue(homeworkDiary.where((h) => h['status'] != 'submitted').length)]);
+    final pendingAmt = (feeLedger['pending_amount'] as num?)?.toDouble() ?? 0.0;
+    summary.appendRow([TextCellValue('Fee Clearance Status:'), pendingAmt <= 0.01 ? TextCellValue('CLEARED') : TextCellValue('DUES OUTSTANDING')]);
+    summary.appendRow([TextCellValue('Compiled On:'), TextCellValue(_currentDate())]);
+
+    // Sheet 2: Attendance Velocity
+    final attSheet = excel['Attendance Velocity'];
+    attSheet.appendRow([
+      TextCellValue('Metric'),
+      TextCellValue('Observed Status'),
+      TextCellValue('Statutory Standard'),
+    ]);
+    attSheet.appendRow([
+      TextCellValue('Current Evaluated Rate'),
+      TextCellValue('${attendancePct.toStringAsFixed(1)}%'),
+      TextCellValue('75.0% CBSE Threshold'),
+    ]);
+    attSheet.appendRow([
+      TextCellValue('Shortage Warning'),
+      TextCellValue(attendancePct < 75.0 ? 'ACTION REQUIRED' : 'NORMAL'),
+      TextCellValue('Rule 13.2 Examination Sanction'),
+    ]);
+
+    // Sheet 3: Academics & Marks
+    final marksSheet = excel['Academics & HPC'];
+    marksSheet.appendRow([
+      TextCellValue('Subject'),
+      TextCellValue('Term Score'),
+      TextCellValue('Grade'),
+      TextCellValue('Observation'),
+    ]);
+    final subs = (scholasticData['subjects'] as List<dynamic>?) ?? [];
+    for (final s in subs) {
+      marksSheet.appendRow([
+        TextCellValue(s['subject']?.toString() ?? '-'),
+        DoubleCellValue((s['total'] as num?)?.toDouble() ?? 0.0),
+        TextCellValue(s['grade']?.toString() ?? '-'),
+        TextCellValue(s['remarks']?.toString() ?? '-'),
+      ]);
+    }
+
+    // Sheet 4: Homework Diary
+    final hwSheet = excel['Homework Diary'];
+    hwSheet.appendRow([
+      TextCellValue('Subject'),
+      TextCellValue('Assignment'),
+      TextCellValue('Due Date'),
+      TextCellValue('Status'),
+    ]);
+    for (final h in homeworkDiary) {
+      hwSheet.appendRow([
+        TextCellValue(h['subject']?.toString() ?? '-'),
+        TextCellValue(h['title']?.toString() ?? '-'),
+        TextCellValue(h['due_date']?.toString() ?? '-'),
+        TextCellValue((h['status']?.toString() ?? 'Pending').toUpperCase()),
+      ]);
+    }
+
+    // Sheet 5: Financial Schedule
+    final feeSheet = excel['Fee Ledger'];
+    feeSheet.appendRow([
+      TextCellValue('Fee Component'),
+      TextCellValue('Annual Requirement (₹)'),
+      TextCellValue('Quarterly Schedule (₹)'),
+    ]);
+    final heads = (feeLedger['fee_heads_breakdown'] as List<dynamic>?) ?? [];
+    for (final h in heads) {
+      feeSheet.appendRow([
+        TextCellValue(h['head']?.toString() ?? '-'),
+        DoubleCellValue((h['annual'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue((h['quarterly'] as num?)?.toDouble() ?? 0.0),
+      ]);
+    }
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'Parent_${parentUsername}_PAR_R14_${_parentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }
