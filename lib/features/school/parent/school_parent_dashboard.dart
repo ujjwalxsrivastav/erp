@@ -17,7 +17,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   late final TabController _tabController;
 
-  String _parentName = 'Praveen Sharma';
+  String _parentName = 'Parent';
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -84,10 +84,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     try {
       final username = await _authService.getCurrentUsername();
       if (username != null && username.isNotEmpty) {
-        _parentName = username == 'parent1' ? 'Praveen Sharma' : username;
+        _parentName = username;
       }
 
-      final kids = await _schoolService.getParentChildren(_parentName);
+      final kids = await _schoolService.getParentChildren(username ?? _parentName);
       _children = kids;
 
       if (_children.isNotEmpty) {
@@ -116,9 +116,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   }
 
   Future<void> _loadSelectedChildDetails(Map<String, dynamic> child) async {
-    final studentId = child['username']?.toString() ?? child['id']?.toString() ?? 'sstudent1';
-    final classId = child['class_id']?.toString() ??
-        ((child['class_name']?.toString().toLowerCase().contains('7') ?? false) ? 'cls-7b' : 'cls-10a');
+    final studentId = child['username']?.toString() ?? child['id']?.toString() ?? '';
+    final classId = child['class_id']?.toString() ?? '';
 
     final metrics = await _schoolService.getChildDashboardMetrics(
       studentId: studentId,
@@ -174,7 +173,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           ? _buildLoadingState()
           : _errorMessage != null
               ? _buildErrorState()
-              : RefreshIndicator(
+              : _children.isEmpty
+                  ? _buildNoChildrenLinkedState()
+                  : RefreshIndicator(
                   color: _primary,
                   onRefresh: _loadInitialData,
                   child: CustomScrollView(
@@ -417,13 +418,13 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   Widget _buildChildHeroBadge() {
     final child = _currentChild;
-    final name = child?['name']?.toString() ?? 'Aarav Sharma';
+    final name = child?['name']?.toString() ?? 'Student';
     final className = child?['class_name']?.toString() ?? 'Class 10';
     final section = child?['section']?.toString() ?? 'A';
     final rollNo = child?['roll_no']?.toString() ?? '01';
-    final admissionNo = child?['admission_number']?.toString() ?? 'SCH2024-1001';
+    final admissionNo = child?['admission_number']?.toString() ?? (child?['roll_number']?.toString() ?? '--');
     final house = child?['house']?.toString() ?? 'Tagore House (Red)';
-    final classTeacher = child?['class_teacher']?.toString() ?? 'Mrs. Anita Verma (M.Sc, B.Ed)';
+    final classTeacher = child?['class_teacher']?.toString() ?? 'Assigned Faculty';
     final bloodGroup = child?['blood_group']?.toString() ?? 'B+';
 
     final isTagore = house.toLowerCase().contains('tagore');
@@ -529,13 +530,13 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             children: [
               _buildIdentityChip(
                 icon: Icons.check_circle_rounded,
-                label: 'Present In-Campus (07:44 AM)',
+                label: _attendanceData['today_status']?.toString() ?? 'Not Marked Yet',
                 color: _emerald,
                 bgColor: _emeraldSoft,
               ),
               _buildIdentityChip(
                 icon: Icons.directions_bus_rounded,
-                label: 'Bus Fleet #4 (Rajpur Road)',
+                label: (_transportData['assigned'] == true) ? (_transportData['route_name']?.toString() ?? 'School Bus') : 'Self Commute',
                 color: _blue,
                 bgColor: _blueSoft,
               ),
@@ -547,7 +548,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               ),
               _buildIdentityChip(
                 icon: Icons.credit_card_rounded,
-                label: 'Canteen Wallet: ₹${((_cafeteriaData['wallet_balance'] as num?)?.toDouble() ?? 450.0).toStringAsFixed(0)}',
+                label: 'Canteen Wallet: ₹${((_cafeteriaData['wallet_balance'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(0)}',
                 color: _amber,
                 bgColor: _amberSoft,
               ),
@@ -591,14 +592,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   Widget _buildSafetyPulseCard() {
     final trans = _transportData;
-    final busNo = trans['bus_number']?.toString() ?? 'UK-07-PA-1024';
-    final pickup = trans['pickup_actual']?.toString() ?? '07:28 AM (Conductor RFID Swiped)';
-    final campusDrop = trans['campus_drop_actual']?.toString() ?? '07:44 AM (Turnstile Gate #2)';
-    final dropEta = trans['afternoon_drop_estimated']?.toString() ?? '02:45 PM';
-    final driverName = trans['driver_name']?.toString() ?? 'Mohan Singh';
-    final driverPhone = trans['driver_phone']?.toString() ?? '+91 98112-23344';
-    final conductorName = trans['conductor_name']?.toString() ?? 'Ramesh Kumar';
-    final conductorPhone = trans['conductor_phone']?.toString() ?? '+91 98765-43210';
+    if (trans['assigned'] != true) {
+      return const SizedBox.shrink();
+    }
+    final busNo = trans['bus_number']?.toString() ?? 'Assigned Bus';
+    final pickup = trans['pickup_actual']?.toString() ?? 'Scheduled';
+    final campusDrop = trans['campus_drop_actual']?.toString() ?? 'Recorded at Gate';
+    final dropEta = trans['afternoon_drop_estimated']?.toString() ?? 'Afternoon';
+    final driverName = trans['driver_name']?.toString() ?? 'Assigned Driver';
+    final driverPhone = trans['driver_phone']?.toString() ?? 'Transport Desk';
+    final conductorName = trans['conductor_name']?.toString() ?? 'Conductor';
+    final conductorPhone = trans['conductor_phone']?.toString() ?? '--';
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -752,10 +756,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   // ──────────────────────────────────────────────
 
   Widget _buildOverviewTab() {
-    final attPct = (_metrics['attendance'] as num?)?.toDouble() ?? 94.2;
-    final feesPending = _metrics['pendingFeesDisplay']?.toString() ?? '₹19,500';
-    final hwCount = (_metrics['pendingHomework'] as num?)?.toInt() ?? 2;
-    final lastResult = _metrics['lastResult']?.toString() ?? 'A1 (94.2%)';
+    final attPct = (_metrics['attendance'] as num?)?.toDouble() ?? 0.0;
+    final feesPending = _metrics['pendingFeesDisplay']?.toString() ?? '₹0';
+    final hwCount = (_metrics['pendingHomework'] as num?)?.toInt() ?? 0;
+    final lastResult = _metrics['lastResult']?.toString() ?? 'No record';
 
     final periods = (_timetableData['periods'] as List<dynamic>?) ?? [];
     final activeSubject = _timetableData['active_subject']?.toString() ?? 'Classes Active';
@@ -770,7 +774,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               child: _buildMetricTile(
                 title: 'Attendance',
                 value: '${attPct.toStringAsFixed(1)}%',
-                subtitle: '49 of 52 days present',
+                subtitle: attPct > 0 ? '${attPct.toStringAsFixed(1)}% Present' : 'Attendance unrecorded',
                 icon: Icons.how_to_reg_rounded,
                 color: _emerald,
                 bgColor: _emeraldSoft,
@@ -782,7 +786,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               child: _buildMetricTile(
                 title: 'Term Fee Dues',
                 value: feesPending,
-                subtitle: 'Quarter 4 (Jan 15)',
+                subtitle: feesPending == '₹0' ? 'No outstanding dues' : 'Academic session dues',
                 icon: Icons.account_balance_wallet_rounded,
                 color: _amber,
                 bgColor: _amberSoft,
@@ -798,7 +802,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               child: _buildMetricTile(
                 title: 'Pending Homework',
                 value: '$hwCount Active',
-                subtitle: 'Maths & Science due Fri',
+                subtitle: hwCount > 0 ? '$hwCount tasks due' : 'All assignments submitted',
                 icon: Icons.assignment_rounded,
                 color: _rose,
                 bgColor: _roseSoft,
@@ -810,7 +814,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               child: _buildMetricTile(
                 title: 'Summative Grade',
                 value: lastResult,
-                subtitle: 'CBSE Rank 2nd (94.2%)',
+                subtitle: lastResult.contains('(') ? 'CBSE Scale Assessment' : 'Term evaluation pending',
                 icon: Icons.workspace_premium_rounded,
                 color: _primary,
                 bgColor: _primarySoft,
@@ -1000,20 +1004,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: _border),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '"Aarav demonstrated exemplary critical thinking and guided peer discussion during Quadratic Equations lab modeling today. Keep up the high standard!"',
-                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: _ink),
+                      _scholasticData['class_teacher_remarks']?.toString() ?? 'No pastoral observations submitted by subject faculty for today.',
+                      style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: _ink),
                     ),
-                    SizedBox(height: 6),
+                    const SizedBox(height: 6),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         Text(
-                          '— Mrs. Anita Verma (Class Teacher) • Yesterday, 03:15 PM',
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _muted),
+                          '— ${_currentChild?['class_teacher'] ?? 'Class Teacher'} • Academic Observation',
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _muted),
                         ),
                       ],
                     ),
@@ -1176,9 +1180,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   Widget _buildAcademicsTab() {
     final sch = _scholasticData;
-    final pct = (sch['overall_percentage'] as num?)?.toDouble() ?? 94.2;
-    final grade = sch['overall_grade']?.toString() ?? 'A1';
-    final rank = sch['cbse_rank']?.toString() ?? '2nd in Class 10-A';
+    final pct = (sch['overall_percentage'] as num?)?.toDouble() ?? 0.0;
+    final grade = sch['overall_grade']?.toString() ?? 'N/A';
+    final rank = sch['cbse_rank']?.toString() ?? 'N/A';
     final remarks = sch['class_teacher_remarks']?.toString() ?? '';
     final subjects = (sch['scholastic_subjects'] as List<dynamic>?) ?? [];
     final coScholastic = (sch['co_scholastic_activities'] as List<dynamic>?) ?? [];
@@ -1461,11 +1465,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   Widget _buildAttendanceTab() {
     final att = _attendanceData;
-    final pct = (att['attendance_pct'] as num?)?.toDouble() ?? 94.2;
-    final totalDays = (att['total_working_days'] as num?)?.toInt() ?? 52;
-    final present = (att['days_present'] as num?)?.toInt() ?? 49;
-    final absent = (att['days_absent'] as num?)?.toInt() ?? 1;
-    final medical = (att['medical_leaves'] as num?)?.toInt() ?? 2;
+    final pct = (att['attendance_pct'] as num?)?.toDouble() ?? 0.0;
+    final totalDays = (att['total_working_days'] as num?)?.toInt() ?? 0;
+    final present = (att['days_present'] as num?)?.toInt() ?? 0;
+    final absent = (att['days_absent'] as num?)?.toInt() ?? 0;
+    final medical = (att['medical_leaves'] as num?)?.toInt() ?? 0;
     final logs = (att['recent_scan_logs'] as List<dynamic>?) ?? [];
 
     return Column(
@@ -1765,13 +1769,39 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   Widget _buildTransportTab() {
     final trans = _transportData;
-    final busNo = trans['bus_number']?.toString() ?? 'UK-07-PA-1024';
-    final route = trans['route_name']?.toString() ?? 'Route #4 (Rajpur Road)';
-    final stop = trans['stop_name']?.toString() ?? 'Rajpur Road Junction';
-    final driverName = trans['driver_name']?.toString() ?? 'Mohan Singh';
-    final driverPhone = trans['driver_phone']?.toString() ?? '+91 98112-23344';
-    final conductorName = trans['conductor_name']?.toString() ?? 'Ramesh Kumar';
-    final conductorPhone = trans['conductor_phone']?.toString() ?? '+91 98765-43210';
+    if (trans['assigned'] != true) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _border),
+        ),
+        child: const Column(
+          children: [
+            Icon(Icons.directions_bus_outlined, size: 48, color: _muted),
+            SizedBox(height: 12),
+            Text(
+              'No Bus Route Assigned',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _ink),
+            ),
+            SizedBox(height: 6),
+            Text(
+              'This child is registered for self-commute / parent drop-off. If you require campus bus transit, please contact the school transport department.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: _muted),
+            ),
+          ],
+        ),
+      );
+    }
+    final busNo = trans['bus_number']?.toString() ?? 'Assigned Bus';
+    final route = trans['route_name']?.toString() ?? 'Campus Bus Route';
+    final stop = trans['stop_name']?.toString() ?? 'Designated Stop';
+    final driverName = trans['driver_name']?.toString() ?? 'Assigned Driver';
+    final driverPhone = trans['driver_phone']?.toString() ?? 'Transport Desk';
+    final conductorName = trans['conductor_name']?.toString() ?? 'Conductor';
+    final conductorPhone = trans['conductor_phone']?.toString() ?? '--';
     final cctv = trans['cctv_status']?.toString() ?? '2 Cameras Active';
     final gps = trans['gps_status']?.toString() ?? 'AIS-140 Compliant';
 
@@ -2019,11 +2049,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   Widget _buildFeeLedgerTab() {
     final ledger = _feeLedger;
-    final totalAnnual = (ledger['annual_total'] as num?)?.toDouble() ?? 78000.0;
-    final totalPaid = (ledger['total_paid'] as num?)?.toDouble() ?? 58500.0;
-    final pendingAmount = (ledger['pending_amount'] as num?)?.toDouble() ?? 19500.0;
-    final nextDue = ledger['next_due_date']?.toString() ?? '15 Jan 2026';
-    final nextInst = ledger['next_installment_name']?.toString() ?? 'Quarter 4';
+    final totalAnnual = (ledger['annual_total'] as num?)?.toDouble() ?? 0.0;
+    final totalPaid = (ledger['total_paid'] as num?)?.toDouble() ?? 0.0;
+    final pendingAmount = (ledger['pending_amount'] as num?)?.toDouble() ?? 0.0;
+    final nextDue = ledger['next_due_date']?.toString() ?? 'Fully Cleared';
+    final nextInst = ledger['next_installment_name']?.toString() ?? 'Academic Dues';
     final heads = (ledger['fee_heads_breakdown'] as List<dynamic>?) ?? [];
     final receipts = (ledger['receipts'] as List<dynamic>?) ?? [];
 
@@ -2673,14 +2703,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showOfficialHpcModal(Map<String, dynamic> sch) {
     final child = _currentChild;
-    final name = child?['name']?.toString() ?? 'Aarav Sharma';
+    final name = child?['name']?.toString() ?? 'Student';
     final className = child?['class_name']?.toString() ?? 'Class 10';
     final section = child?['section']?.toString() ?? 'A';
     final rollNo = child?['roll_no']?.toString() ?? '01';
     final admNo = child?['admission_number']?.toString() ?? 'SCH2024-1001';
     final subjects = (sch['scholastic_subjects'] as List<dynamic>?) ?? [];
-    final pct = (sch['overall_percentage'] as num?)?.toDouble() ?? 94.2;
-    final grade = sch['overall_grade']?.toString() ?? 'A1';
+    final pct = (sch['overall_percentage'] as num?)?.toDouble() ?? 0.0;
+    final grade = sch['overall_grade']?.toString() ?? 'N/A';
 
     showDialog(
       context: context,
@@ -2801,8 +2831,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showPayFeeModal(double amount, String quarter) {
     final child = _currentChild;
-    final name = child?['name']?.toString() ?? 'Aarav Sharma';
-    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? 'sstudent1';
+    final name = child?['name']?.toString() ?? 'Student';
+    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? '';
 
     String selectedMode = 'UPI (GPay / PhonePe / Paytm)';
 
@@ -2914,9 +2944,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showBookPtmModal() {
     final child = _currentChild;
-    final studentName = child?['name']?.toString() ?? 'Aarav Sharma';
+    final studentName = child?['name']?.toString() ?? 'Student';
 
-    String selectedTeacher = _teachers.isNotEmpty ? _teachers.first['name'] : 'Mrs. Anita Verma';
+    String selectedTeacher = _teachers.isNotEmpty ? _teachers.first['name'] : 'Class Teacher';
     DateTime selectedDate = DateTime.now().add(const Duration(days: 2));
     String timeSlot = '02:30 PM - 02:45 PM';
     final agendaCtrl = TextEditingController(text: 'Review Summative Assessment & STEM performance');
@@ -3000,9 +3030,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showApplyLeaveModal() {
     final child = _currentChild;
-    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? 'sstudent1';
-    final studentName = child?['name']?.toString() ?? 'Aarav Sharma';
-    final classId = child?['class_id']?.toString() ?? 'cls-10a';
+    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? '';
+    final studentName = child?['name']?.toString() ?? 'Student';
+    final classId = child?['class_id']?.toString() ?? '';
 
     String leaveType = 'Medical Leave';
     DateTime startDate = DateTime.now().add(const Duration(days: 1));
@@ -3111,11 +3141,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showRequestGatePassModal() {
     final child = _currentChild;
-    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? 'sstudent1';
-    final studentName = child?['name']?.toString() ?? 'Aarav Sharma';
+    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? '';
+    final studentName = child?['name']?.toString() ?? 'Student';
     final className = child?['class_name']?.toString() ?? 'Class 10';
 
-    final personCtrl = TextEditingController(text: 'Praveen Sharma');
+    final personCtrl = TextEditingController(text: _parentName);
     final relationCtrl = TextEditingController(text: 'Father');
     final phoneCtrl = TextEditingController(text: '+91 98970-11223');
     final reasonCtrl = TextEditingController(text: 'Scheduled Dental Checkup');
@@ -3188,7 +3218,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showFileComplaintModal() {
     final child = _currentChild;
-    final studentName = child?['name']?.toString() ?? 'Aarav Sharma';
+    final studentName = child?['name']?.toString() ?? 'Student';
 
     String category = 'Academic Curriculum';
     final subjectCtrl = TextEditingController();
@@ -3253,7 +3283,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showRechargeCanteenModal(double currentBalance) {
     final child = _currentChild;
-    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? 'sstudent1';
+    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? '';
     double topUp = 500.0;
 
     showDialog(
@@ -3418,6 +3448,136 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   // ──────────────────────────────────────────────
   // STATES
   // ──────────────────────────────────────────────
+
+  Widget _buildNoChildrenLinkedState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          constraints: const BoxConstraints(maxWidth: 480),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFDF2F8),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.family_restroom_rounded, size: 36, color: Color(0xFFDB2777)),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'No Student Profile Linked',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your parent account "$_parentName" currently has no linked student records in the active academic registry. To view your child\'s live attendance, grades, and fee ledger, request a linking below or contact administration.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: _muted, height: 1.45),
+              ),
+              const SizedBox(height: 22),
+              ElevatedButton.icon(
+                onPressed: () => _showLinkChildRequestDialog(),
+                icon: const Icon(Icons.add_link_rounded, size: 18),
+                label: const Text('Request Child Link'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDB2777),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _loadInitialData,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Refresh'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _ink,
+                  side: const BorderSide(color: _border),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLinkChildRequestDialog() {
+    final admCtrl = TextEditingController();
+    final dobCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Submit Child Linking Request', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter your child\'s official school admission number and date of birth for automated registry verification.',
+              style: TextStyle(fontSize: 12.5, color: _muted),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: admCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Admission Number (e.g. SCH2024-1001)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.badge_outlined, size: 18),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: dobCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Date of Birth (YYYY-MM-DD)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Linking request submitted to School Administration. Verification pending within 24 hours.'),
+                  backgroundColor: Color(0xFF059669),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDB2777), foregroundColor: Colors.white),
+            child: const Text('Submit Request'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildLoadingState() {
     return const Center(

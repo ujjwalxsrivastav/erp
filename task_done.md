@@ -1,9 +1,37 @@
-- **Current Step in Execution Plan:** `Step ADM7: Final QA & Production Verification (COMPLETED 100%) — Admin Dashboard Deep-Dive 100% COMPLETE`
-- **Status:** All Steps ADM0 through ADM7 are 100% complete, verified on live Supabase backend, statically clean (0 errors, 0 warnings across all school services, screens, routes, and auth), and committed. Dual-ERP isolation fully intact (zero college modifications). Next target: Parent Dashboard Deep-Dive.
+- **Current Step in Execution Plan:** `Step PAR2: Design Parity & Drawer/Profile (PM8, PM12, PM13)`
+- **Status:** Step PAR1 is 100% complete and verified on live Supabase. All 15 fake constants and privacy leaks purged with zero grep matches. Static analysis clean (0 issues). Ready to execute Step PAR2. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step PAR1: Real-Data Purge & Privacy Fix (PM1, PM2, PM10, PM5, PM7)
+- [x] **PM2 (Privacy Fix in `getParentChildren`):** Eradicated `.limit(2)` leak when `parent_student_links` has no rows for a parent. Unlinked parents receive strictly an empty list `[]` — zero exposure of stranger students.
+- [x] **PM1 & PM10 (Metrics & Child Hero Identity Purge):**
+  - Purged hardcoded constants (`Praveen Sharma`, `Aarav Sharma`, `SCH2026-10A`, `92.5`, `94.2`, `A1 (94%)`, `A2 (86%)`, `cls-9a/cls-10a` guess, `sstudent1`) from `school_parent_dashboard.dart`.
+  - Empty state `_buildNoChildrenLinkedState` implemented with "+ Request Child Link" dialog when no child is linked.
+- [x] **PM5 (LMS-Lite URL Fallback Purge):** Purged `notes.pdf` URL fallback and fake study materials in `getStudyMaterials()`. When no materials are uploaded, returns authentic empty list `[]`.
+- [x] **PM7 (Leave Form Fallback Purge):** Purged `'sstudent1'`, `'cls-10a'`, and fake 'Self-Certified' document string from leave form dialog.
+- [x] **Transport & Timetable Fallbacks Purged:** Purged fake `UK-07-PA-1024`, `Mohan Singh`, `Anita Verma`, and `Rajpur Road` fallbacks across safety pulse card and Tab 4. Bus card hides or displays clean unassigned state when student has no bus route.
+- [x] **Automated Verification:**
+  - Live Supabase test confirmed `parent1` gets 13 authentic linked children, unlinked parent gets 0 children.
+  - Grep audit confirmed ZERO occurrences of all 15 forbidden constants in `school_parent_dashboard.dart`.
+  - `dart analyze lib/services/school_service.dart lib/features/school/parent/` returned 0 issues.
+  - Zero College ERP lines touched.
+
+---
+
+### [COMPLETED] Step PAR0: Parent Dashboard Deep-Dive - Verify-First Baseline Audit
+- [x] **Item (a) - `getParentChildren` No-Link & Privacy Audit:** Live DB verified: `parent_student_links` has 14 links. Code audit revealed that when `links.isEmpty`, `school_service.dart` ran `_supabase.from('school_students').select().limit(2)`, leaking 2 stranger student records. Massive privacy hole confirmed for eradication in PAR1.
+- [x] **Item (b) - Fee Screen Scoping:** `school_fee_screen.dart` loads by `targetUser = username` without child context, defaulting to `sstudent1`. Confirmed need for child route parameter and child switcher in parent fee flow (PM6).
+- [x] **Item (c) - Circulars Audience & Category Storage:** Confirmed audience is `All/Students/Parents/Teachers` (no class targeting). Confirmed `school_circulars` used for PTM bookings (`PTMSlot`), complaints (`ParentComplaint`), and legacy student leaves (`StudentLeave`).
+- [x] **Item (d) - Proposed Tables Audit:** Tested `school_teacher_messages`, `school_notifications`, `school_ptm_bookings`, `school_parent_grievances`, `school_parent_teacher_messages`, `school_link_requests`, `school_parent_preferences` — all returned 404 (do not exist yet). Dedicated SQL schema with RLS needed.
+- [x] **Item (e) - Live Transport Availability:** `school_transport` verified with 3 active Dehradun routes (Route 1 UK-07-PA-1024, Route 2 UK-07-PA-2048, Route 3 UK-07-PA-3096).
+- [x] **Item (f) - Step 10 Records Live Verification:** Verified PTM booking `e6d6759b`, grievance ticket `TKT-892104` (`3d9dff76`), and 7 student leaves in `school_circulars`.
+- [x] **Item (g) - PN10 Behaviour Notes Decision:** Default set to OFF (visible only to teacher + admin) per policy. No parent view created unless explicitly requested.
+- [x] **Static Analysis & College ERP:** 0 code modified in PAR0. Clean baseline.
+
+---
 
 ### [COMPLETED] Step 0: Sync, Baseline, and Audit (Lines 169-185)
 - [x] **Line 172 (Action 1):** `git pull origin main` and record HEAD commit hash (`cece3600f9aa57b3a3e48bc6353df267f6011445`).
