@@ -1,9 +1,25 @@
-- **Current Step in Execution Plan:** `Step SP0: Baseline Audit & Verification (Super Enterprise Deep-Dive) [COMPLETED]`
-- **Status:** **SP0 Baseline Audit completed with 100% verification:** (a) Deploy failure cause confirmed: `pubspec.yaml` lists `.env` as an asset, but `.env` is gitignored; (b) Live `users` table audited: 76/77 school users already use `s`-prefix; only 1 account (`parent1`, role `parent`) lacks `s`-prefix (flagged for owner approval); (c) College payroll tables (`payroll_runs`, `payslips`, `teacher_details`, `teacher_salary`, `teacher_leaves`) inspected and absence of ESI confirmed; (d) Settings storage via SystemSetting document verified, statutory rates prepared; (e) Library fine auto-posting on return confirmed; (f) Circulars audience verified for 'Alumni' extension; (g) Transport GPS confirmed as label-only; (h) Provided Groq (`gsk_...`) and Gemini (`AQ.Ab...`) API keys tested and validated 100% live. Ready to commence **Step SP1: Deploy Pipeline Fix (Item 11)**.
+- **Current Step in Execution Plan:** `Step SP2: Payroll (Item 2) — School Salary Structure, Runs, Payslips & ESI`
+- **Status:** **Step SP1 (Deploy Pipeline Fix) is 100% complete and locally verified!** (1) Removed `- .env` from `pubspec.yaml` assets so asset bundling never fails in CI checkout; (2) Hardened `.github/workflows/deploy.yml` with pre-build `flutter analyze lib/features/school/ lib/services/`, `--dart-define` for `SUPABASE_URL` and `SUPABASE_ANON_KEY`, build artifact verification (`test -d build/web && test -f build/web/index.html`), and `clean: true` for GitHub Pages deployment; (3) Full local web release build (`flutter build web --release --base-href /erp/`) passed cleanly with code 0 (`√ Built build\web`), generating `build/web/index.html`. Commencing **Step SP2: School Payroll**.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP1: Deploy Pipeline Fix (Item 11)
+- [x] **Pubspec Asset Fix:**
+  - Removed `- .env` from `pubspec.yaml` line 96 under `assets:`.
+  - Confirmed runtime dotenv fallback in `main.dart` and `SupabaseService.initialize` handles web environment smoothly without bundling `.env` into web assets.
+- [x] **Workflow Hardening (`.github/workflows/deploy.yml`):**
+  - Added pre-build `flutter analyze lib/features/school/ lib/services/` step for fail-fast validation.
+  - Injected `--dart-define` for `SUPABASE_URL` and `SUPABASE_ANON_KEY` pulling from GitHub Secrets with legitimate public fallback.
+  - Added verification step confirming existence of `build/web/index.html`.
+  - Configured `clean: true` in `JamesIves/github-pages-deploy-action@v4`.
+- [x] **Local Build & Analysis Verification:**
+  - `flutter analyze lib/features/school/ lib/services/`: 0 errors, 0 warnings.
+  - `flutter build web --release --base-href /erp/`: Exit code 0, 71.4s, `√ Built build\web`.
+  - Verified `build/web/index.html` exists.
+
+---
 
 ### [COMPLETED] Step SP0: Baseline Audit & Verification (Super Enterprise Deep-Dive)
 - [x] **Item (a) — Deploy Pipeline Error Analysis:**

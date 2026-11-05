@@ -28,12 +28,22 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Analyze code
+        run: flutter analyze lib/features/school/ lib/services/
+
       - name: Build Flutter Web
-        run: flutter build web --release --base-href /erp/
+        run: >
+          flutter build web --release --base-href /erp/
+          --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL || 'https://rvyzfqffjgwadxtbiuvr.supabase.co' }}"
+          --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2eXpmcWZmamd3YWR4dGJpdXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1NDkwMzAsImV4cCI6MjA3OTEyNTAzMH0.focrBupRcbCiPgSCRvRpBpzZnvte9hNkWmsD4LSTBN0' }}"
+
+      - name: Verify Web Build Artifact
+        run: test -d build/web && test -f build/web/index.html
 
       - name: Deploy to gh-pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: build/web
           branch: gh-pages
+          clean: true
 
