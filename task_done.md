@@ -1,9 +1,27 @@
-- **Current Step in Execution Plan:** `Step PAR7: Final E2E QA, Live DB Regression, & Production Verification`
-- **Status:** Step PAR6 is 100% complete and verified. Per-Child Reports Hub & Excel (PN5, PAR-R01 to PAR-R14) built with all 14 official dual-sheet Excel exports, interactive graph inspection, multi-child dynamic scoping, and drawer/overview wiring. Zero analyze issues. Commencing Step PAR7. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `School ERP Parent Dashboard Deep-Dive (PAR0 to PAR7) — 100% COMPLETE & VERIFIED`
+- **Status:** All 8 Parent Portal Deep-Dive steps (PAR0 to PAR7) are 100% complete, verified on live Supabase production DB, and committed. Zero mock/fake constants remain. Privacy boundary strictly enforced. 14 official per-child Excel workbooks (PAR-R01 to PAR-R14) operational. Full static analysis: 0 errors, 0 warnings. Zero College ERP files touched.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step PAR7: Final E2E QA, Live DB Regression, & Production Verification
+- [x] **Live Supabase Production E2E Regression Suite:**
+  - Test 1 (Privacy): Verified that an unlinked parent username returns strictly 0 children (eradicated `.limit(2)` privacy breach).
+  - Test 2 (Multi-Child Resolution): Verified `parent1` authentic multi-child resolution (13 linked students in `parent_student_links` including `sstudent1`, `student7`, `sstudent_aanya`).
+  - Test 3 (Data Scoping): Verified independent per-child data scoping across attendance and fees (`sstudent1` vs `student7`).
+  - Test 4 (PTM Appointments): Verified live confirmed PTM appointment preservation (`school_circulars` with `category = 'PTMSlot'`).
+  - Test 5 (Grievance Desk): Verified live parent complaint tracking (`school_circulars` with `category = 'ParentComplaint'` / TKT-892104).
+  - Test 6 (Faculty Comms): Verified live Class Notice broadcasts from teachers.
+  - Test 7 (Transport Telematics): Verified active Dehradun transit routes in `school_transport`.
+- [x] **Static Analysis Verification:**
+  - `dart analyze lib/services/school_service.dart lib/services/school_export_service.dart lib/features/school/parent/ lib/features/school/fee/ lib/routes/` returned **0 issues found** (0 errors, 0 warnings, 0 deprecations).
+- [x] **Dual-ERP Isolation Guarantee:**
+  - Clean git status across all College ERP directories (`lib/features/attendance/`, `lib/features/fees/`, `lib/features/admin/`, `lib/features/student/`, `lib/features/timetable/`).
+- [x] **Deep-Dive Milestone Status:**
+  - **School ERP Parent Dashboard Deep-Dive (PAR0 to PAR7): 100% COMPLETE.**
+
+---
 
 ### [COMPLETED] Step PAR6: Per-Child Reports Hub & Excel (PN5, PAR-R01 to PAR-R14)
 - [x] **Excel Export Engine (`lib/services/school_export_service.dart`):**
