@@ -1,5 +1,5 @@
-- **Current Step in Execution Plan:** `Step ADM3: Analytics + Reports First Half (Completed) -> Moving to Step ADM4 (Reports Second Half + Excel: AD-R07 to AD-R14 + UDISE Excel)`
-- **Status:** Step ADM3 (Institutional Analytics & Reports Suite: N1 + N6 + N7 + AD-R01 to AD-R06) completed with 100% verification against live Supabase. Implemented 6 analytical engines in `SchoolService`, built 4 interactive `fl_chart` cards on the admin command dashboard (30-day attendance trajectory with 75% CBSE benchmark line, monthly fee collection vs dues grouped bar chart, session enrolment cumulative curve, and admission intake conversion funnel), and integrated the Admin Institutional Analytics Suite into the Reports Hub (`school_reports_screen.dart`). Verified live DB data (68 students, 152 fee records, 1,000 attendance records, 6 admissions, 13 fee heads, 1,000 exam marks). `dart analyze lib/services/ lib/features/school/` returned 0 issues. Moving to Step ADM4.
+- **Current Step in Execution Plan:** `Step ADM4: Reports Second Half + Excel (Completed) -> Moving to Step ADM5 (New Features Suite: N3, N4, N5, N8, N9, N10, N11, N12, N13, N14)`
+- **Status:** Step ADM4 (Reports Second Half + Excel: AD-R07 to AD-R14 + UDISE Excel) completed with 100% verification against live Supabase. Implemented all 14 multi-sheet Excel (.xlsx) workbooks adhering strictly to the dual-sheet standard (Summary + Data + Totals + Admin_<CODE>_<YYYYMMDD>.xlsx filename). Integrated Excel export action buttons across the dashboard analytics cards, Approvals Desk modal, and Reports Hub UDISE+ and Morning Briefing tabs. Verified live DB tables for all 14 reports (68 students, 152 fee records, 132 defaulters, 13 fee heads, 6 admissions, 28 teachers, 3 transport routes, 6 library books, 2 grievances, 38 circulars, 6 certificate requests, and audit activity). `dart analyze lib/services/ lib/features/school/` returned 0 issues. Moving to Step ADM5.
 
 ---
 
@@ -292,5 +292,34 @@
     - Admission Conversion Progression stage badges (AD-R05).
 - [x] **Automated Live DB Verification:**
   - Ran `test_adm3_verification.py` asserting live Supabase data: verified 68 students, 152 fee records (Rs. 303,900 collected, Rs. 1,574,085 pending), 1,000 attendance records, 6 admissions applications, 13 fee heads, and 1,000 exam marks.
+  - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
+
+---
+
+### [COMPLETED] Step ADM4: Reports Second Half + Excel (AD-R07 to AD-R14 + UDISE Excel)
+- [x] **14 Multi-Sheet Excel Workbooks in `SchoolExportService` (`lib/services/school_export_service.dart`):**
+  - Built strict two-sheet architecture: Sheet 1 `Summary` (Title, metadata filters, audit date, rules, totals) and Sheet 2 `Data` (Full records, data cells, bottom totals row).
+  - Standardized filename pattern: `Admin_<CODE>_<YYYYMMDD>.xlsx`.
+  - Implemented all 14 official workbooks:
+    1. **AD-R01 (`exportAdminEnrolmentExcel`)**: Monthly student intake and cumulative session progression with totals.
+    2. **AD-R02 (`exportAdminFeeCollectionsExcel`)**: Monthly collections, pending dues, demand, and collection efficiency percentage with session totals.
+    3. **AD-R03 (`exportAdminDefaultersAgeingExcel`)**: Ageing brackets (0-30, 31-60, 61-90, 90+ days), days overdue, student/parent details, and total overdue sums.
+    4. **AD-R04 (`exportAdminFeeHeadWiseExcel`)**: Head-wise collection totals, percentage share of revenue, and audited totals.
+    5. **AD-R05 (`exportAdminAdmissionFunnelExcel`)**: Pipeline conversion stages (Inquiries -> Applied -> Scrutiny -> Interaction -> Offers -> Enrolled) with RTE counts and conversion rates.
+    6. **AD-R06 (`exportAdminExamResultsExcel`)**: Class-wise pass %, students needing support, average scores, and CBSE benchmark verdicts.
+    7. **AD-R07 (`exportAdminStaffLoadExcel`)**: Staff directory, assigned subjects, assigned cohorts, weekly instructional periods, and workload balance indicators.
+    8. **AD-R08 (`exportAdminTransportExcel`)**: Route-wise boarding count, absent students, telematics GPS status, and safety mismatch alerts.
+    9. **AD-R09 (`exportAdminLibraryExcel`)**: Book circulation, borrower roles, issue/due dates, and accrued fine amounts.
+    10. **AD-R10 (`exportAdminUdise38FieldExcel`)**: Statutory 38-field national MoE compliance export with origin table mapping and completeness verification verdict.
+    11. **AD-R11 (`exportAdminGrievancesExcel`)**: Ticket ID, parent/student names, category, age in days, status, and Principal resolution notes.
+    12. **AD-R12 (`exportAdminBroadcastsExcel`)**: Published circulars, audience distribution, categories, urgency level, and delivery channels.
+    13. **AD-R13 (`exportAdminApprovalsAgeingExcel`)**: Approvals queue items, categories, pending age in days, and SLA escalation status.
+    14. **AD-R14 (`exportAdminAuditTrailExcel`)**: Immutable audit log entries, actors, actions, entity types, IDs, and contextual details.
+- [x] **UI Action Button Wiring:**
+  - Added Excel export triggers on `school_admin_dashboard.dart` analytics cards: Attendance (AD-R03), Fee Collections (AD-R02), Enrolment (AD-R01), and Admission Funnel (AD-R05).
+  - Added Excel export trigger on `school_admin_dashboard.dart` Executive Approvals Desk modal (AD-R13).
+  - Added Excel export triggers on `school_reports_screen.dart` Morning Briefing tab for AD-R03, AD-R06, AD-R04, AD-R05, and on the UDISE+ tab for the statutory 38-field export (AD-R10).
+- [x] **Automated Live DB Verification:**
+  - Ran `test_adm4_verification.py` validating data sources across all 14 reports: 68 students, 152 fee payments, 132 defaulters, 13 fee heads, 6 admissions, 28 teachers in users (10 detailed profiles), 3 bus routes, 6 library books, 2 grievances, 38 circulars, 6 certificate requests, and audit trail logger.
   - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
 

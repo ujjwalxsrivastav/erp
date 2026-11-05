@@ -1768,17 +1768,31 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
-                    ),
-                    child: const Text(
-                      'Live Trajectory',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF047857)),
-                    ),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.table_view_rounded, size: 20, color: Color(0xFF0F766E)),
+                        tooltip: 'Export Attendance Trajectory Excel (AD-R03)',
+                        onPressed: () => SchoolExportService.exportAttendanceTrendExcel(
+                          context: context,
+                          className: 'Whole School',
+                          teacherName: _teacherDisplayName,
+                          trendRows: _adminAttendanceTrend,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: const Text(
+                          'Live Trajectory',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF047857)),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1916,6 +1930,14 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                     ),
                   ),
+                  IconButton(
+                    icon: const Icon(Icons.table_view_rounded, size: 20, color: Color(0xFF6366F1)),
+                    tooltip: 'Export Exam Results Excel (AD-R06)',
+                    onPressed: () => SchoolExportService.exportAdminExamResultsExcel(
+                      context: context,
+                      classResults: _adminClassPassRates,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -1987,6 +2009,22 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     child: Text(
                       'Fee Head Collections (AD-R04) & Admissions Funnel (AD-R05)',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.table_view_rounded, size: 20, color: Color(0xFFD97706)),
+                    tooltip: 'Export Fee Heads Excel (AD-R04)',
+                    onPressed: () => SchoolExportService.exportAdminFeeHeadWiseExcel(
+                      context: context,
+                      feeHeads: _adminFeeHeads,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.filter_alt_rounded, size: 20, color: Color(0xFF2563EB)),
+                    tooltip: 'Export Admission Funnel Excel (AD-R05)',
+                    onPressed: () => SchoolExportService.exportAdminAdmissionFunnelExcel(
+                      context: context,
+                      funnelStages: _adminAdmissionFunnel,
                     ),
                   ),
                 ],
@@ -3255,10 +3293,26 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('UDISE+ Standard Compliance Fields', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                      IconButton(
-                        icon: const Icon(Icons.copy, color: _primary),
-                        tooltip: 'Copy JSON dataset',
-                        onPressed: _showExportSnackbar,
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.table_view_rounded, color: _primary),
+                            tooltip: 'Export 38-Field UDISE+ Excel (AD-R10)',
+                            onPressed: () {
+                              if (_udiseData != null) {
+                                SchoolExportService.exportAdminUdise38FieldExcel(
+                                  context: context,
+                                  udiseData: _udiseData!,
+                                );
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.copy, color: _primary),
+                            tooltip: 'Copy JSON dataset',
+                            onPressed: _showExportSnackbar,
+                          ),
+                        ],
                       ),
                     ],
                   ),

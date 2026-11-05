@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../services/auth_service.dart';
 import '../../services/school_service.dart';
+import '../../services/school_export_service.dart';
 
 class SchoolAdminDashboard extends StatefulWidget {
   const SchoolAdminDashboard({super.key});
@@ -1126,6 +1127,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                       ),
                       const Spacer(),
                       IconButton(
+                        icon: const Icon(Icons.table_view_rounded, size: 20, color: Color(0xFF059669)),
+                        tooltip: 'Export Approvals Excel (AD-R13)',
+                        onPressed: () => SchoolExportService.exportAdminApprovalsAgeingExcel(
+                          context: context,
+                          approvalsList: filteredItems,
+                        ),
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
                         onPressed: () => Navigator.pop(ctx),
                       ),
@@ -2002,17 +2011,32 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 '$compliantDays/${_attendanceTrend.length} Days Compliant (≥75%)',
                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
               ),
-              InkWell(
-                onTap: () => context.push('/school/reports'),
-                child: const Row(
-                  children: [
-                    Text(
-                      'Attendance Audit',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.table_view_rounded, size: 16, color: Color(0xFF059669)),
+                    tooltip: 'Export Attendance Excel (.xlsx)',
+                    onPressed: () => SchoolExportService.exportAttendanceTrendExcel(
+                      context: context,
+                      className: 'Whole School',
+                      teacherName: _adminName,
+                      trendRows: _attendanceTrend,
                     ),
-                    Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
-                  ],
-                ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  InkWell(
+                    onTap: () => context.push('/school/reports'),
+                    child: const Row(
+                      children: [
+                        Text(
+                          'Attendance Audit',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                        ),
+                        Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -2231,17 +2255,32 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 'Grouped by Financial Month (Apr–Mar)',
                 style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
               ),
-              InkWell(
-                onTap: () => context.push('/school/fees'),
-                child: const Row(
-                  children: [
-                    Text(
-                      'Fee Ledger & Defaulters',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.table_view_rounded, size: 16, color: Color(0xFF059669)),
+                    tooltip: 'Export Fee Ledger Excel (AD-R02)',
+                    onPressed: () => SchoolExportService.exportAdminFeeCollectionsExcel(
+                      context: context,
+                      feeTrend: _feeTrend,
+                      totalCollected: totalCol,
+                      totalPending: totalDue,
                     ),
-                    Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
-                  ],
-                ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  InkWell(
+                    onTap: () => context.push('/school/fees'),
+                    child: const Row(
+                      children: [
+                        Text(
+                          'Fee Ledger & Defaulters',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                        ),
+                        Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -2439,17 +2478,31 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 'Cumulative Student Admissions',
                 style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
               ),
-              InkWell(
-                onTap: () => context.push('/school/reports'),
-                child: const Row(
-                  children: [
-                    Text(
-                      'View Student Directory',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.table_view_rounded, size: 16, color: Color(0xFF059669)),
+                    tooltip: 'Export Enrolment Excel (AD-R01)',
+                    onPressed: () => SchoolExportService.exportAdminEnrolmentExcel(
+                      context: context,
+                      enrolmentTrend: _enrolmentTrend,
+                      totalStudents: _totalStudents,
                     ),
-                    Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
-                  ],
-                ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  InkWell(
+                    onTap: () => context.push('/school/reports'),
+                    child: const Row(
+                      children: [
+                        Text(
+                          'View Student Directory',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                        ),
+                        Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -2590,17 +2643,30 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 'RTE Quota Monitored via DB',
                 style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
               ),
-              InkWell(
-                onTap: () => context.push('/school/admissions'),
-                child: const Row(
-                  children: [
-                    Text(
-                      'Manage Admissions Desk',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.table_view_rounded, size: 16, color: Color(0xFF059669)),
+                    tooltip: 'Export Admission Funnel Excel (AD-R05)',
+                    onPressed: () => SchoolExportService.exportAdminAdmissionFunnelExcel(
+                      context: context,
+                      funnelStages: _admissionFunnel,
                     ),
-                    Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
-                  ],
-                ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  InkWell(
+                    onTap: () => context.push('/school/admissions'),
+                    child: const Row(
+                      children: [
+                        Text(
+                          'Manage Admissions Desk',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                        ),
+                        Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
