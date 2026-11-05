@@ -8975,6 +8975,270 @@ class SchoolService {
     }
   }
 
+  // ===== N6: STUDENT TARGET GOALS =====
+
+  Future<List<Map<String, dynamic>>> getStudentGoals(String studentUsername) async {
+    try {
+      final response = await _supabase
+          .from('school_student_goals')
+          .select()
+          .eq('student_id', studentUsername)
+          .order('subject', ascending: true);
+      if ((response as List).isNotEmpty) {
+        return List<Map<String, dynamic>>.from(response);
+      }
+    } catch (_) {}
+
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'StudentGoal')
+          .eq('published_by', studentUsername);
+      final list = <Map<String, dynamic>>[];
+      for (final row in response) {
+        try {
+          final content = row['content']?.toString() ?? '{}';
+          final decoded = jsonDecode(content);
+          if (decoded is Map<String, dynamic>) {
+            list.add({
+              'id': row['id'],
+              'student_id': studentUsername,
+              'subject': decoded['subject'] ?? 'General',
+              'target_percent': (decoded['target_percent'] as num?)?.toDouble() ?? 85.0,
+              'updated_at': row['published_at'],
+            });
+          }
+        } catch (_) {}
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<bool> setStudentGoal({
+    required String studentUsername,
+    required String subject,
+    required double targetPercent,
+  }) async {
+    final payload = {
+      'student_id': studentUsername,
+      'subject': subject,
+      'target_percent': targetPercent,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    try {
+      await _supabase.from('school_student_goals').upsert(payload, onConflict: 'student_id,subject');
+      return true;
+    } catch (_) {}
+
+    try {
+      await _supabase.from('school_circulars').insert({
+        'institute_code': 'SHIV-SCH',
+        'title': 'GOAL: ' + subject + ' (' + studentUsername + ')',
+        'content': jsonEncode(payload),
+        'category': 'StudentGoal',
+        'target_audience': 'students',
+        'published_by': studentUsername,
+        'published_at': DateTime.now().toIso8601String(),
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ===== N10: STUDENT NOTIFICATIONS CENTER =====
+
+  Future<List<Map<String, dynamic>>> getStudentNotifications(String studentUsername) async {
+    final notifications = <Map<String, dynamic>>[];
+
+    try {
+      final response = await _supabase
+          .from('school_notifications')
+          .select()
+          .eq('user_id', studentUsername)
+          .order('created_at', ascending: false)
+          .limit(10);
+      if ((response as List).isNotEmpty) {
+        for (final row in response) {
+          notifications.add({
+            'id': row['id'],
+            'title': row['title'] ?? 'Notice',
+            'body': row['body'] ?? '',
+            'type': row['type'] ?? 'info',
+            'route': row['link_route'],
+            'is_read': row['is_read'] ?? false,
+            'time': row['created_at'],
+          });
+        }
+      }
+    } catch (_) {}
+
+    if (notifications.length < 5) {
+      try {
+        final profile = await getSchoolStudentProfile(studentUsername);
+        final classId = profile?['class_id']?.toString() ?? '';
+        final className = profile?['class_name']?.toString() ?? '';
+
+        final hwList = await getHomework(classId: classId.isNotEmpty ? classId : null, className: className.isNotEmpty ? className : null);
+        final mySubs = await getHomeworkSubmissions(studentUsername: studentUsername);
+        final subMap = {for (var s in mySubs) s['homework_id']?.toString(): s};
+        int pendingHwCount = 0;
+        for (final h in hwList) {
+          if (!subMap.containsKey(h['id']?.toString())) {
+            pendingHwCount++;
+          }
+        }
+        if (pendingHwCount > 0) {
+          notifications.add({
+            'id': 'notif-hw',
+            'title': 'Pending Homework Assignments',
+            'body': 'You have ' + pendingHwCount.toString() + ' pending assignment(s) due. Complete and submit for evaluation.',
+            'type': 'homework',
+            'route': '/school/homework',
+            'is_read': false,
+            'time': DateTime.now().toIso8601String(),
+          });
+        }
+
+        final feeSummary = await getStudentFeeSummary(studentUsername);
+        final due = (feeSummary['total_due'] as num?)?.toDouble() ?? 0.0;
+        if (due > 0) {
+          notifications.add({
+            'id': 'notif-fee',
+            'title': 'School Fee Due Reminder',
+            'body': 'Outstanding school fees of ₹' + due.toInt().toString() + ' pending. Pay by 5th to avoid late fine.',
+            'type': 'fee',
+            'route': '/school/fees',
+            'is_read': false,
+            'time': DateTime.now().toIso8601String(),
+          });
+        }
+
+        final leaves = await getStudentLeaves(studentId: studentUsername);
+        if (leaves.isNotEmpty) {
+          final latestLeave = leaves.first;
+          final status = (latestLeave['status']?.toString() ?? 'pending').toUpperCase();
+          notifications.add({
+            'id': 'notif-leave-' + (latestLeave['id']?.toString() ?? '0'),
+            'title': 'Leave Application Status: ' + status,
+            'body': 'Your leave request for ' + (latestLeave['category']?.toString() ?? 'Leave') + ' is ' + status + '.',
+            'type': 'leave',
+            'route': '/school/leave',
+            'is_read': true,
+            'time': latestLeave['created_at'] ?? DateTime.now().toIso8601String(),
+          });
+        }
+
+        final circulars = await getCirculars();
+        for (final c in circulars.take(2)) {
+          notifications.add({
+            'id': 'notif-circ-' + (c['id']?.toString() ?? '0'),
+            'title': c['title']?.toString() ?? 'School Notice',
+            'body': c['content']?.toString() ?? 'New institutional circular published.',
+            'type': 'circular',
+            'route': '/school/circulars',
+            'is_read': true,
+            'time': c['published_at'] ?? DateTime.now().toIso8601String(),
+          });
+        }
+      } catch (_) {}
+    }
+
+    return notifications;
+  }
+
+  // ===== N14: ASK TEACHER / STUDENT QUERIES =====
+
+  Future<bool> submitStudentQuery({
+    required String studentUsername,
+    required String studentName,
+    required String subject,
+    required String message,
+    String? teacherUsername,
+    String? teacherName,
+  }) async {
+    final payload = {
+      'student_id': studentUsername,
+      'student_name': studentName,
+      'teacher_id': teacherUsername,
+      'teacher_name': teacherName ?? 'Subject Teacher',
+      'subject': subject,
+      'message': message.trim(),
+      'status': 'pending',
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    try {
+      await _supabase.from('school_student_queries').insert(payload);
+      return true;
+    } catch (_) {}
+
+    try {
+      await _supabase.from('school_circulars').insert({
+        'institute_code': 'SHIV-SCH',
+        'title': 'DOUBT: ' + subject + ' (' + studentName + ')',
+        'content': jsonEncode(payload),
+        'category': 'StudentQuery',
+        'target_audience': 'teachers',
+        'published_by': studentUsername,
+        'published_at': DateTime.now().toIso8601String(),
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getStudentQueries({required String studentUsername}) async {
+    try {
+      final response = await _supabase
+          .from('school_student_queries')
+          .select()
+          .eq('student_id', studentUsername)
+          .order('created_at', ascending: false);
+      if ((response as List).isNotEmpty) {
+        return List<Map<String, dynamic>>.from(response);
+      }
+    } catch (_) {}
+
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'StudentQuery')
+          .eq('published_by', studentUsername)
+          .order('published_at', ascending: false);
+
+      final list = <Map<String, dynamic>>[];
+      for (final row in response) {
+        try {
+          final content = row['content']?.toString() ?? '{}';
+          final decoded = jsonDecode(content);
+          if (decoded is Map<String, dynamic>) {
+            list.add({
+              'id': row['id'],
+              'student_id': decoded['student_id'] ?? studentUsername,
+              'student_name': decoded['student_name'] ?? studentUsername,
+              'teacher_name': decoded['teacher_name'] ?? 'Subject Teacher',
+              'subject': decoded['subject'] ?? 'General',
+              'message': decoded['message'] ?? '',
+              'reply': decoded['reply'],
+              'status': decoded['status'] ?? 'pending',
+              'created_at': decoded['created_at'] ?? row['published_at'],
+              'replied_at': decoded['replied_at'],
+            });
+          }
+        } catch (_) {}
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ===== STEP 11: CERTIFICATES, LIBRARY, AND REPORTING WORKFLOWS =====
 
   Future<Map<String, dynamic>> checkCertificateNoDues(String studentUsername) async {

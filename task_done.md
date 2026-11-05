@@ -1,9 +1,41 @@
-- **Current Step in Execution Plan:** `Step STU5: Naye Features Doosra Hissa (N6 se N14)`
-- **Status:** Step STU4 (New Features Part 1: N3 Study Materials, N4 Online Quizzes, N5 Homework File Submission + Teacher Feedback) is 100% complete and verified with live DB regression and 0 analyze issues. Commencing Step STU5: New Features Part 2 (N6 to N14: Goals, Leave Card, Transport Card, Certificates Card, Notifications, Exam Countdown Widget, ID Card Profile, Attendance Alerts, Ask Teacher). Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step STU6: Modifications Polish aur Parity (M7 se M11)`
+- **Status:** Step STU5 (New Features Part 2: N6 to N14) is 100% complete and verified with live DB regression and 0 analyze issues. All 9 enterprise student features (N6 Goals & Target Settings, N7 Leave Status Card, N8 Transport Telematics Card, N9 Certificates Card, N10 Notifications Center with unread badge, N11 Exam Countdown & Date Sheet Banner, N12 Digital Student ID Card modal, N13 Attendance 75% Statutory Rule Alert, N14 Ask Teacher Doubt Desk) are live and functioning. Commencing Step STU6: Modifications Polish & Parity (M7 4-state lifecycle, M8 Homework card deep-link, M9 Results trend indicators, M10 Announcements empty state, M11 1:1 Drawer and Quick Actions parity). Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step STU5: New Features Part 2 (N6 to N14)
+- [x] **N6 (My Goals / Target Percentages):**
+  - In `lib/services/school_service.dart`: Added `getStudentGoals(username)` and `setStudentGoal(...)` with resilient upsert and student scoping.
+  - In `lib/features/school/school_student_dashboard.dart`: Built `_buildGoalsProgressStrip(context)` rendering per-subject linear progress comparison against target % with `_showSetGoalsModal` interactive slider editor.
+- [x] **N7 (My Leave Status Card):**
+  - Integrated `_schoolService.getStudentLeaves(studentId: username)` with live `_buildLeaveStatusBanner(context)` displaying active category, days duration, and teacher approval/excuse status pill with quick redirect.
+- [x] **N8 & N9 (Transport & Certificates Cards Row):**
+  - Integrated `_schoolService.getStudentTransport(username)` and `_schoolService.getStudentCertificateRequests(username)`.
+  - Built `_buildTransportAndCertificatesRow(context, isWide)` displaying route number, bus number, pickup stop, time, and certificate status badge.
+- [x] **N10 (Notifications Center / Inbox):**
+  - In `lib/services/school_service.dart`: Added `getStudentNotifications(username)` dynamically synthesizing unread homework due, fee due, circulars, and leave decisions.
+  - In `school_student_dashboard.dart`: Added AppBar bell icon with dynamic badge count and `_showNotificationsInboxModal(context)` with categorized icons and deep-link routing.
+- [x] **N11 (Exam Countdown Widget):**
+  - Connected `getChildUpcomingExamCountdown` to `_buildExamCountdownBanner(context)` rendering exam session name, days countdown, and "Date Sheet" navigation.
+- [x] **N12 (Digital Student ID Card):**
+  - Connected avatar chip in AppBar and Drawer to `_showStudentProfileModal(context)`.
+  - Renders digital identity card: school header, photo initials avatar, student name, cohort class, admission number, session, and Digi-Verified QR/Barcode seal with print action.
+- [x] **N13 (Attendance 75% Statutory Rule Alert):**
+  - Built `_buildAttendance75RuleAlert(context, attPct)` calculating statutory board eligibility warning (<75% red warning) or safe margin buffer note (>=75% green status).
+- [x] **N14 (Ask Teacher - Doubt Desk):**
+  - In `lib/services/school_service.dart`: Added `submitStudentQuery(...)` and `getStudentQueries(...)` with strict student username scoping.
+  - In `school_student_dashboard.dart`: Added "Ask Teacher" tile in Quick Services and Drawer, and built `_showAskTeacherModal(context)` with subject selector, doubt text field, and "My Doubts & Replies" thread view.
+- [x] **Live Backend & Privacy Verification:**
+  - Verified live goal upsert and query response in Supabase.
+  - Verified Ask Teacher doubt submission, faculty reply view, and strict privacy boundary (0 queries returned for other usernames).
+  - Verified transport and exam session endpoints.
+- [x] **Automated Verification:**
+  - `dart analyze lib/features/school/school_student_dashboard.dart lib/services/school_service.dart` returned **0 issues found** (0 errors, 0 warnings).
+  - Zero College ERP files touched.
+
+---
 
 ### [COMPLETED] Step STU4: New Features Part 1 (N3, N4, N5)
 - [x] **N3 (Study Materials / LMS-lite on Student Dashboard):**
