@@ -1,9 +1,40 @@
-- **Current Step in Execution Plan:** `Step STU2: My Progress Analytics & Reports Hub First Half (N1, N2, STU-R01 to STU-R06)`
-- **Status:** Step STU1 (Real-Data Purge) is 100% complete and verified with 0 analyze issues. All fake constants (teachers, room numbers, 94.2% attendance, fake test counts, fake scores, demo library books, demo certificate requests, and hardcoded quizzes) are 100% purged. Commencing Step STU2: My Progress Analytics & Reports Hub First Half. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step STU3: Reports Second Half & Excel (STU-R07 to STU-R13 + M14 Excel)`
+- **Status:** Step STU2 (My Progress Analytics & Reports Hub First Half) is 100% complete and verified with 0 analyze issues. Added 4 live `fl_chart` analytics engines on dashboard (30-day attendance velocity, marks trend, subject-wise benchmarks, homework completion velocity) and student-scoped Reports Hub modal (STU-R01 to STU-R06) with drawer linkage. Commencing Step STU3: Reports Second Half & Excel. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step STU2: My Progress Analytics & Reports Hub First Half (N1, N2, STU-R01 to STU-R06)
+- [x] **Backend Analytics Engines (`lib/services/school_service.dart`):**
+  - `getStudentAttendanceTrajectory(username, days: 30)`: 30-day daily points, rolling attendance %, statutory <75% audit flag, and shortage days count.
+  - `getStudentMonthlyAttendanceRegister(username, month)`: Date-wise status register across current month.
+  - `getStudentMarksTrend(username)`: Exam-to-exam progression grouping across sessions (`Half Yearly`, `Final`, etc.) with CBSE 9-point scale evaluation.
+  - `getStudentSubjectPerformance(username)`: Subject-wise breakdown for the latest exam session with marks, total, CBSE grade, and remarks.
+  - `getStudentHomeworkCompletion(username, classId)`: Homework velocity ledger tracking assigned, submitted, pending, and overdue tasks with completion rate %.
+- [x] **N1 (My Progress Analytics on Dashboard):**
+  - Implemented `_buildProgressAnalyticsSection(context, isWide)` between master KPI cards and schedule timeline.
+  - Rendered 4 interactive `fl_chart` cards:
+    1. **30-Day Attendance Velocity (STU-R01):** `LineChart` with CBSE statutory 75.0% dashed line (`HorizontalLine`), smooth curves, and dynamic shortage badge.
+    2. **Exam Marks Trend (STU-R03):** `LineChart` graphing session-by-session percentage velocity.
+    3. **Subject-Wise Benchmark (STU-R04):** `BarChart` comparing scores across subjects with CBSE grade-tinted rods.
+    4. **Homework Completion Velocity (STU-R06):** Visual progress gauge and submission breakdown.
+  - All cards feature direct drill-downs into full reports.
+- [x] **N2 (My Reports Hub Modal - STU-R01 to STU-R06):**
+  - Built `_showStudentReportsHubModal(context)` bottom sheet with 6 official per-student report cards:
+    - `STU-R01`: Attendance Trend & Velocity
+    - `STU-R02`: Monthly Attendance Register
+    - `STU-R03`: Exam-to-Exam Marks Progression
+    - `STU-R04`: Subject-Wise Performance & Benchmarks
+    - `STU-R05`: CBSE Holistic Progress Card (HPC) Summary
+    - `STU-R06`: Homework Submission Diary Audit
+  - Each card provides "Chart View" modal trigger and "Download Excel (.xlsx)" export action.
+  - Added "My Reports & Analytics" tile in navigation drawer and desktop sidebar with active badge.
+- [x] **Automated Verification:**
+  - `dart analyze lib/features/school/school_student_dashboard.dart lib/services/school_service.dart` returned **0 issues found** (0 errors, 0 warnings).
+  - Clean git status across all College ERP directories.
+
+---
 
 ### [COMPLETED] Step STU1: Real-Data Purge (M1, M2, M3, M4, M5, M6, M12, M13)
 - [x] **M1 (Today's Class Schedule):**

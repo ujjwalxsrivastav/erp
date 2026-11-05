@@ -9709,6 +9709,209 @@ class SchoolService {
     ];
   }
 
+  // ===========================================================================
+  // STUDENT PORTAL ANALYTICS & REPORTS (N1, N2, STU-R01 to STU-R06)
+  // ===========================================================================
+
+  /// 1. Student Attendance Trajectory (STU-R01)
+  Future<Map<String, dynamic>> getStudentAttendanceTrajectory(
+    String username, {
+    int days = 30,
+  }) async {
+    return getChildAttendanceTrajectory(username, days: days);
+  }
+
+  /// 2. Student Monthly Attendance Register (STU-R02)
+  Future<List<Map<String, dynamic>>> getStudentMonthlyAttendanceRegister(
+    String username, {
+    DateTime? month,
+  }) async {
+    try {
+      final now = month ?? DateTime.now();
+      final firstDay = '${now.year}-${now.month.toString().padLeft(2, '0')}-01';
+      final lastDay =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${_daysInMonth(now.year, now.month).toString().padLeft(2, '0')}';
+
+      final resp = await _supabase
+          .from('school_attendance')
+          .select()
+          .eq('student_id', username)
+          .gte('date', firstDay)
+          .lte('date', lastDay)
+          .order('date', ascending: true);
+
+      return List<Map<String, dynamic>>.from(resp);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 3. Student Marks Trend across Exam Sessions (STU-R03)
+  Future<List<Map<String, dynamic>>> getStudentMarksTrend(String username) async {
+    try {
+      final resp = await _supabase
+          .from('school_marks')
+          .select()
+          .eq('student_id', username)
+          .order('created_at', ascending: true);
+      final records = List<Map<String, dynamic>>.from(resp);
+
+      final examGroups = <String, List<Map<String, dynamic>>>{};
+      for (final r in records) {
+        final exam = r['exam_type']?.toString() ?? 'Assessment';
+        examGroups.putIfAbsent(exam, () => []).add(r);
+      }
+
+      final trend = <Map<String, dynamic>>[];
+      for (final entry in examGroups.entries) {
+        double obt = 0;
+        double maxM = 0;
+        for (final m in entry.value) {
+          obt += (m['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+          maxM += (m['total_marks'] as num?)?.toDouble() ??
+              (m['max_marks'] as num?)?.toDouble() ??
+              100.0;
+        }
+        final pct = maxM > 0 ? (obt / maxM) * 100 : 0.0;
+        final cbse = calculateCbseGrade(pct);
+        trend.add({
+          'exam_name': entry.key,
+          'marks_obtained': obt,
+          'total_marks': maxM,
+          'percentage': pct,
+          'grade': cbse['grade'],
+          'description': cbse['description'],
+          'subject_count': entry.value.length,
+          'records': entry.value,
+        });
+      }
+      return trend;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 4. Student Subject-Wise Performance for Latest Exam (STU-R04)
+  Future<List<Map<String, dynamic>>> getStudentSubjectPerformance(String username) async {
+    try {
+      final resp = await _supabase
+          .from('school_marks')
+          .select()
+          .eq('student_id', username)
+          .order('created_at', ascending: false);
+      final records = List<Map<String, dynamic>>.from(resp);
+      if (records.isEmpty) return [];
+
+      final latestExam = records.first['exam_type']?.toString() ?? '';
+      final latestRecords = records.where((r) => (r['exam_type']?.toString() ?? '') == latestExam).toList();
+
+      final list = <Map<String, dynamic>>[];
+      for (final r in latestRecords) {
+        final obt = (r['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+        final maxM = (r['total_marks'] as num?)?.toDouble() ??
+            (r['max_marks'] as num?)?.toDouble() ??
+            100.0;
+        final pct = maxM > 0 ? (obt / maxM) * 100 : 0.0;
+        final cbse = calculateCbseGrade(pct);
+        list.add({
+          'subject': r['subject']?.toString() ?? 'Subject',
+          'marks_obtained': obt,
+          'total_marks': maxM,
+          'percentage': pct,
+          'grade': r['grade']?.toString() ?? cbse['grade'],
+          'remarks': r['remarks']?.toString() ?? cbse['description'],
+          'exam_type': latestExam,
+        });
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 5. Student Homework Completion Stats & Ledger (STU-R06)
+  Future<Map<String, dynamic>> getStudentHomeworkCompletion(
+    String username, {
+    String? classId,
+  }) async {
+    try {
+      final hwList = await getHomework(classId: classId);
+      final mySubs = await getHomeworkSubmissions(studentUsername: username);
+      final submittedMap = <String, Map<String, dynamic>>{};
+      for (final s in mySubs) {
+        final hwId = s['homework_id']?.toString() ?? '';
+        if (hwId.isNotEmpty) submittedMap[hwId] = s;
+      }
+
+      int submittedCount = 0;
+      int pendingCount = 0;
+      int overdueCount = 0;
+      final now = DateTime.now();
+      final ledger = <Map<String, dynamic>>[];
+
+      for (final hw in hwList) {
+        final hwId = hw['id']?.toString() ?? '';
+        final isSub = submittedMap.containsKey(hwId);
+        final subRecord = submittedMap[hwId];
+        final dueStr = hw['due_date']?.toString() ?? '';
+        bool isOverdue = false;
+        try {
+          if (dueStr.isNotEmpty) {
+            final dueDt = DateTime.parse(dueStr);
+            if (dueDt.isBefore(now) && !isSub) isOverdue = true;
+          }
+        } catch (_) {}
+
+        String status = 'PENDING';
+        if (isSub) {
+          submittedCount++;
+          status = 'SUBMITTED';
+        } else if (isOverdue) {
+          overdueCount++;
+          pendingCount++;
+          status = 'OVERDUE';
+        } else {
+          pendingCount++;
+        }
+
+        ledger.add({
+          'id': hwId,
+          'title': hw['title'] ?? 'Homework Assignment',
+          'subject': hw['subject'] ?? 'General',
+          'assigned_date': hw['assigned_date'] ?? hw['created_at'],
+          'due_date': dueStr,
+          'status': status,
+          'is_submitted': isSub,
+          'submitted_at': subRecord?['submitted_at'],
+          'note': subRecord?['note'],
+          'attachment_url': subRecord?['attachment_url'],
+          'teacher_feedback': subRecord?['teacher_feedback'],
+        });
+      }
+
+      final total = hwList.length;
+      final rate = total > 0 ? (submittedCount / total) * 100 : 100.0;
+
+      return {
+        'total_assigned': total,
+        'submitted_count': submittedCount,
+        'pending_count': pendingCount,
+        'overdue_count': overdueCount,
+        'completion_rate': rate,
+        'ledger': ledger,
+      };
+    } catch (_) {
+      return {
+        'total_assigned': 0,
+        'submitted_count': 0,
+        'pending_count': 0,
+        'overdue_count': 0,
+        'completion_rate': 0.0,
+        'ledger': <Map<String, dynamic>>[],
+      };
+    }
+  }
+
   // ===== HELPERS =====
   String _weekdayName(int weekday) {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
