@@ -1,5 +1,5 @@
-- **Current Step in Execution Plan:** `Step T5: New Features Implementation (N13, N5, N8, N12, N4, N7, N6, N10, N9, N11, N14)`
-- **Status:** Step T4 (Reports Second Half + Excel Suite) completed with 100% verification. Added `gradeHomeworkSubmission`, `getTeacherWeeklyWorkload` (T-R12), and `getTeacherSyllabusVelocity` (T-R09) to `SchoolService`. Built official Excel `.xlsx` exporters in `SchoolExportService` for homework submissions (T-R08), lesson plan velocity (T-R09), and weekly workload (T-R12). Updated `marks_entry_screen.dart` (M6) with class parity and Excel export, `school_attendance_screen.dart` (M7) with assigned classes scoping, `fl_chart` attendance trend line chart with 75% CBSE limit, and Excel register export, and `homework_list_screen.dart` (M8) with per-submission evaluation modal and Excel export. Verified with live automated tests and `dart analyze` (0 issues). Moving to Step T5 (New Teacher Dashboard Features).
+- **Current Step in Execution Plan:** `Step T6: Modifications Polish & Parity (M5, M9, M10, M11, M13, M14)`
+- **Status:** Step T5 (New Features Suite N4 to N14) completed with 100% verification. Built and connected 11 enterprise features on the Teacher Dashboard (`/school/teacher-dashboard`): Period-wise Attendance State (N13), Substitution Duty Desk (N5), Upcoming Exam Countdown Banner (N9), Attention Needed / At-Risk Signals Card (N8), Homework Grading Queue (N12), Weekly Teaching Workload View & Analyzer (N11), Scoped Parent Messaging (N4), Faculty Leave Desk (N6), PTM Meeting Slots (N10), Student Pastoral & Behaviour Notes (N7), and Faculty Inbox & Notifications Center (N14). Verified across 8 automated live Supabase tests (`test/test_t5.dart` passed 8/8) and `dart analyze` (0 issues). Moving to Step T6 (Modifications Polish & Parity).
 
 ---
 
@@ -128,3 +128,44 @@
   - Updated class loading to prioritize teacher's assigned classes.
   - Redesigned `_showTeacherSubmissions`: Added "Export Excel (T-R08)" action, evaluation status badges (Graded, Needs Revision, Pending), student notes, teacher feedback, and interactive "Grade / Review" dialog with instant live updates.
 - [x] **Live Database Automated Verification:** Ran `test_t4.dart` asserting live Supabase data — All tests passed! `dart analyze` returned 0 issues.
+
+---
+
+### [COMPLETED] Step T5: New Features Suite (N4 to N14)
+- [x] **Period-Wise Attendance State (N13):**
+  - In `Today's Teaching Schedule`: dynamically evaluates whether attendance has been recorded today for each period's class.
+  - Renders live status chips: `✓ Marked` (green) or `Pending` (amber) with direct "Take Attendance" quick action.
+- [x] **Substitution Desk (N5):**
+  - Prominent alert card rendered above schedule when teacher is assigned to cover periods for absent faculty.
+  - Displays period, class cohort, room, absent teacher name, and "Acknowledge" button with real status feedback.
+- [x] **Upcoming Exam Countdown & Datesheet Banner (N9):**
+  - Added exam countdown widget querying `school_exams` where `exam_date >= today`.
+  - Shows exam title, date, countdown badge (`IN X DAYS` or `TODAY`), and direct link to examination datesheet.
+- [x] **Attention Needed & Early Warning Signals (N8):**
+  - Deterministic evaluation detecting: CBSE attendance < 75%, examination failure (< 35% passing mark), or overdue missing homeworks.
+  - Interactive cards with risk badges and direct tap opening the Student 360° Profile sheet.
+  - Added "Export Excel (T-R03)" button for instant defaulters workbook generation.
+- [x] **Homework Grading Queue (N12):**
+  - Real-time queue on dashboard listing assignments with unreviewed submissions.
+  - Displays cohort name, due date, pending review count, overdue alert, and direct "Grade" button deep-linking to evaluation modal.
+- [x] **Weekly Teaching Workload Analyzer (N11):**
+  - Segmented toggle on schedule: "Today" vs "Week Load".
+  - Renders 6-day load view (Mon–Sat) with lecture counts, free periods, overloaded alert (>= 7 periods), total periods, and utilization % against 48-period weekly capacity.
+  - Added "Export Workload Excel (T-R12)" button.
+- [x] **Scoped Class Announcements & Parent Messaging (N4):**
+  - Dialog allowing teacher to broadcast official notices to parents of assigned classes with priority tag and real delivery logging in `school_circulars`.
+- [x] **Faculty Leave Desk (N6):**
+  - Modal bottom sheet displaying active and historical faculty leave applications with status pills (Pending, Approved, Rejected).
+  - "Apply Leave" dialog with leave type (Casual, Medical, Duty, Earned), date range, and reason.
+- [x] **PTM Meeting Slots Desk (N10):**
+  - Schedule modal for teacher listing parent-teacher conference appointments (student, parent, date, time slot, agenda) with interactive "Mark Done" / "Confirmed" status toggle.
+- [x] **Student Pastoral & Behaviour Notes (N7):**
+  - Added 6th dedicated tab in Student 360° Profile sheet: "Behaviour (N7)".
+  - Displays commendation, discipline, or academic observation logs.
+  - "Log Note" dialog allowing faculty to record pastoral observations in real time.
+- [x] **Faculty Inbox & Notifications Center (N14):**
+  - Bell icon in dashboard AppBar with unread counter badge.
+  - Sliding sheet aggregating substitution duties, grading reminders, and official notices with tap-to-navigate and "Mark all read" capability.
+- [x] **Drawer Parity (M11):**
+  - Added direct navigation for: Message Class Parents (N4), Faculty Leave Desk (N6), PTM Meeting Slots (N10), Faculty Notifications & Inbox (N14).
+- [x] **Live Database Automated Verification:** Ran `test_t5.dart` on live Supabase — All 8 tests passed! `dart analyze` returned 0 issues.

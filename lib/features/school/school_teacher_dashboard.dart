@@ -53,6 +53,18 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // Step T5 New Features State (N4 to N14)
+  List<Map<String, dynamic>> _substitutionsToday = []; // N5
+  Map<String, dynamic>? _upcomingExam; // N9
+  List<Map<String, dynamic>> _atRiskStudents = []; // N8
+  List<Map<String, dynamic>> _gradingQueue = []; // N12
+  List<Map<String, dynamic>> _ptmBookings = []; // N10
+  List<Map<String, dynamic>> _teacherLeaves = []; // N6
+  List<Map<String, dynamic>> _notifications = []; // N14
+  Map<String, dynamic>? _weeklyWorkload; // N11
+  String _scheduleViewMode = 'today'; // 'today' | 'weekly' (N11)
+  Set<String> _attendanceMarkedClassesToday = {}; // N13
+
   @override
   void initState() {
     super.initState();
@@ -150,10 +162,56 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           _gradeDistribution = gradeDist;
           _subjectAverages = subAvgs;
           _homeworkStats = hwStats;
-          _isLoading = false;
-          _errorMessage = null;
         });
-        _loadStudents();
+
+        // Step T5 Queries
+        final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+        final subs = await _schoolService.getSubstitutionLogs(date: todayStr);
+        final mySubs = subs.where((s) {
+          final subT = (s['substitute_teacher']?.toString() ?? '').toLowerCase();
+          return subT.contains(username.toLowerCase()) || subT.contains((_teacherName).toLowerCase());
+        }).toList();
+
+        final upExam = await _schoolService.getNextUpcomingExamForTeacher(username);
+        final atRisk = await _schoolService.getTeacherAtRiskStudents(username);
+        final queue = await _schoolService.getTeacherHomeworkGradingQueue(username);
+        final ptms = await _schoolService.getTeacherPtmBookings(displayName ?? username);
+        final myLeaves = await _schoolService.getTeacherLeaves(username);
+        final notifs = await _schoolService.getTeacherNotifications(username);
+        final workload = await _schoolService.getTeacherWeeklyWorkload(username);
+
+        // Period-wise attendance marked checks for today (N13)
+        final markedClasses = <String>{};
+        if (isMarked && teacherClasses.isNotEmpty) {
+          final tid = teacherClasses.first['id']?.toString() ?? '';
+          final tname = teacherClasses.first['name']?.toString() ?? '';
+          if (tid.isNotEmpty) markedClasses.add(tid);
+          if (tname.isNotEmpty) markedClasses.add(tname);
+        }
+        for (final s in schedule) {
+          final cid = (s['class_id'] ?? s['class'] ?? '').toString();
+          if (cid.isNotEmpty && !markedClasses.contains(cid)) {
+            final marked = await _schoolService.hasMarkedAttendanceToday(username, cid);
+            if (marked) markedClasses.add(cid);
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _substitutionsToday = mySubs;
+            _upcomingExam = upExam;
+            _atRiskStudents = atRisk;
+            _gradingQueue = queue;
+            _ptmBookings = ptms;
+            _teacherLeaves = myLeaves;
+            _notifications = notifs;
+            _weeklyWorkload = workload;
+            _attendanceMarkedClassesToday = markedClasses;
+            _isLoading = false;
+            _errorMessage = null;
+          });
+          _loadStudents();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -235,6 +293,29 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           ],
         ),
         actions: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                tooltip: 'Faculty Inbox & Notifications',
+                icon: const Icon(Icons.notifications_outlined, size: 21),
+                onPressed: _showInboxModal,
+              ),
+              if (_notifications.where((n) => n['is_read'] != true).isNotEmpty)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: Text(
+                      '${_notifications.where((n) => n['is_read'] != true).length}',
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             tooltip: 'Refresh Workspace',
             icon: const Icon(Icons.refresh_rounded, size: 20),
@@ -263,16 +344,32 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
                     children: [
                       _buildFacultyHeroCard(),
+                      if (_upcomingExam != null) ...[
+                        const SizedBox(height: 14),
+                        _buildUpcomingExamBanner(),
+                      ],
                       const SizedBox(height: 16),
                       _buildKpiGrid(),
+                      if (_gradingQueue.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        _buildHomeworkGradingQueueSection(),
+                      ],
                       const SizedBox(height: 20),
                       _buildTeacherAnalyticsSection(),
+                      if (_atRiskStudents.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        _buildAttentionNeededSection(),
+                      ],
                       const SizedBox(height: 20),
                       _buildMyStudentsSection(),
                       const SizedBox(height: 20),
                       _buildAcademicsAndMarksSection(),
                       const SizedBox(height: 20),
                       _buildDailyOperationsSection(),
+                      if (_substitutionsToday.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        _buildSubstitutionDeskCard(),
+                      ],
                       const SizedBox(height: 20),
                       _buildTodayScheduleSection(),
                     ],
@@ -1810,6 +1907,27 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         'route': '/school/circulars',
       },
       {
+        'title': 'Message Parents (N4)',
+        'subtitle': 'Broadcast class announcements',
+        'icon': Icons.chat_bubble_outline_rounded,
+        'color': const Color(0xFF2563EB),
+        'action': () => _showMessageParentsDialog(),
+      },
+      {
+        'title': 'My Leave Desk (N6)',
+        'subtitle': 'Apply & review faculty leave',
+        'icon': Icons.time_to_leave_rounded,
+        'color': const Color(0xFFEA580C),
+        'action': () => _showMyLeaveModal(),
+      },
+      {
+        'title': 'PTM Meetings (N10)',
+        'subtitle': 'Scheduled parent conference slots',
+        'icon': Icons.groups_rounded,
+        'color': const Color(0xFF7C3AED),
+        'action': () => _showPtmSlotsModal(),
+      },
+      {
         'title': 'Library Books',
         'subtitle': 'Resource search & issued titles',
         'icon': Icons.local_library_rounded,
@@ -1847,7 +1965,14 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             final op = operations[i];
             final color = op['color'] as Color;
             return InkWell(
-              onTap: () => context.push(op['route'] as String),
+              onTap: () {
+                final action = op['action'] as VoidCallback?;
+                if (action != null) {
+                  action();
+                } else if (op['route'] != null) {
+                  context.push(op['route'] as String);
+                }
+              },
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1902,42 +2027,163 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   // 7. TODAY'S TEACHING SCHEDULE
   // ──────────────────────────────────────────────
   Widget _buildTodayScheduleSection() {
+    final isWeekly = _scheduleViewMode == 'weekly';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Icon(Icons.schedule_rounded, size: 18, color: Color(0xFF0F172A)),
-            const SizedBox(width: 8),
-            const Text(
-              "Today's Teaching Schedule",
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+            Row(
+              children: [
+                const Icon(Icons.schedule_rounded, size: 18, color: Color(0xFF0F172A)),
+                const SizedBox(width: 8),
+                Text(
+                  isWeekly ? 'Weekly Teaching Workload (N11)' : "Today's Teaching Schedule",
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                ),
+              ],
             ),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: () => context.push('/school/timetable'),
-              icon: const Icon(Icons.calendar_today_outlined, size: 14),
-              label: const Text('Weekly View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFF2563EB)),
+            Row(
+              children: [
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'today', label: Text('Today', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
+                    ButtonSegment(value: 'weekly', label: Text('Week Load', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
+                  ],
+                  selected: {_scheduleViewMode},
+                  onSelectionChanged: (val) {
+                    setState(() => _scheduleViewMode = val.first);
+                  },
+                  style: SegmentedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                ),
+                if (isWeekly) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Export Workload Excel (T-R12)',
+                    icon: const Icon(Icons.file_download_outlined, color: Color(0xFF107C41), size: 20),
+                    onPressed: () async {
+                      if (_weeklyWorkload != null) {
+                        await SchoolExportService.exportWeeklyWorkloadExcel(
+                          context: context,
+                          teacherName: _teacherName,
+                          workload: _weeklyWorkload!,
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ],
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
 
-        if (_todaySchedule.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: const Center(
-              child: Text('No lectures scheduled for today. Free day!', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
-            ),
-          )
-        else
-          ..._todaySchedule.map((s) => _buildScheduleItem(s)),
+        if (isWeekly) ...[
+          _buildWeeklyWorkloadCards(),
+        ] else ...[
+          if (_todaySchedule.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Center(
+                child: Text('No lectures scheduled for today. Enjoy your preparation time!', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+              ),
+            )
+          else ...[
+            ..._todaySchedule.map((s) => _buildScheduleItem(s)),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildWeeklyWorkloadCards() {
+    if (_weeklyWorkload == null) return const SizedBox.shrink();
+    final days = (_weeklyWorkload!['days'] as List?) ?? [];
+    final total = _weeklyWorkload!['total_lectures'] ?? 0;
+    final util = (_weeklyWorkload!['utilization_rate'] as num?)?.toDouble() ?? 0.0;
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              Column(
+                children: [
+                  Text('$total', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                  const Text('Total Weekly Periods', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                ],
+              ),
+              Container(width: 1, height: 28, color: const Color(0xFFCBD5E1)),
+              Column(
+                children: [
+                  const Text('48', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
+                  const Text('School Capacity (8x6)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                ],
+              ),
+              Container(width: 1, height: 28, color: const Color(0xFFCBD5E1)),
+              Column(
+                children: [
+                  Text('${util.toStringAsFixed(1)}%', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: util > 85 ? const Color(0xFFDC2626) : const Color(0xFF2563EB))),
+                  const Text('Utilization Rate', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: days.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 2.2,
+          ),
+          itemBuilder: (ctx, i) {
+            final d = days[i];
+            final dayName = d['day']?.toString() ?? '';
+            final lecs = d['lectures'] ?? 0;
+            final free = d['free_periods'] ?? 0;
+            final isOver = (d['is_overloaded'] as bool?) ?? false;
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isOver ? const Color(0xFFFEF2F2) : Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isOver ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(dayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                  const SizedBox(height: 2),
+                  Text('$lecs Lectures • $free Free', style: TextStyle(fontSize: 11, color: isOver ? const Color(0xFFDC2626) : const Color(0xFF64748B))),
+                ],
+              ),
+            );
+          },
+        ),
       ],
     );
   }
@@ -2026,15 +2272,888 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           ),
           const SizedBox(width: 8),
 
-          IconButton(
-            tooltip: 'Take Attendance for $className ($period)',
-            icon: const Icon(Icons.how_to_reg_rounded, size: 20, color: Color(0xFF10B981)),
-            onPressed: () {
-              final cId = item['class_id']?.toString() ?? item['class']?.toString() ?? '';
-              context.push('/school/attendance?classId=$cId&period=$period');
-            },
+          () {
+            final cId = item['class_id']?.toString() ?? item['class']?.toString() ?? '';
+            final isMarked = _attendanceMarkedClassesToday.contains(cId) || _attendanceMarkedClassesToday.contains(className);
+
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isMarked ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: isMarked ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A)),
+                  ),
+                  child: Text(
+                    isMarked ? '✓ Marked' : 'Pending',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: isMarked ? const Color(0xFF059669) : const Color(0xFFD97706),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Take Attendance for $className ($period)',
+                  icon: Icon(Icons.how_to_reg_rounded, size: 20, color: isMarked ? const Color(0xFF10B981) : const Color(0xFFD97706)),
+                  onPressed: () {
+                    context.push('/school/attendance?classId=$cId&period=$period');
+                  },
+                ),
+              ],
+            );
+          }(),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // T5.1: FACULTY INBOX & NOTIFICATIONS (N14)
+  // ──────────────────────────────────────────────
+  void _showInboxModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.inbox_rounded, color: Color(0xFF2563EB), size: 20),
+                    SizedBox(width: 8),
+                    Text('Faculty Notifications & Inbox', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                  ],
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      for (final n in _notifications) {
+                        n['is_read'] = true;
+                      }
+                    });
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text('Mark all read', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+            const Divider(height: 20),
+            if (_notifications.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(
+                  child: Text('No unread alerts or notifications.', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _notifications.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (ctx, i) {
+                    final n = _notifications[i];
+                    final type = n['type']?.toString() ?? 'Notice';
+                    final isRead = (n['is_read'] as bool?) ?? false;
+
+                    Color badgeColor = const Color(0xFF2563EB);
+                    IconData icon = Icons.notifications_outlined;
+                    if (type == 'Substitution') {
+                      badgeColor = const Color(0xFFD97706);
+                      icon = Icons.swap_calls_rounded;
+                    } else if (type == 'Grading') {
+                      badgeColor = const Color(0xFF9333EA);
+                      icon = Icons.assignment_late_rounded;
+                    }
+
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                      leading: CircleAvatar(
+                        backgroundColor: badgeColor.withValues(alpha: 0.1),
+                        child: Icon(icon, color: badgeColor, size: 18),
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              n['title']?.toString() ?? '',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          if (!isRead)
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(color: Color(0xFF2563EB), shape: BoxShape.circle),
+                            ),
+                        ],
+                      ),
+                      subtitle: Text(
+                        n['body']?.toString() ?? '',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                      ),
+                      onTap: () {
+                        setState(() => n['is_read'] = true);
+                        Navigator.pop(ctx);
+                        if (type == 'Substitution') {
+                          context.push('/school/timetable');
+                        } else if (type == 'Grading') {
+                          context.push('/school/homework');
+                        } else {
+                          context.push('/school/circulars');
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // T5.2: UPCOMING EXAM COUNTDOWN BANNER (N9)
+  // ──────────────────────────────────────────────
+  Widget _buildUpcomingExamBanner() {
+    if (_upcomingExam == null) return const SizedBox.shrink();
+    final name = _upcomingExam!['name'] ?? _upcomingExam!['subject'] ?? 'Upcoming Examination';
+    final date = _upcomingExam!['exam_date']?.toString() ?? '';
+    final days = _upcomingExam!['days_remaining'] ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.timer_outlined, color: Color(0xFF38BDF8), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '$name',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        days == 0 ? 'TODAY' : 'IN $days DAYS',
+                        style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 9.5, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Scheduled on $date • CBSE Term Assessment Cycle',
+                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          OutlinedButton(
+            onPressed: () => context.push('/school/examination'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFF475569)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Datesheet', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // T5.3: HOMEWORK GRADING QUEUE (N12)
+  // ──────────────────────────────────────────────
+  Widget _buildHomeworkGradingQueueSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3E8FF),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.pending_actions_rounded, size: 16, color: Color(0xFF9333EA)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Homework Grading Queue (${_gradingQueue.length})',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                  ),
+                ],
+              ),
+              TextButton(
+                onPressed: () => context.push('/school/homework'),
+                child: const Text('View All', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ..._gradingQueue.take(3).map((hw) {
+            final title = hw['title']?.toString() ?? 'Homework';
+            final cName = hw['class_grade'] ?? hw['class_name'] ?? 'Cohort';
+            final count = hw['pending_review_count'] ?? 0;
+            final isOverdue = (hw['is_overdue'] as bool?) ?? false;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isOverdue ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A))),
+                        const SizedBox(height: 2),
+                        Text('Class $cName • Due: ${hw['due_date'] ?? 'Upcoming'}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isOverdue ? const Color(0xFFFEF2F2) : const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$count Pending Review',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFF2563EB),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => context.push('/school/homework'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      elevation: 0,
+                    ),
+                    child: const Text('Grade', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // T5.4: ATTENTION NEEDED / AT-RISK SIGNALS (N8)
+  // ──────────────────────────────────────────────
+  Widget _buildAttentionNeededSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFDC2626)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Attention Needed & Early Warning (${_atRiskStudents.length})',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                  ),
+                ],
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final rows = _atRiskStudents.map((s) => {
+                    'name': s['name'] ?? 'Student',
+                    'roll_number': s['roll_number'] ?? '-',
+                    'class': s['class_name'] ?? 'Class',
+                    'attendance_pct': s['attendance_pct'] ?? 0.0,
+                    'risk_reasons': (s['reasons'] as List?)?.join(', ') ?? 'At-risk',
+                  }).toList();
+                  await SchoolExportService.exportDefaultersExcel(
+                    context: context,
+                    className: 'All Assigned Cohorts',
+                    teacherName: _teacherName,
+                    defaulters: rows,
+                  );
+                },
+                icon: const Icon(Icons.file_download_outlined, size: 13),
+                label: const Text('Export Excel (T-R03)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFDC2626),
+                  side: const BorderSide(color: Color(0xFFFECACA)),
+                  backgroundColor: const Color(0xFFFEF2F2),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Rule-based triggers: CBSE attendance <75%, failing score (<35%), or 2+ missing homeworks.',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 12),
+          ..._atRiskStudents.take(4).map((s) {
+            final name = s['name']?.toString() ?? 'Student';
+            final cName = s['class_name']?.toString() ?? 'Class';
+            final reasons = (s['reasons'] as List?) ?? [];
+            final riskLevel = s['risk_level']?.toString() ?? 'Moderate';
+            final isHigh = riskLevel == 'High';
+
+            return InkWell(
+              onTap: () => _showStudent360Modal(context, s),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isHigh ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: isHigh ? const Color(0xFFFECDD3) : const Color(0xFFFDE68A)),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: isHigh ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                      child: Text(
+                        name.isNotEmpty ? name[0] : 'S',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A))),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
+                                child: Text(cName, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            reasons.join(' • '),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isHigh ? const Color(0xFFB91C1C) : const Color(0xFFB45309),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Color(0xFF94A3B8)),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // T5.5: SUBSTITUTION DESK CARD (N5)
+  // ──────────────────────────────────────────────
+  Widget _buildSubstitutionDeskCard() {
+    if (_substitutionsToday.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.swap_calls_rounded, color: Color(0xFFD97706), size: 18),
+              const SizedBox(width: 8),
+              Text(
+                "Today's Substitution Duty (${_substitutionsToday.length})",
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF92400E), fontSize: 13.5),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
+                child: const Text('ASSIGNED DUTY', style: TextStyle(color: Color(0xFFB45309), fontSize: 9.5, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ..._substitutionsToday.map((sub) => Container(
+            margin: const EdgeInsets.only(top: 6),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Period ${sub['period']} • Class ${sub['class_id']} • Room ${sub['room'] ?? 'Lab'} • Covering for ${sub['original_teacher']}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Substitution duty acknowledged.')),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD97706),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  ),
+                  child: const Text('Acknowledge', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // T5.6: MESSAGE CLASS PARENTS DIALOG (N4)
+  // ──────────────────────────────────────────────
+  void _showMessageParentsDialog() {
+    if (_assignedClasses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No assigned classes found.')),
+      );
+      return;
+    }
+
+    String selectedClassId = _assignedClasses.first['class_id']?.toString() ?? _assignedClasses.first['id']?.toString() ?? '';
+    String selectedClassName = _assignedClasses.first['name']?.toString() ?? 'Class';
+    final titleCtrl = TextEditingController();
+    final bodyCtrl = TextEditingController();
+    String priority = 'Normal';
+    bool isSending = false;
+
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Broadcast Notice to Class Parents', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Select Target Cohort', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
+                initialValue: selectedClassId,
+                items: _assignedClasses.map((c) {
+                  final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+                  final cname = c['name']?.toString() ?? 'Class';
+                  return DropdownMenuItem(value: cid, child: Text(cname, style: const TextStyle(fontSize: 12)));
+                }).toList(),
+                onChanged: (v) {
+                  if (v != null) {
+                    final matched = _assignedClasses.firstWhere((c) => (c['class_id']?.toString() ?? c['id']?.toString()) == v, orElse: () => {});
+                    setDlgState(() {
+                      selectedClassId = v;
+                      selectedClassName = matched['name']?.toString() ?? 'Class';
+                    });
+                  }
+                },
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text('Notice Subject', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              const SizedBox(height: 6),
+              TextField(
+                controller: titleCtrl,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Science Test on Friday / Field Trip Consent',
+                  hintStyle: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                  contentPadding: const EdgeInsets.all(10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                style: const TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              const Text('Message Body', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              const SizedBox(height: 6),
+              TextField(
+                controller: bodyCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Write the announcement details clearly for parents...',
+                  hintStyle: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                  contentPadding: const EdgeInsets.all(10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: isSending
+                  ? null
+                  : () async {
+                      if (titleCtrl.text.trim().isEmpty || bodyCtrl.text.trim().isEmpty) return;
+                      setDlgState(() => isSending = true);
+                      final ok = await _schoolService.sendClassAnnouncement(
+                        teacherUsername: _teacherUsername,
+                        teacherName: _teacherName,
+                        classId: selectedClassId,
+                        className: selectedClassName,
+                        title: titleCtrl.text.trim(),
+                        message: bodyCtrl.text.trim(),
+                        priority: priority,
+                      );
+                      if (context.mounted) {
+                        Navigator.pop(dlgCtx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(ok ? 'Notice broadcasted to parents.' : 'Failed to broadcast.')),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
+              child: const Text('Send Notice'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // T5.7: MY LEAVE DESK MODAL (N6)
+  // ──────────────────────────────────────────────
+  void _showMyLeaveModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) => Container(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Faculty Leave Desk', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                  ElevatedButton.icon(
+                    onPressed: () => _openApplyLeaveDialog(context, () async {
+                      final updated = await _schoolService.getTeacherLeaves(_teacherUsername);
+                      setSheetState(() => _teacherLeaves = updated);
+                    }),
+                    icon: const Icon(Icons.add, size: 14),
+                    label: const Text('Apply Leave', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              if (_teacherLeaves.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: Text('No leave applications recorded for this academic session.', style: TextStyle(color: Color(0xFF94A3B8)))),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _teacherLeaves.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (ctx, i) {
+                      final l = _teacherLeaves[i];
+                      final st = (l['status']?.toString() ?? 'Pending').toLowerCase();
+                      Color c = const Color(0xFFF59E0B);
+                      if (st == 'approved') c = const Color(0xFF10B981);
+                      if (st == 'rejected') c = const Color(0xFFEF4444);
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                        title: Text('${l['type']} Leave', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        subtitle: Text('${l['start_date']} to ${l['end_date']} • Reason: ${l['reason']}', style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                          child: Text(st.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: c)),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openApplyLeaveDialog(BuildContext context, VoidCallback onApplied) {
+    String leaveType = 'Casual Leave';
+    final reasonCtrl = TextEditingController();
+    DateTime start = DateTime.now().add(const Duration(days: 1));
+    DateTime end = DateTime.now().add(const Duration(days: 1));
+
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Apply Faculty Leave', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: leaveType,
+                items: const [
+                  DropdownMenuItem(value: 'Casual Leave', child: Text('Casual Leave')),
+                  DropdownMenuItem(value: 'Medical Leave', child: Text('Medical Leave')),
+                  DropdownMenuItem(value: 'Duty Leave', child: Text('Duty Leave')),
+                  DropdownMenuItem(value: 'Earned Leave', child: Text('Earned Leave')),
+                ],
+                onChanged: (v) {
+                  if (v != null) setDlgState(() => leaveType = v);
+                },
+                decoration: InputDecoration(
+                  labelText: 'Leave Type',
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonCtrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Reason for absence',
+                  contentPadding: const EdgeInsets.all(10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                final startStr = '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
+                final endStr = '${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}';
+                await _schoolService.applyTeacherLeave(
+                  teacherUsername: _teacherUsername,
+                  teacherName: _teacherName,
+                  leaveType: leaveType,
+                  startDate: startStr,
+                  endDate: endStr,
+                  reason: reasonCtrl.text.trim().isEmpty ? 'Personal reasons' : reasonCtrl.text.trim(),
+                );
+                if (context.mounted) {
+                  Navigator.pop(dlgCtx);
+                  onApplied();
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave application filed.')));
+                }
+              },
+              child: const Text('Submit Application'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // T5.8: PTM SLOTS MODAL (N10)
+  // ──────────────────────────────────────────────
+  void _showPtmSlotsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) => Container(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 16),
+              const Text('Parent-Teacher Meeting (PTM) Slots', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+              const SizedBox(height: 4),
+              const Text('Review scheduled parent conferences and update completion status.', style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+              const Divider(height: 20),
+              if (_ptmBookings.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: Text('No parent meeting appointments booked currently.', style: TextStyle(color: Color(0xFF94A3B8)))),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _ptmBookings.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (ctx, i) {
+                      final b = _ptmBookings[i];
+                      final st = b['status']?.toString() ?? 'Confirmed';
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFEFF6FF),
+                          child: Icon(Icons.people_alt_outlined, color: Color(0xFF2563EB), size: 18),
+                        ),
+                        title: Text('Student: ${b['student']} (Parent: ${b['parent']})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        subtitle: Text('Date: ${b['date']} • Time: ${b['time_slot']}\nAgenda: ${b['agenda']}', style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                        trailing: ElevatedButton(
+                          onPressed: () async {
+                            final newStatus = st == 'Completed' ? 'Confirmed' : 'Completed';
+                            await _schoolService.updatePtmBookingStatus(b['id'], newStatus);
+                            setSheetState(() => b['status'] = newStatus);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: st == 'Completed' ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          ),
+                          child: Text(st == 'Completed' ? 'Done' : 'Mark Done', style: const TextStyle(fontSize: 10, color: Colors.white)),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2217,6 +3336,22 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     Navigator.pop(context);
                     context.push('/school/circulars');
                   }),
+                  _buildDrawerTile(Icons.chat_bubble_outline_rounded, 'Message Class Parents (N4)', () {
+                    Navigator.pop(context);
+                    _showMessageParentsDialog();
+                  }),
+                  _buildDrawerTile(Icons.time_to_leave_rounded, 'Faculty Leave Desk (N6)', () {
+                    Navigator.pop(context);
+                    _showMyLeaveModal();
+                  }),
+                  _buildDrawerTile(Icons.groups_rounded, 'PTM Meeting Slots (N10)', () {
+                    Navigator.pop(context);
+                    _showPtmSlotsModal();
+                  }),
+                  _buildDrawerTile(Icons.inbox_rounded, 'Faculty Notifications & Inbox (N14)', () {
+                    Navigator.pop(context);
+                    _showInboxModal();
+                  }),
                   _buildDrawerTile(Icons.local_library_outlined, 'School Library', () {
                     Navigator.pop(context);
                     context.push('/school/library');
@@ -2276,11 +3411,12 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
   bool _loading = true;
   String? _errorMessage;
   Map<String, dynamic>? _profile;
+  List<Map<String, dynamic>> _behaviourNotes = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _loadProfileData();
   }
 
@@ -2300,9 +3436,11 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
       final sId = widget.student['id']?.toString() ?? widget.student['username']?.toString() ?? '';
       final cId = widget.student['class_id']?.toString() ?? '';
       final res = await widget.schoolService.getStudent360Profile(studentId: sId, classId: cId);
+      final notes = await widget.schoolService.getStudentBehaviourNotes(sId);
       if (mounted) {
         setState(() {
           _profile = res;
+          _behaviourNotes = notes;
           _loading = false;
         });
       }
@@ -2404,6 +3542,7 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
               Tab(icon: Icon(Icons.school_outlined, size: 16), text: 'Marks & CBSE'),
               Tab(icon: Icon(Icons.assignment_outlined, size: 16), text: 'Homework'),
               Tab(icon: Icon(Icons.event_busy_outlined, size: 16), text: 'Leaves'),
+              Tab(icon: Icon(Icons.psychology_outlined, size: 16), text: 'Behaviour (N7)'),
             ],
           ),
         ),
@@ -2433,6 +3572,7 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                         _buildMarksTab(),
                         _buildHomeworkTab(),
                         _buildLeavesTab(),
+                        _buildBehaviourNotesTab(),
                       ],
                     ),
         ),
@@ -3004,6 +4144,183 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
             );
           }),
       ],
+    );
+  }
+
+  // 6. Behaviour & Pastoral Notes Tab (N7)
+  Widget _buildBehaviourNotesTab() {
+    final sId = widget.student['id']?.toString() ?? widget.student['username']?.toString() ?? '';
+    final sName = (widget.student['name'] ?? widget.student['student_name'] ?? 'Student').toString();
+    final cId = widget.student['class_id']?.toString() ?? '';
+
+    return ListView(
+      padding: const EdgeInsets.all(18),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Pastoral Care & Behaviour Log',
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => _openAddNoteDialog(context, sId, sName, cId),
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('Log Note', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        if (_behaviourNotes.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Center(
+              child: Text(
+                'No behavioural concerns or disciplinary incidents logged for this student. Exemplary record!',
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 12.5),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          )
+        else
+          ..._behaviourNotes.map((n) {
+            final type = n['type']?.toString() ?? 'Observation';
+            final note = n['note']?.toString() ?? '';
+            final teacher = n['teacher']?.toString() ?? 'Faculty';
+            final date = n['created_at']?.toString().split('T')[0] ?? '';
+
+            Color color = const Color(0xFF2563EB);
+            IconData icon = Icons.info_outline;
+            if (type.contains('Commendation') || type.contains('Positive')) {
+              color = const Color(0xFF10B981);
+              icon = Icons.emoji_events_rounded;
+            } else if (type.contains('Concern') || type.contains('Discipline')) {
+              color = const Color(0xFFDC2626);
+              icon = Icons.warning_amber_rounded;
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: color.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundColor: color.withValues(alpha: 0.1),
+                    child: Icon(icon, color: color, size: 16),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(type, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: color)),
+                            Text(date, style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(note, style: const TextStyle(fontSize: 12, color: Color(0xFF1E293B))),
+                        const SizedBox(height: 2),
+                        Text('Recorded by: $teacher', style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  void _openAddNoteDialog(BuildContext context, String studentId, String studentName, String classId) {
+    String noteType = 'Commendation / Merit';
+    final noteCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Log Note • $studentName', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: noteType,
+                items: const [
+                  DropdownMenuItem(value: 'Commendation / Merit', child: Text('Commendation / Merit')),
+                  DropdownMenuItem(value: 'Concern / Discipline', child: Text('Concern / Discipline')),
+                  DropdownMenuItem(value: 'Academic Observation', child: Text('Academic Observation')),
+                ],
+                onChanged: (v) {
+                  if (v != null) setDlgState(() => noteType = v);
+                },
+                decoration: InputDecoration(
+                  labelText: 'Note Category',
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Note description',
+                  hintText: 'e.g. Excellent participation in science lab...',
+                  contentPadding: const EdgeInsets.all(10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                if (noteCtrl.text.trim().isEmpty) return;
+                await widget.schoolService.addStudentBehaviourNote(
+                  studentId: studentId,
+                  studentName: studentName,
+                  classId: classId,
+                  teacherUsername: 'teacher',
+                  teacherName: 'Faculty',
+                  type: noteType,
+                  note: noteCtrl.text.trim(),
+                );
+                final updated = await widget.schoolService.getStudentBehaviourNotes(studentId);
+                setState(() => _behaviourNotes = updated);
+                if (context.mounted) {
+                  Navigator.pop(dlgCtx);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pastoral note recorded.')));
+                }
+              },
+              child: const Text('Save Note'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

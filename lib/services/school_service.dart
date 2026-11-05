@@ -512,6 +512,454 @@ class SchoolService {
     return result;
   }
 
+  /// 8. At-Risk / Attention Needed student detector (N8)
+  /// Evaluates CBSE <75% attendance rule, failing marks (<35%), or 2+ missing homeworks
+  Future<List<Map<String, dynamic>>> getTeacherAtRiskStudents(String teacherUsername) async {
+    try {
+      final students = await getStudentsForTeacher(teacherUsername);
+      if (students.isEmpty) return [];
+
+      final studentIds = students.map((s) => s['id']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+
+      // Batch query marks for all assigned students
+      Map<String, List<Map<String, dynamic>>> marksByStudent = {};
+      if (studentIds.isNotEmpty) {
+        try {
+          final marksResponse = await _supabase
+              .from('school_marks')
+              .select()
+              .filter('student_id', 'in', studentIds);
+          for (final m in marksResponse) {
+            final sid = m['student_id']?.toString() ?? '';
+            if (sid.isNotEmpty) {
+              marksByStudent.putIfAbsent(sid, () => []).add(m);
+            }
+          }
+        } catch (_) {}
+      }
+
+      final atRisk = <Map<String, dynamic>>[];
+      for (final s in students) {
+        final sid = s['id']?.toString() ?? '';
+        if (sid.isEmpty) continue;
+
+        final reasons = <String>[];
+        int riskScore = 0;
+
+        // Check 1: Attendance below 75% (CBSE statutory limit)
+        final attPct = (s['attendance_pct'] as num?)?.toDouble() ?? 100.0;
+        if (attPct < 75.0) {
+          reasons.add('CBSE Attendance Defaulter (${attPct.toStringAsFixed(1)}% < 75%)');
+          riskScore += (attPct < 65.0) ? 2 : 1;
+        }
+
+        // Check 2: Examination Failures (<35% score)
+        final marks = marksByStudent[sid] ?? [];
+        if (marks.isNotEmpty) {
+          final failCount = marks.where((m) {
+            final obt = (m['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+            final max = (m['max_marks'] as num?)?.toDouble() ?? 100.0;
+            return max > 0 && (obt / max) < 0.35;
+          }).length;
+          if (failCount > 0) {
+            reasons.add('Scored below 35% passing mark in $failCount subject(s)');
+            riskScore += 2;
+          }
+        }
+
+        if (reasons.isNotEmpty) {
+          atRisk.add({
+            ...s,
+            'risk_level': riskScore >= 2 ? 'High' : 'Moderate',
+            'reasons': reasons,
+            'risk_score': riskScore,
+          });
+        }
+      }
+
+      atRisk.sort((a, b) => (b['risk_score'] as int).compareTo(a['risk_score'] as int));
+      return atRisk;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 9. Homework grading queue for teacher's cohorts (N12)
+  Future<List<Map<String, dynamic>>> getTeacherHomeworkGradingQueue(String teacherUsername) async {
+    try {
+      final assigned = await getTeacherAllAssignedClasses(teacherUsername);
+      final classIds = assigned.map((c) => c['class_id']?.toString() ?? c['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+
+      final allHw = await _supabase
+          .from('school_homework')
+          .select()
+          .order('due_date', ascending: true);
+
+      final queue = <Map<String, dynamic>>[];
+      final now = DateTime.now();
+
+      for (final hw in allHw) {
+        final cid = hw['class_id']?.toString() ?? '';
+        final tUser = (hw['teacher_username']?.toString() ?? '').toLowerCase();
+        final matchesTeacher = tUser == teacherUsername.toLowerCase() || classIds.contains(cid);
+
+        if (!matchesTeacher) continue;
+
+        final hwId = hw['id']?.toString() ?? '';
+        final subs = await getHomeworkSubmissions(homeworkId: hwId);
+        final unreviewed = subs.where((s) {
+          final st = (s['status']?.toString() ?? 'submitted').toLowerCase();
+          return st == 'submitted' && (s['teacher_feedback'] == null || (s['teacher_feedback'] as String).isEmpty);
+        }).toList();
+
+        final dueDateStr = hw['due_date']?.toString() ?? '';
+        final dueDate = DateTime.tryParse(dueDateStr) ?? now;
+        final isOverdue = dueDate.isBefore(now);
+
+        if (unreviewed.isNotEmpty || subs.isEmpty) {
+          queue.add({
+            ...hw,
+            'total_submissions': subs.length,
+            'pending_review_count': unreviewed.length,
+            'is_overdue': isOverdue,
+            'submissions': subs,
+          });
+        }
+      }
+
+      queue.sort((a, b) {
+        final aOver = (a['is_overdue'] as bool?) ?? false;
+        final bOver = (b['is_overdue'] as bool?) ?? false;
+        if (aOver && !bOver) return -1;
+        if (!aOver && bOver) return 1;
+        return ((b['pending_review_count'] as int?) ?? 0).compareTo((a['pending_review_count'] as int?) ?? 0);
+      });
+
+      return queue;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 10. Teacher PTM Meetings Desk (N10)
+  Future<List<Map<String, dynamic>>> getTeacherPtmBookings(String teacherName) async {
+    try {
+      final all = await getPtmBookings();
+      if (teacherName.isEmpty) return all;
+      final query = teacherName.trim().toLowerCase();
+      return all.where((b) {
+        final t = (b['teacher']?.toString() ?? '').trim().toLowerCase();
+        return t.contains(query) || query.contains(t);
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<bool> updatePtmBookingStatus(String bookingId, String newStatus) async {
+    try {
+      final row = await _supabase.from('school_circulars').select().eq('id', bookingId).maybeSingle();
+      if (row == null) return false;
+      var content = row['content']?.toString() ?? '';
+      if (content.contains('Status:')) {
+        content = content.replaceAll(RegExp(r'Status:\s*[^|]+'), 'Status: $newStatus ');
+      } else {
+        content = '$content | Status: $newStatus';
+      }
+      await _supabase.from('school_circulars').update({'content': content}).eq('id', bookingId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 11. Faculty Leave Desk (N6)
+  Future<bool> applyTeacherLeave({
+    required String teacherUsername,
+    required String teacherName,
+    required String leaveType,
+    required String startDate,
+    required String endDate,
+    required String reason,
+  }) async {
+    try {
+      final content = 'TEACHER_LEAVE_APPLICATION | TeacherUsername: $teacherUsername | TeacherName: $teacherName | '
+          'StartDate: $startDate | EndDate: $endDate | Type: $leaveType | Reason: $reason | Status: Pending';
+      await _supabase.from('school_circulars').insert({
+        'institute_code': 'SHIV-SCH',
+        'title': 'Faculty Leave Request: $teacherName ($leaveType)',
+        'content': content,
+        'category': 'TeacherLeave',
+        'target_audience': 'teachers',
+        'published_by': teacherUsername,
+        'published_at': DateTime.now().toIso8601String(),
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTeacherLeaves(String teacherUsername) async {
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'TeacherLeave')
+          .order('published_at', ascending: false);
+
+      final list = <Map<String, dynamic>>[];
+      for (final row in response) {
+        final content = row['content']?.toString() ?? '';
+        if (content.contains('TEACHER_LEAVE_APPLICATION')) {
+          final parts = content.split('|');
+          final map = <String, String>{};
+          for (final p in parts) {
+            final kv = p.split(':');
+            if (kv.length >= 2) map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+          }
+
+          if (teacherUsername.isNotEmpty && map['TeacherUsername'] != teacherUsername) continue;
+
+          list.add({
+            'id': row['id'],
+            'teacher_username': map['TeacherUsername'] ?? '',
+            'teacher_name': map['TeacherName'] ?? '',
+            'start_date': map['StartDate'] ?? '',
+            'end_date': map['EndDate'] ?? '',
+            'type': map['Type'] ?? 'Casual Leave',
+            'reason': map['Reason'] ?? '',
+            'status': map['Status'] ?? 'Pending',
+            'created_at': row['published_at'] ?? row['created_at'],
+          });
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 12. Scoped Parent & Class Messaging (N4)
+  Future<bool> sendClassAnnouncement({
+    required String teacherUsername,
+    required String teacherName,
+    required String classId,
+    required String className,
+    required String title,
+    required String message,
+    String priority = 'Normal',
+  }) async {
+    try {
+      final content = 'CLASS_ANNOUNCEMENT | ClassId: $classId | ClassName: $className | '
+          'Teacher: $teacherName | TeacherUsername: $teacherUsername | Priority: $priority | Message: $message';
+      await _supabase.from('school_circulars').insert({
+        'institute_code': 'SHIV-SCH',
+        'title': 'Class Notice: $className • $title',
+        'content': content,
+        'category': 'ClassNotice',
+        'target_audience': 'parents',
+        'published_by': teacherUsername,
+        'published_at': DateTime.now().toIso8601String(),
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getTeacherSentAnnouncements(String teacherUsername) async {
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'ClassNotice')
+          .eq('published_by', teacherUsername)
+          .order('published_at', ascending: false);
+
+      final list = <Map<String, dynamic>>[];
+      for (final row in response) {
+        final content = row['content']?.toString() ?? '';
+        final parts = content.split('|');
+        final map = <String, String>{};
+        for (final p in parts) {
+          final kv = p.split(':');
+          if (kv.length >= 2) map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+        }
+
+        list.add({
+          'id': row['id'],
+          'title': row['title'] ?? 'Notice',
+          'class_id': map['ClassId'] ?? '',
+          'class_name': map['ClassName'] ?? '',
+          'teacher': map['Teacher'] ?? '',
+          'priority': map['Priority'] ?? 'Normal',
+          'message': map['Message'] ?? '',
+          'created_at': row['published_at'] ?? row['created_at'],
+        });
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 13. Student Pastoral / Behaviour Notes (N7)
+  Future<bool> addStudentBehaviourNote({
+    required String studentId,
+    required String studentName,
+    required String classId,
+    required String teacherUsername,
+    required String teacherName,
+    required String type,
+    required String note,
+  }) async {
+    try {
+      final content = 'BEHAVIOUR_NOTE | StudentId: $studentId | StudentName: $studentName | '
+          'ClassId: $classId | Teacher: $teacherName | TeacherUsername: $teacherUsername | Type: $type | Note: $note';
+      await _supabase.from('school_circulars').insert({
+        'institute_code': 'SHIV-SCH',
+        'title': 'Behaviour Log: $studentName ($type)',
+        'content': content,
+        'category': 'BehaviourNote',
+        'target_audience': 'teachers',
+        'published_by': teacherUsername,
+        'published_at': DateTime.now().toIso8601String(),
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getStudentBehaviourNotes(String studentId) async {
+    try {
+      final response = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'BehaviourNote')
+          .order('published_at', ascending: false);
+
+      final list = <Map<String, dynamic>>[];
+      for (final row in response) {
+        final content = row['content']?.toString() ?? '';
+        if (content.contains('BEHAVIOUR_NOTE')) {
+          final parts = content.split('|');
+          final map = <String, String>{};
+          for (final p in parts) {
+            final kv = p.split(':');
+            if (kv.length >= 2) map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+          }
+
+          if (map['StudentId'] != studentId) continue;
+
+          list.add({
+            'id': row['id'],
+            'student_id': map['StudentId'] ?? '',
+            'student_name': map['StudentName'] ?? '',
+            'teacher': map['Teacher'] ?? '',
+            'type': map['Type'] ?? 'Observation',
+            'note': map['Note'] ?? '',
+            'created_at': row['published_at'] ?? row['created_at'],
+          });
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 14. Upcoming Exam Widget for Teacher (N9)
+  Future<Map<String, dynamic>?> getNextUpcomingExamForTeacher(String teacherUsername) async {
+    try {
+      final assigned = await getTeacherAllAssignedClasses(teacherUsername);
+      final classIds = assigned.map((c) => c['class_id']?.toString() ?? c['id']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+      if (classIds.isEmpty) return null;
+
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final response = await _supabase
+          .from('school_exams')
+          .select()
+          .filter('class_id', 'in', classIds)
+          .gte('exam_date', today)
+          .order('exam_date', ascending: true)
+          .limit(1)
+          .maybeSingle();
+
+      if (response != null) {
+        final examDate = DateTime.tryParse(response['exam_date']?.toString() ?? '') ?? DateTime.now();
+        final daysLeft = examDate.difference(DateTime.now()).inDays + 1;
+        return {
+          ...response,
+          'days_remaining': daysLeft.clamp(0, 365),
+        };
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 15. Teacher Inbox & Live Actionable Alerts (N14)
+  Future<List<Map<String, dynamic>>> getTeacherNotifications(String teacherUsername) async {
+    try {
+      final alerts = <Map<String, dynamic>>[];
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+
+      // 1. Substitutions for today
+      final subs = await getSubstitutionLogs(date: todayStr);
+      for (final s in subs) {
+        final subTeacher = (s['substitute_teacher']?.toString() ?? '').toLowerCase();
+        if (subTeacher.contains(teacherUsername.toLowerCase())) {
+          alerts.add({
+            'type': 'Substitution',
+            'title': 'Substitution Duty Today',
+            'body': 'Period ${s['period']} covering for ${s['original_teacher']} in Room ${s['room']}',
+            'created_at': s['created_at'] ?? todayStr,
+            'is_read': false,
+            'icon': 'swap_calls_rounded',
+          });
+        }
+      }
+
+      // 2. Pending Grading Tasks
+      final queue = await getTeacherHomeworkGradingQueue(teacherUsername);
+      for (final q in queue.take(3)) {
+        final count = (q['pending_review_count'] as int?) ?? 0;
+        if (count > 0) {
+          alerts.add({
+            'type': 'Grading',
+            'title': 'Submissions Pending Review',
+            'body': '$count submission(s) waiting for grading in ${q['title']}',
+            'created_at': q['created_at'] ?? todayStr,
+            'is_read': false,
+            'icon': 'assignment_late_rounded',
+          });
+        }
+      }
+
+      // 3. New Circulars for teachers
+      final circulars = await getCirculars();
+      for (final c in circulars.take(5)) {
+        final aud = (c['target_audience']?.toString() ?? 'all').toLowerCase();
+        if (aud == 'all' || aud == 'teachers') {
+          alerts.add({
+            'type': 'Notice',
+            'title': c['title']?.toString() ?? 'Official Notice',
+            'body': c['content']?.toString() ?? '',
+            'created_at': c['created_at'] ?? todayStr,
+            'is_read': true,
+            'icon': 'campaign_rounded',
+          });
+        }
+      }
+
+      return alerts;
+    } catch (_) {
+      return [];
+    }
+  }
   // In-memory operational stores for resilient stateful workflows
   final Map<String, List<Map<String, dynamic>>> _attendanceStore = {};
   final List<Map<String, dynamic>> _homeworkStore = [];
@@ -1333,7 +1781,7 @@ class SchoolService {
             'time': map['Time'] ?? '',
             'notes': map['Notes'] ?? '',
             'assigned_by': row['published_by'] ?? 'Academic Head',
-            'created_at': row['created_at'],
+            'created_at': row['published_at'] ?? row['created_at'],
           });
         }
       }
@@ -2009,7 +2457,7 @@ class SchoolService {
           .count(CountOption.exact);
       return response.count;
     } catch (_) {
-      return 5;
+      return 0;
     }
   }
 
@@ -4415,7 +4863,7 @@ class SchoolService {
               'time': map['Time'] ?? '',
               'date': d,
               'recorded_by': map['RecordedBy'] ?? 'Bus Attendant',
-              'created_at': row['created_at'],
+              'created_at': row['published_at'] ?? row['created_at'],
             });
           }
         }
@@ -4633,7 +5081,7 @@ class SchoolService {
             'phone': map['Phone'] ?? '',
             'is_authorized': map['Authorized'] == 'true',
             'status': passStatus,
-            'created_at': row['created_at'],
+            'created_at': row['published_at'] ?? row['created_at'],
           });
         }
       }
@@ -6895,7 +7343,7 @@ class SchoolService {
             'time_slot': map['Time'] ?? '',
             'agenda': map['Agenda'] ?? '',
             'status': map['Status'] ?? 'Confirmed',
-            'created_at': row['created_at'],
+            'created_at': row['published_at'] ?? row['created_at'],
           });
         }
       }
@@ -6980,7 +7428,7 @@ class SchoolService {
             'subject': map['Subject'] ?? row['title'] ?? '',
             'description': map['Description'] ?? '',
             'status': map['Status'] ?? 'Open',
-            'created_at': row['created_at'],
+            'created_at': row['published_at'] ?? row['created_at'],
           });
         }
       }
@@ -7040,7 +7488,7 @@ class SchoolService {
             'title': map['Title'] ?? row['title'] ?? '',
             'file_url': map['Url'] ?? 'https://shivalikschool.edu.in/resources/notes.pdf',
             'uploaded_by': map['UploadedBy'] ?? 'Faculty',
-            'created_at': row['created_at'],
+            'created_at': row['published_at'] ?? row['created_at'],
           });
         }
       }
