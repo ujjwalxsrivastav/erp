@@ -18,58 +18,28 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
   final _schoolService = SchoolService();
   late AnimationController _fadeController;
 
-  String _studentName = 'Student';
-  String _studentClass = 'Class 10-A';
-  String _admissionNo = 'SHIV-2024-89';
-  static const String _schoolName = 'Shivalik International School';
-  static const String _affiliationNo = 'CBSE #3530124';
+  String _studentName = '';
+  String _studentClass = '';
+  String _admissionNo = '';
+  String _schoolName = 'Shivalik International School';
+  String _affiliationNo = 'CBSE Affiliation #3530124';
+  String _academicSession = 'Session 2025-26';
 
-  // Quick stats
-  double _attendancePercent = 94.2;
-  int _pendingHomework = 3;
+  // Quick stats (Authentic live DB data only - zero fake constants)
+  double? _attendancePercent;
+  int _pendingHomework = 0;
   String _pendingFees = '₹0';
-  int _upcomingTests = 2;
+  int _upcomingTests = 0;
+  String _upcomingExamBadge = '';
+  String _recentExamName = 'Recent Exam Scores';
+  String? _errorMessage;
   bool _isLoading = true;
   bool _isRefreshing = false;
 
-  // Recent homework
-  List<Map<String, dynamic>> _homework = [
-    {
-      'subject': 'Mathematics',
-      'title': 'Chapter 5 Exercise 5.3',
-      'due': 'Tomorrow',
-      'color': const Color(0xFF2563EB),
-    },
-    {
-      'subject': 'Science',
-      'title': 'Draw diagram of human heart & label',
-      'due': 'In 3 days',
-      'color': const Color(0xFF059669),
-    },
-    {
-      'subject': 'English',
-      'title': 'Essay on environmental conservation',
-      'due': 'In 5 days',
-      'color': const Color(0xFFE11D48),
-    },
-  ];
-
-  // Recent test results
-  final List<Map<String, dynamic>> _recentResults = [
-    {'subject': 'Mathematics', 'marks': '45/50', 'grade': 'A1', 'color': const Color(0xFF059669), 'percent': 90.0},
-    {'subject': 'Science', 'marks': '38/50', 'grade': 'B1', 'color': const Color(0xFF2563EB), 'percent': 76.0},
-    {'subject': 'English', 'marks': '42/50', 'grade': 'A2', 'color': const Color(0xFF7C3AED), 'percent': 84.0},
-  ];
-
-  // Today's schedule
-  List<Map<String, dynamic>> _todaySchedule = [
-    {'period': '1', 'time': '08:30 - 09:15', 'subject': 'Mathematics', 'room': 'Room 102', 'teacher': 'Mr. R. Sharma'},
-    {'period': '2', 'time': '09:15 - 10:00', 'subject': 'English Literature', 'room': 'Room 102', 'teacher': 'Ms. A. Sen'},
-    {'period': '3', 'time': '10:15 - 11:00', 'subject': 'Physics Lab', 'room': 'Sci Lab 1', 'teacher': 'Dr. K. Verma'},
-    {'period': '4', 'time': '11:00 - 11:45', 'subject': 'Social Science', 'room': 'Room 102', 'teacher': 'Mrs. P. Joshi'},
-  ];
-
-  // Announcements
+  // Real data collections
+  List<Map<String, dynamic>> _homework = [];
+  List<Map<String, dynamic>> _recentResults = [];
+  List<Map<String, dynamic>> _todaySchedule = [];
   List<Map<String, dynamic>> _announcements = [];
 
   static const Color _ink = Color(0xFF0F172A);
@@ -90,59 +60,93 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
 
   Future<void> _loadStudentData({bool showRefreshing = false}) async {
     if (showRefreshing) {
-      setState(() => _isRefreshing = true);
+      setState(() {
+        _isRefreshing = true;
+        _errorMessage = null;
+      });
     } else {
-      setState(() => _isLoading = true);
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
     }
 
     final username = await _authService.getCurrentUsername() ?? '';
 
-    // Identity from backend
+    // 1. Dynamic institutional settings
+    try {
+      final settings = await _schoolService.getSchoolSettings();
+      if (mounted) {
+        setState(() {
+          _schoolName = settings['school_name']?.toString() ?? 'Shivalik International School';
+          _affiliationNo = settings['affiliation_no']?.toString() ?? 'CBSE Affiliation #3530124';
+          _academicSession = settings['active_academic_year']?.toString() ??
+              settings['academic_session']?.toString() ??
+              'Session 2025-26';
+        });
+      }
+    } catch (_) {}
+
+    // 2. Identity from backend
     Map<String, dynamic>? profile;
     try {
       profile = await _schoolService.getSchoolStudentProfile(username);
     } catch (_) {}
 
-    if (mounted && profile != null) {
-      final className = profile['class_name']?.toString();
-      final section = profile['section']?.toString();
+    if (mounted) {
+      final className = profile?['class_name']?.toString() ?? '';
+      final section = profile?['section']?.toString() ?? '';
+      String fullClass = className;
+      if (className.isNotEmpty && section.isNotEmpty) {
+        fullClass = '$className-$section';
+      }
+
       setState(() {
         _studentName = profile?['name']?.toString() ?? username;
-        _studentClass = className ?? _studentClass;
-        if (className != null && section != null && section.isNotEmpty) {
-          _studentClass = '$_studentClass-$section';
-        }
-        _admissionNo = profile?['admission_no']?.toString() ?? _admissionNo;
+        _studentClass = fullClass.isNotEmpty ? fullClass : 'Class Not Assigned';
+        _admissionNo = profile?['admission_no']?.toString() ?? '';
       });
     }
 
     try {
+      final classId = profile?['class_id']?.toString() ?? '';
+      final className = profile?['class_name']?.toString() ?? '';
+
       final hwFuture = _schoolService.getHomework(
-        classId: profile?['class_id']?.toString(),
-        className: profile?['class_name']?.toString(),
+        classId: classId.isNotEmpty ? classId : null,
+        className: className.isNotEmpty ? className : null,
       );
       final mySubsFuture = _schoolService.getHomeworkSubmissions(studentUsername: username);
       final attPctFuture = _schoolService.getStudentAttendancePercent(username);
       final feesFuture = _schoolService.getStudentFees(username);
       final marksFuture = _schoolService.getStudentMarks(username);
       final circsFuture = _schoolService.getCirculars();
+      final examCountdownFuture = _schoolService.getChildUpcomingExamCountdown(className: _studentClass);
+      final timetableFuture = classId.isNotEmpty
+          ? _schoolService.getParentChildTodayTimetable(classId)
+          : Future.value(<String, dynamic>{});
 
       final results = await Future.wait([
         hwFuture.catchError((_) => <Map<String, dynamic>>[]),
         mySubsFuture.catchError((_) => <Map<String, dynamic>>[]),
-        attPctFuture.catchError((_) => 94.2),
+        attPctFuture.then<double?>((v) => v).catchError((_) => null),
         feesFuture.catchError((_) => <Map<String, dynamic>>[]),
         marksFuture.catchError((_) => <Map<String, dynamic>>[]),
         circsFuture.catchError((_) => <Map<String, dynamic>>[]),
+        examCountdownFuture.catchError((_) => <String, dynamic>{}),
+        timetableFuture.catchError((_) => <String, dynamic>{}),
       ]);
 
       final hw = results[0] as List<Map<String, dynamic>>;
       final mySubmissions = results[1] as List<Map<String, dynamic>>;
-      final attPct = results[2] as double;
+      final attPct = results[2] as double?;
       final fees = results[3] as List<Map<String, dynamic>>;
       final marks = results[4] as List<Map<String, dynamic>>;
       final circs = results[5] as List<Map<String, dynamic>>;
+      final examCountdown = results[6] as Map<String, dynamic>;
+      final timetableData = results[7] as Map<String, dynamic>;
 
+      // Homework processing
       final submittedIds = mySubmissions
           .map((s) => s['homework_id']?.toString() ?? '')
           .toSet();
@@ -150,6 +154,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           hw.where((h) => !submittedIds.contains(h['id']?.toString() ?? '')).toList();
       final selectedHw = notSubmitted.take(3).toList();
 
+      // Fee processing
       double feesDue = 0.0;
       for (final f in fees) {
         final amount = (f['amount'] as num?)?.toDouble() ?? 0.0;
@@ -157,91 +162,138 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
         feesDue += (amount - (paid < amount ? paid : amount));
       }
 
+      // Exam countdown processing
+      int upcomingExamCount = 0;
+      String examBadge = 'Curriculum On Track';
+      if (examCountdown['has_upcoming'] == true) {
+        upcomingExamCount = 1;
+        examBadge = examCountdown['title']?.toString() ?? 'Assessment Active';
+      } else {
+        try {
+          final sessions = await _schoolService.getExamSessions();
+          upcomingExamCount = sessions.length;
+          examBadge = sessions.isNotEmpty
+              ? sessions.first
+              : 'No Active Exams';
+        } catch (_) {}
+      }
+
+      // Today's Timetable processing (real periods from school_timetable)
+      final rawPeriods = timetableData['periods'];
+      final todayPeriods = rawPeriods is List
+          ? List<Map<String, dynamic>>.from(rawPeriods)
+          : <Map<String, dynamic>>[];
+
       if (mounted) {
         setState(() {
-          if (selectedHw.isNotEmpty) {
-            _homework = selectedHw.map((h) {
-              final dueStr = h['due_date']?.toString() ?? '';
-              String due = 'Upcoming';
-              try {
-                final dueDate = DateTime.parse(dueStr);
-                final diff = dueDate.difference(DateTime.now()).inDays;
-                if (diff < 0) {
-                  due = '${-diff}d overdue';
-                } else if (diff == 0) {
-                  due = 'Due today';
-                } else if (diff == 1) {
-                  due = 'Tomorrow';
-                } else {
-                  due = 'In $diff days';
-                }
-              } catch (_) {
-                due = dueStr.isNotEmpty ? dueStr : 'Upcoming';
-              }
-              final subj = h['subject']?.toString() ?? 'General';
-              Color col = const Color(0xFF2563EB);
-              if (subj.toLowerCase().contains('math')) col = const Color(0xFF2563EB);
-              else if (subj.toLowerCase().contains('sci')) col = const Color(0xFF059669);
-              else if (subj.toLowerCase().contains('eng')) col = const Color(0xFFE11D48);
-              else if (subj.toLowerCase().contains('soc') || subj.toLowerCase().contains('hist')) col = const Color(0xFFD97706);
-
-              return {
-                'subject': subj,
-                'title': h['title'] ?? 'Homework Assignment',
-                'due': due,
-                'color': col,
-              };
-            }).toList();
-          }
-
-          if (marks.isNotEmpty) {
-            final mappedMarks = marks.take(4).map((m) {
-              final marksObt = (m['marks_obtained'] as num?)?.toDouble() ?? 0.0;
-              final maxM = (m['max_marks'] as num?)?.toDouble() ?? 100.0;
-              final pct = maxM > 0 ? (marksObt / maxM) * 100 : 0.0;
-              String grade = 'A1';
-              Color col = const Color(0xFF059669);
-              if (pct >= 90) {
-                grade = 'A1';
-                col = const Color(0xFF059669);
-              } else if (pct >= 80) {
-                grade = 'A2';
-                col = const Color(0xFF2563EB);
-              } else if (pct >= 70) {
-                grade = 'B1';
-                col = const Color(0xFF7C3AED);
+          // Homework
+          _homework = selectedHw.map((h) {
+            final dueStr = h['due_date']?.toString() ?? '';
+            String due = 'Upcoming';
+            try {
+              final dueDate = DateTime.parse(dueStr);
+              final diff = dueDate.difference(DateTime.now()).inDays;
+              if (diff < 0) {
+                due = '${-diff}d overdue';
+              } else if (diff == 0) {
+                due = 'Due today';
+              } else if (diff == 1) {
+                due = 'Tomorrow';
               } else {
-                grade = 'B2';
-                col = const Color(0xFFD97706);
+                due = 'In $diff days';
               }
+            } catch (_) {
+              due = dueStr.isNotEmpty ? dueStr : 'Upcoming';
+            }
+            final subj = h['subject']?.toString() ?? 'General';
+            Color col = const Color(0xFF2563EB);
+            if (subj.toLowerCase().contains('math')) {
+              col = const Color(0xFF2563EB);
+            } else if (subj.toLowerCase().contains('sci')) {
+              col = const Color(0xFF059669);
+            } else if (subj.toLowerCase().contains('eng')) {
+              col = const Color(0xFFE11D48);
+            } else if (subj.toLowerCase().contains('soc') || subj.toLowerCase().contains('hist')) {
+              col = const Color(0xFFD97706);
+            }
+
+            return {
+              'id': h['id']?.toString() ?? '',
+              'subject': subj,
+              'title': h['title'] ?? 'Homework Assignment',
+              'due': due,
+              'color': col,
+            };
+          }).toList();
+
+          // Marks processing with CBSE 9-point scale & Latest Exam grouping
+          if (marks.isNotEmpty) {
+            marks.sort((a, b) {
+              final d1 = a['created_at']?.toString() ?? '';
+              final d2 = b['created_at']?.toString() ?? '';
+              return d2.compareTo(d1);
+            });
+            final latestExam = marks.first['exam_type']?.toString() ?? 'Term Examination';
+            _recentExamName = latestExam;
+            final latestMarks = marks
+                .where((m) => (m['exam_type']?.toString() ?? '') == latestExam)
+                .take(6)
+                .toList();
+
+            _recentResults = latestMarks.map((m) {
+              final marksObt = (m['marks_obtained'] as num?)?.toDouble() ?? 0.0;
+              final maxM = (m['total_marks'] as num?)?.toDouble() ??
+                  (m['max_marks'] as num?)?.toDouble() ??
+                  100.0;
+              final pct = maxM > 0 ? (marksObt / maxM) * 100 : 0.0;
+              final cbse = SchoolService.calculateCbseGrade(pct);
+              final grade = m['grade']?.toString() ?? cbse['grade'] ?? 'A1';
+
+              Color col = const Color(0xFF059669);
+              if (grade.startsWith('A')) {
+                col = const Color(0xFF059669);
+              } else if (grade.startsWith('B')) {
+                col = const Color(0xFF2563EB);
+              } else if (grade.startsWith('C')) {
+                col = const Color(0xFFD97706);
+              } else {
+                col = const Color(0xFFE11D48);
+              }
+
               return {
                 'subject': m['subject']?.toString() ?? 'Subject',
                 'marks': '${marksObt.toStringAsFixed(0)}/${maxM.toStringAsFixed(0)}',
-                'grade': m['grade']?.toString() ?? grade,
+                'grade': grade,
                 'color': col,
                 'percent': pct,
+                'exam_type': latestExam,
               };
             }).toList();
-            if (mappedMarks.isNotEmpty) {
-              _recentResults.clear();
-              _recentResults.addAll(mappedMarks);
-            }
+          } else {
+            _recentResults = [];
           }
 
-          if (circs.isNotEmpty) {
-            _announcements = circs.take(3).toList();
-          }
+          // Announcements
+          _announcements = circs.take(3).toList();
 
+          // Today's schedule
+          _todaySchedule = todayPeriods;
+
+          // KPIs
           _pendingHomework = notSubmitted.length;
-          _attendancePercent = attPct > 0 ? attPct : 94.2;
+          _attendancePercent = attPct;
           _pendingFees = feesDue > 0 ? '₹${NumberFormat('#,##,###').format(feesDue.round())}' : '₹0';
+          _upcomingTests = upcomingExamCount;
+          _upcomingExamBadge = examBadge;
+
           _isLoading = false;
           _isRefreshing = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
+          _errorMessage = 'Could not load student dashboard data: $e';
           _isLoading = false;
           _isRefreshing = false;
         });
@@ -265,8 +317,10 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           backgroundColor: _bg,
           drawer: isWide ? null : _buildSidebar(context),
           body: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: _primary))
-              : SafeArea(
+              ? _buildLoadingSkeleton(isWide)
+              : _errorMessage != null
+                  ? _buildErrorState(context, isWide)
+                  : SafeArea(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -301,10 +355,8 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                                       _buildQuickActionsSection(context),
                                       const SizedBox(height: 22),
                                       _buildLowerSections(isWide),
-                                      if (_announcements.isNotEmpty) ...[
-                                        const SizedBox(height: 22),
-                                        _buildAnnouncementsSection(context),
-                                      ],
+                                      const SizedBox(height: 22),
+                                      _buildAnnouncementsSection(context),
                                     ]),
                                   ),
                                 ),
@@ -369,9 +421,9 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   _schoolName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: _ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -391,9 +443,9 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                       ),
                     ),
                     const SizedBox(width: 5),
-                    const Text(
-                      '$_affiliationNo • Active Session 2025-26',
-                      style: TextStyle(
+                    Text(
+                      '$_affiliationNo • $_academicSession',
+                      style: const TextStyle(
                         color: _muted,
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
@@ -582,7 +634,9 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            '$_studentClass • Admission No: $_admissionNo',
+                            _admissionNo.isNotEmpty
+                                ? '$_studentClass • Admission No: $_admissionNo'
+                                : _studentClass,
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -651,9 +705,11 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
     final stats = [
       _buildStatCard(
         title: 'Attendance',
-        value: '${_attendancePercent.toStringAsFixed(0)}%',
-        badgeText: _attendancePercent >= 75 ? 'On Track (>=75%)' : 'Needs Attention',
-        isPositive: _attendancePercent >= 75,
+        value: _attendancePercent != null ? '${_attendancePercent!.toStringAsFixed(0)}%' : 'N/A',
+        badgeText: _attendancePercent == null
+            ? 'Not Recorded'
+            : (_attendancePercent! >= 75 ? 'On Track (>=75%)' : 'Needs Attention (<75%)'),
+        isPositive: (_attendancePercent ?? 0) >= 75,
         icon: Icons.how_to_reg_rounded,
         accent: const Color(0xFF059669),
         bgAccent: const Color(0xFFECFDF5),
@@ -681,8 +737,8 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
       ),
       _buildStatCard(
         title: 'Upcoming Tests',
-        value: '$_upcomingTests Scheduled',
-        badgeText: 'CBSE Term II',
+        value: _upcomingTests > 0 ? '$_upcomingTests Scheduled' : 'No Exams Active',
+        badgeText: _upcomingExamBadge.isNotEmpty ? _upcomingExamBadge : 'Curriculum Active',
         isPositive: true,
         icon: Icons.quiz_rounded,
         accent: const Color(0xFF4F46E5),
@@ -851,67 +907,102 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
             ),
           ),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          ListView.separated(
-            primary: false,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _todaySchedule.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF8FAFC), indent: 56),
-            itemBuilder: (ctx, index) {
-              final item = _todaySchedule[index];
-              final period = item['period']?.toString() ?? '${index + 1}';
-              final time = item['time']?.toString() ?? 'Period $period';
-              final subject = item['subject']?.toString() ?? 'Class';
-              final room = item['room']?.toString() ?? 'Room 102';
-              final teacher = item['teacher']?.toString() ?? '';
+          if (_todaySchedule.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.event_available_rounded, size: 28, color: _muted),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'No lectures scheduled for today',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Enjoy your break or explore study materials & assignments.',
+                      style: TextStyle(fontSize: 11, color: _muted),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              primary: false,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _todaySchedule.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF8FAFC), indent: 56),
+              itemBuilder: (ctx, index) {
+                final item = _todaySchedule[index];
+                final period = item['period']?.toString() ?? '${index + 1}';
+                final time = item['time']?.toString() ?? 'Period $period';
+                final subject = item['subject']?.toString() ?? 'Class';
+                final room = item['room']?.toString() ?? '';
+                final teacher = item['teacher']?.toString() ?? '';
+                final roomText = (room.isNotEmpty && room != 'Room 102' && room != 'Classroom')
+                    ? ' • $room'
+                    : '';
+                final teacherText = teacher.isNotEmpty ? ' • $teacher' : '';
 
-              return ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEEF2FF),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'P$period',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: _primary,
+                return ListTile(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEF2FF),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'P$period',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _primary,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                title: Text(
-                  subject,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _ink,
+                  title: Text(
+                    subject,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _ink,
+                    ),
                   ),
-                ),
-                subtitle: Text(
-                  '$time • $room ${teacher.isNotEmpty ? "• $teacher" : ""}',
-                  style: const TextStyle(fontSize: 11, color: _muted),
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(4),
+                  subtitle: Text(
+                    '$time$roomText$teacherText',
+                    style: const TextStyle(fontSize: 11, color: _muted),
                   ),
-                  child: const Text(
-                    'Scheduled',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'Scheduled',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1168,15 +1259,18 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               children: [
                 const Icon(Icons.grade_rounded, size: 17, color: Color(0xFF7C3AED)),
                 const SizedBox(width: 8),
-                const Text(
-                  'Recent Exam Scores',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: _ink,
+                Expanded(
+                  child: Text(
+                    _recentExamName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
                 TextButton(
                   onPressed: () => context.go('/school/report-card'),
                   style: TextButton.styleFrom(
@@ -1194,54 +1288,85 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
             ),
           ),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          ListView.separated(
-            primary: false,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _recentResults.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF8FAFC)),
-            itemBuilder: (ctx, idx) {
-              final r = _recentResults[idx];
-              final color = r['color'] as Color;
-              final grade = r['grade']?.toString() ?? 'A';
-              final marks = r['marks']?.toString() ?? '';
-              final subject = r['subject']?.toString() ?? 'Subject';
+          if (_recentResults.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.grade_outlined, size: 28, color: _muted),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'No examination marks recorded yet',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Examination scores will appear here once published by faculty.',
+                      style: TextStyle(fontSize: 11, color: _muted),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              primary: false,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _recentResults.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF8FAFC)),
+              itemBuilder: (ctx, idx) {
+                final r = _recentResults[idx];
+                final color = r['color'] as Color;
+                final grade = r['grade']?.toString() ?? 'A';
+                final marks = r['marks']?.toString() ?? '';
+                final subject = r['subject']?.toString() ?? 'Subject';
 
-              return ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Text(
-                      grade,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: color,
+                return ListTile(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        grade,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                title: Text(
-                  subject,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _ink,
+                  title: Text(
+                    subject,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _ink,
+                    ),
                   ),
-                ),
-                subtitle: Text('Score: $marks', style: const TextStyle(fontSize: 11, color: _muted)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFFCBD5E1)),
-                onTap: () => context.go('/school/report-card'),
-              );
-            },
-          ),
+                  subtitle: Text('Score: $marks', style: const TextStyle(fontSize: 11, color: _muted)),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFFCBD5E1)),
+                  onTap: () => context.go('/school/report-card'),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1292,44 +1417,75 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
             ),
           ),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          ListView.separated(
-            primary: false,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _announcements.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF8FAFC)),
-            itemBuilder: (ctx, idx) {
-              final a = _announcements[idx];
-              final title = a['title']?.toString() ?? 'Notice';
-              final category = a['category']?.toString() ?? 'General';
-              final date = a['published_at']?.toString() ??
-                  a['created_at']?.toString().substring(0, 10) ??
-                  'Recent';
+          if (_announcements.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.campaign_outlined, size: 28, color: _muted),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'No active school circulars',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'All institutional broadcasts and notices are caught up.',
+                      style: TextStyle(fontSize: 11, color: _muted),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              primary: false,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _announcements.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF8FAFC)),
+              itemBuilder: (ctx, idx) {
+                final a = _announcements[idx];
+                final title = a['title']?.toString() ?? 'Notice';
+                final category = a['category']?.toString() ?? 'General';
+                final date = a['published_at']?.toString() ??
+                    a['created_at']?.toString().substring(0, 10) ??
+                    'Recent';
 
-              return ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(8),
+                return ListTile(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.feed_outlined, size: 16, color: Color(0xFF475569)),
                   ),
-                  child: const Icon(Icons.feed_outlined, size: 16, color: Color(0xFF475569)),
-                ),
-                title: Text(
-                  title,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _ink),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text('$category • $date', style: const TextStyle(fontSize: 11, color: _muted)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFFCBD5E1)),
-                onTap: () => context.go('/school/circulars'),
-              );
-            },
-          ),
+                  title: Text(
+                    title,
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _ink),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text('$category • $date', style: const TextStyle(fontSize: 11, color: _muted)),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFFCBD5E1)),
+                  onTap: () => context.go('/school/circulars'),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1381,9 +1537,9 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       _schoolName,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: _ink,
@@ -1483,6 +1639,142 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
       onTap: onTap,
+    );
+  }
+
+  // ==========================================
+  // 8. 4-STATE LIFECYCLE: LOADING SKELETON & ERROR STATE
+  // ==========================================
+  Widget _buildLoadingSkeleton(bool isWide) {
+    return SafeArea(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isWide) _buildDesktopSidebar(context),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(isWide ? 28 : 16, 24, isWide ? 28 : 16, 48),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Hero skeleton
+                  Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: _border),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  // KPI skeleton
+                  Row(
+                    children: [
+                      for (int i = 0; i < (isWide ? 4 : 2); i++) ...[
+                        Expanded(
+                          child: Container(
+                            height: 88,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: _border),
+                            ),
+                          ),
+                        ),
+                        if (i != (isWide ? 3 : 1)) const SizedBox(width: 12),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  // Schedule skeleton
+                  Container(
+                    height: 160,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: _border),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, bool isWide) {
+    return SafeArea(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isWide) _buildDesktopSidebar(context),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  padding: const EdgeInsets.all(28),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFFECDD3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFFF1F2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.cloud_off_rounded, size: 32, color: Color(0xFFE11D48)),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Unable to load student data',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: _ink,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage ?? 'Network or service timeout encountered.',
+                        style: const TextStyle(fontSize: 12.5, color: _muted),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: () => _loadStudentData(),
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: const Text('Retry Connection'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

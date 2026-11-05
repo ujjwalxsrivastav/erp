@@ -8716,60 +8716,16 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getOnlineQuizzes({required String classId}) async {
-    return [
-      {
-        'id': 'quiz-sci-01',
-        'title': 'Periodic Assessment 2: Chemical Reactions MCQ Quiz',
-        'subject': 'Science',
-        'class_id': classId,
-        'duration_minutes': 15,
-        'total_questions': 3,
-        'weightage_percent': 10,
-        'questions': [
-          {
-            'question': 'Which of the following is a displacement reaction?',
-            'options': [
-              'CaO + H2O -> Ca(OH)2',
-              'Fe + CuSO4 -> FeSO4 + Cu',
-              '2H2O -> 2H2 + O2',
-              'CH4 + 2O2 -> CO2 + 2H2O'
-            ],
-            'correct_index': 1,
-          },
-          {
-            'question': 'What type of chemical reaction occurs during respiration?',
-            'options': ['Exothermic', 'Endothermic', 'Reduction only', 'Combination'],
-            'correct_index': 0,
-          },
-          {
-            'question': 'The brown substance formed when copper is heated in air is:',
-            'options': ['Copper oxide (CuO)', 'Copper hydroxide', 'Copper carbonate', 'Pure carbon'],
-            'correct_index': 0,
-          },
-        ]
-      },
-      {
-        'id': 'quiz-math-01',
-        'title': 'Weekly Practice: Quadratic Equations Quick Check',
-        'subject': 'Mathematics',
-        'class_id': classId,
-        'duration_minutes': 10,
-        'total_questions': 2,
-        'weightage_percent': 5,
-        'questions': [
-          {
-            'question': 'What is the discriminant of the equation 2x^2 - 4x + 3 = 0?',
-            'options': ['-8', '8', '16', '-16'],
-            'correct_index': 0,
-          },
-          {
-            'question': 'If the roots of ax^2 + bx + c = 0 are real and equal, then b^2 - 4ac is:',
-            'options': ['> 0', '= 0', '< 0', '>= 0'],
-            'correct_index': 1,
-          },
-        ]
-      }
-    ];
+    try {
+      final response = await _supabase
+          .from('school_quizzes')
+          .select()
+          .eq('class_id', classId)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
   }
 
   // ===== STEP 11: CERTIFICATES, LIBRARY, AND REPORTING WORKFLOWS =====

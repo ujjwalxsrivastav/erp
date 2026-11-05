@@ -35,66 +35,6 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
 
   final List<String> _statusFilters = ['All', 'Under Review', 'Approved', 'Ready for Collection', 'Issued', 'Rejected'];
 
-  static final List<Map<String, dynamic>> _defaultCertificateRequests = [
-    {
-      'id': 'REQ-2026-001',
-      'username': 'sstudent1',
-      'student_name': 'Aarav Sharma',
-      'class_name': 'Class 10-A',
-      'admission_no': 'ADM202601',
-      'certificate_type': 'Bonafide Certificate',
-      'reason': 'Passport application verification at Dehradun RPO',
-      'requested_date': '2026-10-28',
-      'status': 'Ready for Collection',
-      'no_dues': {
-        'library': true,
-        'accounts': true,
-        'laboratory': true,
-        'sports': true,
-      },
-      'issued_date': '2026-10-31',
-      'certificate_no': 'SIS/BON/2026/0412',
-    },
-    {
-      'id': 'REQ-2026-002',
-      'username': 'student2',
-      'student_name': 'Priya Patel',
-      'class_name': 'Class 10-A',
-      'admission_no': 'ADM202602',
-      'certificate_type': 'Character Certificate',
-      'reason': 'Higher secondary admission prerequisite',
-      'requested_date': '2026-11-01',
-      'status': 'Approved',
-      'no_dues': {
-        'library': true,
-        'accounts': true,
-        'laboratory': true,
-        'sports': true,
-      },
-      'issued_date': null,
-      'certificate_no': null,
-    },
-    {
-      'id': 'REQ-2026-003',
-      'username': 'student3',
-      'student_name': 'Rohan Gupta',
-      'class_name': 'Class 10-A',
-      'admission_no': 'ADM202603',
-      'certificate_type': 'Transfer Certificate (TC)',
-      'reason': 'Parent relocation to Chandigarh (defense posting)',
-      'requested_date': '2026-11-02',
-      'status': 'Under Review',
-      'no_dues': {
-        'library': true,
-        'accounts': false,
-        'laboratory': true,
-        'sports': true,
-      },
-      'issued_date': null,
-      'certificate_no': null,
-    },
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -126,10 +66,6 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
         requests = List<Map<String, dynamic>>.from(res);
       } catch (_) {}
 
-      if (requests.isEmpty) {
-        requests = List<Map<String, dynamic>>.from(_defaultCertificateRequests);
-      }
-
       if (mounted) {
         setState(() {
           _userRole = role;
@@ -146,7 +82,8 @@ class _SchoolCertificatesScreenState extends State<SchoolCertificatesScreen>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _requests = List<Map<String, dynamic>>.from(_defaultCertificateRequests);
+          _requests = [];
+          _errorMessage = 'Could not load certificates.';
           _isLoading = false;
         });
       }

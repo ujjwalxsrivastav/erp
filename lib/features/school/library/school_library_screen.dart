@@ -31,88 +31,6 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
     'Computer', 'Reference', 'Fiction', 'Sports'
   ];
 
-  static final List<Map<String, dynamic>> _defaultBooks = [
-    {
-      'id': 'BK-101',
-      'title': 'Mathematics for Class 10 (NCERT)',
-      'author': 'NCERT Editorial Board',
-      'isbn': '978-81-7450-634-4',
-      'category': 'Mathematics',
-      'copies': 40,
-      'available': 18,
-      'shelf_location': 'Shelf M-02',
-    },
-    {
-      'id': 'BK-102',
-      'title': 'Science & Technology Class 10',
-      'author': 'NCERT Editorial Board',
-      'isbn': '978-81-7450-649-8',
-      'category': 'Science',
-      'copies': 35,
-      'available': 14,
-      'shelf_location': 'Shelf S-04',
-    },
-    {
-      'id': 'BK-103',
-      'title': 'Concepts of Physics (Vol 1)',
-      'author': 'Dr. H.C. Verma',
-      'isbn': '978-81-7709-187-8',
-      'category': 'Science',
-      'copies': 25,
-      'available': 6,
-      'shelf_location': 'Shelf PHY-01',
-    },
-    {
-      'id': 'BK-104',
-      'title': 'First Flight: Textbook in English',
-      'author': 'NCERT Literature Team',
-      'isbn': '978-81-7450-658-0',
-      'category': 'Literature',
-      'copies': 30,
-      'available': 22,
-      'shelf_location': 'Shelf ENG-03',
-    },
-    {
-      'id': 'BK-105',
-      'title': 'India and the Contemporary World II',
-      'author': 'NCERT Social Science',
-      'isbn': '978-81-7450-707-5',
-      'category': 'Social Studies',
-      'copies': 30,
-      'available': 19,
-      'shelf_location': 'Shelf SST-01',
-    },
-    {
-      'id': 'BK-106',
-      'title': 'Wings of Fire (An Autobiography)',
-      'author': 'Dr. A.P.J. Abdul Kalam',
-      'isbn': '978-81-7371-146-6',
-      'category': 'Reference',
-      'copies': 15,
-      'available': 4,
-      'shelf_location': 'Shelf BIO-02',
-    },
-    {
-      'id': 'BK-107',
-      'title': 'Computer Applications with Python (Class 10)',
-      'author': 'Sumita Arora',
-      'isbn': '978-93-8968-321-0',
-      'category': 'Computer',
-      'copies': 20,
-      'available': 11,
-      'shelf_location': 'Shelf CS-01',
-    },
-    {
-      'id': 'BK-108',
-      'title': 'The Discovery of India',
-      'author': 'Jawaharlal Nehru',
-      'isbn': '978-01-4303-103-1',
-      'category': 'History',
-      'copies': 12,
-      'available': 7,
-      'shelf_location': 'Shelf HIST-03',
-    },
-  ];
 
   @override
   void initState() {
@@ -150,9 +68,7 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
         issued = List<Map<String, dynamic>>.from(issuedRes);
       } catch (_) {}
 
-      if (books.isEmpty) {
-        books = List<Map<String, dynamic>>.from(_defaultBooks);
-      }
+      // Authentic library books from database (zero mock fallback)
       // Zero mock fallback: if issued is empty, empty state is displayed authentically.
 
       final overdue = issued.where((i) => i['status'] == 'Overdue').toList();

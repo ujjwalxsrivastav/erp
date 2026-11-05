@@ -1,9 +1,61 @@
-- **Current Step in Execution Plan:** `School ERP Parent Dashboard Deep-Dive (PAR0 to PAR7) — 100% COMPLETE & VERIFIED`
-- **Status:** All 8 Parent Portal Deep-Dive steps (PAR0 to PAR7) are 100% complete, verified on live Supabase production DB, and committed. Zero mock/fake constants remain. Privacy boundary strictly enforced. 14 official per-child Excel workbooks (PAR-R01 to PAR-R14) operational. Full static analysis: 0 errors, 0 warnings. Zero College ERP files touched.
+- **Current Step in Execution Plan:** `Step STU2: My Progress Analytics & Reports Hub First Half (N1, N2, STU-R01 to STU-R06)`
+- **Status:** Step STU1 (Real-Data Purge) is 100% complete and verified with 0 analyze issues. All fake constants (teachers, room numbers, 94.2% attendance, fake test counts, fake scores, demo library books, demo certificate requests, and hardcoded quizzes) are 100% purged. Commencing Step STU2: My Progress Analytics & Reports Hub First Half. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step STU1: Real-Data Purge (M1, M2, M3, M4, M5, M6, M12, M13)
+- [x] **M1 (Today's Class Schedule):**
+  - Purged hardcoded `_todaySchedule` (4 periods with `Mr. R. Sharma`, `Ms. A. Sen`, `Dr. K. Verma`, `Mrs. P. Joshi`, and `Room 102`).
+  - Implemented dynamic schedule query using `SchoolService.getParentChildTodayTimetable(classId)` resolving authentic periods for today's weekday from `school_timetable`.
+  - Added clean authentic empty state when no lectures are scheduled today.
+- [x] **M2 (Upcoming Tests & Exam Countdown):**
+  - Purged hardcoded `int _upcomingTests = 2` and `"CBSE Term II"` badge string.
+  - Connected to `SchoolService.getChildUpcomingExamCountdown` and `SchoolService.getExamSessions()` pulling authentic published sessions.
+- [x] **M3 (Attendance Fallback Eradication):**
+  - Purged all fallback occurrences of `94.2` and `.catchError((_) => 94.2)`.
+  - Attendance KPI displays real percentage from `school_attendance`, or `'N/A'` with `'Not Recorded'` badge if unrecorded.
+- [x] **M4 (Official CBSE 9-Point Scale):**
+  - Purged inline 4-point grade scale (`A1/A2/B1/B2`).
+  - Connected marks evaluation to `SchoolService.calculateCbseGrade(pct)` conforming to standard CBSE 9-point scale (`A1` to `E2`).
+- [x] **M5 (Recent Scores & Latest Exam Scoping):**
+  - Replaced un-ordered marks query with `created_at.desc()` sorting.
+  - Dynamically extracts latest exam session (`_recentExamName`) and groups subjects for the latest exam.
+  - Added clean empty state when no exam marks are recorded.
+- [x] **M6 (Dynamic Institute Name & Session):**
+  - Purged `static const String _schoolName` and `static const String _affiliationNo`.
+  - Dynamically loads institutional profile and active session from `SchoolService.getSchoolSettings()`.
+- [x] **M12 (Demo Fallback Purge in Screens):**
+  - In `lib/features/school/certificates/school_certificates_screen.dart`: Completely removed `_defaultCertificateRequests` and fallbacks.
+  - In `lib/features/school/library/school_library_screen.dart`: Completely removed `_defaultBooks` and fallbacks.
+- [x] **M13 (LMS Mock Quiz Purge):**
+  - In `lib/services/school_service.dart`: Purged `quiz-sci-01` and `quiz-math-01` mock questions from `getOnlineQuizzes`. Connected to `school_quizzes` table returning authentic rows or empty list `[]`.
+- [x] **4-State Lifecycle:**
+  - Added `_buildLoadingSkeleton` and `_buildErrorState` with retry button.
+- [x] **Verification & Audit:**
+  - Automated grep confirmed 0 occurrences of all 9 forbidden targets.
+  - `dart analyze lib/features/school/school_student_dashboard.dart lib/services/school_service.dart lib/features/school/certificates/ lib/features/school/library/` returned **0 issues found** (0 errors, 0 warnings).
+  - Zero College ERP lines touched.
+
+---
+
+### [COMPLETED] Step STU0: Verify-First Baseline Audit
+- [x] **Audit Checkpoints (a) through (k) verified against live DB & codebase:**
+  - **(a) Route Guard:** Verified `/school/student-dashboard` in `app_router.dart` and `login_screen.dart` with strict role and institute type redirection (`isSchool && role == 'student'`).
+  - **(b) Parameter Convention:** Verified that `school_attendance.student_id`, `school_fee_payments.student_id`, and `school_marks.student_id` store student username strings (`sstudent1`, `s10s01`).
+  - **(c) Marks Ordering:** Verified `school_marks` columns (`exam_type`, `created_at`, `marks_obtained`, `total_marks`, `grade`, `subject`). Ordering by `created_at.desc()` guarantees latest exam representation.
+  - **(d) CBSE 9-Point Scale:** Verified central standard `SchoolService.calculateCbseGrade` and `SchoolService.cbse9PointGradingScale` (A1 to E2).
+  - **(e) Dynamic Session & Institute:** Verified `SchoolService.getSchoolSettings()` and `institutes` (`SHIV-SCH`, `Shivalik International School`).
+  - **(f) Exam Countdown & Date Sheet:** Verified `school_exam_sessions` (Half Yearly, Final) and `getExamDateSheet`.
+  - **(g) Profile Modal:** Verified no external screen; `_showStudentProfileModal` with printable ID card view will be built.
+  - **(h) Quizzes & Student Tables:** Verified `school_quizzes`, `school_quiz_attempts`, `school_student_goals`, `school_student_queries` need DDL setup in `database/school_student_suite_setup.sql`.
+  - **(i) Storage & Homework Submissions:** Verified existing buckets `'assignments'`, `'assignment-submissions'` and verified `school_homework_submissions` already contains `attachment_url` and `teacher_feedback` columns.
+  - **(j) Circulars Audience:** Verified `school_circulars.target_audience` filtering for students and class scope.
+  - **(k) Notifications System:** Verified `school_notifications` DDL and live dynamic alerts synthesis engine.
+- [x] **Zero Code Touched in STU0.**
+
+---
 
 ### [COMPLETED] Step PAR7: Final E2E QA, Live DB Regression, & Production Verification
 - [x] **Live Supabase Production E2E Regression Suite:**
