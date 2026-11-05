@@ -6,7 +6,8 @@ import '../../../services/fee_receipt_pdf.dart';
 import '../../../services/school_export_service.dart';
 
 class SchoolFeeScreen extends StatefulWidget {
-  const SchoolFeeScreen({super.key});
+  final String? studentId;
+  const SchoolFeeScreen({super.key, this.studentId});
 
   @override
   State<SchoolFeeScreen> createState() => _SchoolFeeScreenState();
@@ -19,11 +20,15 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   String _userRole = 'student';
-  String _studentUsername = 'sstudent1';
-  String _studentName = 'Aarav Sharma';
-  String _studentClass = 'Class 10-A';
-  String _studentClassId = 'cls-10a';
-  String _admissionNo = 'ADM202601';
+  String _studentUsername = '';
+  String _studentName = '';
+  String _studentClass = '';
+  String _studentClassId = '';
+  String _admissionNo = '';
+
+  // Parent child selection state (PM6)
+  List<Map<String, dynamic>> _parentChildren = [];
+  int _selectedChildIndex = 0;
 
   // Fee state
   List<Map<String, dynamic>> _feeHeads = [];
@@ -114,7 +119,33 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
       }
 
       // Student / Parent role
-      final targetUser = username;
+      String targetUser = username;
+      List<Map<String, dynamic>> parentKids = [];
+
+      if (role == 'parent') {
+        parentKids = await _schoolService.getParentChildren(username);
+        if (widget.studentId != null && widget.studentId!.isNotEmpty) {
+          final idx = parentKids.indexWhere((k) => (k['username'] == widget.studentId || k['id'] == widget.studentId));
+          if (idx != -1) {
+            _selectedChildIndex = idx;
+            targetUser = parentKids[idx]['username']?.toString() ?? parentKids[idx]['id']?.toString() ?? widget.studentId!;
+          } else {
+            targetUser = widget.studentId!;
+          }
+        } else if (parentKids.isNotEmpty) {
+          _selectedChildIndex = 0;
+          targetUser = parentKids.first['username']?.toString() ?? parentKids.first['id']?.toString() ?? '';
+        } else {
+          if (!mounted) return;
+          setState(() {
+            _userRole = role;
+            _errorMessage = 'No student profiles are linked to this parent account.';
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
       final profile = await _schoolService.getSchoolStudentProfile(targetUser);
       final schedule = await _schoolService.getMonthlyFeeSchedule(targetUser);
       final summary = await _schoolService.getStudentFeeSummary(targetUser);
@@ -123,6 +154,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
       if (!mounted) return;
       setState(() {
         _userRole = role;
+        _parentChildren = parentKids;
         _studentUsername = targetUser;
         _feeHeads = heads;
         _monthlySchedule = schedule;
@@ -141,6 +173,46 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
       setState(() {
         _isLoading = false;
         _errorMessage = 'Could not load fee records: $e';
+      });
+    }
+  }
+
+  Future<void> _switchParentChild(int index) async {
+    if (index == _selectedChildIndex || index >= _parentChildren.length) return;
+    final child = _parentChildren[index];
+    final targetUser = child['username']?.toString() ?? child['id']?.toString() ?? '';
+    if (targetUser.isEmpty) return;
+
+    setState(() {
+      _selectedChildIndex = index;
+      _isLoading = true;
+    });
+
+    try {
+      final profile = await _schoolService.getSchoolStudentProfile(targetUser);
+      final schedule = await _schoolService.getMonthlyFeeSchedule(targetUser);
+      final summary = await _schoolService.getStudentFeeSummary(targetUser);
+      final receipts = await _schoolService.getStudentReceipts(targetUser);
+
+      if (!mounted) return;
+      setState(() {
+        _studentUsername = targetUser;
+        _monthlySchedule = schedule;
+        _studentFeeSummary = summary;
+        _receipts = receipts;
+        if (profile != null) {
+          _studentName = profile['name']?.toString() ?? _studentName;
+          _studentClass = profile['class_name']?.toString() ?? _studentClass;
+          _studentClassId = profile['class_id']?.toString() ?? _studentClassId;
+          _admissionNo = profile['admission_no']?.toString() ?? _admissionNo;
+        }
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Could not switch child fee records: $e';
       });
     }
   }
@@ -1519,6 +1591,51 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Sibling Switcher Bar for Parents (PM6)
+          if (_parentChildren.length > 1) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: List.generate(_parentChildren.length, (i) {
+                  final k = _parentChildren[i];
+                  final isSel = i == _selectedChildIndex;
+                  final kName = k['name']?.toString() ?? 'Child';
+                  final kClass = k['class_name']?.toString() ?? '';
+                  return Expanded(
+                    child: InkWell(
+                      onTap: () => _switchParentChild(i),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: isSel ? const Color(0xFF0F172A) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '$kName ($kClass)',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isSel ? Colors.white : const Color(0xFF64748B),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ],
+
           // Hero Summary Card
           Container(
             padding: const EdgeInsets.all(20),
@@ -1537,6 +1654,19 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (_studentName.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.school_rounded, size: 14, color: Color(0xFFD97706)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Student: $_studentName ($_studentClass • Adm: $_admissionNo)',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

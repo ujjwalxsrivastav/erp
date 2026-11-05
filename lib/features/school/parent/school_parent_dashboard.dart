@@ -1223,7 +1223,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         child: OutlinedButton(
                           onPressed: () {
                             Navigator.pop(ctx);
-                            context.go('/school/fees');
+                            final sId = _currentChild?['username']?.toString() ?? _currentChild?['id']?.toString() ?? '';
+                            context.go(sId.isNotEmpty ? '/school/fees?studentId=$sId' : '/school/fees');
                           },
                           style: OutlinedButton.styleFrom(
                             foregroundColor: _ink,
@@ -3756,7 +3757,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               const SizedBox(height: 10),
               Text(
                 isAllCleared
-                    ? 'All academic quarters for Session 2025-26 are fully cleared.'
+                    ? 'All academic quarters for the current session are fully cleared.'
                     : 'Payment Due Date: $nextDue • Late fine applicable after due date.',
                 style: const TextStyle(fontSize: 11, color: _muted),
               ),
@@ -3807,7 +3808,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   Icon(Icons.receipt_long_rounded, color: _primary, size: 18),
                   SizedBox(width: 8),
                   Text(
-                    'Fee Heads Schedule (Session 2025-26)',
+                    'Fee Heads Schedule (Itemized Statutory Breakdown)',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ],
@@ -3979,7 +3980,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       padding: const EdgeInsets.symmetric(vertical: 11),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    onPressed: _showFileComplaintModal,
+                    onPressed: _showGrievancesDeskModal,
                     icon: const Icon(Icons.report_problem_outlined, size: 16),
                     label: const Text('Principal Grievance', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                   ),
@@ -4044,6 +4045,23 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Text('Confirmed', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.cancel_outlined, size: 18, color: _rose),
+                            tooltip: 'Cancel Appointment',
+                            onPressed: () async {
+                              final bId = p['id']?.toString() ?? '';
+                              if (bId.isEmpty) return;
+                              final ok = await _schoolService.cancelPtmBooking(bookingId: bId);
+                              if (ok && mounted) {
+                                final child = _currentChild;
+                                if (child != null) _loadSelectedChildDetails(child);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('PTM Appointment cancelled.'), backgroundColor: _rose),
+                                );
+                              }
+                            },
                           ),
                         ],
                       ),
@@ -4632,6 +4650,27 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   onChanged: (v) => setDlgState(() => selectedTeacher = v ?? selectedTeacher),
                 ),
                 const SizedBox(height: 12),
+                const Text('Appointment Date:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: ctx,
+                      initialDate: selectedDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 60)),
+                    );
+                    if (picked != null) {
+                      setDlgState(() => selectedDate = picked);
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_today_rounded, size: 14),
+                  label: Text(
+                    '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 const Text('Time Slot:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                 DropdownButtonFormField<String>(
                   initialValue: timeSlot,
@@ -4870,6 +4909,205 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             child: const Text('Authorize Gate Pass'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showGrievancesDeskModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.90,
+            maxWidth: 680,
+          ),
+          decoration: const BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: _roseSoft, borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.report_problem_outlined, color: _rose, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Parent Grievance & Complaint Desk', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                          Text('Statutory escalation tracker with School Leadership', style: TextStyle(fontSize: 12, color: _muted)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: _border),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showFileComplaintModal();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _rose,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
+                    label: const Text('File New Grievance to Principal', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ),
+              Flexible(
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _schoolService.getParentComplaints(parentUsername: _parentName),
+                  builder: (c, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator()));
+                    }
+                    final complaints = snap.data ?? [];
+                    if (complaints.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Center(
+                          child: Text('No complaints or grievances filed yet.', style: TextStyle(color: _muted)),
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      itemCount: complaints.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (c, i) {
+                        final g = complaints[i];
+                        final tNo = g['ticket_no']?.toString() ?? 'TKT';
+                        final sub = g['subject']?.toString() ?? 'Grievance';
+                        final cat = g['category']?.toString() ?? 'General';
+                        final desc = g['description']?.toString() ?? '';
+                        final status = (g['status']?.toString() ?? 'Submitted').toLowerCase();
+                        final dt = g['created_at']?.toString() ?? '';
+                        final adminReply = g['admin_reply']?.toString() ?? '';
+
+                        final isResolved = status.contains('resolved');
+                        final isInReview = status.contains('review');
+
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6)),
+                                    child: Text(tNo, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _ink)),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isResolved ? _emeraldSoft : (isInReview ? _blueSoft : _amberSoft),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      isResolved ? 'RESOLVED' : (isInReview ? 'IN REVIEW' : 'SUBMITTED'),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: isResolved ? _emerald : (isInReview ? _blue : _amber),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(sub, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: _ink)),
+                              const SizedBox(height: 3),
+                              Text('$cat • Logged: ${dt.contains("T") ? dt.split("T")[0] : dt}', style: const TextStyle(fontSize: 11, color: _muted)),
+                              if (desc.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(desc, style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
+                              ],
+                              if (adminReply.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: _emeraldSoft,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: _emerald.withValues(alpha: 0.2)),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(Icons.check_circle_rounded, color: _emerald, size: 14),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Leadership Response: $adminReply',
+                                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF065F46), fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              if (isResolved) ...[
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed: () async {
+                                      final ok = await _schoolService.reopenParentComplaint(complaintId: g['id']?.toString() ?? '');
+                                      if (ok) {
+                                        setSheetState(() {});
+                                      }
+                                    },
+                                    icon: const Icon(Icons.replay_rounded, size: 14, color: _rose),
+                                    label: const Text('Reopen Ticket', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _rose)),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -5666,7 +5904,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   }),
                   _buildDrawerTile(Icons.account_balance_wallet_outlined, 'Fees & Receipts Statement', () {
                     Navigator.pop(context);
-                    context.go('/school/fees');
+                    final sId = _currentChild?['username']?.toString() ?? _currentChild?['id']?.toString() ?? '';
+                    context.go(sId.isNotEmpty ? '/school/fees?studentId=$sId' : '/school/fees');
                   }),
                   _buildDrawerTile(Icons.bar_chart_rounded, 'My Reports & Analytics', () {
                     Navigator.pop(context);
@@ -5678,7 +5917,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   }),
                   _buildDrawerTile(Icons.report_problem_outlined, 'Parent Grievance Desk', () {
                     Navigator.pop(context);
-                    _showFileComplaintModal();
+                    _showGrievancesDeskModal();
                   }),
                   _buildDrawerTile(Icons.campaign_outlined, 'Official School Circulars', () {
                     Navigator.pop(context);

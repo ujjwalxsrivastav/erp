@@ -114,3 +114,4 @@ CREATE POLICY "Allow parent read and update preferences"
     TO authenticated, anon
     USING (true)
     WITH CHECK (true);
+

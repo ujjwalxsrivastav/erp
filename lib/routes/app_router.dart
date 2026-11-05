@@ -293,7 +293,10 @@ final router = GoRouter(
     ),
     GoRoute(
       path: '/school/fees',
-      builder: (context, state) => const SchoolFeeScreen(),
+      builder: (context, state) {
+        final studentId = state.uri.queryParameters['studentId'];
+        return SchoolFeeScreen(studentId: studentId);
+      },
     ),
     GoRoute(
       path: '/school/admissions',

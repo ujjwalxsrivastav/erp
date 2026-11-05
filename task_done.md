@@ -1,9 +1,42 @@
-- **Current Step in Execution Plan:** `Step PAR5: Financial & Administrative Lifecycle (PN6, PM6, PN7, PN8, PM4, PM7)`
-- **Status:** Step PAR4 is 100% complete and verified. Communication Hub (PN1 Messages Inbox, PN2 Dynamic Live Alerts, PN9 1:1 Direct Teacher Messaging, PM3 Real Alerts without hardcoded copy, PM11 Circulars Integration) is active and verified on live Supabase with 0 analyze issues. Dedicated SQL schema `database/school_parent_comms_setup.sql` established. Commencing Step PAR5. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step PAR6: Per-Child Reports Hub & Excel (PN5, PAR-R01 to PAR-R14)`
+- **Status:** Step PAR5 is 100% complete and verified. Financial & Administrative Lifecycle (PM6 Fee scoping with multi-child switcher, PN7 & PM4 PTM manager with date picker & cancellation, PN8 Grievance tracker with ticket status lifecycle & reopen flow, PM7 Leave dialog hardening) is active and verified on live Supabase with 0 analyze issues. Dedicated SQL schema `database/school_parent_admin_lifecycle.sql` established. Commencing Step PAR6. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step PAR5: Financial & Administrative Lifecycle (PN6, PM6, PN7, PN8, PM4, PM7)
+- [x] **Database Schema & RLS (`database/school_parent_admin_lifecycle.sql`):**
+  - Created DDL with RLS policies for:
+    1. `school_ptm_bookings` (PN7 & PM4: PTM Appointments, teacher slots, date, status lifecycle).
+    2. `school_parent_grievances` (PN8: ticket tracking, status timeline, administration reply).
+- [x] **PM6 (Fee Screen Scoping & Multi-Child Switcher):**
+  - Updated `SchoolFeeScreen` (`school_fee_screen.dart`) to accept `studentId` route parameter.
+  - Updated `app_router.dart` `/school/fees` route to extract `studentId` query parameter.
+  - When accessed by parent role, dynamically resolves linked children from `parent_student_links` (verified 13 children for `parent1`).
+  - Added Sibling Switcher Bar at the top of the Fee Screen schedule tab allowing seamless per-child ledger inspection.
+  - Updated parent dashboard fee triggers to pass active child ID (`/school/fees?studentId=<id>`).
+- [x] **PN7 & PM4 (PTM Manager & Authentic Availability):**
+  - Added DatePicker to `_showBookPtmModal` allowing parents to select authentic meeting dates.
+  - Populates teachers from live subject teacher directory.
+  - Added Cancel Appointment action on confirmed PTM appointments in Tab 6.
+  - Updated `bookPtmSlot`, `cancelPtmBooking`, and `getPtmBookings` in `school_service.dart` to dual-write and union with legacy rows for 100% data preservation.
+- [x] **PN8 (Grievance Tracker with Lifecycle & Reopen):**
+  - Built `_showGrievancesDeskModal()` displaying filed tickets with status badges (`SUBMITTED`, `IN REVIEW`, `RESOLVED`).
+  - Displays leadership resolution notes and "Reopen Ticket" button on resolved tickets.
+  - Added "+ File New Grievance" action button opening complaint composer dialog.
+  - Wired Tab 6 "Principal Grievance" and Drawer "Parent Grievance Desk" to the tracker modal.
+  - Updated `fileParentComplaint`, `getParentComplaints`, and `reopenParentComplaint` in `school_service.dart`.
+- [x] **PM7 (Leave Form Hardening):**
+  - Eradicated hardcoded fallback student and class IDs.
+  - Added guard check requiring an active linked child.
+  - Added doctor certificate notes handling for medical leaves.
+- [x] **Automated Verification:**
+  - Live Supabase verified 2 parent complaints (including `TKT-892104`), 1 PTM booking, and 13 linked students for `parent1`.
+  - `dart analyze lib/services/school_service.dart lib/features/school/parent/ lib/features/school/fee/ lib/routes/` returned 0 issues.
+  - Zero College ERP lines touched.
+
+---
 
 ### [COMPLETED] Step PAR4: Communication Hub (PN1, PN2, PN9, PM3, PM11)
 - [x] **Database Schema & RLS (`database/school_parent_comms_setup.sql`):**

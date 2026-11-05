@@ -8351,7 +8351,28 @@ class SchoolService {
     required String date,
     required String timeSlot,
     required String agenda,
+    String? studentId,
+    String? teacherId,
   }) async {
+    // 1. Try insert into dedicated school_ptm_bookings table
+    String? bookingId;
+    try {
+      final res = await _supabase.from('school_ptm_bookings').insert({
+        'parent_username': parentUsername,
+        'student_id': studentId ?? parentUsername,
+        'student_name': studentName,
+        'teacher_id': teacherId ?? teacherName,
+        'teacher_name': teacherName,
+        'date': date,
+        'time_slot': timeSlot,
+        'agenda': agenda,
+        'status': 'confirmed',
+        'created_at': DateTime.now().toIso8601String(),
+      }).select().single();
+      bookingId = res['id']?.toString();
+    } catch (_) {}
+
+    // 2. Also write to school_circulars for backward compatibility and admin tools
     final structured =
         'PTM_SLOT_BOOKING | Parent: $parentUsername | Student: $studentName | '
         'Teacher: $teacherName | Date: $date | Time: $timeSlot | Agenda: $agenda | Status: Confirmed';
@@ -8371,10 +8392,8 @@ class SchoolService {
         .select()
         .single();
 
-
-
     return {
-      'id': resp['id'],
+      'id': bookingId ?? resp['id'],
       'parent': parentUsername,
       'student': studentName,
       'teacher': teacherName,
@@ -8385,15 +8404,64 @@ class SchoolService {
     };
   }
 
+  Future<bool> cancelPtmBooking({required String bookingId}) async {
+    try {
+      try {
+        await _supabase
+            .from('school_ptm_bookings')
+            .update({'status': 'cancelled'})
+            .eq('id', bookingId);
+      } catch (_) {}
+
+      try {
+        final row = await _supabase.from('school_circulars').select().eq('id', bookingId).single();
+        final content = row['content']?.toString() ?? '';
+        final updatedContent = content.replaceAll('Status: Confirmed', 'Status: Cancelled');
+        await _supabase.from('school_circulars').update({'content': updatedContent}).eq('id', bookingId);
+      } catch (_) {}
+
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getPtmBookings({String? parentUsername}) async {
+    final list = <Map<String, dynamic>>[];
+    final seenIds = <String>{};
+
+    // 1. Try school_ptm_bookings
+    try {
+      var query = _supabase.from('school_ptm_bookings').select();
+      if (parentUsername != null && parentUsername.isNotEmpty) {
+        query = query.eq('parent_username', parentUsername);
+      }
+      final rows = await query.order('created_at', ascending: false);
+      for (final r in rows) {
+        final bId = r['id']?.toString() ?? '';
+        if (bId.isNotEmpty) seenIds.add(bId);
+        list.add({
+          'id': bId,
+          'parent': r['parent_username']?.toString() ?? '',
+          'student': r['student_name']?.toString() ?? '',
+          'teacher': r['teacher_name']?.toString() ?? '',
+          'date': r['date']?.toString() ?? '',
+          'time_slot': r['time_slot']?.toString() ?? '',
+          'agenda': r['agenda']?.toString() ?? '',
+          'status': r['status']?.toString() ?? 'Confirmed',
+          'created_at': r['created_at']?.toString() ?? '',
+        });
+      }
+    } catch (_) {}
+
+    // 2. Union with legacy school_circulars
     try {
       final response = await _supabase
           .from('school_circulars')
           .select()
           .eq('category', 'PTMSlot')
-          .order('created_at', ascending: false);
+          .order('published_at', ascending: false);
 
-      final list = <Map<String, dynamic>>[];
       for (final row in response) {
         final content = row['content']?.toString() ?? '';
         if (content.contains('PTM_SLOT_BOOKING')) {
@@ -8408,8 +8476,11 @@ class SchoolService {
 
           if (parentUsername != null && parentUsername.isNotEmpty && map['Parent'] != parentUsername) continue;
 
+          final rId = row['id']?.toString() ?? '';
+          if (seenIds.contains(rId)) continue;
+
           list.add({
-            'id': row['id'],
+            'id': rId,
             'parent': map['Parent'] ?? '',
             'student': map['Student'] ?? '',
             'teacher': map['Teacher'] ?? '',
@@ -8421,10 +8492,9 @@ class SchoolService {
           });
         }
       }
-      return list;
-    } catch (_) {
-      return [];
-    }
+    } catch (_) {}
+
+    return list;
   }
 
   // ===== PARENT COMPLAINT / GRIEVANCE TRACKING =====
@@ -8435,8 +8505,29 @@ class SchoolService {
     required String category,
     required String subject,
     required String description,
+    String? studentId,
   }) async {
     final ticketNo = 'TKT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+
+    // 1. Try dedicated table school_parent_grievances
+    String? grievanceId;
+    try {
+      final res = await _supabase.from('school_parent_grievances').insert({
+        'ticket_no': ticketNo,
+        'parent_username': parentUsername,
+        'student_id': studentId ?? parentUsername,
+        'student_name': studentName,
+        'category': category,
+        'subject': subject,
+        'description': description,
+        'status': 'submitted',
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      }).select().single();
+      grievanceId = res['id']?.toString();
+    } catch (_) {}
+
+    // 2. Also write to school_circulars for backward compatibility
     final structured =
         'PARENT_COMPLAINT | Ticket: $ticketNo | Parent: $parentUsername | Student: $studentName | '
         'Category: $category | Subject: $subject | Description: $description | Status: Open';
@@ -8456,10 +8547,8 @@ class SchoolService {
         .select()
         .single();
 
-
-
     return {
-      'id': resp['id'],
+      'id': grievanceId ?? resp['id'],
       'ticket_no': ticketNo,
       'parent': parentUsername,
       'student': studentName,
@@ -8471,14 +8560,42 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getParentComplaints({String? parentUsername}) async {
+    final list = <Map<String, dynamic>>[];
+    final seenTickets = <String>{};
+
+    // 1. Try dedicated table school_parent_grievances
+    try {
+      var query = _supabase.from('school_parent_grievances').select();
+      if (parentUsername != null && parentUsername.isNotEmpty) {
+        query = query.eq('parent_username', parentUsername);
+      }
+      final rows = await query.order('created_at', ascending: false);
+      for (final r in rows) {
+        final tNo = r['ticket_no']?.toString() ?? '';
+        if (tNo.isNotEmpty) seenTickets.add(tNo);
+        list.add({
+          'id': r['id']?.toString() ?? '',
+          'ticket_no': tNo,
+          'parent': r['parent_username']?.toString() ?? '',
+          'student': r['student_name']?.toString() ?? '',
+          'category': r['category']?.toString() ?? 'General',
+          'subject': r['subject']?.toString() ?? '',
+          'description': r['description']?.toString() ?? '',
+          'status': r['status']?.toString() ?? 'Submitted',
+          'admin_reply': r['admin_reply']?.toString() ?? '',
+          'created_at': r['created_at']?.toString() ?? '',
+        });
+      }
+    } catch (_) {}
+
+    // 2. Union with legacy school_circulars
     try {
       final response = await _supabase
           .from('school_circulars')
           .select()
           .eq('category', 'ParentComplaint')
-          .order('created_at', ascending: false);
+          .order('published_at', ascending: false);
 
-      final list = <Map<String, dynamic>>[];
       for (final row in response) {
         final content = row['content']?.toString() ?? '';
         if (content.contains('PARENT_COMPLAINT')) {
@@ -8493,22 +8610,47 @@ class SchoolService {
 
           if (parentUsername != null && parentUsername.isNotEmpty && map['Parent'] != parentUsername) continue;
 
+          final ticket = map['Ticket'] ?? '';
+          if (ticket.isNotEmpty && seenTickets.contains(ticket)) continue;
+
           list.add({
             'id': row['id'],
-            'ticket_no': map['Ticket'] ?? '',
+            'ticket_no': ticket,
             'parent': map['Parent'] ?? '',
             'student': map['Student'] ?? '',
             'category': map['Category'] ?? 'General',
             'subject': map['Subject'] ?? row['title'] ?? '',
             'description': map['Description'] ?? '',
             'status': map['Status'] ?? 'Open',
+            'admin_reply': '',
             'created_at': row['published_at'] ?? row['created_at'],
           });
         }
       }
-      return list;
+    } catch (_) {}
+
+    return list;
+  }
+
+  Future<bool> reopenParentComplaint({required String complaintId}) async {
+    try {
+      try {
+        await _supabase
+            .from('school_parent_grievances')
+            .update({'status': 'reopened', 'updated_at': DateTime.now().toIso8601String()})
+            .eq('id', complaintId);
+      } catch (_) {}
+
+      try {
+        final row = await _supabase.from('school_circulars').select().eq('id', complaintId).single();
+        final content = row['content']?.toString() ?? '';
+        final updatedContent = content.replaceAll(RegExp(r'Status:\s*[^\|]+'), 'Status: Reopened ');
+        await _supabase.from('school_circulars').update({'content': updatedContent}).eq('id', complaintId);
+      } catch (_) {}
+
+      return true;
     } catch (_) {
-      return [];
+      return false;
     }
   }
 
