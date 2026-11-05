@@ -7764,7 +7764,7 @@ class SchoolService {
       final attToday = await _supabase.from('school_attendance').select().eq('date', todayStr);
       final totalMarked = attToday.length;
       final presentCount = attToday.where((a) => a['status'] == 'present').length;
-      final attPct = totalMarked > 0 ? (presentCount / totalMarked) * 100 : 94.8;
+      final attPct = totalMarked > 0 ? (presentCount / totalMarked) * 100 : 0.0;
 
       // 2. Collections vs Dues
       final fees = await _supabase.from('school_fee_payments').select();
@@ -7785,32 +7785,38 @@ class SchoolService {
 
       // 4. Open parent complaints
       final complaints = await getParentComplaints();
-      final openComplaints = complaints.where((c) => c['status'] == 'Open').length;
+      final openComplaints = complaints.where((c) => c['status'] == 'Open' || c['status'] == 'open').length;
 
       // 5. Total enrolled students
       final students = await _supabase.from('school_students').select();
       final enrolledCount = students.length;
 
+      final instName = await getSchoolInstituteName() ?? 'Shivalik International School';
+
       return {
         'attendance_percent': attPct,
+        'attendance_marked': totalMarked > 0,
+        'attendance_total_marked': totalMarked,
         'students_enrolled': enrolledCount,
         'fee_collected': totalCollected,
         'fee_pending': totalPending,
         'active_transport_fleet': activeBuses,
         'open_complaints': openComplaints,
-        'teacher_substitution_active': true,
-        'school_name': 'Shivalik International School',
+        'teacher_substitution_active': false,
+        'school_name': instName,
         'academic_session': '2025-2026',
       };
     } catch (_) {
       return {
-        'attendance_percent': 94.8,
-        'students_enrolled': 450,
-        'fee_collected': 4500000.0,
-        'fee_pending': 280000.0,
-        'active_transport_fleet': 3,
-        'open_complaints': 1,
-        'teacher_substitution_active': true,
+        'attendance_percent': 0.0,
+        'attendance_marked': false,
+        'attendance_total_marked': 0,
+        'students_enrolled': 0,
+        'fee_collected': 0.0,
+        'fee_pending': 0.0,
+        'active_transport_fleet': 0,
+        'open_complaints': 0,
+        'teacher_substitution_active': false,
         'school_name': 'Shivalik International School',
         'academic_session': '2025-2026',
       };
@@ -7821,33 +7827,58 @@ class SchoolService {
     final students = await _supabase.from('school_students').select();
     final totalStudents = students.length;
 
+    // Get real teachers count
+    int teacherCount = 0;
+    try {
+      final teachers = await _supabase.from('school_teachers').select();
+      teacherCount = teachers.length;
+      if (teacherCount == 0) {
+        final usersTeachers = await _supabase.from('users').select().eq('role', 'teacher').eq('institute_type', 'school');
+        teacherCount = usersTeachers.length;
+      }
+    } catch (_) {}
+
+    // Check RTE admissions
+    int rteCount = 0;
+    try {
+      final rteApps = await _supabase.from('school_admissions').select().or('quota.eq.RTE,is_rte.eq.true');
+      rteCount = rteApps.where((a) => (a['status']?.toString().toLowerCase() == 'enrolled')).length;
+    } catch (_) {}
+
+    final instName = await getSchoolInstituteName() ?? 'Shivalik International School';
+
+    final ptrStr = teacherCount > 0 && totalStudents > 0
+        ? '${(totalStudents / teacherCount).toStringAsFixed(1)}:1 (Real DB Count: $totalStudents students / $teacherCount faculty)'
+        : 'Not Available (Requires Faculty Master Configuration)';
+
     return {
       'school_udise_code': '05010100123',
-      'school_name': 'Shivalik International School',
+      'school_name': instName,
       'state': 'Uttarakhand',
       'district': 'Dehradun',
       'block': 'Raipur',
       'cluster': 'Jakhan',
       'management': 'Private Unaided (Independent)',
       'school_category': 'Secondary with Higher Secondary (Grades 1 to 12)',
-      'affiliation_board': 'CBSE (Board Code: 3530124)',
+      'affiliation_board': 'CBSE (Affiliation #3530124)',
       'medium_of_instruction': 'English',
       'academic_year': '2025-2026',
-      'total_enrolment_boys': (totalStudents * 0.52).round(),
-      'total_enrolment_girls': (totalStudents * 0.48).round(),
-      'total_enrolment': totalStudents > 0 ? totalStudents : 450,
-      'rte_25_quota_seats': 45,
-      'rte_students_enrolled': 38,
-      'pupil_teacher_ratio': '18:1 (Compliant with RTE Norms <= 30:1)',
-      'sanitation_drinking_water': 'Functional RO Water Filtration System Certified',
-      'separate_boys_girls_toilets': 'Compliant (8 Boys, 8 Girls, 2 CWSN accessible)',
-      'cwsn_ramp_facilities': 'Available at all ground-floor access corridors',
-      'smart_ict_classrooms': 12,
-      'science_laboratories': 3, // Physics, Chemistry, Biology
-      'composite_skill_lab': 1,
-      'playground_facility': 'Adequate (Football turf, Basketball court, Athletics track)',
-      'fire_safety_noc_status': 'Valid (Ref: UK-FS-2026/8911)',
-      'status_indicator': 'COMPLIANT & READY FOR STATUTORY UDISE+ SUBMISSION (VERIFY WITH CLIENT)',
+      'total_enrolment_boys': null,
+      'total_enrolment_girls': null,
+      'gender_split_recorded': false,
+      'total_enrolment': totalStudents,
+      'rte_25_quota_seats': 0,
+      'rte_students_enrolled': rteCount,
+      'pupil_teacher_ratio': ptrStr,
+      'sanitation_drinking_water': 'Pending Verification / Requires Physical Audit Record',
+      'separate_boys_girls_toilets': 'Pending Statutory Facility Audit',
+      'cwsn_ramp_facilities': 'Available on Ground Floor Access Corridors',
+      'smart_ict_classrooms': 0,
+      'science_laboratories': 0,
+      'composite_skill_lab': 0,
+      'playground_facility': 'Campus Sports Ground',
+      'fire_safety_noc_status': 'Pending Certified NOC Upload',
+      'status_indicator': 'INCOMPLETE STATUTORY RECORD (Missing Gender Split & Certified NOC Records)',
     };
   }
 

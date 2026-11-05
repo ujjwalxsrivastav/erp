@@ -1142,10 +1142,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     }
 
     final d = _briefingData ?? {};
-    final att = (d['attendance_percent'] as num?)?.toDouble() ?? 94.8;
-    final enrolled = d['students_enrolled'] ?? 450;
-    final fleet = d['active_transport_fleet'] ?? 3;
-    final complaints = d['open_complaints'] ?? 0;
+    final att = (d['attendance_percent'] as num?)?.toDouble() ?? 0.0;
+    final enrolled = (d['students_enrolled'] as num?)?.toInt() ?? 0;
+    final fleet = (d['active_transport_fleet'] as num?)?.toInt() ?? 0;
+    final complaints = (d['open_complaints'] as num?)?.toInt() ?? 0;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),

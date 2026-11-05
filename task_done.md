@@ -1,5 +1,5 @@
-- **Current Step in Execution Plan:** `All Steps Completed: T0 through T7 (Teacher Dashboard Deep-Dive Complete)`
-- **Status:** Complete 100% verification and sign-off on School ERP Teacher Dashboard Deep-Dive. Steps T0 through T7 are fully implemented, verified with live Supabase regression suites, 0 static analysis errors (`dart analyze lib/services/ lib/features/school/`), and production web compilation verified. All features, analytics, multi-sheet Excel exports, CBSE statutory metrics, and parity requirements delivered with zero college regressions.
+- **Current Step in Execution Plan:** `Step ADM1: Real-Data Purge (Completed) -> Moving to Step ADM2 (Approvals Centre + Attention Strip)`
+- **Status:** Step ADM1 (Real-Data Purge: M1, M2, M3, M12 + Library Fallback) completed with 100% verification. Purged all hardcoded KPI constants (450, 68, 24, 94.8, ₹45L, ₹2.8L, 3) from dashboard and `getPrincipalMorningBriefing()`. Eradicated fake statutory assumptions (52/48 split, UK-FS-2026/8911, 45/38 RTE) in `generateUdisePlusReport()`, replacing with real calculations and honest missing-field markers. Purged fake RTE string in `admissions_screen.dart` and deleted `_defaultIssued` list in `school_library_screen.dart`. Added 4-state error screen with retry. Grep verification confirmed 0 fake constants. `dart analyze` returned 0 issues. Moving to Step ADM2 (Approvals Centre + Attention Strip).
 
 ---
 
@@ -202,4 +202,40 @@
   - Executed `flutter build web --base-href /erp/` to confirm zero Web runtime / bundling errors.
 - [x] **Signoff & Ready for Hand-off / Next Dashboard:**
   - Teacher Dashboard (#1) completely finished according to `School-ERP-Teacher-Dashboard-Deep-Dive.md`.
+
+---
+
+### [COMPLETED] Step ADM0: Admin Dashboard Deep-Dive - Verify-First & F1 Gate Audit
+- [x] **Item (a) - Live DB `sadmin1` User:** Verified live via Supabase REST API: `username = 'sadmin1'`, `role = 'admin'`, `institute_type = 'school'`. F1 gate cleared.
+- [x] **Item (b) - Login Switch & Route Guard:** `login_screen.dart` has `case 'admin':` routing to `/school/admin-dashboard` but lacks explicit `case 'sadmin':` (routed via default). `app_router.dart` lacks redirect guard on `/school/*` routes.
+- [x] **Item (c) - `institutes` Schema:** Has basic profile (`id`, `code`, `name`, `type`, `address`, `contact_email`) but lacks statutory fields (`affiliation_no`, `udise_code`, `academic_session`, `fire_noc_no`, etc.), requiring settings store for N5.
+- [x] **Item (d) - `school_students` Gender Column:** `gender` column does NOT exist in `school_students`. Strictly enforcing M2 rule: no invented 52%/48% ratios; report "Not recorded" / missing.
+- [x] **Item (e) - Teacher Leave Flow:** Stored in `school_circulars` with `category: 'TeacherLeave'` (`applyTeacherLeave` / `getTeacherLeaves`). Admin queue can query pending across all faculty.
+- [x] **Item (f) - Fee Refund / Concession Flow:** Recorded directly via `school_fee_payments`. No separate `school_fee_accounts` table.
+- [x] **Item (g) - Month-Close Storage:** No month-close table exists. Dynamic evaluation per `school_fee_screen.dart`.
+- [x] **Item (h) - Notifications Central System:** No separate `school_notifications` table in Supabase. Dynamic alerts aggregated from operations and circulars.
+
+---
+
+### [COMPLETED] Step ADM1: Real-Data Purge (M1, M2, M3, M12 + Library Fallback)
+- [x] **M1 (Dashboard & Briefing KPI Purge):**
+  - Purged hardcoded KPI constants (`450`, `68`, `24`, `94.8`, `₹45L`, `₹2.8L`, `3`) from `school_admin_dashboard.dart` and `getPrincipalMorningBriefing()`.
+  - Zero mock fallback: when attendance has not been recorded, returns `0.0` with `attendance_marked: false` and renders "Attendance Not Marked Yet" rather than fake 94.8%.
+  - When fees or routes are empty, accurately reports 0 rather than fake 45L or 3 buses.
+- [x] **M2 (UDISE+ Statutory Data Purge):**
+  - Completely purged invented 52%/48% gender split, hardcoded 450 enrolment, fake RTE 45/38 seats, and fake fire NOC (`UK-FS-2026/8911`) from `generateUdisePlusReport()`.
+  - Accurately reports real `total_enrolment` from `school_students`, real calculated PTR from real teacher count, and honestly marks missing gender as `Not Recorded in Students Register` and missing fire NOC as `Pending Statutory Upload`. Status displays `INCOMPLETE STATUTORY RECORD`.
+- [x] **M3 (Institute Identity):**
+  - Shifted static constants to dynamic instance state in `school_admin_dashboard.dart`, pulling genuine school name via `getSchoolInstituteName()` from the `institutes` table (`SHIV-SCH`).
+- [x] **M12 (Admissions RTE Metric):**
+  - Purged hardcoded string `'38/45 RTE Seats Filled'` in `admissions_screen.dart`, now computing real enrolled count where `quota == 'RTE' || is_rte == true`.
+- [x] **Library Screen Fallback Purge:**
+  - Deleted `_defaultIssued` hardcoded book issues list with fake October 2026 dates from `school_library_screen.dart`. Empty library issues register now displays authentic 4-state empty view.
+- [x] **4-State Lifecycle:**
+  - Added full error view in `school_admin_dashboard.dart` with dedicated icon, descriptive error message, and `Retry Connection` action button.
+- [x] **Verification:**
+  - Grep audit confirmed 0 occurrences of fake fallback constants across all touched files.
+  - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
+
+
 

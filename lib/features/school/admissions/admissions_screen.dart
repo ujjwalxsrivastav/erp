@@ -251,6 +251,11 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     final interview = _statusCounts['Interview Scheduled'] ?? 0;
     final offerIssued = _statusCounts['Offer Letter Issued'] ?? 0;
     final enrolled = _statusCounts['Enrolled'] ?? 0;
+    final rteEnrolled = _admissions.where((a) {
+      final s = (a['status']?.toString() ?? '').toLowerCase();
+      final isRte = a['quota']?.toString().toUpperCase() == 'RTE' || a['is_rte'] == true;
+      return s == 'enrolled' && isRte;
+    }).length;
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -266,7 +271,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
             const SizedBox(width: 12),
             Expanded(child: _buildMetricTile('Offer Letters', '$offerIssued', 'Awaiting Fee Deposit', Icons.mail_outline_rounded, const Color(0xFF7C3AED))),
             const SizedBox(width: 12),
-            Expanded(child: _buildMetricTile('Enrolled Students', '$enrolled', '38/45 RTE Seats Filled', Icons.school_rounded, const Color(0xFF059669))),
+            Expanded(child: _buildMetricTile('Enrolled Students', '$enrolled', '$rteEnrolled Enrolled (RTE Quota)', Icons.school_rounded, const Color(0xFF059669))),
           ],
         ),
         const SizedBox(height: 18),

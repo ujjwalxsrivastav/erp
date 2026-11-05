@@ -114,36 +114,6 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
     },
   ];
 
-  static final List<Map<String, dynamic>> _defaultIssued = [
-    {
-      'id': 'ISSUE-01',
-      'book_title': 'Concepts of Physics (Vol 1)',
-      'student_name': 'Aarav Sharma',
-      'student_id': 'sstudent1',
-      'issued_date': '2026-10-15',
-      'due_date': '2026-11-05',
-      'status': 'Active',
-    },
-    {
-      'id': 'ISSUE-02',
-      'book_title': 'Mathematics for Class 10 (NCERT)',
-      'student_name': 'Priya Patel',
-      'student_id': 'student2',
-      'issued_date': '2026-10-10',
-      'due_date': '2026-10-25',
-      'status': 'Overdue',
-    },
-    {
-      'id': 'ISSUE-03',
-      'book_title': 'Wings of Fire (An Autobiography)',
-      'student_name': 'Rohan Gupta',
-      'student_id': 'student3',
-      'issued_date': '2026-10-22',
-      'due_date': '2026-11-12',
-      'status': 'Active',
-    },
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -183,9 +153,7 @@ class _SchoolLibraryScreenState extends State<SchoolLibraryScreen>
       if (books.isEmpty) {
         books = List<Map<String, dynamic>>.from(_defaultBooks);
       }
-      if (issued.isEmpty) {
-        issued = List<Map<String, dynamic>>.from(_defaultIssued);
-      }
+      // Zero mock fallback: if issued is empty, empty state is displayed authentically.
 
       final overdue = issued.where((i) => i['status'] == 'Overdue').toList();
 

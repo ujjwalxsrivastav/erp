@@ -16,16 +16,17 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
   final _schoolService = SchoolService();
 
   String _adminName = 'Principal';
-  static const String _schoolName = 'Shivalik International School';
-  static const String _affiliationNo = 'CBSE #3530124';
-  static const String _academicSession = '2025-2026';
-  static const String _currentTerm = 'Term II';
+  String _schoolName = 'Shivalik International School';
+  String _affiliationNo = 'CBSE #3530124';
+  String _academicSession = '2025-2026';
+  String _currentTerm = 'Term II';
 
   // Live Metrics
   int _totalStudents = 0;
   int _totalTeachers = 0;
   int _totalClasses = 0;
   double _attendanceToday = 0.0;
+  bool _attendanceMarkedToday = false;
   double _feeCollectedToday = 0.0;
   double _feePendingDues = 0.0;
   int _activeTransportRoutes = 0;
@@ -35,6 +36,8 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
 
   bool _isLoading = true;
   bool _isRefreshing = false;
+  bool _hasError = false;
+  String? _errorMessage;
 
   List<Map<String, dynamic>> _recentCirculars = [];
   List<Map<String, dynamic>> _openComplaintsList = [];
@@ -50,13 +53,22 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
     if (showRefreshing) {
       setState(() => _isRefreshing = true);
     } else {
-      setState(() => _isLoading = true);
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+        _errorMessage = null;
+      });
     }
 
     try {
       final username = await _authService.getCurrentUsername();
       if (mounted && username != null && username.isNotEmpty) {
         setState(() => _adminName = username);
+      }
+
+      final instName = await _schoolService.getSchoolInstituteName();
+      if (mounted && instName != null && instName.isNotEmpty) {
+        setState(() => _schoolName = instName);
       }
 
       // Fetch live data concurrently from SchoolService
@@ -92,15 +104,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
         setState(() {
           _totalStudents = (briefing['students_enrolled'] as num?)?.toInt() ??
               (stats['total_students'] as num?)?.toInt() ??
-              450;
-          _totalTeachers = (stats['total_teachers'] as num?)?.toInt() ?? 68;
-          _totalClasses = (stats['total_classes'] as num?)?.toInt() ?? 24;
+              0;
+          _totalTeachers = (stats['total_teachers'] as num?)?.toInt() ?? 0;
+          _totalClasses = (stats['total_classes'] as num?)?.toInt() ?? 0;
           _attendanceToday = (briefing['attendance_percent'] as num?)?.toDouble() ??
               (stats['attendance_today'] as num?)?.toDouble() ??
-              94.8;
-          _feeCollectedToday = (briefing['fee_collected'] as num?)?.toDouble() ?? 4500000.0;
-          _feePendingDues = (briefing['fee_pending'] as num?)?.toDouble() ?? 280000.0;
-          _activeTransportRoutes = (briefing['active_transport_fleet'] as num?)?.toInt() ?? 3;
+              0.0;
+          _attendanceMarkedToday = (briefing['attendance_marked'] as bool?) ?? (_attendanceToday > 0);
+          _feeCollectedToday = (briefing['fee_collected'] as num?)?.toDouble() ?? 0.0;
+          _feePendingDues = (briefing['fee_pending'] as num?)?.toDouble() ?? 0.0;
+          _activeTransportRoutes = (briefing['active_transport_fleet'] as num?)?.toInt() ?? 0;
           _openParentComplaints = openComplaints.isNotEmpty
               ? openComplaints.length
               : (briefing['open_complaints'] as num?)?.toInt() ?? 0;
@@ -114,13 +127,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
 
           _isLoading = false;
           _isRefreshing = false;
+          _hasError = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
           _isRefreshing = false;
+          _hasError = true;
+          _errorMessage = e.toString();
         });
       }
     }
@@ -157,7 +173,42 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFF2563EB)),
             )
-          : RefreshIndicator(
+          : _hasError && !_isRefreshing
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.cloud_off_rounded, size: 52, color: Color(0xFFEF4444)),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Unable to Load Institutional Command Data',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _errorMessage ?? 'Please check your connection and try again.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: () => _loadData(),
+                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                          label: const Text('Retry Connection'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
               onRefresh: () => _loadData(showRefreshing: true),
               color: const Color(0xFF2563EB),
               child: CustomScrollView(
@@ -271,9 +322,9 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           _schoolName,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -545,6 +596,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
         final isNarrow = constraints.maxWidth < 600;
         final cardWidth = isNarrow ? (constraints.maxWidth - 12) / 2 : (constraints.maxWidth - 36) / 4;
 
+        final ptrStr = _totalTeachers > 0 && _totalStudents > 0
+            ? 'PTR: ${(_totalStudents / _totalTeachers).toStringAsFixed(1)}:1'
+            : 'PTR: Unassigned';
+
+        final attSubtitle = _attendanceMarkedToday
+            ? '${_attendanceToday.toStringAsFixed(1)}% Present Today'
+            : 'Attendance Not Marked Yet';
+
         return Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -554,11 +613,11 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               child: _buildMetricTile(
                 title: 'Enrolled Students',
                 value: '$_totalStudents',
-                subtitle: '${_attendanceToday.toStringAsFixed(1)}% Present Today',
+                subtitle: attSubtitle,
                 detail: '$_totalClasses Active Sections',
                 icon: Icons.groups_rounded,
                 accentColor: const Color(0xFF2563EB),
-                isPositive: _attendanceToday >= 85,
+                isPositive: _attendanceMarkedToday ? _attendanceToday >= 75 : false,
                 onTap: () => context.go('/school/attendance'),
               ),
             ),
@@ -567,11 +626,11 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               child: _buildMetricTile(
                 title: 'Faculty & Staff',
                 value: '$_totalTeachers',
-                subtitle: '100% On-Duty • Ready',
-                detail: 'PTR: 18:1 (RTE Compliant)',
+                subtitle: '$_totalTeachers Teaching Faculty',
+                detail: ptrStr,
                 icon: Icons.school_rounded,
                 accentColor: const Color(0xFF059669),
-                isPositive: true,
+                isPositive: _totalTeachers > 0,
                 onTap: () => context.go('/school/timetable'),
               ),
             ),
@@ -584,7 +643,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                 detail: '$_defaultersCount Accounts Overdue',
                 icon: Icons.account_balance_wallet_rounded,
                 accentColor: const Color(0xFFD97706),
-                isPositive: _feePendingDues <= 500000,
+                isPositive: _feePendingDues == 0,
                 onTap: () => context.go('/school/fees'),
               ),
             ),
@@ -593,8 +652,8 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               child: _buildMetricTile(
                 title: 'Transport Fleet',
                 value: '$_activeTransportRoutes Routes',
-                subtitle: '100% Vehicles Active',
-                detail: '0 Safety Incident Alerts',
+                subtitle: '$_activeTransportRoutes Active Fleet Routes',
+                detail: 'Safety Telematics Online',
                 icon: Icons.directions_bus_rounded,
                 accentColor: const Color(0xFF7C3AED),
                 isPositive: true,
@@ -1551,13 +1610,23 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   ),
                   const SizedBox(height: 14),
                   _buildUdiseRow('Academic Year', udise['academic_year'] ?? _academicSession),
-                  _buildUdiseRow('Pupil-Teacher Ratio (PTR)', udise['pupil_teacher_ratio'] ?? '18:1 (RTE Compliant)'),
+                  _buildUdiseRow('Pupil-Teacher Ratio (PTR)', udise['pupil_teacher_ratio'] ?? 'N/A'),
                   _buildUdiseRow('Total Enrolment', '${udise['total_enrolment'] ?? _totalStudents} Students'),
-                  _buildUdiseRow('Boys / Girls Split', '${udise['total_enrolment_boys'] ?? 234} Boys / ${udise['total_enrolment_girls'] ?? 216} Girls'),
-                  _buildUdiseRow('RTE 25% Quota Seats', '${udise['rte_students_enrolled'] ?? 38} / ${udise['rte_25_quota_seats'] ?? 45} Enrolled'),
-                  _buildUdiseRow('Sanitation & RO Water', udise['sanitation_drinking_water'] ?? 'Certified Functional'),
-                  _buildUdiseRow('Fire Safety NOC', udise['fire_safety_noc_status'] ?? 'Valid UK-FS-2026/8911'),
-                  _buildUdiseRow('Status Indicator', udise['status_indicator'] ?? 'COMPLIANT & STATUTORY READY'),
+                  _buildUdiseRow(
+                    'Boys / Girls Split',
+                    (udise['total_enrolment_boys'] != null && udise['total_enrolment_girls'] != null)
+                        ? '${udise['total_enrolment_boys']} Boys / ${udise['total_enrolment_girls']} Girls'
+                        : 'Not Recorded in Students Register',
+                  ),
+                  _buildUdiseRow(
+                    'RTE 25% Quota Seats',
+                    (udise['rte_25_quota_seats'] != null && (udise['rte_25_quota_seats'] as num) > 0)
+                        ? '${udise['rte_students_enrolled'] ?? 0} / ${udise['rte_25_quota_seats']} Enrolled'
+                        : '${udise['rte_students_enrolled'] ?? 0} Enrolled (Target Unset)',
+                  ),
+                  _buildUdiseRow('Sanitation & RO Water', udise['sanitation_drinking_water'] ?? 'Requires Verification'),
+                  _buildUdiseRow('Fire Safety NOC', udise['fire_safety_noc_status'] ?? 'Pending Statutory Upload'),
+                  _buildUdiseRow('Status Indicator', udise['status_indicator'] ?? 'INCOMPLETE STATUTORY RECORD'),
                 ],
               ),
             ),
@@ -1732,9 +1801,9 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           _schoolName,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
