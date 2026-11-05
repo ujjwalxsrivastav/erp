@@ -1,9 +1,34 @@
-- **Current Step in Execution Plan:** `Step SP2: Payroll (Item 2) — School Salary Structure, Runs, Payslips & ESI`
-- **Status:** **Step SP1 (Deploy Pipeline Fix) is 100% complete and locally verified!** (1) Removed `- .env` from `pubspec.yaml` assets so asset bundling never fails in CI checkout; (2) Hardened `.github/workflows/deploy.yml` with pre-build `flutter analyze lib/features/school/ lib/services/`, `--dart-define` for `SUPABASE_URL` and `SUPABASE_ANON_KEY`, build artifact verification (`test -d build/web && test -f build/web/index.html`), and `clean: true` for GitHub Pages deployment; (3) Full local web release build (`flutter build web --release --base-href /erp/`) passed cleanly with code 0 (`√ Built build\web`), generating `build/web/index.html`. Commencing **Step SP2: School Payroll**.
+- **Current Step in Execution Plan:** `Step SP3: Hostel / Infirmary / Cafeteria (Item 3)`
+- **Status:** **Step SP2 (School Payroll) is 100% complete and verified on live Supabase!** (1) Created `database/school_payroll_setup.sql` with unified `school_audit_log`, `school_salary_structures`, `school_payroll_runs`, and `school_payslips` with multi-school RLS; (2) Built `SchoolPayrollService` with full lifecycle: salary structures seeding (23 teachers + `shr01` HR specialist), monthly computation, statutory deductions (PF 12%, ESI 0.75% for gross <= ₹21,000, PT ₹200, TDS), LOP calculation, run locking, disbursement marking, and audit trail logging; (3) Added `SP-R01` (Payroll Monthly Cost Trend) and `SP-R02` (Payslip Register) dual-sheet Excel exports in `SchoolExportService`; (4) Built enterprise UI screens `SchoolPayrollScreen` (KPIs, `fl_chart` trend, run management, generation wizard) and `SchoolMyPayslipsScreen` (faculty self-service slip portal); (5) Wired routes `/school/payroll` and `/school/my-payslips`; (6) Static analysis clean: 0 errors, 0 warnings; zero college files touched. Commencing **Step SP3: Hostel / Infirmary / Cafeteria**.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP2: School Payroll (Item 2)
+- [x] **Database & Schema Setup (`database/school_payroll_setup.sql`):**
+  - Defined `school_audit_log` unified table for cross-cutting audit trail (Standard X1).
+  - Defined `school_salary_structures`, `school_payroll_runs`, and `school_payslips` with `institute_id` multi-school isolation and RLS policies.
+- [x] **Payroll Engine (`lib/services/school_payroll_service.dart`):**
+  - Implemented salary structure management with automatic gross calculation and statutory contributions.
+  - Added new statutory ESI deduction (0.75% for gross <= ₹21,000, 0 otherwise) alongside PF (12%) and PT (₹200).
+  - Implemented LOP deduction formula `(gross / 30) * lopDays`.
+  - Implemented run locking (disallowing edits without audit override) and disbursement marking (`status: paid`).
+  - Integrated audit trail logging on every action (`create`, `lock`, `pay`, `hold`, `adjust`).
+- [x] **Reports Engine & Excel Exports (`lib/services/school_export_service.dart`):**
+  - Built `exportSchoolPayrollMonthlyCostExcel` (`SP-R01`): Summary + Data sheets with totals row and `School_SP_R01_<date>.xlsx` naming.
+  - Built `exportSchoolPayslipRegisterExcel` (`SP-R02`): Individual staff remuneration register with dual-sheet structure, complete breakdown, and totals row.
+- [x] **Enterprise UI Screens:**
+  - `lib/features/school/payroll/school_payroll_screen.dart`: Admin/HR command center featuring 4 KPI tiles, `fl_chart` 6-month net cost trend, expansion tile run cards, salary structures master, and generation wizard.
+  - `lib/features/school/payroll/school_my_payslips_screen.dart`: Teacher/staff self-service portal to inspect earnings, deductions, and bank disbursement references.
+- [x] **Router Integration (`lib/routes/app_router.dart`):**
+  - Registered `/school/payroll` and `/school/my-payslips`.
+- [x] **Automated Verification:**
+  - `flutter analyze lib/features/school/ lib/services/ lib/routes/`: 0 errors, 0 warnings.
+  - Verified live Supabase round-trip with `shr01` and `steacher1` test run and audit log entry.
+  - Zero modifications to College ERP files.
+
+---
 
 ### [COMPLETED] Step SP1: Deploy Pipeline Fix (Item 11)
 - [x] **Pubspec Asset Fix:**

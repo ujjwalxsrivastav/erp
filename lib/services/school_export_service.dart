@@ -4071,4 +4071,263 @@ class SchoolExportService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SUPER ENTERPRISE REPORTS: SP-R01 & SP-R02 (Payroll Suite)
+  // ---------------------------------------------------------------------------
+
+  /// SP-R01: Payroll Monthly Cost Trend
+  static Future<void> exportSchoolPayrollMonthlyCostExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> runs,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - PAYROLL MONTHLY EXPENDITURE')]);
+    summary.appendRow([TextCellValue('Official Enterprise Financial Disbursement & Statutory Audit')]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('Institute:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('Total Payroll Runs:'), IntCellValue(runs.length)]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('SP-R01')]);
+    summary.appendRow([TextCellValue('Generated At:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('Specification Standard:'), TextCellValue('Dual-Sheet (Summary + Data + Totals)')]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Month / Year'),
+      TextCellValue('Cycle Start'),
+      TextCellValue('Cycle End'),
+      TextCellValue('Staff Count'),
+      TextCellValue('Gross Pay (₹)'),
+      TextCellValue('Statutory Deductions (₹)'),
+      TextCellValue('Loss of Pay (₹)'),
+      TextCellValue('Net Payable (₹)'),
+      TextCellValue('Run Status'),
+      TextCellValue('Locked By'),
+      TextCellValue('Disbursement Date'),
+    ]);
+
+    double grandGross = 0.0;
+    double grandDeductions = 0.0;
+    double grandLop = 0.0;
+    double grandNet = 0.0;
+    int grandStaff = 0;
+
+    for (int i = 0; i < runs.length; i++) {
+      final r = runs[i];
+      final gross = (r['total_gross'] as num?)?.toDouble() ?? 0.0;
+      final ded = (r['total_deductions'] as num?)?.toDouble() ?? 0.0;
+      final lop = (r['total_lop'] as num?)?.toDouble() ?? 0.0;
+      final net = (r['total_net_pay'] as num?)?.toDouble() ?? 0.0;
+      final staff = (r['total_staff'] as num?)?.toInt() ?? 0;
+
+      grandGross += gross;
+      grandDeductions += ded;
+      grandLop += lop;
+      grandNet += net;
+      grandStaff += staff;
+
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(r['month_year']?.toString() ?? '-'),
+        TextCellValue(r['start_date']?.toString() ?? '-'),
+        TextCellValue(r['end_date']?.toString() ?? '-'),
+        IntCellValue(staff),
+        DoubleCellValue(gross),
+        DoubleCellValue(ded),
+        DoubleCellValue(lop),
+        DoubleCellValue(net),
+        TextCellValue((r['status']?.toString() ?? 'draft').toUpperCase()),
+        TextCellValue(r['locked_by']?.toString() ?? '-'),
+        TextCellValue(r['paid_at']?.toString() ?? '-'),
+      ]);
+    }
+
+    // Totals Row
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('GRAND TOTAL'),
+      TextCellValue(''),
+      TextCellValue(''),
+      IntCellValue(grandStaff),
+      DoubleCellValue(grandGross),
+      DoubleCellValue(grandDeductions),
+      DoubleCellValue(grandLop),
+      DoubleCellValue(grandNet),
+      TextCellValue('RECONCILED'),
+      TextCellValue(''),
+      TextCellValue(''),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R01_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// SP-R02: Payslip Register
+  static Future<void> exportSchoolPayslipRegisterExcel({
+    required BuildContext context,
+    required String monthYear,
+    required List<Map<String, dynamic>> payslips,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - MONTHLY PAYSLIP REGISTER')]);
+    summary.appendRow([TextCellValue('Individual Faculty & Staff Remuneration Ledger')]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('Institute:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('Disbursement Period:'), TextCellValue(monthYear)]);
+    summary.appendRow([TextCellValue('Staff Enrolled:'), IntCellValue(payslips.length)]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('SP-R02')]);
+    summary.appendRow([TextCellValue('Generated At:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('Statutory Standard:'), TextCellValue('PF 12% + ESI 0.75% + PT + TDS + LOP')]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Employee ID'),
+      TextCellValue('Staff Name'),
+      TextCellValue('Department'),
+      TextCellValue('Designation'),
+      TextCellValue('Working Days'),
+      TextCellValue('Present Days'),
+      TextCellValue('LOP Days'),
+      TextCellValue('Basic (₹)'),
+      TextCellValue('HRA (₹)'),
+      TextCellValue('Travel (₹)'),
+      TextCellValue('Medical (₹)'),
+      TextCellValue('Special (₹)'),
+      TextCellValue('Gross (₹)'),
+      TextCellValue('PF (₹)'),
+      TextCellValue('ESI (₹)'),
+      TextCellValue('PT (₹)'),
+      TextCellValue('TDS (₹)'),
+      TextCellValue('LOP Deduction (₹)'),
+      TextCellValue('Arrears (₹)'),
+      TextCellValue('Advances (₹)'),
+      TextCellValue('Total Deductions (₹)'),
+      TextCellValue('Net Salary (₹)'),
+      TextCellValue('Disbursement Status'),
+      TextCellValue('Payment Reference'),
+    ]);
+
+    double totBasic = 0.0;
+    double totHra = 0.0;
+    double totGross = 0.0;
+    double totPf = 0.0;
+    double totEsi = 0.0;
+    double totPt = 0.0;
+    double totTds = 0.0;
+    double totLop = 0.0;
+    double totDed = 0.0;
+    double totNet = 0.0;
+
+    for (int i = 0; i < payslips.length; i++) {
+      final s = payslips[i];
+      final basic = (s['basic_pay'] as num?)?.toDouble() ?? 0.0;
+      final hra = (s['hra'] as num?)?.toDouble() ?? 0.0;
+      final travel = (s['travel_allowance'] as num?)?.toDouble() ?? 0.0;
+      final medical = (s['medical_allowance'] as num?)?.toDouble() ?? 0.0;
+      final special = (s['special_allowance'] as num?)?.toDouble() ?? 0.0;
+      final gross = (s['gross_salary'] as num?)?.toDouble() ?? 0.0;
+      final pf = (s['provident_fund'] as num?)?.toDouble() ?? 0.0;
+      final esi = (s['esi_deduction'] as num?)?.toDouble() ?? 0.0;
+      final pt = (s['professional_tax'] as num?)?.toDouble() ?? 0.0;
+      final tds = (s['income_tax'] as num?)?.toDouble() ?? 0.0;
+      final lop = (s['lop_deduction'] as num?)?.toDouble() ?? 0.0;
+      final arr = (s['arrears'] as num?)?.toDouble() ?? 0.0;
+      final adv = (s['advances_deduction'] as num?)?.toDouble() ?? 0.0;
+      final totalDed = (s['total_deductions'] as num?)?.toDouble() ?? 0.0;
+      final net = (s['net_pay'] as num?)?.toDouble() ?? 0.0;
+
+      totBasic += basic;
+      totHra += hra;
+      totGross += gross;
+      totPf += pf;
+      totEsi += esi;
+      totPt += pt;
+      totTds += tds;
+      totLop += lop;
+      totDed += totalDed;
+      totNet += net;
+
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(s['employee_id']?.toString() ?? '-'),
+        TextCellValue(s['employee_name']?.toString() ?? '-'),
+        TextCellValue(s['department']?.toString() ?? 'Academics'),
+        TextCellValue(s['designation']?.toString() ?? 'Teacher'),
+        IntCellValue((s['working_days'] as num?)?.toInt() ?? 30),
+        DoubleCellValue((s['present_days'] as num?)?.toDouble() ?? 30.0),
+        DoubleCellValue((s['lop_days'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue(basic),
+        DoubleCellValue(hra),
+        DoubleCellValue(travel),
+        DoubleCellValue(medical),
+        DoubleCellValue(special),
+        DoubleCellValue(gross),
+        DoubleCellValue(pf),
+        DoubleCellValue(esi),
+        DoubleCellValue(pt),
+        DoubleCellValue(tds),
+        DoubleCellValue(lop),
+        DoubleCellValue(arr),
+        DoubleCellValue(adv),
+        DoubleCellValue(totalDed),
+        DoubleCellValue(net),
+        TextCellValue((s['status']?.toString() ?? 'normal').toUpperCase()),
+        TextCellValue(s['payment_reference']?.toString() ?? '-'),
+      ]);
+    }
+
+    // Totals Row
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('DISBURSEMENT TOTAL'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      DoubleCellValue(totBasic),
+      DoubleCellValue(totHra),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      DoubleCellValue(totGross),
+      DoubleCellValue(totPf),
+      DoubleCellValue(totEsi),
+      DoubleCellValue(totPt),
+      DoubleCellValue(totTds),
+      DoubleCellValue(totLop),
+      TextCellValue(''),
+      TextCellValue(''),
+      DoubleCellValue(totDed),
+      DoubleCellValue(totNet),
+      TextCellValue('RECONCILED'),
+      TextCellValue(''),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R02_${monthYear}_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }

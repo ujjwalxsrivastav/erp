@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
 import '../services/auth_service.dart';
+import 'school_payroll_service.dart';
 
 class SchoolService {
   static final SchoolService _instance = SchoolService._internal();
@@ -11,6 +12,7 @@ class SchoolService {
 
   final SupabaseClient _supabase = SupabaseService.client;
   SupabaseClient get supabase => _supabase;
+  SchoolPayrollService get payroll => SchoolPayrollService();
 
   Future<String?> getSchoolInstituteName() async {
     try {
