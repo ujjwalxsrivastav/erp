@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../services/auth_service.dart';
 import '../../services/school_service.dart';
 
@@ -41,6 +42,15 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
     'total_count': 0,
     'counts_by_type': <String, int>{},
   };
+
+  // Institutional Analytics (N1, N6, N7, AD-R01 to AD-R06)
+  List<Map<String, dynamic>> _enrolmentTrend = [];
+  List<Map<String, dynamic>> _feeTrend = [];
+  List<Map<String, dynamic>> _attendanceTrend = [];
+  List<Map<String, dynamic>> _admissionFunnel = [];
+  List<Map<String, dynamic>> _feeHeadDistribution = [];
+  List<Map<String, dynamic>> _examPassRates = [];
+  bool _analyticsLoading = true;
 
   bool _isLoading = true;
   bool _isRefreshing = false;
@@ -92,6 +102,12 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           'total_count': 0,
           'counts_by_type': <String, int>{},
         }),
+        _schoolService.getAdminEnrolmentTrend().catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService.getAdminFeeCollectionTrend().catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService.getAdminSchoolAttendanceTrend(days: 30).catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService.getAdminAdmissionFunnel().catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService.getAdminFeeHeadDistribution().catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService.getAdminExamClassPassRates().catchError((_) => <Map<String, dynamic>>[]),
       ]);
 
       final stats = results[0] as Map<String, dynamic>;
@@ -101,6 +117,12 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
       final defaulters = results[4] as Map<String, dynamic>;
       final complaints = results[5] as List<Map<String, dynamic>>;
       final approvals = results[6] as Map<String, dynamic>;
+      final enrolmentTrend = results[7] as List<Map<String, dynamic>>;
+      final feeTrend = results[8] as List<Map<String, dynamic>>;
+      final attendanceTrend = results[9] as List<Map<String, dynamic>>;
+      final admissionFunnel = results[10] as List<Map<String, dynamic>>;
+      final feeHeadDistribution = results[11] as List<Map<String, dynamic>>;
+      final examPassRates = results[12] as List<Map<String, dynamic>>;
 
       // Parse admissions requiring review
       final pendingAdmissions = admissions.where((a) {
@@ -144,6 +166,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
 
           _recentCirculars = circulars.take(5).toList();
           _openComplaintsList = openComplaints;
+
+          _enrolmentTrend = enrolmentTrend;
+          _feeTrend = feeTrend;
+          _attendanceTrend = attendanceTrend;
+          _admissionFunnel = admissionFunnel;
+          _feeHeadDistribution = feeHeadDistribution;
+          _examPassRates = examPassRates;
+          _analyticsLoading = false;
 
           _isLoading = false;
           _isRefreshing = false;
@@ -244,6 +274,10 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                         _buildMorningPulseHeader(),
                         const SizedBox(height: 10),
                         _buildExecutiveMetricsGrid(context),
+                        const SizedBox(height: 24),
+                        _buildInstitutionalAnalyticsHeader(context),
+                        const SizedBox(height: 12),
+                        _buildInstitutionalAnalyticsGrid(context),
                         const SizedBox(height: 24),
                         _buildManagementDomainsMatrix(context),
                         const SizedBox(height: 24),
@@ -1570,6 +1604,1007 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // 3. INSTITUTIONAL ANALYTICS & TELEMETRY (N1, N6, N7, AD-R01 to AD-R06)
+  // ==========================================
+  Widget _buildInstitutionalAnalyticsHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.insights_rounded, color: Color(0xFF2563EB), size: 20),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Institutional Intelligence & Analytics',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Live telemetry across enrolment, financial health, daily attendance, and admissions',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => context.push('/school/reports'),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF2563EB),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+            icon: const Text('Reports Hub', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            label: const Icon(Icons.arrow_forward_rounded, size: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInstitutionalAnalyticsGrid(BuildContext context) {
+    if (_analyticsLoading) {
+      return Container(
+        height: 220,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF2563EB)),
+              SizedBox(height: 12),
+              Text(
+                'Computing Institutional Analytics & Trends...',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Telemetry summary metrics (AD-R04 & AD-R06)
+    double totalPassRate = 0;
+    for (final c in _examPassRates) {
+      totalPassRate += (c['pass_rate'] as num?)?.toDouble() ?? 0.0;
+    }
+    final avgPassRate = _examPassRates.isNotEmpty ? (totalPassRate / _examPassRates.length) : 0.0;
+    final topFeeHead = _feeHeadDistribution.isNotEmpty ? _feeHeadDistribution.first : null;
+
+    final telemetryBar = Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.school_rounded, size: 16, color: Color(0xFF2563EB)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _examPassRates.isNotEmpty
+                  ? 'Exams (AD-R06): ${avgPassRate.toStringAsFixed(1)}% Pass Rate across ${_examPassRates.length} sections'
+                  : 'Exams (AD-R06): Term evaluations synchronising',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Icon(Icons.pie_chart_outline_rounded, size: 16, color: Color(0xFF0D9488)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              topFeeHead != null
+                  ? 'Head-wise (AD-R04): ${topFeeHead['head']} (${topFeeHead['share_pct']}%)'
+                  : 'Head-wise (AD-R04): Tuition accounts nominal',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 950;
+        if (isWide) {
+          return Column(
+            children: [
+              telemetryBar,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildAttendanceTrendCard(context)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildFeeTrendCard(context)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildEnrolmentTrendCard(context)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildAdmissionFunnelCard(context)),
+                ],
+              ),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            telemetryBar,
+            _buildAttendanceTrendCard(context),
+            const SizedBox(height: 16),
+            _buildFeeTrendCard(context),
+            const SizedBox(height: 16),
+            _buildEnrolmentTrendCard(context),
+            const SizedBox(height: 16),
+            _buildAdmissionFunnelCard(context),
+          ],
+        );
+      },
+    );
+  }
+
+  // 1. Attendance Trajectory Card (LineChart with 75% CBSE line)
+  Widget _buildAttendanceTrendCard(BuildContext context) {
+    double avgPct = 0.0;
+    int compliantDays = 0;
+    if (_attendanceTrend.isNotEmpty) {
+      double sum = 0.0;
+      for (final item in _attendanceTrend) {
+        final p = (item['percentage'] as num?)?.toDouble() ?? 0.0;
+        sum += p;
+        if (p >= 75.0) compliantDays++;
+      }
+      avgPct = sum / _attendanceTrend.length;
+    }
+
+    final spots = <FlSpot>[];
+    for (int i = 0; i < _attendanceTrend.length; i++) {
+      final p = (_attendanceTrend[i]['percentage'] as num?)?.toDouble() ?? 0.0;
+      spots.add(FlSpot(i.toDouble(), p));
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.how_to_reg_rounded, color: Color(0xFF059669), size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '30-Day Attendance Trajectory',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_attendanceTrend.length} days recorded • CBSE 75% Min Benchmark',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: avgPct >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: avgPct >= 75 ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA),
+                  ),
+                ),
+                child: Text(
+                  '${avgPct.toStringAsFixed(1)}% Avg',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: avgPct >= 75 ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_attendanceTrend.isEmpty)
+            Container(
+              height: 180,
+              alignment: Alignment.center,
+              child: const Text(
+                'No attendance records in past 30 days',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              ),
+            )
+          else
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  minY: 0,
+                  maxY: 105,
+                  minX: 0,
+                  maxX: (_attendanceTrend.length - 1).toDouble().clamp(1.0, 100.0),
+                  lineTouchData: LineTouchData(
+                    handleBuiltInTouches: true,
+                    touchTooltipData: LineTouchTooltipData(
+                      tooltipBgColor: const Color(0xFF0F172A),
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((spot) {
+                          final idx = spot.spotIndex;
+                          final d = (idx >= 0 && idx < _attendanceTrend.length)
+                              ? (_attendanceTrend[idx]['date']?.toString() ?? '')
+                              : '';
+                          return LineTooltipItem(
+                            '$d\n${spot.y.toStringAsFixed(1)}% Attendance',
+                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
+                  extraLinesData: ExtraLinesData(
+                    horizontalLines: [
+                      HorizontalLine(
+                        y: 75.0,
+                        color: const Color(0xFFEF4444),
+                        strokeWidth: 1.5,
+                        dashArray: [4, 4],
+                        label: HorizontalLineLabel(
+                          show: true,
+                          alignment: Alignment.topRight,
+                          padding: const EdgeInsets.only(right: 4, bottom: 2),
+                          style: const TextStyle(
+                            color: Color(0xFFDC2626),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          labelResolver: (_) => '75% Min',
+                        ),
+                      ),
+                    ],
+                  ),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: 25,
+                    getDrawingHorizontalLine: (val) => const FlLine(
+                      color: Color(0xFFF1F5F9),
+                      strokeWidth: 1,
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 32,
+                        interval: 25,
+                        getTitlesWidget: (val, _) => Text(
+                          '${val.toInt()}%',
+                          style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8)),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        interval: (_attendanceTrend.length / 5).clamp(1.0, 10.0),
+                        getTitlesWidget: (val, _) {
+                          final idx = val.toInt();
+                          if (idx >= 0 && idx < _attendanceTrend.length) {
+                            final d = _attendanceTrend[idx]['date']?.toString() ?? '';
+                            final parts = d.split('-');
+                            final label = parts.length >= 3 ? '${parts[1]}/${parts[2]}' : d;
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                label,
+                                style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8)),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      curveSmoothness: 0.25,
+                      color: const Color(0xFF059669),
+                      barWidth: 2.5,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$compliantDays/${_attendanceTrend.length} Days Compliant (≥75%)',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+              ),
+              InkWell(
+                onTap: () => context.push('/school/reports'),
+                child: const Row(
+                  children: [
+                    Text(
+                      'Attendance Audit',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                    ),
+                    Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 2. Fee Collection vs Dues Trend Card (Grouped Bar Chart)
+  Widget _buildFeeTrendCard(BuildContext context) {
+    double totalCol = 0.0;
+    double totalDue = 0.0;
+    double maxVal = 0.0;
+
+    for (final item in _feeTrend) {
+      final c = (item['collected'] as num?)?.toDouble() ?? 0.0;
+      final p = (item['pending'] as num?)?.toDouble() ?? 0.0;
+      totalCol += c;
+      totalDue += p;
+      if (c > maxVal) maxVal = c;
+      if (p > maxVal) maxVal = p;
+    }
+    if (maxVal <= 0) maxVal = 50000;
+    final maxY = maxVal * 1.25;
+
+    final barGroups = <BarChartGroupData>[];
+    for (int i = 0; i < _feeTrend.length; i++) {
+      final c = (_feeTrend[i]['collected'] as num?)?.toDouble() ?? 0.0;
+      final p = (_feeTrend[i]['pending'] as num?)?.toDouble() ?? 0.0;
+      barGroups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: c,
+              color: const Color(0xFF10B981),
+              width: 7,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+            ),
+            BarChartRodData(
+              toY: p,
+              color: const Color(0xFFF59E0B),
+              width: 7,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFFD97706), size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Fee Collections vs Pending Dues',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Monthly collection performance and receivables',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(color: Color(0xFF10B981), shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Col: ${_formatCurrency(totalCol)}',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF047857)),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(color: Color(0xFFF59E0B), shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Due: ${_formatCurrency(totalDue)}',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFB45309)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_feeTrend.isEmpty)
+            Container(
+              height: 180,
+              alignment: Alignment.center,
+              child: const Text(
+                'No fee records for academic session',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              ),
+            )
+          else
+            SizedBox(
+              height: 180,
+              child: BarChart(
+                BarChartData(
+                  maxY: maxY,
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      tooltipBgColor: const Color(0xFF0F172A),
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        final m = (groupIndex >= 0 && groupIndex < _feeTrend.length)
+                            ? (_feeTrend[groupIndex]['month']?.toString() ?? '')
+                            : '';
+                        final type = rodIndex == 0 ? 'Collected' : 'Pending';
+                        return BarTooltipItem(
+                          '$m • $type\n₹${(rod.toY / 1000).toStringAsFixed(1)}k',
+                          const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                        );
+                      },
+                    ),
+                  ),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: maxY / 4,
+                    getDrawingHorizontalLine: (val) => const FlLine(
+                      color: Color(0xFFF1F5F9),
+                      strokeWidth: 1,
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 36,
+                        interval: maxY / 4,
+                        getTitlesWidget: (val, _) {
+                          if (val <= 0) return const SizedBox.shrink();
+                          final kVal = (val / 1000).round();
+                          return Text(
+                            '₹${kVal}k',
+                            style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8)),
+                          );
+                        },
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        getTitlesWidget: (val, _) {
+                          final idx = val.toInt();
+                          if (idx >= 0 && idx < _feeTrend.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                _feeTrend[idx]['month']?.toString() ?? '',
+                                style: const TextStyle(fontSize: 9, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  barGroups: barGroups,
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Grouped by Financial Month (Apr–Mar)',
+                style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+              ),
+              InkWell(
+                onTap: () => context.push('/school/fees'),
+                child: const Row(
+                  children: [
+                    Text(
+                      'Fee Ledger & Defaulters',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                    ),
+                    Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 3. Enrolment Trajectory Card (LineChart)
+  Widget _buildEnrolmentTrendCard(BuildContext context) {
+    double maxCum = 0.0;
+    final spots = <FlSpot>[];
+    for (int i = 0; i < _enrolmentTrend.length; i++) {
+      final cum = (_enrolmentTrend[i]['cumulative'] as num?)?.toDouble() ?? 0.0;
+      if (cum > maxCum) maxCum = cum;
+      spots.add(FlSpot(i.toDouble(), cum));
+    }
+    if (maxCum <= 0) maxCum = 100.0;
+    final maxY = maxCum * 1.2;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.trending_up_rounded, color: Color(0xFF2563EB), size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Session Enrolment Trajectory',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$_totalStudents Total Enrolled Students across Sections',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Text(
+                  '$_totalStudents Active',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1D4ED8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_enrolmentTrend.isEmpty)
+            Container(
+              height: 180,
+              alignment: Alignment.center,
+              child: const Text(
+                'No enrolment trend data available',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              ),
+            )
+          else
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  minY: 0,
+                  maxY: maxY,
+                  minX: 0,
+                  maxX: (_enrolmentTrend.length - 1).toDouble().clamp(1.0, 11.0),
+                  lineTouchData: LineTouchData(
+                    handleBuiltInTouches: true,
+                    touchTooltipData: LineTouchTooltipData(
+                      tooltipBgColor: const Color(0xFF0F172A),
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((spot) {
+                          final idx = spot.spotIndex;
+                          final m = (idx >= 0 && idx < _enrolmentTrend.length)
+                              ? (_enrolmentTrend[idx]['month']?.toString() ?? '')
+                              : '';
+                          final intake = (idx >= 0 && idx < _enrolmentTrend.length)
+                              ? (_enrolmentTrend[idx]['intake']?.toString() ?? '0')
+                              : '0';
+                          return LineTooltipItem(
+                            '$m: ${spot.y.toInt()} Total\n(+$intake admitted)',
+                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: maxY / 4,
+                    getDrawingHorizontalLine: (val) => const FlLine(
+                      color: Color(0xFFF1F5F9),
+                      strokeWidth: 1,
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        interval: maxY / 4,
+                        getTitlesWidget: (val, _) => Text(
+                          val.toInt().toString(),
+                          style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8)),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        getTitlesWidget: (val, _) {
+                          final idx = val.toInt();
+                          if (idx >= 0 && idx < _enrolmentTrend.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                _enrolmentTrend[idx]['month']?.toString() ?? '',
+                                style: const TextStyle(fontSize: 9, color: Color(0xFF64748B)),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      curveSmoothness: 0.3,
+                      color: const Color(0xFF2563EB),
+                      barWidth: 3,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Cumulative Student Admissions',
+                style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+              ),
+              InkWell(
+                onTap: () => context.push('/school/reports'),
+                child: const Row(
+                  children: [
+                    Text(
+                      'View Student Directory',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                    ),
+                    Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 4. Admission Funnel Card (Stage-by-stage Pipeline)
+  Widget _buildAdmissionFunnelCard(BuildContext context) {
+    final stages = _admissionFunnel.isNotEmpty
+        ? _admissionFunnel
+        : [
+            {'stage': 'Inquiries', 'count': 0, 'rate': 100.0},
+            {'stage': 'Applied', 'count': 0, 'rate': 0.0},
+            {'stage': 'Scrutiny', 'count': 0, 'rate': 0.0},
+            {'stage': 'Interaction', 'count': 0, 'rate': 0.0},
+            {'stage': 'Offers', 'count': 0, 'rate': 0.0},
+            {'stage': 'Enrolled', 'count': 0, 'rate': 0.0},
+          ];
+
+    final stageColors = [
+      const Color(0xFF6366F1), // Indigo
+      const Color(0xFF3B82F6), // Blue
+      const Color(0xFF0EA5E9), // Sky
+      const Color(0xFF0D9488), // Teal
+      const Color(0xFF10B981), // Emerald
+      const Color(0xFF059669), // Green
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3E8FF),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.filter_alt_rounded, color: Color(0xFF9333EA), size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Admission Intake Funnel',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Lead conversion from initial inquiry to enrollment',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Column(
+            children: List.generate(stages.length, (idx) {
+              final stage = stages[idx];
+              final stageName = stage['stage']?.toString() ?? '';
+              final count = (stage['count'] as num?)?.toInt() ?? 0;
+              final rate = (stage['rate'] as num?)?.toDouble() ?? 0.0;
+              final color = stageColors[idx % stageColors.length];
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          stageName,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              '$count candidates',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '(${rate.toStringAsFixed(1)}%)',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (rate / 100.0).clamp(0.02, 1.0),
+                        minHeight: 6,
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'RTE Quota Monitored via DB',
+                style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+              ),
+              InkWell(
+                onTap: () => context.push('/school/admissions'),
+                child: const Row(
+                  children: [
+                    Text(
+                      'Manage Admissions Desk',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                    ),
+                    Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF2563EB)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

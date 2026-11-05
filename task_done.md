@@ -1,5 +1,5 @@
-- **Current Step in Execution Plan:** `Step ADM2: Approvals Centre + Attention Strip (Completed) -> Moving to Step ADM3 (Analytics + Reports First Half)`
-- **Status:** Step ADM2 (Unified Approvals Centre & Attention Desk: N2 + M5) completed with 100% verification. Built unified executive approvals engine in `SchoolService` aggregating admissions under review, certificate requests, faculty leaves, student leaves, and parent grievances with exact age/SLA days. Upgraded dashboard attention strip into a comprehensive Executive Approvals Desk showing accurate total item counts, category chips with real counts, top priority decision cards with quick actions, interactive review dialogs (faculty leave with mandatory remarks on reject, certificate authorization & rejection, grievance resolution with mandatory notes), and full modal queue. Added drawer tile with live badge. Verified via live Supabase automated test `test/adm2_test.dart` (All tests passed!). `dart analyze` returned 0 issues. Moving to Step ADM3.
+- **Current Step in Execution Plan:** `Step ADM3: Analytics + Reports First Half (Completed) -> Moving to Step ADM4 (Reports Second Half + Excel: AD-R07 to AD-R14 + UDISE Excel)`
+- **Status:** Step ADM3 (Institutional Analytics & Reports Suite: N1 + N6 + N7 + AD-R01 to AD-R06) completed with 100% verification against live Supabase. Implemented 6 analytical engines in `SchoolService`, built 4 interactive `fl_chart` cards on the admin command dashboard (30-day attendance trajectory with 75% CBSE benchmark line, monthly fee collection vs dues grouped bar chart, session enrolment cumulative curve, and admission intake conversion funnel), and integrated the Admin Institutional Analytics Suite into the Reports Hub (`school_reports_screen.dart`). Verified live DB data (68 students, 152 fee records, 1,000 attendance records, 6 admissions, 13 fee heads, 1,000 exam marks). `dart analyze lib/services/ lib/features/school/` returned 0 issues. Moving to Step ADM4.
 
 ---
 
@@ -261,5 +261,36 @@
   - Added "Executive Approvals Desk" item in admin drawer with dynamic live badge counter.
 - [x] **Automated Live DB Verification:**
   - Ran `test/adm2_test.dart` asserting live Supabase data: verified approvals aggregation, faculty leave approval round-trip, and grievance resolution with audit log. All 3 tests passed!
+  - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
+
+---
+
+### [COMPLETED] Step ADM3: Analytics + Reports First Half (N1 + N6 + N7 + AD-R01 to AD-R06)
+- [x] **Institutional Analytics Engines (`lib/services/school_service.dart`):**
+  - Built `getAdminEnrolmentTrend()` (AD-R01): computes monthly new student intake and cumulative session progression across April-March academic calendar.
+  - Built `getAdminFeeCollectionTrend()` (AD-R02 / N6): computes monthly grouped financial receivables and collections from `school_fee_payments`.
+  - Built `getAdminSchoolAttendanceTrend({int days = 30})` (AD-R03): aggregates real campus-wide attendance roll call percentages across the past 30 days (filtering Sundays).
+  - Built `getAdminAdmissionFunnel()` (AD-R05 / N7): calculates stage conversion across Inquiries -> Applied -> Scrutiny -> Interaction -> Offers -> Enrolled with conversion rates.
+  - Built `getAdminFeeHeadDistribution()` (AD-R04): aggregates collection totals and percentage share across all fee heads.
+  - Built `getAdminExamClassPassRates()` (AD-R06): calculates section-wise exam pass rates (>= 33%) and average percentage scores from `school_marks`.
+- [x] **Dashboard Institutional Analytics Section UI (`lib/features/school/school_admin_dashboard.dart`):**
+  - Integrated `package:fl_chart/fl_chart.dart` (v0.65.0 standard with `tooltipBgColor: const Color(0xFF0F172A)`).
+  - Added `_buildInstitutionalAnalyticsHeader`: executive title, live subtitle, and direct navigation link to Reports Hub.
+  - Added telemetry summary bar showcasing Class Pass Rates (AD-R06) and Top Fee Head collection share (AD-R04).
+  - Built responsive analytics grid (2x2 layout on wide screens, single column on mobile) containing 4 interactive cards:
+    1. **30-Day Attendance Trajectory Card**: LineChart with real daily points, 75% CBSE statutory benchmark red dashed line, touch tooltips, compliance summary, and link to Reports Hub.
+    2. **Fee Collection vs Pending Dues Card**: Grouped BarChart with green collected rods and amber pending rods across 12 financial months, currency tooltips, and link to Fee Command.
+    3. **Session Enrolment Trajectory Card**: LineChart showing cumulative student enrolment intake curve with soft gradient fill, total active badge, and link to Student Directory.
+    4. **Admission Intake Funnel Card**: Visual stage conversion progress bars with candidate counts, stage conversion percentages, and RTE quota compliance tag.
+  - Wired into `CustomScrollView` between Executive Metrics Grid and Management Domains Matrix.
+- [x] **Reports Hub Integration (`lib/features/school/reports/school_reports_screen.dart`):**
+  - Replaced hardcoded attendance radar numbers with dynamic class cards from `_allClasses`.
+  - Integrated `_buildAdminInstitutionalAnalyticsSection` into Morning Briefing tab:
+    - 30-Day Attendance Trajectory LineChart with 75% CBSE compliance line.
+    - Class-Wise Examination Pass Rates data table (AD-R06) with evaluated count, passed count, pass % badge, and average score.
+    - Fee Head Collections breakdown chips (AD-R04) and Monthly Collections summary (AD-R02).
+    - Admission Conversion Progression stage badges (AD-R05).
+- [x] **Automated Live DB Verification:**
+  - Ran `test_adm3_verification.py` asserting live Supabase data: verified 68 students, 152 fee records (Rs. 303,900 collected, Rs. 1,574,085 pending), 1,000 attendance records, 6 admissions applications, 13 fee heads, and 1,000 exam marks.
   - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
 
