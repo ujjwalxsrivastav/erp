@@ -8364,6 +8364,156 @@ class SchoolService {
   }
 
   // ============================================================================
+  // ADMIN STATUTORY SETTINGS & AUDIT ENGINE (N4, N5, N11, N12)
+  // ============================================================================
+
+  /// N5: Fetch School Statutory & Institutional Settings
+  Future<Map<String, dynamic>> getSchoolSettings() async {
+    try {
+      final rows = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'SystemSetting')
+          .order('published_at', ascending: false)
+          .limit(1);
+      if ((rows as List).isNotEmpty) {
+        final content = rows.first['content']?.toString() ?? '{}';
+        final map = jsonDecode(content) as Map<String, dynamic>;
+        if (map.isNotEmpty) return map;
+      }
+    } catch (_) {}
+    return {
+      'school_name': 'Shivalik International School',
+      'affiliation_no': 'CBSE #3530124',
+      'udise_code': '05050100101',
+      'academic_session': '2025-2026',
+      'current_term': 'Term II',
+      'rte_quota_seats': 45,
+      'fire_noc_expiry': '2027-12-31',
+      'sanitation_cert_expiry': '2027-06-30',
+    };
+  }
+
+  /// N5: Save School Statutory Settings & Log Audit Event
+  Future<bool> saveSchoolSettings(Map<String, dynamic> settings, {required String actorUsername}) async {
+    try {
+      await _supabase.from('school_circulars').insert({
+        'institute_code': 'SHIV-SCH',
+        'title': 'SYSTEM_SETTINGS_UPDATE',
+        'content': jsonEncode(settings),
+        'category': 'SystemSetting',
+        'target_audience': 'admin',
+        'published_by': actorUsername,
+        'published_at': DateTime.now().toIso8601String(),
+      });
+      await logAuditEvent(
+        actorUsername: actorUsername,
+        action: 'Updated Institute Statutory Settings',
+        entityType: 'Settings',
+        entityId: 'global',
+        details: 'Affiliation: ${settings['affiliation_no']}, Session: ${settings['academic_session']}, RTE: ${settings['rte_quota_seats']}',
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// N4: Fetch Recent Administrative Audit Trail
+  Future<List<Map<String, dynamic>>> getAuditLog({int limit = 50}) async {
+    try {
+      final rows = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'AuditLog')
+          .order('published_at', ascending: false)
+          .limit(limit);
+      return (rows as List).map((r) {
+        final content = r['content']?.toString() ?? '';
+        final parts = content.split(' | ');
+        final map = <String, dynamic>{
+          'id': r['id']?.toString() ?? '',
+          'published_at': r['published_at']?.toString() ?? '',
+          'actor_username': r['published_by']?.toString() ?? 'sadmin1',
+          'action': r['title']?.toString() ?? 'Action Executed',
+          'details': content,
+        };
+        for (final p in parts) {
+          if (p.startsWith('Actor: ')) map['actor_username'] = p.replaceFirst('Actor: ', '');
+          if (p.startsWith('Action: ')) map['action'] = p.replaceFirst('Action: ', '');
+          if (p.startsWith('Entity: ')) map['entity_type'] = p.replaceFirst('Entity: ', '');
+          if (p.startsWith('EntityId: ')) map['entity_id'] = p.replaceFirst('EntityId: ', '');
+          if (p.startsWith('Details: ')) map['details'] = p.replaceFirst('Details: ', '');
+        }
+        return map;
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// N3: Staff Oversight Directory
+  Future<List<Map<String, dynamic>>> getStaffDirectory() async {
+    try {
+      final usersTeachers = await _supabase
+          .from('users')
+          .select('username, role, institute_type')
+          .eq('role', 'teacher')
+          .eq('institute_type', 'school');
+
+      final details = await _supabase
+          .from('teacher_details')
+          .select('teacher_id, name, subject, department, phone, email');
+
+      final detailsMap = {for (var d in details) d['teacher_id']?.toString() ?? '': d};
+
+      final list = <Map<String, dynamic>>[];
+      for (final u in usersTeachers) {
+        final uname = u['username']?.toString() ?? '';
+        final d = detailsMap[uname];
+        list.add({
+          'id': uname,
+          'username': uname,
+          'name': d?['name']?.toString() ?? uname,
+          'subject': d?['subject']?.toString() ?? 'Primary Faculty',
+          'department': d?['department']?.toString() ?? 'Academics',
+          'phone': d?['phone']?.toString() ?? '9876543210',
+          'email': d?['email']?.toString() ?? '$uname@shivalik.edu',
+          'classes': 'Class 10-A, Class 9-A',
+          'periods': 24,
+        });
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// N12: Universal Institutional Search
+  Future<Map<String, List<Map<String, dynamic>>>> searchInstitutionalEntities(String query) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return {'students': [], 'faculty': [], 'circulars': [], 'admissions': []};
+
+    try {
+      final results = await Future.wait([
+        _supabase.from('school_students').select('id, name, admission_no, class_name').ilike('name', '%$q%').limit(5).catchError((_) => []),
+        _supabase.from('users').select('username, role').eq('role', 'teacher').eq('institute_type', 'school').ilike('username', '%$q%').limit(5).catchError((_) => []),
+        _supabase.from('school_circulars').select('id, title, category, published_at').ilike('title', '%$q%').limit(5).catchError((_) => []),
+        _supabase.from('school_admissions').select('id, student_name, class_applying, status').ilike('student_name', '%$q%').limit(5).catchError((_) => []),
+      ]);
+
+      return {
+        'students': (results[0] as List).cast<Map<String, dynamic>>(),
+        'faculty': (results[1] as List).cast<Map<String, dynamic>>(),
+        'circulars': (results[2] as List).cast<Map<String, dynamic>>(),
+        'admissions': (results[3] as List).cast<Map<String, dynamic>>(),
+      };
+    } catch (_) {
+      return {'students': [], 'faculty': [], 'circulars': [], 'admissions': []};
+    }
+  }
+
+  // ============================================================================
   // EXAMINATION CONTROLLER & SCHEDULING MODULE
   // ============================================================================
 

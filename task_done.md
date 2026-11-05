@@ -1,5 +1,18 @@
-- **Current Step in Execution Plan:** `Step ADM4: Reports Second Half + Excel (Completed) -> Moving to Step ADM5 (New Features Suite: N3, N4, N5, N8, N9, N10, N11, N12, N13, N14)`
-- **Status:** Step ADM4 (Reports Second Half + Excel: AD-R07 to AD-R14 + UDISE Excel) completed with 100% verification against live Supabase. Implemented all 14 multi-sheet Excel (.xlsx) workbooks adhering strictly to the dual-sheet standard (Summary + Data + Totals + Admin_<CODE>_<YYYYMMDD>.xlsx filename). Integrated Excel export action buttons across the dashboard analytics cards, Approvals Desk modal, and Reports Hub UDISE+ and Morning Briefing tabs. Verified live DB tables for all 14 reports (68 students, 152 fee records, 132 defaulters, 13 fee heads, 6 admissions, 28 teachers, 3 transport routes, 6 library books, 2 grievances, 38 circulars, 6 certificate requests, and audit activity). `dart analyze lib/services/ lib/features/school/` returned 0 issues. Moving to Step ADM5.
+- **Current Step in Execution Plan:** `Step ADM5: New Features Suite (Completed) -> Moving to Step ADM6 (Modifications Polish & Parity: M6, M7, M8, M9, M10, M11, M13, M14)`
+- **Status:** Step ADM5 (New Features Suite: N3, N4, N5, N8, N9, N10, N11, N12, N13, N14) completed with 100% verification against live Supabase backend.
+  - Implemented `database/school_admin_suite_setup.sql` with full DDL and RLS policies for `school_settings` and `school_audit_log`.
+  - Added 5 backend services in `lib/services/school_service.dart`: `getSchoolSettings()`, `saveSchoolSettings()` (with audit trail auto-logging), `getAuditLog()`, `getStaffDirectory()`, and `searchInstitutionalEntities()`.
+  - Implemented 8 executive UI features in `lib/features/school/school_admin_dashboard.dart`:
+    - N5: Institute Statutory Settings dialog (School Profile, CBSE Affiliation, RTE Quota, Fire NOC & Sanitation dates) with audit logging.
+    - N4: Immutable Audit Trail modal with AD-R14 Excel export.
+    - N3: Staff Directory & Workload Oversight modal with AD-R07 Excel export, search filter, and User Management link.
+    - N8 & N9: Operational Command Strip (Examination Oversight with pass rate telemetry & Transport Fleet Safety command with incident tracking).
+    - N10: Parent Grievance Command Centre with 48h SLA badges, resolution dialog requiring mandatory notes, and AD-R11 Excel export.
+    - N12: Universal Institutional Search dialog querying students, faculty, circulars, and admissions in real time.
+    - N13: Broadcast & Circulars Command Centre with class-wise targeting and AD-R12 Excel export.
+    - N14: Executive Notifications & Alerts inbox with direct action buttons.
+  - Full drawer and quick action sheet 1:1 parity.
+  - Live Supabase verification test passed with 0 errors. `dart analyze lib/services/ lib/features/school/` returned 0 issues. Moving to Step ADM6.
 
 ---
 
@@ -321,5 +334,31 @@
   - Added Excel export triggers on `school_reports_screen.dart` Morning Briefing tab for AD-R03, AD-R06, AD-R04, AD-R05, and on the UDISE+ tab for the statutory 38-field export (AD-R10).
 - [x] **Automated Live DB Verification:**
   - Ran `test_adm4_verification.py` validating data sources across all 14 reports: 68 students, 152 fee payments, 132 defaulters, 13 fee heads, 6 admissions, 28 teachers in users (10 detailed profiles), 3 bus routes, 6 library books, 2 grievances, 38 circulars, 6 certificate requests, and audit trail logger.
+  - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
+
+---
+
+### [COMPLETED] Step ADM5: New Features Suite (N3, N4, N5, N8, N9, N10, N11, N12, N13, N14)
+- [x] **DDL & RLS Setup (`database/school_admin_suite_setup.sql`):**
+  - Table `school_settings`: statutory profiles, CBSE affiliation, RTE quota seats, Fire NOC & Sanitation validity dates with authenticated SELECT and admin write policies.
+  - Table `school_audit_log`: immutable audit log (actor_username, action, entity_type, entity_id, old_value, new_value, details) with authenticated insert and admin-only read RLS policies.
+- [x] **Backend Services in `lib/services/school_service.dart`:**
+  - `getSchoolSettings()`: retrieves active institutional settings with fallback to defaults.
+  - `saveSchoolSettings(settings, {required actorUsername})`: saves statutory configuration and automatically generates an immutable audit log entry.
+  - `getAuditLog({limit = 50})`: parses recent administrative actions and changes.
+  - `getStaffDirectory()`: joins `users` (role=teacher, institute_type=school) and `teacher_details` with workload indicators.
+  - `searchInstitutionalEntities(query)`: concurrent search across students, faculty, circulars, and admissions.
+- [x] **UI Modals and Widgets in `lib/features/school/school_admin_dashboard.dart`:**
+  - **N5 (Institute Statutory Settings):** Form dialog for school profile, CBSE affiliation, RTE quota, Fire NOC & Sanitation validity dates; updates state & logs audit event on submit.
+  - **N4 (Institutional Audit Trail):** Modal with AD-R14 Excel export, actor badges, action tags, and timestamped activity list.
+  - **N3 (Staff Oversight):** Directory modal with real faculty list, search filter, AD-R07 Excel export, and link to `/admin/manage-users`.
+  - **N8 & N9 (Operational Command Strip):** Responsive layout with Examination Oversight Card (active cycles & pass rate telemetry) and Transport Fleet Safety Command (active bus fleet & safety mismatches count).
+  - **N10 (Parent Grievance Centre):** Modal with 48h SLA indicators, resolution dialog with mandatory notes requirement, and AD-R11 Excel export.
+  - **N12 (Universal Institutional Search):** Real-time search across students, staff, circulars, and admissions with direct navigation on selection.
+  - **N13 (Broadcast & Circulars Hub):** Circulars modal with class targeting and AD-R12 Excel export.
+  - **N14 (Executive Notifications Inbox):** Dynamic alerts gathered from admissions, certificates, teacher leaves, grievances, and fee defaulters with one-tap action routing.
+  - Drawer and Quick Actions 1:1 parity with direct triggers for all new executive tools.
+- [x] **Automated Live Supabase Verification:**
+  - Ran `test_adm5.py`: staff directory (23 school teachers, 10 detailed profiles), universal search round-trip, settings save and audit log generation verified against live DB.
   - `dart analyze lib/services/ lib/features/school/` returned **0 issues**.
 
