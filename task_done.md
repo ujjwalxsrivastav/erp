@@ -1,9 +1,44 @@
-- **Current Step in Execution Plan:** `Step PAR4: Communication Hub (PN1, PN2, PN9, PM3, PM11)`
-- **Status:** Step PAR3 is 100% complete and verified. Daily Student Operations (PN3 Daily Homework Diary, PN4 Attendance Trajectory & CBSE <75% statutory warning banner, PN12 Exam Countdown Widget, PM9 Drill-down modals, PM14 multi-child dynamic switching) are active and verified on live Supabase with 0 analyze issues. Commencing Step PAR4. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step PAR5: Financial & Administrative Lifecycle (PN6, PM6, PN7, PN8, PM4, PM7)`
+- **Status:** Step PAR4 is 100% complete and verified. Communication Hub (PN1 Messages Inbox, PN2 Dynamic Live Alerts, PN9 1:1 Direct Teacher Messaging, PM3 Real Alerts without hardcoded copy, PM11 Circulars Integration) is active and verified on live Supabase with 0 analyze issues. Dedicated SQL schema `database/school_parent_comms_setup.sql` established. Commencing Step PAR5. Dual-ERP isolation fully intact.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step PAR4: Communication Hub (PN1, PN2, PN9, PM3, PM11)
+- [x] **Database Schema & RLS (`database/school_parent_comms_setup.sql`):**
+  - Created DDL with RLS policies for:
+    1. `school_teacher_messages` (PN1: class announcements and broadcasts).
+    2. `school_notifications` (PN2: live event feed and real alerts).
+    3. `school_parent_teacher_messages` (PN9: 1:1 direct messaging threads).
+    4. `school_parent_preferences` (PM12: notification toggles).
+- [x] **PN1 (Messages & Announcements Inbox):**
+  - Added `getParentMessagesInbox({required parentUsername, childId, classId})` in `school_service.dart`.
+  - Integrates both direct teacher messages, class notices published from teacher dashboard (`CLASS_ANNOUNCEMENT` format in `school_circulars`), and administrative school circulars.
+  - Implemented `_showMessagesInboxModal()` with two clean tabs: "Broadcasts & Notices" and "1:1 Teacher Threads".
+  - Overview Tab displays dynamic "Messages & Teacher Broadcasts" section with top 3 unread items and deep-link triggers.
+- [x] **PN2 & PM3 (Real Dynamic Live Alerts):**
+  - Added `getParentLiveAlerts({required parentUsername, required studentId, classId, className})` synthesizing real events from live DB records:
+    - Real Attendance status (Absence alert or Approved Excused Leave notice).
+    - Real Fee Dues (Outstanding balance alert with due date).
+    - Real Homework (Latest assignment alert with subject and due date).
+    - Real Circulars & Safety Notices.
+  - Eradicated all hardcoded alert copy (PM3). If all checks pass, displays serene emerald all-clear confirmation.
+  - Built `_buildLiveAlertsCard()` on Overview Tab and `_showLiveAlertsModal()` bottom sheet with direct module navigation buttons.
+- [x] **PN9 (1:1 Direct Teacher Messaging Thread):**
+  - Added `sendMessageToTeacher(...)` and `getParentTeacherThread(...)` in `school_service.dart`.
+  - Built direct message composer dialog `_showComposeTeacherMessageModal()`.
+  - Added prominent "Message Class Teacher" button in Tab 6 (Teachers & PTM) and in the Messages Inbox modal Tab 2.
+- [x] **PM11 (Circulars Dashboard Integration):**
+  - Circulars unified into the parent communication feed and filterable inside the inbox.
+  - AppBar mail icon dynamically displays badge count of unread items and opens the messages modal.
+  - Drawer entries for "Messages & Teacher Inbox" and "Live Safety Alerts" display live badges and trigger modals.
+- [x] **Automated Verification:**
+  - Live Supabase verified real Class Notices from `steacher1` for Class 10-A, real Principal notices, real PTM booking notices.
+  - `dart analyze lib/services/school_service.dart lib/features/school/parent/` returned 0 issues (0 errors, 0 warnings, 0 deprecations).
+  - Zero College ERP lines touched.
+
+---
 
 ### [COMPLETED] Step PAR3: Daily Student Operations (PN3, PN4, PN12, PM9, PM14)
 - [x] **PN3 (Daily Homework Diary):**

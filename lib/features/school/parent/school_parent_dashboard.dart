@@ -43,6 +43,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   List<Map<String, dynamic>> _homeworkDiary = [];
   Map<String, dynamic> _attendanceTrajectory = {};
   Map<String, dynamic> _examCountdown = {};
+  List<Map<String, dynamic>> _liveAlerts = [];
+  List<Map<String, dynamic>> _messagesInbox = [];
+  int _unreadMessagesCount = 0;
 
   // Theme constants
   static const Color _bg = Color(0xFFF8FAFC);
@@ -149,6 +152,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     );
     final attTraj = await _schoolService.getChildAttendanceTrajectory(studentId);
     final examCd = await _schoolService.getChildUpcomingExamCountdown(className: className);
+    final alerts = await _schoolService.getParentLiveAlerts(
+      parentUsername: _parentName,
+      studentId: studentId,
+      classId: classId,
+      className: className,
+    );
+    final msgs = await _schoolService.getParentMessagesInbox(
+      parentUsername: _parentName,
+      childId: studentId,
+      classId: classId,
+    );
 
     if (mounted) {
       setState(() {
@@ -167,6 +181,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
         _homeworkDiary = hwDiary;
         _attendanceTrajectory = attTraj;
         _examCountdown = examCd;
+        _liveAlerts = alerts;
+        _messagesInbox = msgs;
+        _unreadMessagesCount = msgs.where((m) => m['is_read'] != true).length;
       });
     }
   }
@@ -341,12 +358,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
         ),
         IconButton(
           tooltip: 'Messages & Notices',
-          icon: const Badge(
-            smallSize: 8,
-            backgroundColor: _primary,
-            child: Icon(Icons.mail_outline_rounded, size: 20),
-          ),
-          onPressed: () => _tabController.animateTo(5),
+          icon: _unreadMessagesCount > 0
+              ? Badge.count(
+                  count: _unreadMessagesCount,
+                  backgroundColor: _primary,
+                  child: const Icon(Icons.mail_outline_rounded, size: 20),
+                )
+              : const Icon(Icons.mail_outline_rounded, size: 20),
+          onPressed: _showMessagesInboxModal,
         ),
         IconButton(
           tooltip: 'Refresh Dashboard',
@@ -1421,6 +1440,721 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     );
   }
 
+  Widget _buildLiveAlertsCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _roseSoft,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.notifications_active_rounded, color: _rose, size: 16),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Live Student & Safety Alerts',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+              ),
+              const Spacer(),
+              if (_liveAlerts.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _roseSoft,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${_liveAlerts.length} Active',
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _rose),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_liveAlerts.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _emeraldSoft,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _emerald.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_user_rounded, color: _emerald, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'All clear: No critical student alerts or attendance flags for ${_currentChild?['name'] ?? "your child"} today.',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _emerald),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ..._liveAlerts.take(3).map((alert) {
+              final type = alert['type']?.toString() ?? 'alert';
+              final title = alert['title']?.toString() ?? 'Alert';
+              final body = alert['body']?.toString() ?? '';
+              final route = alert['link_route']?.toString() ?? '';
+
+              Color color;
+              Color bg;
+              IconData icon;
+
+              if (type == 'absence') {
+                color = _rose;
+                bg = _roseSoft;
+                icon = Icons.person_off_rounded;
+              } else if (type == 'fee_due') {
+                color = _amber;
+                bg = _amberSoft;
+                icon = Icons.account_balance_wallet_rounded;
+              } else if (type == 'homework') {
+                color = _blue;
+                bg = _blueSoft;
+                icon = Icons.assignment_rounded;
+              } else {
+                color = _primary;
+                bg = _primarySoft;
+                icon = Icons.campaign_rounded;
+              }
+
+              return InkWell(
+                onTap: () {
+                  if (route.isNotEmpty) {
+                    context.go(route);
+                  }
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+                        child: Icon(icon, color: color, size: 16),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: _ink)),
+                            const SizedBox(height: 2),
+                            Text(body, style: const TextStyle(fontSize: 11, color: _muted), maxLines: 2, overflow: TextOverflow.ellipsis),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right_rounded, size: 18, color: _muted),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewMessagesSection() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: _primarySoft,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.forum_rounded, color: _primary, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Messages & Teacher Broadcasts',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                  ),
+                ],
+              ),
+              TextButton(
+                onPressed: _showMessagesInboxModal,
+                child: const Text('View All Inbox', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _primary)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (_messagesInbox.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Text('No active messages or teacher broadcasts for this class cohort.', style: TextStyle(color: _muted, fontSize: 12)),
+              ),
+            )
+          else
+            ..._messagesInbox.take(3).map((m) {
+              final sender = m['sender']?.toString() ?? 'Faculty';
+              final subj = m['subject']?.toString() ?? 'Notice';
+              final body = m['body']?.toString() ?? '';
+              final isTeacher = m['type'] == 'teacher_message';
+              final isClass = m['type'] == 'class_announcement';
+
+              return InkWell(
+                onTap: _showMessagesInboxModal,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: isTeacher ? _emeraldSoft : (isClass ? _blueSoft : _primarySoft),
+                        child: Icon(
+                          isTeacher ? Icons.person_rounded : (isClass ? Icons.campaign_rounded : Icons.article_rounded),
+                          size: 14,
+                          color: isTeacher ? _emerald : (isClass ? _blue : _primary),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(sender, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: _ink)),
+                                Text(
+                                  isTeacher ? '1:1 Thread' : (isClass ? 'Class Notice' : 'Circular'),
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: isTeacher ? _emerald : _muted),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(subj, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _ink)),
+                            if (body.isNotEmpty) ...[
+                              const SizedBox(height: 1),
+                              Text(body, style: const TextStyle(fontSize: 11, color: _muted), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  void _showLiveAlertsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+          maxWidth: 640,
+        ),
+        decoration: const BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: _roseSoft, borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.notifications_active_rounded, color: _rose, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Live Student & Safety Alerts', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                        Text('Real dynamic updates derived from school registers', style: TextStyle(fontSize: 12, color: _muted)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: _border),
+            Flexible(
+              child: _liveAlerts.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(
+                        child: Text('All clear: No critical student alerts or attendance flags.', style: TextStyle(color: _muted)),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _liveAlerts.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (c, i) {
+                        final a = _liveAlerts[i];
+                        final title = a['title']?.toString() ?? 'Alert';
+                        final body = a['body']?.toString() ?? '';
+                        final route = a['link_route']?.toString() ?? '';
+
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: _border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: _ink)),
+                              const SizedBox(height: 4),
+                              Text(body, style: const TextStyle(fontSize: 12, color: _muted)),
+                              if (route.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(ctx);
+                                      context.go(route);
+                                    },
+                                    child: const Text('Open Module', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _primary)),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMessagesInboxModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DefaultTabController(
+        length: 2,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.90,
+            maxWidth: 680,
+          ),
+          decoration: const BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.forum_rounded, color: _primary, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Parent Communication Inbox', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                          Text('Student: ${_currentChild?['name'] ?? "Child"} (${_currentChild?['class_name'] ?? ""})', style: const TextStyle(fontSize: 12, color: _muted)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              const TabBar(
+                labelColor: _primary,
+                unselectedLabelColor: _muted,
+                indicatorColor: _primary,
+                indicatorSize: TabBarIndicatorSize.tab,
+                tabs: [
+                  Tab(icon: Icon(Icons.campaign_outlined, size: 16), text: 'Broadcasts & Notices'),
+                  Tab(icon: Icon(Icons.chat_bubble_outline_rounded, size: 16), text: '1:1 Teacher Threads'),
+                ],
+              ),
+              const Divider(height: 1, color: _border),
+              Flexible(
+                child: TabBarView(
+                  children: [
+                    // Tab 1: Broadcasts & Notices
+                    _messagesInbox.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(40),
+                              child: Text('No announcements or circulars received yet.', style: TextStyle(color: _muted)),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _messagesInbox.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (c, i) {
+                              final m = _messagesInbox[i];
+                              final sender = m['sender']?.toString() ?? 'Faculty';
+                              final subj = m['subject']?.toString() ?? 'Notice';
+                              final body = m['body']?.toString() ?? '';
+                              final src = m['source']?.toString() ?? 'School';
+                              final dt = m['created_at']?.toString() ?? '';
+
+                              return Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: _border),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(6)),
+                                          child: Text(src, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: _primary)),
+                                        ),
+                                        if (dt.isNotEmpty)
+                                          Text(dt.contains('T') ? dt.split('T')[0] : dt, style: const TextStyle(fontSize: 11, color: _muted)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(subj, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: _ink)),
+                                    const SizedBox(height: 4),
+                                    Text(body, style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155))),
+                                    const SizedBox(height: 6),
+                                    Text('From: $sender', style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: _muted)),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+
+                    // Tab 2: 1:1 Teacher Thread & Compose
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: _border),
+                            ),
+                            child: Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: _primarySoft,
+                                  child: Icon(Icons.school_rounded, color: _primary, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _currentChild?['class_teacher'] ?? 'Class Teacher',
+                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: _ink),
+                                      ),
+                                      Text(
+                                        'Class Mentor • ${_currentChild?['class_name'] ?? ""} ${_currentChild?['section'] ?? ""}',
+                                        style: const TextStyle(fontSize: 11, color: _muted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.pop(ctx);
+                                    _showComposeTeacherMessageModal();
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _primary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    elevation: 0,
+                                  ),
+                                  icon: const Icon(Icons.send_rounded, size: 14),
+                                  label: const Text('Send Message', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: FutureBuilder<List<Map<String, dynamic>>>(
+                              future: _schoolService.getParentTeacherThread(
+                                parentUsername: _parentName,
+                                studentId: _currentChild?['username']?.toString() ?? _currentChild?['id']?.toString() ?? '',
+                                teacherId: _currentChild?['class_teacher_id']?.toString() ?? 'classteacher',
+                              ),
+                              builder: (c, snap) {
+                                if (snap.connectionState == ConnectionState.waiting) {
+                                  return const Center(child: CircularProgressIndicator());
+                                }
+                                final threads = snap.data ?? [];
+                                if (threads.isEmpty) {
+                                  return Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.mark_chat_unread_outlined, size: 40, color: _muted.withValues(alpha: 0.4)),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'No direct messages exchanged with ${_currentChild?['class_teacher'] ?? "the teacher"} yet.',
+                                          style: const TextStyle(color: _muted, fontSize: 12),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        const Text(
+                                          'Tap "Send Message" above to initiate a direct query.',
+                                          style: TextStyle(color: _muted, fontSize: 11),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+
+                                return ListView.separated(
+                                  itemCount: threads.length,
+                                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                                  itemBuilder: (c, idx) {
+                                    final th = threads[idx];
+                                    final isParent = th['sender_role'] == 'parent';
+                                    final b = th['body']?.toString() ?? '';
+                                    final sub = th['subject']?.toString() ?? '';
+                                    final time = th['created_at']?.toString() ?? '';
+
+                                    return Align(
+                                      alignment: isParent ? Alignment.centerRight : Alignment.centerLeft,
+                                      child: Container(
+                                        constraints: const BoxConstraints(maxWidth: 320),
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: isParent ? _primarySoft : const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: isParent ? _primary.withValues(alpha: 0.25) : _border),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            if (sub.isNotEmpty)
+                                              Text(sub, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isParent ? _primary : _ink)),
+                                            Text(b, style: const TextStyle(fontSize: 12.5, color: _ink)),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              time.contains('T') ? time.split('T')[0] : time,
+                                              style: TextStyle(fontSize: 9.5, color: isParent ? _primary.withValues(alpha: 0.7) : _muted),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showComposeTeacherMessageModal() {
+    final subCtrl = TextEditingController();
+    final bodyCtrl = TextEditingController();
+    final teacherName = _currentChild?['class_teacher'] ?? 'Class Teacher';
+    final teacherId = _currentChild?['class_teacher_id']?.toString() ?? 'classteacher';
+    final studentId = _currentChild?['username']?.toString() ?? _currentChild?['id']?.toString() ?? '';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.mail_outline_rounded, color: _primary, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Direct Message to Teacher', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+                  Text('Recipient: $teacherName', style: const TextStyle(fontSize: 12, color: _muted)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('SUBJECT / TOPIC', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _muted)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: subCtrl,
+              decoration: InputDecoration(
+                hintText: 'e.g. Query regarding Science Project',
+                hintStyle: const TextStyle(fontSize: 13, color: _muted),
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _border)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('MESSAGE BODY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _muted)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: bodyCtrl,
+              maxLines: 4,
+              decoration: InputDecoration(
+                hintText: 'Type your message to the class faculty...',
+                hintStyle: const TextStyle(fontSize: 13, color: _muted),
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _border)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: _muted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final sub = subCtrl.text.trim();
+              final body = bodyCtrl.text.trim();
+              if (body.isEmpty) return;
+
+              Navigator.pop(ctx);
+              final ok = await _schoolService.sendMessageToTeacher(
+                parentUsername: _parentName,
+                studentId: studentId,
+                teacherId: teacherId,
+                teacherName: teacherName,
+                subject: sub.isNotEmpty ? sub : 'Parent Query',
+                body: body,
+              );
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? 'Message delivered to $teacherName.' : 'Message dispatched.'),
+                    backgroundColor: _primary,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                // Refresh data
+                final child = _currentChild;
+                if (child != null) {
+                  _loadSelectedChildDetails(child);
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            child: const Text('Send Message', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOverviewTab() {
     final attPct = (_metrics['attendance'] as num?)?.toDouble() ?? 0.0;
     final feesPending = _metrics['pendingFeesDisplay']?.toString() ?? '₹0';
@@ -1498,6 +2232,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               ],
             ),
           ),
+
+        // PN2: Real Live Student & Safety Alerts Card
+        _buildLiveAlertsCard(),
 
         // 2. PN12: Upcoming Exam Countdown & Datesheet Banner
         if (_examCountdown['has_upcoming'] == true)
@@ -1719,6 +2456,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             ],
           ),
         ),
+
+        // PN1 & PM11: Messages & Teacher Broadcasts Section
+        _buildOverviewMessagesSection(),
 
         // Today's Live Class Timetable Tracker
         Container(
@@ -3193,35 +3933,58 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Action Buttons Row
-        Row(
+        // Action Buttons Row (PN9: 1:1 Direct Teacher Message, PTM, Grievance)
+        Column(
           children: [
-            Expanded(
+            SizedBox(
+              width: double.infinity,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
-                onPressed: _showBookPtmModal,
-                icon: const Icon(Icons.calendar_month_rounded, size: 18),
-                label: const Text('Schedule PTM Slot', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                onPressed: () => _showComposeTeacherMessageModal(),
+                icon: const Icon(Icons.send_rounded, size: 18),
+                label: Text(
+                  'Message Class Teacher (${_currentChild?['class_teacher'] ?? "Faculty"})',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _rose,
-                  side: const BorderSide(color: Color(0xFFFECDD3)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _ink,
+                      side: const BorderSide(color: _border),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _showBookPtmModal,
+                    icon: const Icon(Icons.calendar_month_rounded, size: 16),
+                    label: const Text('Schedule PTM', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                  ),
                 ),
-                onPressed: _showFileComplaintModal,
-                icon: const Icon(Icons.report_problem_outlined, size: 18),
-                label: const Text('Principal Grievance', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _rose,
+                      side: const BorderSide(color: Color(0xFFFECDD3)),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _showFileComplaintModal,
+                    icon: const Icon(Icons.report_problem_outlined, size: 16),
+                    label: const Text('Principal Grievance', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -4881,12 +5644,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard Home', () => Navigator.pop(context), isActive: true),
                   _buildDrawerTile(Icons.chat_bubble_outline_rounded, 'Messages & Teacher Inbox', () {
                     Navigator.pop(context);
-                    _tabController.animateTo(5);
-                  }, badgeCount: 2),
+                    _showMessagesInboxModal();
+                  }, badgeCount: _unreadMessagesCount),
                   _buildDrawerTile(Icons.notifications_active_outlined, 'Live Safety Alerts', () {
                     Navigator.pop(context);
-                    _tabController.animateTo(0);
-                  }),
+                    _showLiveAlertsModal();
+                  }, badgeCount: _liveAlerts.length),
                   _buildDrawerTile(Icons.badge_outlined, 'My Children Registry', () {
                     Navigator.pop(context);
                     _showMyChildrenModal();
