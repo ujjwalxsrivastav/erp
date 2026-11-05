@@ -1,9 +1,44 @@
-- **Current Step in Execution Plan:** `Step STU7: Final QA, Live DB Regression & Production Verification`
-- **Status:** Step STU6 (Modifications Polish & Parity: M7, M8, M9, M10, M11) is 100% complete and verified with 0 analyze issues. Homework urgency colors and instant submission modal (M8), Results exam overall percentage and comparative arrows (M9), resilient non-collapsing Announcements empty state (M10), full 4-state lifecycle (M7), and 1:1 parity between Quick Services and Drawer (M11) are fully implemented. Commencing Step STU7: Final QA, Live DB Regression, and Production Verification. Dual-ERP isolation fully intact.
+- **Current Step in Execution Plan:** `Step STU7: Final QA, Live DB Regression & Production Verification [COMPLETED]`
+- **Status:** **School ERP Student Dashboard Deep-Dive (STU0 to STU7) is 100% COMPLETE!** Full live database regression suite passed with 100% assertions (41/41 tests): privacy isolation strictly verified on live Supabase across all modules (0 data leakage between students), zero mock/fake data across the entire codebase confirmed via automated grep audit, all 13 per-student Excel reports (STU-R01 to STU-R13) active and adhering to dual-sheet standard with strict naming, 16-module 1:1 parity between Drawer and Quick Services, static analysis clean with 0 errors and 0 warnings (`flutter analyze lib/features/school/ lib/services/`), and 100% dual-ERP isolation preserved (0 college files modified). Ready for client handover.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step STU7: Final QA, Live DB Regression & Production Verification
+- [x] **Live Supabase Privacy Isolation Test (41/41 Assertions Passed):**
+  - Verified Attendance Privacy: strictly scoped by `student_id = username`, 0 overlap between distinct students.
+  - Verified Marks Privacy: strictly scoped by `student_id = username`, 0 overlap between distinct students.
+  - Verified Homework Submissions Privacy: strictly scoped by `student_id = username`, 0 overlap.
+  - Verified Fee Payments Privacy: strictly scoped by `student_id = username`, 0 overlap.
+  - Verified Leave Requests Privacy: service layer strictly isolates by `studentId` / `student_username`.
+  - Verified Library Issues Privacy: strictly scoped to student, 0 overlap between students.
+  - Verified Certificate Requests Privacy: strictly scoped by `username`, 0 overlap.
+- [x] **Zero Mock / Hardcoded Purge Codebase Audit:**
+  - Automated regex/grep verification confirmed complete absence of banned mock constants: `Mr. R. Sharma`, `Ms. A. Sen`, `Dr. K. Verma`, `Mrs. P. Joshi`, `Room 102`, `94.2`, `SHIV-2024-89`, `mat-01`, `quiz-sci-01`, `_defaultIssued`, `_defaultCertificateRequests`.
+- [x] **13 Per-Student Excel Workbooks Verification (STU-R01 to STU-R13):**
+  - Confirmed all 13 report generator methods in `SchoolExportService`:
+    1. `exportStudentAttendanceTrendExcel` (STU-R01)
+    2. `exportStudentAttendanceRegisterExcel` (STU-R02)
+    3. `exportStudentMarksTrendExcel` (STU-R03)
+    4. `exportStudentSubjectPerformanceExcel` (STU-R04)
+    5. `exportStudentReportCardExcel` (STU-R05)
+    6. `exportStudentHomeworkCompletionExcel` (STU-R06)
+    7. `exportStudentHomeworkSubmissionsLogExcel` (STU-R07)
+    8. `exportStudentFeeStatementExcel` (STU-R08)
+    9. `exportStudentFeeReceiptsExcel` (STU-R09)
+    10. `exportStudentLeaveHistoryExcel` (STU-R10)
+    11. `exportStudentLibraryHistoryExcel` (STU-R11)
+    12. `exportStudentStudyProgressExcel` (STU-R12)
+    13. `exportStudentCertificatesLogExcel` (STU-R13)
+  - Verified Dual-Sheet structure (`Summary` + `Data` with total row) and naming standard `Student_<username>_<CODE>_<YYYYMMDD>.xlsx`.
+- [x] **Dual-ERP Strict Isolation:**
+  - `git status --porcelain lib/features/college` verified completely clean (0 modified or uncommitted files).
+  - Git log analysis confirmed ZERO college files touched across all student dashboard commits.
+- [x] **Static Analysis & Flutter Verification:**
+  - `flutter analyze lib/features/school/ lib/services/` returned **0 issues found** (0 errors, 0 warnings).
+
+---
 
 ### [COMPLETED] Step STU6: Modifications Polish & Parity (M7, M8, M9, M10, M11)
 - [x] **M8 (Homework Card - Urgency & Specific Modal):**

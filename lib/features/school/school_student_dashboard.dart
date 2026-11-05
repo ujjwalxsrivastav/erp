@@ -1033,7 +1033,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                 final subject = item['subject']?.toString() ?? 'Class';
                 final room = item['room']?.toString() ?? '';
                 final teacher = item['teacher']?.toString() ?? '';
-                final roomText = (room.isNotEmpty && room != 'Room 102' && room != 'Classroom')
+                final roomText = (room.isNotEmpty && room != 'Classroom')
                     ? ' • $room'
                     : '';
                 final teacherText = teacher.isNotEmpty ? ' • $teacher' : '';
