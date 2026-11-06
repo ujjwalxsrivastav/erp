@@ -5419,14 +5419,14 @@ class SchoolService {
     String? notes,
     String? recordedBy,
   }) async {
+    await permissions.enforce(feature: 'transport', requiredPermission: 'edit');
+
     final now = DateTime.now();
     final todayStr = now.toIso8601String().split('T')[0];
     final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-
-    final structured =
-        'BUS_ATTENDANCE_LOG | Date: $todayStr | Time: $timeStr | Shift: $shift | RouteId: $routeId | '
-        'Stop: $stopName | StudentId: $studentId | StudentName: $studentName | '
-        'Action: $action | Notes: ${notes ?? ""} | RecordedBy: ${recordedBy ?? "Bus Attendant"}';
+    final currentUsername = await AuthService().getCurrentUsername() ?? 'Bus Attendant';
+    final actualRecorder = recordedBy ?? currentUsername;
+    final isPresent = (action == 'Boarded' || action == 'Dropped');
 
     final logItem = {
       'id': 'log-${DateTime.now().millisecondsSinceEpoch}',
@@ -5439,7 +5439,7 @@ class SchoolService {
       'notes': notes ?? '',
       'time': timeStr,
       'date': todayStr,
-      'recorded_by': recordedBy ?? 'Bus Attendant',
+      'recorded_by': actualRecorder,
       'created_at': now.toIso8601String(),
     };
 
@@ -5450,15 +5450,31 @@ class SchoolService {
     _busAttendanceStore.insert(0, logItem);
 
     try {
-      final payload = {
-        'institute_code': 'SHIV-SCH',
-        'title': 'Bus Attendance: $studentName ($action in $shift at $stopName)',
-        'content': structured,
-        'category': 'BusAttendance',
-        'target_audience': studentId,
-        'published_by': recordedBy ?? 'Bus Attendant',
-      };
-      await _supabase.from('school_circulars').insert(payload);
+      try {
+        await _supabase.from('transport_attendance').insert({
+          'bus_id': routeId,
+          'attendance_date': todayStr,
+          'student_id': studentId,
+          'student_name': studentName,
+          'is_present': isPresent,
+          'marked_by': actualRecorder,
+          'route_id': routeId,
+          'stop_name': stopName,
+          'shift': shift,
+          'action': action,
+          'notes': notes ?? '',
+        });
+      } catch (colErr) {
+        // Fallback to base columns if extended columns are not yet present in DB schema
+        await _supabase.from('transport_attendance').insert({
+          'bus_id': routeId,
+          'attendance_date': todayStr,
+          'student_id': studentId,
+          'student_name': studentName,
+          'is_present': isPresent,
+          'marked_by': actualRecorder,
+        });
+      }
     } catch (_) {}
 
     return logItem;
@@ -5472,65 +5488,64 @@ class SchoolService {
   }) async {
     final list = <Map<String, dynamic>>[];
 
-    // Include cached in-memory logs
+    try {
+      var query = _supabase.from('transport_attendance').select();
+      if (studentId != null && studentId.isNotEmpty) {
+        query = query.eq('student_id', studentId);
+      }
+      if (date != null && date.isNotEmpty) {
+        query = query.eq('attendance_date', date);
+      }
+      final response = await query.order('created_at', ascending: false);
+      for (final row in response) {
+        final rRoute = row['route_id']?.toString() ?? row['bus_id']?.toString() ?? '';
+        final rShift = row['shift']?.toString() ?? 'Morning Pickup';
+        if (routeId != null && routeId.isNotEmpty && routeId != '__all__' && rRoute != routeId) {
+          continue;
+        }
+        if (shift != null && shift.isNotEmpty && rShift != shift) {
+          continue;
+        }
+
+        final createdAtStr = row['created_at']?.toString() ?? '';
+        String timeStr = '';
+        if (createdAtStr.contains('T')) {
+          timeStr = createdAtStr.split('T')[1].split('.').first;
+          if (timeStr.length >= 5) timeStr = timeStr.substring(0, 5);
+        }
+
+        list.add({
+          'id': row['id']?.toString() ?? '',
+          'student_id': row['student_id']?.toString() ?? '',
+          'student_name': row['student_name']?.toString() ?? '',
+          'route_id': rRoute,
+          'stop': row['stop_name']?.toString() ?? '',
+          'shift': rShift,
+          'action': row['action']?.toString() ?? (row['is_present'] == true ? 'Boarded' : 'Absent'),
+          'notes': row['notes']?.toString() ?? '',
+          'time': timeStr,
+          'date': row['attendance_date']?.toString() ?? '',
+          'recorded_by': row['marked_by']?.toString() ?? 'Bus Attendant',
+          'created_at': createdAtStr,
+        });
+      }
+    } catch (_) {}
+
+    // Include cached in-memory logs if not duplicate
     for (final l in _busAttendanceStore) {
       if (studentId != null && studentId.isNotEmpty && l['student_id'] != studentId) continue;
       if (date != null && date.isNotEmpty && l['date'] != date) continue;
       if (shift != null && shift.isNotEmpty && l['shift'] != shift) continue;
       if (routeId != null && routeId.isNotEmpty && routeId != '__all__' && l['route_id'] != routeId) continue;
-      list.add(Map<String, dynamic>.from(l));
-    }
 
-    try {
-      final response = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'BusAttendance')
-          .order('created_at', ascending: false);
-
-      for (final row in response) {
-        final content = row['content']?.toString() ?? '';
-        if (content.contains('BUS_ATTENDANCE_LOG')) {
-          final parts = content.split('|');
-          final map = <String, String>{};
-          for (final p in parts) {
-            final kv = p.split(':');
-            if (kv.length >= 2) {
-              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
-            }
-          }
-
-          final sId = map['StudentId'] ?? '';
-          final d = map['Date'] ?? '';
-          final sh = map['Shift'] ?? 'Morning Pickup';
-          final rId = map['RouteId'] ?? '';
-
-          if (studentId != null && studentId.isNotEmpty && sId != studentId) continue;
-          if (date != null && date.isNotEmpty && d != date) continue;
-          if (shift != null && shift.isNotEmpty && sh != shift) continue;
-          if (routeId != null && routeId.isNotEmpty && routeId != '__all__' && rId != routeId) continue;
-
-          // Avoid duplicating items already in _busAttendanceStore
-          final exists = list.any((e) => e['student_id'] == sId && e['date'] == d && e['shift'] == sh);
-          if (!exists) {
-            list.add({
-              'id': row['id'],
-              'student_id': sId,
-              'student_name': map['StudentName'] ?? '',
-              'route_id': rId,
-              'stop': map['Stop'] ?? '',
-              'shift': sh,
-              'action': map['Action'] ?? 'Boarded',
-              'notes': map['Notes'] ?? '',
-              'time': map['Time'] ?? '',
-              'date': d,
-              'recorded_by': map['RecordedBy'] ?? 'Bus Attendant',
-              'created_at': row['published_at'] ?? row['created_at'],
-            });
-          }
-        }
+      final exists = list.any((e) =>
+          e['student_id'] == l['student_id'] &&
+          e['date'] == l['date'] &&
+          e['shift'] == l['shift']);
+      if (!exists) {
+        list.add(Map<String, dynamic>.from(l));
       }
-    } catch (_) {}
+    }
 
     return list;
   }

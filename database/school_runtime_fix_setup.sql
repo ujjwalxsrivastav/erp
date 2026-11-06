@@ -371,5 +371,35 @@ GRANT ALL ON public.school_ai_question_papers TO anon, authenticated, service_ro
 GRANT ALL ON public.school_ai_feedback TO anon, authenticated, service_role;
 GRANT ALL ON public.school_ai_usage_log TO anon, authenticated, service_role;
 
+-- ============================================================================
+-- 9. Transport Attendance Extensions (B3)
+-- ============================================================================
+ALTER TABLE IF EXISTS public.transport_attendance ADD COLUMN IF NOT EXISTS route_id TEXT;
+ALTER TABLE IF EXISTS public.transport_attendance ADD COLUMN IF NOT EXISTS stop_name TEXT;
+ALTER TABLE IF EXISTS public.transport_attendance ADD COLUMN IF NOT EXISTS shift TEXT;
+ALTER TABLE IF EXISTS public.transport_attendance ADD COLUMN IF NOT EXISTS action TEXT;
+ALTER TABLE IF EXISTS public.transport_attendance ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE IF EXISTS public.transport_attendance DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.transport_attendance TO anon, authenticated, service_role;
+
+-- ============================================================================
+-- 10. Teacher Class & Subject Mapping (B5)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.school_teacher_classes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    teacher_username TEXT NOT NULL,
+    class_id TEXT NOT NULL,
+    subject_name TEXT,
+    academic_year TEXT DEFAULT '2026-2027',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(teacher_username, class_id, subject_name)
+);
+CREATE INDEX IF NOT EXISTS idx_school_teacher_classes_teacher ON public.school_teacher_classes (teacher_username);
+CREATE INDEX IF NOT EXISTS idx_school_teacher_classes_class ON public.school_teacher_classes (class_id);
+
+ALTER TABLE IF EXISTS public.school_teacher_classes DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_teacher_classes TO anon, authenticated, service_role;
+
 SELECT 'School ERP runtime tables successfully created and verified!' AS status;
+
 
