@@ -102,6 +102,7 @@ import '../features/school/attendance/student_attendance_screen.dart';
 import '../features/school/marks/marks_csv_upload_screen.dart';
 import '../features/school/marks/marks_entry_screen.dart';
 import '../features/school/marks/report_card_screen.dart';
+import '../features/school/marks/student_report_card_screen.dart';
 import '../features/school/timetable/school_timetable_screen.dart';
 import '../features/school/circulars/circulars_screen.dart';
 import '../features/school/transport/transport_screen.dart';
@@ -589,7 +590,7 @@ final router = GoRouter(
         builder: (context, state) => const ReportCardScreen()),
     GoRoute(
         path: '/school/report-card-student',
-        builder: (context, state) => const ReportCardScreen()),
+        builder: (context, state) => const StudentReportCardScreen()),
     GoRoute(
         path: '/school/fees-admin',
         builder: (context, state) => const SchoolFeeScreen()),
