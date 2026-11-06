@@ -4013,7 +4013,7 @@ class SchoolService {
       }
     } catch (_) {}
 
-    return 94.2;
+    return 0;
   }
 
   /// A student's own attendance records (backend truth, newest first).
