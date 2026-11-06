@@ -124,6 +124,7 @@ import '../features/school/library/school_library_deep_screen.dart';
 import '../features/school/admin/school_permission_matrix_screen.dart';
 import '../features/school/ai/school_ai_assistant_screen.dart';
 import '../features/school/calendar/school_academic_calendar_screen.dart';
+import '../features/school/admin/school_masters_screen.dart';
 import '../services/auth_service.dart';
 
 /// Route permission mappings for School ERP (Deny-by-default access control)
@@ -146,6 +147,7 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/promotion': _schoolAdminRoles,
   '/school/multi-admin': {'admin', 'sadmin', 'superadmin'},
   '/school/permissions': {'admin', 'sadmin', 'superadmin'},
+  '/school/masters': _schoolAdminRoles,
   '/school/payroll': _schoolAccountantRoles,
 
   // Staff (Teacher + Admin)
@@ -518,6 +520,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/academic-calendar',
       builder: (context, state) => const SchoolAcademicCalendarScreen(),
+    ),
+    GoRoute(
+      path: '/school/masters',
+      builder: (context, state) => const SchoolMastersScreen(),
     ),
 
     // ===== SCHOOL - PARENT =====

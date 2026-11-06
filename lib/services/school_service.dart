@@ -1695,6 +1695,152 @@ class SchoolService {
     }
   }
 
+  // ==========================================
+  // MASTERS CRUD (D10 / M75)
+  // ==========================================
+
+  Future<Map<String, dynamic>> createSchoolClass({
+    required String name,
+    required String section,
+    String? classTeacherId,
+    String instituteCode = 'SHIV-SCH',
+  }) async {
+    await SchoolPermissionService().enforce(
+      feature: 'admissions',
+      requiredPermission: 'edit',
+    );
+    final cleanName = name.trim();
+    final cleanSec = section.trim().toUpperCase();
+    if (cleanName.isEmpty) throw Exception('Class name is required (e.g. "Class 10").');
+    if (cleanSec.isEmpty) throw Exception('Section is required (e.g. "A").');
+
+    final payload = {
+      'institute_code': instituteCode,
+      'name': cleanName,
+      'section': cleanSec,
+      if (classTeacherId != null && classTeacherId.isNotEmpty) 'class_teacher_id': classTeacherId,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    final res = await _supabase.from('school_classes').insert(payload).select().single();
+    final actor = await AuthService().getCurrentUsername() ?? 'admin';
+    await payroll.logAudit(
+      actorUsername: actor,
+      action: 'create_school_class',
+      entity: 'school_classes',
+      entityId: res['id']?.toString() ?? '${cleanName}_$cleanSec',
+      newValue: res,
+    );
+    return Map<String, dynamic>.from(res);
+  }
+
+  Future<Map<String, dynamic>> updateSchoolClass({
+    required String id,
+    String? name,
+    String? section,
+    String? classTeacherId,
+    bool? isActive,
+  }) async {
+    await SchoolPermissionService().enforce(
+      feature: 'admissions',
+      requiredPermission: 'edit',
+    );
+    final updates = <String, dynamic>{
+      if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+      if (section != null && section.trim().isNotEmpty) 'section': section.trim().toUpperCase(),
+      if (classTeacherId != null) 'class_teacher_id': classTeacherId.isEmpty ? null : classTeacherId,
+      if (isActive != null) 'is_active': isActive,
+    };
+    if (updates.isEmpty) throw Exception('No changes provided to update.');
+
+    final res = await _supabase.from('school_classes').update(updates).eq('id', id).select().single();
+    final actor = await AuthService().getCurrentUsername() ?? 'admin';
+    await payroll.logAudit(
+      actorUsername: actor,
+      action: 'update_school_class',
+      entity: 'school_classes',
+      entityId: id,
+      newValue: updates,
+    );
+    return Map<String, dynamic>.from(res);
+  }
+
+  Future<bool> deactivateSchoolClass(String id) async {
+    await updateSchoolClass(id: id, isActive: false);
+    return true;
+  }
+
+  Future<Map<String, dynamic>> createSchoolSubject({
+    required String name,
+    required String code,
+    String? classId,
+  }) async {
+    await SchoolPermissionService().enforce(
+      feature: 'marks',
+      requiredPermission: 'edit',
+    );
+    final cleanName = name.trim();
+    final cleanCode = code.trim().toUpperCase();
+    if (cleanName.isEmpty) throw Exception('Subject name is required (e.g. "Mathematics Standard").');
+    if (cleanCode.isEmpty) throw Exception('Subject code is required (e.g. "041").');
+
+    final id = 'subj-${cleanCode.toLowerCase()}-${DateTime.now().millisecondsSinceEpoch % 10000}';
+    final payload = {
+      'id': id,
+      'name': cleanName,
+      'code': cleanCode,
+      if (classId != null && classId.isNotEmpty) 'class_id': classId,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    final res = await _supabase.from('school_subjects').insert(payload).select().single();
+    final actor = await AuthService().getCurrentUsername() ?? 'admin';
+    await payroll.logAudit(
+      actorUsername: actor,
+      action: 'create_school_subject',
+      entity: 'school_subjects',
+      entityId: id,
+      newValue: res,
+    );
+    return Map<String, dynamic>.from(res);
+  }
+
+  Future<Map<String, dynamic>> updateSchoolSubject({
+    required String id,
+    String? name,
+    String? code,
+    String? classId,
+    bool? isActive,
+  }) async {
+    await SchoolPermissionService().enforce(
+      feature: 'marks',
+      requiredPermission: 'edit',
+    );
+    final updates = <String, dynamic>{
+      if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+      if (code != null && code.trim().isNotEmpty) 'code': code.trim().toUpperCase(),
+      if (classId != null) 'class_id': classId.isEmpty ? null : classId,
+      if (isActive != null) 'is_active': isActive,
+    };
+    if (updates.isEmpty) throw Exception('No changes provided to update.');
+
+    final res = await _supabase.from('school_subjects').update(updates).eq('id', id).select().single();
+    final actor = await AuthService().getCurrentUsername() ?? 'admin';
+    await payroll.logAudit(
+      actorUsername: actor,
+      action: 'update_school_subject',
+      entity: 'school_subjects',
+      entityId: id,
+      newValue: updates,
+    );
+    return Map<String, dynamic>.from(res);
+  }
+
+  Future<bool> deactivateSchoolSubject(String id) async {
+    await updateSchoolSubject(id: id, isActive: false);
+    return true;
+  }
+
   // ===== SCHOOL STATS (Admin Dashboard) =====
   Future<Map<String, dynamic>> getSchoolStats(String? instituteId) async {
     int totalStudents = 0;
