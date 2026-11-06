@@ -47,7 +47,8 @@ class SchoolService {
   }
 
   /// Returns all unique classes assigned to this teacher (both as Class Teacher and Subject Faculty).
-  Future<List<Map<String, dynamic>>> getTeacherAllAssignedClasses(String teacherUsername) async {
+  Future<List<Map<String, dynamic>>> getTeacherAllAssignedClasses(
+      String teacherUsername) async {
     final results = <Map<String, dynamic>>[];
     final seen = <String>{};
 
@@ -55,9 +56,12 @@ class SchoolService {
     final ctClasses = await getClassTeacherClasses(teacherUsername);
     for (final c in ctClasses) {
       final id = c['id']?.toString() ?? c['class_id']?.toString() ?? '';
-      final name = c['name']?.toString() ?? c['class_name']?.toString() ?? 'Class';
+      final name =
+          c['name']?.toString() ?? c['class_name']?.toString() ?? 'Class';
       final sec = c['section']?.toString();
-      final displayName = (sec != null && sec.isNotEmpty && !name.contains(sec)) ? '$name-$sec' : name;
+      final displayName = (sec != null && sec.isNotEmpty && !name.contains(sec))
+          ? '$name-$sec'
+          : name;
       if (id.isNotEmpty && seen.add(id)) {
         results.add({
           'id': id,
@@ -147,12 +151,15 @@ class SchoolService {
     if (classId != null && classId.isNotEmpty && classId != 'all') {
       final isPermitted = assignedClasses.any((c) {
         final cId = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
-        final cAliases = classAliases(classId: cId, className: c['name']?.toString());
+        final cAliases =
+            classAliases(classId: cId, className: c['name']?.toString());
         final targetAliases = classAliases(classId: classId);
-        return cId == classId || cAliases.intersection(targetAliases).isNotEmpty;
+        return cId == classId ||
+            cAliases.intersection(targetAliases).isNotEmpty;
       });
 
-      if (!isPermitted) return []; // Teacher cannot view other classes' students!
+      if (!isPermitted)
+        return []; // Teacher cannot view other classes' students!
       return getStudentsInClass(classId);
     }
 
@@ -256,7 +263,9 @@ class SchoolService {
       'marks': marks,
       'overall_percentage': marksPct,
       'cbse_grade': marks.isNotEmpty ? cbseGrade['grade'] : 'N/A',
-      'cbse_remarks': marks.isNotEmpty ? cbseGrade['description'] : 'No examination marks recorded yet',
+      'cbse_remarks': marks.isNotEmpty
+          ? cbseGrade['description']
+          : 'No examination marks recorded yet',
       'homework_assigned': hwList.length,
       'homework_submitted': hwSubmitted,
       'homework_pending': hwPending,
@@ -274,14 +283,16 @@ class SchoolService {
     if (assigned.isEmpty) return [];
 
     final now = DateTime.now();
-    final fromDate = DateTime(now.year, now.month, now.day).subtract(Duration(days: days - 1));
+    final fromDate = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: days - 1));
     final toDate = DateTime(now.year, now.month, now.day);
 
     final allRecords = <Map<String, dynamic>>[];
     for (final c in assigned) {
       final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
       if (cid.isEmpty) continue;
-      final recs = await getAttendanceReport(classId: cid, from: fromDate, to: toDate);
+      final recs =
+          await getAttendanceReport(classId: cid, from: fromDate, to: toDate);
       allRecords.addAll(recs);
     }
 
@@ -299,10 +310,13 @@ class SchoolService {
     DateTime cursor = fromDate;
     while (!cursor.isAfter(toDate)) {
       if (cursor.weekday != 7) {
-        final dStr = '${cursor.year}-${cursor.month.toString().padLeft(2, '0')}-${cursor.day.toString().padLeft(2, '0')}';
+        final dStr =
+            '${cursor.year}-${cursor.month.toString().padLeft(2, '0')}-${cursor.day.toString().padLeft(2, '0')}';
         final dayName = daysOfWeek[cursor.weekday - 1];
         final dayRecs = byDate[dStr] ?? [];
-        final present = dayRecs.where((r) => r['status'] == 'present' || r['status'] == 'excused').length;
+        final present = dayRecs
+            .where((r) => r['status'] == 'present' || r['status'] == 'excused')
+            .length;
         final total = dayRecs.length;
         final pct = total > 0 ? (present / total) * 100 : 0.0;
 
@@ -332,15 +346,19 @@ class SchoolService {
       return {'counts': <String, int>{}, 'total': 0, 'average': 0.0};
     }
 
-    final targetClasses = (classId != null && classId.isNotEmpty && classId != 'all')
-        ? assigned.where((c) => c['class_id'] == classId || c['id'] == classId).toList()
-        : assigned;
+    final targetClasses =
+        (classId != null && classId.isNotEmpty && classId != 'all')
+            ? assigned
+                .where((c) => c['class_id'] == classId || c['id'] == classId)
+                .toList()
+            : assigned;
 
     final allMarks = <Map<String, dynamic>>[];
     for (final c in targetClasses) {
       final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
       if (cid.isEmpty) continue;
-      final classMarks = await getMarksReport(classId: cid, className: c['name']?.toString());
+      final classMarks =
+          await getMarksReport(classId: cid, className: c['name']?.toString());
       allMarks.addAll(classMarks);
     }
 
@@ -388,7 +406,8 @@ class SchoolService {
   }
 
   /// 3. Subject-wise performance averages comparison (T-R05)
-  Future<List<Map<String, dynamic>>> getTeacherSubjectAverages(String teacherUsername) async {
+  Future<List<Map<String, dynamic>>> getTeacherSubjectAverages(
+      String teacherUsername) async {
     final assigned = await getTeacherAllAssignedClasses(teacherUsername);
     if (assigned.isEmpty) return [];
 
@@ -396,7 +415,8 @@ class SchoolService {
     for (final c in assigned) {
       final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
       if (cid.isEmpty) continue;
-      final mList = await getMarksReport(classId: cid, className: c['name']?.toString());
+      final mList =
+          await getMarksReport(classId: cid, className: c['name']?.toString());
       allMarks.addAll(mList);
     }
 
@@ -429,10 +449,17 @@ class SchoolService {
   }
 
   /// 4. Homework completion statistics (Submitted / Late / Missing) (T-R07)
-  Future<Map<String, dynamic>> getTeacherHomeworkCompletionStats(String teacherUsername) async {
+  Future<Map<String, dynamic>> getTeacherHomeworkCompletionStats(
+      String teacherUsername) async {
     final assigned = await getTeacherAllAssignedClasses(teacherUsername);
     if (assigned.isEmpty) {
-      return {'submitted': 0, 'late': 0, 'missing': 0, 'total': 0, 'completion_rate': 0.0};
+      return {
+        'submitted': 0,
+        'late': 0,
+        'missing': 0,
+        'total': 0,
+        'completion_rate': 0.0
+      };
     }
 
     int submitted = 0;
@@ -446,13 +473,17 @@ class SchoolService {
       for (final hw in hwList) {
         final hwId = hw['id']?.toString() ?? '';
         final subs = await getHomeworkSubmissions(homeworkId: hwId);
-        final subCount = subs.where((s) => s['status'] == 'submitted' || s['status'] == 'completed').length;
+        final subCount = subs
+            .where(
+                (s) => s['status'] == 'submitted' || s['status'] == 'completed')
+            .length;
         final lateCount = subs.where((s) => s['status'] == 'late').length;
         submitted += subCount;
         late += lateCount;
 
         final enrolled = (await getStudentsInClass(cid)).length;
-        final missingForThisHw = (enrolled - subCount - lateCount).clamp(0, 999);
+        final missingForThisHw =
+            (enrolled - subCount - lateCount).clamp(0, 999);
         missing += missingForThisHw;
       }
     }
@@ -478,7 +509,8 @@ class SchoolService {
     try {
       await _supabase.from('school_homework_submissions').update({
         'status': status,
-        if (feedback != null && feedback.trim().isNotEmpty) 'teacher_feedback': feedback.trim(),
+        if (feedback != null && feedback.trim().isNotEmpty)
+          'teacher_feedback': feedback.trim(),
         'reviewed_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', submissionId);
@@ -489,8 +521,16 @@ class SchoolService {
   }
 
   /// 6. Weekly teaching workload calculation across all days (T-R12)
-  Future<Map<String, dynamic>> getTeacherWeeklyWorkload(String teacherUsername) async {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  Future<Map<String, dynamic>> getTeacherWeeklyWorkload(
+      String teacherUsername) async {
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday'
+    ];
     final dayLoads = <Map<String, dynamic>>[];
     int totalLectures = 0;
 
@@ -520,7 +560,8 @@ class SchoolService {
   }
 
   /// 7. Syllabus pacing velocity for teacher's subjects (T-R09)
-  Future<List<Map<String, dynamic>>> getTeacherSyllabusVelocity(String teacherUsername) async {
+  Future<List<Map<String, dynamic>>> getTeacherSyllabusVelocity(
+      String teacherUsername) async {
     final assigned = await getTeacherAllAssignedClasses(teacherUsername);
     if (assigned.isEmpty) return [];
 
@@ -532,8 +573,15 @@ class SchoolService {
       final plans = await getEnterpriseLessonPlans(classId: cid);
       final total = plans.length;
       final taught = plans.where((p) => p['status'] == 'Taught').length;
-      final inProgress = plans.where((p) => p['status'] == 'In Progress' || p['status'] == 'Approved').length;
-      final lagging = plans.where((p) => (p['is_lagging'] as bool?) == true || p['status'] == 'Needs Revision').length;
+      final inProgress = plans
+          .where(
+              (p) => p['status'] == 'In Progress' || p['status'] == 'Approved')
+          .length;
+      final lagging = plans
+          .where((p) =>
+              (p['is_lagging'] as bool?) == true ||
+              p['status'] == 'Needs Revision')
+          .length;
       final rate = total > 0 ? (taught / total) * 100 : 0.0;
 
       result.add({
@@ -554,12 +602,16 @@ class SchoolService {
 
   /// 8. At-Risk / Attention Needed student detector (N8)
   /// Evaluates CBSE <75% attendance rule, failing marks (<35%), or 2+ missing homeworks
-  Future<List<Map<String, dynamic>>> getTeacherAtRiskStudents(String teacherUsername) async {
+  Future<List<Map<String, dynamic>>> getTeacherAtRiskStudents(
+      String teacherUsername) async {
     try {
       final students = await getStudentsForTeacher(teacherUsername);
       if (students.isEmpty) return [];
 
-      final studentIds = students.map((s) => s['id']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+      final studentIds = students
+          .map((s) => s['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
 
       // Batch query marks for all assigned students
       Map<String, List<Map<String, dynamic>>> marksByStudent = {};
@@ -589,7 +641,8 @@ class SchoolService {
         // Check 1: Attendance below 75% (CBSE statutory limit)
         final attPct = (s['attendance_pct'] as num?)?.toDouble() ?? 100.0;
         if (attPct < 75.0) {
-          reasons.add('CBSE Attendance Defaulter (${attPct.toStringAsFixed(1)}% < 75%)');
+          reasons.add(
+              'CBSE Attendance Defaulter (${attPct.toStringAsFixed(1)}% < 75%)');
           riskScore += (attPct < 65.0) ? 2 : 1;
         }
 
@@ -602,7 +655,8 @@ class SchoolService {
             return max > 0 && (obt / max) < 0.35;
           }).length;
           if (failCount > 0) {
-            reasons.add('Scored below 35% passing mark in $failCount subject(s)');
+            reasons
+                .add('Scored below 35% passing mark in $failCount subject(s)');
             riskScore += 2;
           }
         }
@@ -617,7 +671,8 @@ class SchoolService {
         }
       }
 
-      atRisk.sort((a, b) => (b['risk_score'] as int).compareTo(a['risk_score'] as int));
+      atRisk.sort(
+          (a, b) => (b['risk_score'] as int).compareTo(a['risk_score'] as int));
       return atRisk;
     } catch (_) {
       return [];
@@ -625,10 +680,14 @@ class SchoolService {
   }
 
   /// 9. Homework grading queue for teacher's cohorts (N12)
-  Future<List<Map<String, dynamic>>> getTeacherHomeworkGradingQueue(String teacherUsername) async {
+  Future<List<Map<String, dynamic>>> getTeacherHomeworkGradingQueue(
+      String teacherUsername) async {
     try {
       final assigned = await getTeacherAllAssignedClasses(teacherUsername);
-      final classIds = assigned.map((c) => c['class_id']?.toString() ?? c['id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+      final classIds = assigned
+          .map((c) => c['class_id']?.toString() ?? c['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
 
       final allHw = await _supabase
           .from('school_homework')
@@ -641,7 +700,8 @@ class SchoolService {
       for (final hw in allHw) {
         final cid = hw['class_id']?.toString() ?? '';
         final tUser = (hw['teacher_username']?.toString() ?? '').toLowerCase();
-        final matchesTeacher = tUser == teacherUsername.toLowerCase() || classIds.contains(cid);
+        final matchesTeacher =
+            tUser == teacherUsername.toLowerCase() || classIds.contains(cid);
 
         if (!matchesTeacher) continue;
 
@@ -649,7 +709,9 @@ class SchoolService {
         final subs = await getHomeworkSubmissions(homeworkId: hwId);
         final unreviewed = subs.where((s) {
           final st = (s['status']?.toString() ?? 'submitted').toLowerCase();
-          return st == 'submitted' && (s['teacher_feedback'] == null || (s['teacher_feedback'] as String).isEmpty);
+          return st == 'submitted' &&
+              (s['teacher_feedback'] == null ||
+                  (s['teacher_feedback'] as String).isEmpty);
         }).toList();
 
         final dueDateStr = hw['due_date']?.toString() ?? '';
@@ -672,7 +734,8 @@ class SchoolService {
         final bOver = (b['is_overdue'] as bool?) ?? false;
         if (aOver && !bOver) return -1;
         if (!aOver && bOver) return 1;
-        return ((b['pending_review_count'] as int?) ?? 0).compareTo((a['pending_review_count'] as int?) ?? 0);
+        return ((b['pending_review_count'] as int?) ?? 0)
+            .compareTo((a['pending_review_count'] as int?) ?? 0);
       });
 
       return queue;
@@ -682,7 +745,8 @@ class SchoolService {
   }
 
   /// 10. Teacher PTM Meetings Desk (N10)
-  Future<List<Map<String, dynamic>>> getTeacherPtmBookings(String teacherName) async {
+  Future<List<Map<String, dynamic>>> getTeacherPtmBookings(
+      String teacherName) async {
     try {
       final all = await getPtmBookings();
       if (teacherName.isEmpty) return all;
@@ -696,17 +760,25 @@ class SchoolService {
     }
   }
 
-  Future<bool> updatePtmBookingStatus(String bookingId, String newStatus) async {
+  Future<bool> updatePtmBookingStatus(
+      String bookingId, String newStatus) async {
     try {
-      final row = await _supabase.from('school_circulars').select().eq('id', bookingId).maybeSingle();
+      final row = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('id', bookingId)
+          .maybeSingle();
       if (row == null) return false;
       var content = row['content']?.toString() ?? '';
       if (content.contains('Status:')) {
-        content = content.replaceAll(RegExp(r'Status:\s*[^|]+'), 'Status: $newStatus ');
+        content = content.replaceAll(
+            RegExp(r'Status:\s*[^|]+'), 'Status: $newStatus ');
       } else {
         content = '$content | Status: $newStatus';
       }
-      await _supabase.from('school_circulars').update({'content': content}).eq('id', bookingId);
+      await _supabase
+          .from('school_circulars')
+          .update({'content': content}).eq('id', bookingId);
       return true;
     } catch (_) {
       return false;
@@ -747,7 +819,8 @@ class SchoolService {
     }
 
     try {
-      final content = 'TEACHER_LEAVE_APPLICATION | TeacherUsername: $teacherUsername | TeacherName: $teacherName | '
+      final content =
+          'TEACHER_LEAVE_APPLICATION | TeacherUsername: $teacherUsername | TeacherName: $teacherName | '
           'StartDate: $startDate | EndDate: $endDate | Type: $leaveType | Reason: $reason | Status: Pending';
       await _supabase.from('school_circulars').insert({
         'institute_code': 'SHIV-SCH',
@@ -764,7 +837,8 @@ class SchoolService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getTeacherLeaves(String teacherUsername) async {
+  Future<List<Map<String, dynamic>>> getTeacherLeaves(
+      String teacherUsername) async {
     if (!_missingTables.contains('school_staff_leaves')) {
       try {
         var query = _supabase.from('school_staff_leaves').select();
@@ -796,10 +870,12 @@ class SchoolService {
           final map = <String, String>{};
           for (final p in parts) {
             final kv = p.split(':');
-            if (kv.length >= 2) map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+            if (kv.length >= 2)
+              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
           }
 
-          if (teacherUsername.isNotEmpty && map['TeacherUsername'] != teacherUsername) continue;
+          if (teacherUsername.isNotEmpty &&
+              map['TeacherUsername'] != teacherUsername) continue;
 
           list.add({
             'id': row['id'],
@@ -828,18 +904,23 @@ class SchoolService {
     String? remarks,
   }) async {
     final now = DateTime.now().toIso8601String();
-    final normalised = (status.toLowerCase() == 'approved') ? 'Approved' : 'Rejected';
+    final normalised =
+        (status.toLowerCase() == 'approved') ? 'Approved' : 'Rejected';
 
     if (!_missingTables.contains('school_staff_leaves')) {
       try {
-        final res = await _supabase.from('school_staff_leaves').update({
-          'status': normalised,
-          'reviewed_by': reviewedBy,
-          'reviewer_name': reviewedBy,
-          'review_remarks': remarks ?? '',
-          'reviewed_at': now,
-          'updated_at': now,
-        }).eq('id', circularId).select();
+        final res = await _supabase
+            .from('school_staff_leaves')
+            .update({
+              'status': normalised,
+              'reviewed_by': reviewedBy,
+              'reviewer_name': reviewedBy,
+              'review_remarks': remarks ?? '',
+              'reviewed_at': now,
+              'updated_at': now,
+            })
+            .eq('id', circularId)
+            .select();
         if ((res as List).isNotEmpty) {
           await logAuditEvent(
             actorUsername: reviewedBy,
@@ -858,13 +939,19 @@ class SchoolService {
     }
 
     try {
-      final row = await _supabase.from('school_circulars').select().eq('id', circularId).single();
+      final row = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('id', circularId)
+          .single();
       final content = row['content']?.toString() ?? '';
       final updatedContent = content.replaceAll(
         RegExp(r'Status:\s*[^\|]+'),
         'Status: $status | ReviewedBy: $reviewedBy | Remarks: ${remarks ?? ""} | ReviewedAt: ${DateTime.now().toIso8601String()}',
       );
-      await _supabase.from('school_circulars').update({'content': updatedContent}).eq('id', circularId);
+      await _supabase
+          .from('school_circulars')
+          .update({'content': updatedContent}).eq('id', circularId);
       await logAuditEvent(
         actorUsername: reviewedBy,
         action: 'Faculty Leave $status',
@@ -890,7 +977,8 @@ class SchoolService {
       await _supabase.from('school_circulars').insert({
         'institute_code': 'SHIV-SCH',
         'title': 'AUDIT: $action ($entityType #$entityId)',
-        'content': 'AUDIT_TRAIL | Actor: $actorUsername | Action: $action | Entity: $entityType | EntityId: $entityId | Details: ${details ?? ""} | Timestamp: ${DateTime.now().toIso8601String()}',
+        'content':
+            'AUDIT_TRAIL | Actor: $actorUsername | Action: $action | Entity: $entityType | EntityId: $entityId | Details: ${details ?? ""} | Timestamp: ${DateTime.now().toIso8601String()}',
         'category': 'AuditLog',
         'target_audience': 'admin',
         'published_by': actorUsername,
@@ -962,13 +1050,15 @@ class SchoolService {
       for (final a in admissions) {
         final s = (a['status']?.toString() ?? '').toLowerCase();
         if (s == 'under review' || s == 'pending') {
-          final reqDate = a['created_at']?.toString().split('T')[0] ?? a['applied_date']?.toString();
+          final reqDate = a['created_at']?.toString().split('T')[0] ??
+              a['applied_date']?.toString();
           unifiedList.add({
             'id': a['id']?.toString() ?? '',
             'type': 'Admission',
             'type_label': 'New Intake',
             'title': a['student_name']?.toString() ?? 'Admission Applicant',
-            'subtitle': 'Class: ${a['class_applied'] ?? a['class_name'] ?? 'General'} • Quota: ${a['quota'] ?? 'General'}',
+            'subtitle':
+                'Class: ${a['class_applied'] ?? a['class_name'] ?? 'General'} • Quota: ${a['quota'] ?? 'General'}',
             'category_color': 0xFF2563EB,
             'requested_date': reqDate ?? '',
             'days_pending': calculateDaysPending(a['created_at']?.toString()),
@@ -982,16 +1072,19 @@ class SchoolService {
     try {
       final certs = await getPendingCertificateRequests();
       for (final c in certs) {
-        final reqDate = c['requested_date']?.toString() ?? c['created_at']?.toString().split('T')[0];
+        final reqDate = c['requested_date']?.toString() ??
+            c['created_at']?.toString().split('T')[0];
         unifiedList.add({
           'id': c['id']?.toString() ?? '',
           'type': 'Certificate',
           'type_label': 'Certificate',
           'title': c['student_name']?.toString() ?? 'Student Request',
-          'subtitle': '${c['cert_type'] ?? 'Certificate'} • ${c['class'] ?? 'Class'} (${c['reason'] ?? 'Official'})',
+          'subtitle':
+              '${c['cert_type'] ?? 'Certificate'} • ${c['class'] ?? 'Class'} (${c['reason'] ?? 'Official'})',
           'category_color': 0xFF7C3AED,
           'requested_date': reqDate ?? '',
-          'days_pending': calculateDaysPending(c['created_at']?.toString() ?? c['requested_date']?.toString()),
+          'days_pending': calculateDaysPending(
+              c['created_at']?.toString() ?? c['requested_date']?.toString()),
           'raw_data': c,
         });
       }
@@ -1008,7 +1101,8 @@ class SchoolService {
             'type': 'TeacherLeave',
             'type_label': 'Faculty Leave',
             'title': l['teacher_name']?.toString() ?? 'Faculty Member',
-            'subtitle': '${l['type'] ?? 'Leave'} • ${l['start_date']} to ${l['end_date']} • Reason: ${l['reason']}',
+            'subtitle':
+                '${l['type'] ?? 'Leave'} • ${l['start_date']} to ${l['end_date']} • Reason: ${l['reason']}',
             'category_color': 0xFFD97706,
             'requested_date': l['created_at']?.toString().split('T')[0] ?? '',
             'days_pending': calculateDaysPending(l['created_at']?.toString()),
@@ -1029,10 +1123,12 @@ class SchoolService {
             'type': 'StudentLeave',
             'type_label': 'Student Leave',
             'title': sl['student_name']?.toString() ?? 'Student',
-            'subtitle': '${sl['class_name'] ?? 'Class'} • ${sl['start_date']} to ${sl['end_date']} (${sl['leave_type'] ?? 'Leave'})',
+            'subtitle':
+                '${sl['class_name'] ?? 'Class'} • ${sl['start_date']} to ${sl['end_date']} (${sl['leave_type'] ?? 'Leave'})',
             'category_color': 0xFF059669,
             'requested_date': sl['start_date']?.toString() ?? '',
-            'days_pending': calculateDaysPending(sl['created_at']?.toString() ?? sl['start_date']?.toString()),
+            'days_pending': calculateDaysPending(
+                sl['created_at']?.toString() ?? sl['start_date']?.toString()),
             'raw_data': sl,
           });
         }
@@ -1061,13 +1157,17 @@ class SchoolService {
     } catch (_) {}
 
     // Sort descending by days_pending (longest pending first)
-    unifiedList.sort((a, b) => (b['days_pending'] as int).compareTo(a['days_pending'] as int));
+    unifiedList.sort((a, b) =>
+        (b['days_pending'] as int).compareTo(a['days_pending'] as int));
 
     final countsByType = <String, int>{
       'Admission': unifiedList.where((u) => u['type'] == 'Admission').length,
-      'Certificate': unifiedList.where((u) => u['type'] == 'Certificate').length,
-      'TeacherLeave': unifiedList.where((u) => u['type'] == 'TeacherLeave').length,
-      'StudentLeave': unifiedList.where((u) => u['type'] == 'StudentLeave').length,
+      'Certificate':
+          unifiedList.where((u) => u['type'] == 'Certificate').length,
+      'TeacherLeave':
+          unifiedList.where((u) => u['type'] == 'TeacherLeave').length,
+      'StudentLeave':
+          unifiedList.where((u) => u['type'] == 'StudentLeave').length,
       'Grievance': unifiedList.where((u) => u['type'] == 'Grievance').length,
     };
 
@@ -1085,8 +1185,23 @@ class SchoolService {
   /// 1. Enrolment Trajectory across academic session (AD-R01)
   Future<List<Map<String, dynamic>>> getAdminEnrolmentTrend() async {
     try {
-      final students = await _supabase.from('school_students').select('id, created_at, admission_no');
-      final monthNames = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+      final students = await _supabase
+          .from('school_students')
+          .select('id, created_at, admission_no');
+      final monthNames = [
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+        'Jan',
+        'Feb',
+        'Mar'
+      ];
       final Map<String, int> counts = {for (var m in monthNames) m: 0};
 
       for (final s in students) {
@@ -1094,7 +1209,21 @@ class SchoolService {
         if (dStr != null && dStr.isNotEmpty) {
           try {
             final dt = DateTime.parse(dStr);
-            const mNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const mNames = [
+              '',
+              'Jan',
+              'Feb',
+              'Mar',
+              'Apr',
+              'May',
+              'Jun',
+              'Jul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Nov',
+              'Dec'
+            ];
             final m = mNames[dt.month];
             if (counts.containsKey(m)) {
               counts[m] = (counts[m] ?? 0) + 1;
@@ -1130,8 +1259,23 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getAdminFeeCollectionTrend() async {
     try {
       final payments = await _supabase.from('school_fee_payments').select();
-      final monthNames = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-      final Map<String, double> collectedMap = {for (var m in monthNames) m: 0.0};
+      final monthNames = [
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+        'Jan',
+        'Feb',
+        'Mar'
+      ];
+      final Map<String, double> collectedMap = {
+        for (var m in monthNames) m: 0.0
+      };
       final Map<String, double> pendingMap = {for (var m in monthNames) m: 0.0};
 
       for (final p in payments) {
@@ -1144,7 +1288,21 @@ class SchoolService {
         if (dStr != null && dStr.isNotEmpty) {
           try {
             final dt = DateTime.parse(dStr);
-            const mNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const mNames = [
+              '',
+              'Jan',
+              'Feb',
+              'Mar',
+              'Apr',
+              'May',
+              'Jun',
+              'Jul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Nov',
+              'Dec'
+            ];
             m = mNames[dt.month];
           } catch (_) {}
         }
@@ -1172,7 +1330,8 @@ class SchoolService {
   }
 
   /// 3. School-wide Daily Attendance Trajectory for past 30 days (AD-R03)
-  Future<List<Map<String, dynamic>>> getAdminSchoolAttendanceTrend({int days = 30}) async {
+  Future<List<Map<String, dynamic>>> getAdminSchoolAttendanceTrend(
+      {int days = 30}) async {
     try {
       final cutoff = DateTime.now().subtract(Duration(days: days));
       final cutoffStr = cutoff.toIso8601String().split('T')[0];
@@ -1245,11 +1404,35 @@ class SchoolService {
 
       return [
         {'stage': 'Inquiries', 'count': inquiries, 'rate': 100.0},
-        {'stage': 'Applied', 'count': totalApps, 'rate': inquiries > 0 ? (totalApps / inquiries) * 100 : 0.0},
-        {'stage': 'Scrutiny', 'count': scrutiny + interaction + offer + enrolled, 'rate': totalApps > 0 ? ((scrutiny + interaction + offer + enrolled) / totalApps) * 100 : 0.0},
-        {'stage': 'Interaction', 'count': interaction + offer + enrolled, 'rate': totalApps > 0 ? ((interaction + offer + enrolled) / totalApps) * 100 : 0.0},
-        {'stage': 'Offers', 'count': offer + enrolled, 'rate': totalApps > 0 ? ((offer + enrolled) / totalApps) * 100 : 0.0},
-        {'stage': 'Enrolled', 'count': enrolled, 'rate': totalApps > 0 ? (enrolled / totalApps) * 100 : 0.0},
+        {
+          'stage': 'Applied',
+          'count': totalApps,
+          'rate': inquiries > 0 ? (totalApps / inquiries) * 100 : 0.0
+        },
+        {
+          'stage': 'Scrutiny',
+          'count': scrutiny + interaction + offer + enrolled,
+          'rate': totalApps > 0
+              ? ((scrutiny + interaction + offer + enrolled) / totalApps) * 100
+              : 0.0
+        },
+        {
+          'stage': 'Interaction',
+          'count': interaction + offer + enrolled,
+          'rate': totalApps > 0
+              ? ((interaction + offer + enrolled) / totalApps) * 100
+              : 0.0
+        },
+        {
+          'stage': 'Offers',
+          'count': offer + enrolled,
+          'rate': totalApps > 0 ? ((offer + enrolled) / totalApps) * 100 : 0.0
+        },
+        {
+          'stage': 'Enrolled',
+          'count': enrolled,
+          'rate': totalApps > 0 ? (enrolled / totalApps) * 100 : 0.0
+        },
       ];
     } catch (_) {
       return [];
@@ -1259,7 +1442,9 @@ class SchoolService {
   /// 5. Fee Head-wise Collection Distribution (AD-R04)
   Future<List<Map<String, dynamic>>> getAdminFeeHeadDistribution() async {
     try {
-      final payments = await _supabase.from('school_fee_payments').select('head, paid_amount');
+      final payments = await _supabase
+          .from('school_fee_payments')
+          .select('head, paid_amount');
       final Map<String, double> headTotals = {};
       double grandTotal = 0;
 
@@ -1279,7 +1464,8 @@ class SchoolService {
           'share_pct': double.parse(share.toStringAsFixed(1)),
         });
       }
-      list.sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
+      list.sort(
+          (a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
       return list;
     } catch (_) {
       return [];
@@ -1289,11 +1475,14 @@ class SchoolService {
   /// 6. Class-wise Exam Pass Rates & Performance (AD-R06)
   Future<List<Map<String, dynamic>>> getAdminExamClassPassRates() async {
     try {
-      final marks = await _supabase.from('school_marks').select('class_id, class_name, marks_obtained, total_marks');
+      final marks = await _supabase
+          .from('school_marks')
+          .select('class_id, class_name, marks_obtained, total_marks');
       final Map<String, List<Map<String, dynamic>>> classMarks = {};
 
       for (final m in marks) {
-        final cName = m['class_name']?.toString() ?? m['class_id']?.toString() ?? 'Class';
+        final cName =
+            m['class_name']?.toString() ?? m['class_id']?.toString() ?? 'Class';
         classMarks.putIfAbsent(cName, () => []).add(m);
       }
 
@@ -1324,7 +1513,8 @@ class SchoolService {
         });
       }
 
-      list.sort((a, b) => (a['class_name'] as String).compareTo(b['class_name'] as String));
+      list.sort((a, b) =>
+          (a['class_name'] as String).compareTo(b['class_name'] as String));
       return list;
     } catch (_) {
       return [];
@@ -1342,7 +1532,8 @@ class SchoolService {
     String priority = 'Normal',
   }) async {
     try {
-      final content = 'CLASS_ANNOUNCEMENT | ClassId: $classId | ClassName: $className | '
+      final content =
+          'CLASS_ANNOUNCEMENT | ClassId: $classId | ClassName: $className | '
           'Teacher: $teacherName | TeacherUsername: $teacherUsername | Priority: $priority | Message: $message';
       await _supabase.from('school_circulars').insert({
         'institute_code': 'SHIV-SCH',
@@ -1359,7 +1550,8 @@ class SchoolService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getTeacherSentAnnouncements(String teacherUsername) async {
+  Future<List<Map<String, dynamic>>> getTeacherSentAnnouncements(
+      String teacherUsername) async {
     try {
       final response = await _supabase
           .from('school_circulars')
@@ -1375,7 +1567,8 @@ class SchoolService {
         final map = <String, String>{};
         for (final p in parts) {
           final kv = p.split(':');
-          if (kv.length >= 2) map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+          if (kv.length >= 2)
+            map[kv[0].trim()] = kv.sublist(1).join(':').trim();
         }
 
         list.add({
@@ -1406,7 +1599,8 @@ class SchoolService {
     required String note,
   }) async {
     try {
-      final content = 'BEHAVIOUR_NOTE | StudentId: $studentId | StudentName: $studentName | '
+      final content =
+          'BEHAVIOUR_NOTE | StudentId: $studentId | StudentName: $studentName | '
           'ClassId: $classId | Teacher: $teacherName | TeacherUsername: $teacherUsername | Type: $type | Note: $note';
       await _supabase.from('school_circulars').insert({
         'institute_code': 'SHIV-SCH',
@@ -1423,7 +1617,8 @@ class SchoolService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getStudentBehaviourNotes(String studentId) async {
+  Future<List<Map<String, dynamic>>> getStudentBehaviourNotes(
+      String studentId) async {
     try {
       final response = await _supabase
           .from('school_circulars')
@@ -1439,7 +1634,8 @@ class SchoolService {
           final map = <String, String>{};
           for (final p in parts) {
             final kv = p.split(':');
-            if (kv.length >= 2) map[kv[0].trim()] = kv.sublist(1).join(':').trim();
+            if (kv.length >= 2)
+              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
           }
 
           if (map['StudentId'] != studentId) continue;
@@ -1462,10 +1658,14 @@ class SchoolService {
   }
 
   /// 14. Upcoming Exam Widget for Teacher (N9)
-  Future<Map<String, dynamic>?> getNextUpcomingExamForTeacher(String teacherUsername) async {
+  Future<Map<String, dynamic>?> getNextUpcomingExamForTeacher(
+      String teacherUsername) async {
     try {
       final assigned = await getTeacherAllAssignedClasses(teacherUsername);
-      final classIds = assigned.map((c) => c['class_id']?.toString() ?? c['id']?.toString() ?? '').where((id) => id.isNotEmpty).toList();
+      final classIds = assigned
+          .map((c) => c['class_id']?.toString() ?? c['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
       if (classIds.isEmpty) return null;
 
       final today = DateTime.now().toIso8601String().substring(0, 10);
@@ -1479,7 +1679,9 @@ class SchoolService {
           .maybeSingle();
 
       if (response != null) {
-        final examDate = DateTime.tryParse(response['exam_date']?.toString() ?? '') ?? DateTime.now();
+        final examDate =
+            DateTime.tryParse(response['exam_date']?.toString() ?? '') ??
+                DateTime.now();
         final daysLeft = examDate.difference(DateTime.now()).inDays + 1;
         return {
           ...response,
@@ -1493,7 +1695,8 @@ class SchoolService {
   }
 
   /// 15. Teacher Inbox & Live Actionable Alerts (N14)
-  Future<List<Map<String, dynamic>>> getTeacherNotifications(String teacherUsername) async {
+  Future<List<Map<String, dynamic>>> getTeacherNotifications(
+      String teacherUsername) async {
     try {
       final alerts = <Map<String, dynamic>>[];
       final todayStr = DateTime.now().toIso8601String().substring(0, 10);
@@ -1501,12 +1704,14 @@ class SchoolService {
       // 1. Substitutions for today
       final subs = await getSubstitutionLogs(date: todayStr);
       for (final s in subs) {
-        final subTeacher = (s['substitute_teacher']?.toString() ?? '').toLowerCase();
+        final subTeacher =
+            (s['substitute_teacher']?.toString() ?? '').toLowerCase();
         if (subTeacher.contains(teacherUsername.toLowerCase())) {
           alerts.add({
             'type': 'Substitution',
             'title': 'Substitution Duty Today',
-            'body': 'Period ${s['period']} covering for ${s['original_teacher']} in Room ${s['room']}',
+            'body':
+                'Period ${s['period']} covering for ${s['original_teacher']} in Room ${s['room']}',
             'created_at': s['created_at'] ?? todayStr,
             'is_read': false,
             'icon': 'swap_calls_rounded',
@@ -1551,6 +1756,7 @@ class SchoolService {
       return [];
     }
   }
+
   // In-memory operational stores for resilient stateful workflows
   final Map<String, List<Map<String, dynamic>>> _attendanceStore = {};
   final List<Map<String, dynamic>> _homeworkStore = [];
@@ -1573,7 +1779,8 @@ class SchoolService {
       'amount': 3500.0,
       'frequency': 'Monthly',
       'category': 'Academic',
-      'description': 'Academic instruction, classroom resources, faculty lectures and lab access',
+      'description':
+          'Academic instruction, classroom resources, faculty lectures and lab access',
       'is_active': true,
     },
     {
@@ -1582,7 +1789,8 @@ class SchoolService {
       'amount': 600.0,
       'frequency': 'Monthly',
       'category': 'Technology',
-      'description': 'Smart classroom infrastructure, high-speed computer lab and digital portal',
+      'description':
+          'Smart classroom infrastructure, high-speed computer lab and digital portal',
       'is_active': true,
     },
     {
@@ -1591,7 +1799,8 @@ class SchoolService {
       'amount': 500.0,
       'frequency': 'Monthly',
       'category': 'Laboratory',
-      'description': 'Physics, Chemistry, and Biology experimental equipment and apparatus',
+      'description':
+          'Physics, Chemistry, and Biology experimental equipment and apparatus',
       'is_active': true,
     },
     {
@@ -1600,7 +1809,8 @@ class SchoolService {
       'amount': 300.0,
       'frequency': 'Monthly',
       'category': 'Sports',
-      'description': 'Athletic courts, sports kits, fitness training, and intra-school competitions',
+      'description':
+          'Athletic courts, sports kits, fitness training, and intra-school competitions',
       'is_active': true,
     },
     {
@@ -1609,7 +1819,8 @@ class SchoolService {
       'amount': 200.0,
       'frequency': 'Monthly',
       'category': 'Library',
-      'description': 'Access to CBSE syllabus books, international journals and research archives',
+      'description':
+          'Access to CBSE syllabus books, international journals and research archives',
       'is_active': true,
     },
     {
@@ -1618,7 +1829,8 @@ class SchoolService {
       'amount': 400.0,
       'frequency': 'Monthly',
       'category': 'Evaluation',
-      'description': 'Unit test papers, board mock exams, progress report cards & certification',
+      'description':
+          'Unit test papers, board mock exams, progress report cards & certification',
       'is_active': true,
     },
   ];
@@ -1639,7 +1851,8 @@ class SchoolService {
   }
 
   // ===== CLASSES & SUBJECTS =====
-  Future<List<Map<String, dynamic>>> getSchoolClasses([String? instituteId]) async {
+  Future<List<Map<String, dynamic>>> getSchoolClasses(
+      [String? instituteId]) async {
     try {
       var query = _supabase.from('school_classes').select();
       if (instituteId != null && instituteId.isNotEmpty) {
@@ -1673,8 +1886,7 @@ class SchoolService {
 
     if (id.isNotEmpty) {
       keys.add(id.toLowerCase());
-      final appId =
-          id.toLowerCase().replaceFirst(RegExp(r'^cls-?'), '');
+      final appId = id.toLowerCase().replaceFirst(RegExp(r'^cls-?'), '');
       final match = RegExp(r'^(\d+)([a-z]?)$').firstMatch(appId);
       if (match != null) {
         final grade = match.group(1)!;
@@ -1725,8 +1937,7 @@ class SchoolService {
     try {
       final response = await _supabase.from('school_students').select();
       final rows = List<Map<String, dynamic>>.from(response);
-      final matches =
-          rows.where((row) => _classMatches(row, aliases)).toList();
+      final matches = rows.where((row) => _classMatches(row, aliases)).toList();
       if (matches.isNotEmpty) {
         matches.sort((a, b) => (a['roll_number']?.toString() ?? '')
             .compareTo(b['roll_number']?.toString() ?? ''));
@@ -1749,7 +1960,8 @@ class SchoolService {
     return getStudentsInClass(classId);
   }
 
-  Future<List<Map<String, dynamic>>> getSchoolSubjects({String? classId}) async {
+  Future<List<Map<String, dynamic>>> getSchoolSubjects(
+      {String? classId}) async {
     try {
       var query = _supabase.from('school_subjects').select();
       if (classId != null && classId.isNotEmpty) {
@@ -1778,18 +1990,24 @@ class SchoolService {
     );
     final cleanName = name.trim();
     final cleanSec = section.trim().toUpperCase();
-    if (cleanName.isEmpty) throw Exception('Class name is required (e.g. "Class 10").');
+    if (cleanName.isEmpty)
+      throw Exception('Class name is required (e.g. "Class 10").');
     if (cleanSec.isEmpty) throw Exception('Section is required (e.g. "A").');
 
     final payload = {
       'institute_code': instituteCode,
       'name': cleanName,
       'section': cleanSec,
-      if (classTeacherId != null && classTeacherId.isNotEmpty) 'class_teacher_id': classTeacherId,
+      if (classTeacherId != null && classTeacherId.isNotEmpty)
+        'class_teacher_id': classTeacherId,
       'created_at': DateTime.now().toIso8601String(),
     };
 
-    final res = await _supabase.from('school_classes').insert(payload).select().single();
+    final res = await _supabase
+        .from('school_classes')
+        .insert(payload)
+        .select()
+        .single();
     final actor = await AuthService().getCurrentUsername() ?? 'admin';
     await payroll.logAudit(
       actorUsername: actor,
@@ -1814,13 +2032,20 @@ class SchoolService {
     );
     final updates = <String, dynamic>{
       if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
-      if (section != null && section.trim().isNotEmpty) 'section': section.trim().toUpperCase(),
-      if (classTeacherId != null) 'class_teacher_id': classTeacherId.isEmpty ? null : classTeacherId,
+      if (section != null && section.trim().isNotEmpty)
+        'section': section.trim().toUpperCase(),
+      if (classTeacherId != null)
+        'class_teacher_id': classTeacherId.isEmpty ? null : classTeacherId,
       if (isActive != null) 'is_active': isActive,
     };
     if (updates.isEmpty) throw Exception('No changes provided to update.');
 
-    final res = await _supabase.from('school_classes').update(updates).eq('id', id).select().single();
+    final res = await _supabase
+        .from('school_classes')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
     final actor = await AuthService().getCurrentUsername() ?? 'admin';
     await payroll.logAudit(
       actorUsername: actor,
@@ -1848,10 +2073,14 @@ class SchoolService {
     );
     final cleanName = name.trim();
     final cleanCode = code.trim().toUpperCase();
-    if (cleanName.isEmpty) throw Exception('Subject name is required (e.g. "Mathematics Standard").');
-    if (cleanCode.isEmpty) throw Exception('Subject code is required (e.g. "041").');
+    if (cleanName.isEmpty)
+      throw Exception(
+          'Subject name is required (e.g. "Mathematics Standard").');
+    if (cleanCode.isEmpty)
+      throw Exception('Subject code is required (e.g. "041").');
 
-    final id = 'subj-${cleanCode.toLowerCase()}-${DateTime.now().millisecondsSinceEpoch % 10000}';
+    final id =
+        'subj-${cleanCode.toLowerCase()}-${DateTime.now().millisecondsSinceEpoch % 10000}';
     final payload = {
       'id': id,
       'name': cleanName,
@@ -1860,7 +2089,11 @@ class SchoolService {
       'created_at': DateTime.now().toIso8601String(),
     };
 
-    final res = await _supabase.from('school_subjects').insert(payload).select().single();
+    final res = await _supabase
+        .from('school_subjects')
+        .insert(payload)
+        .select()
+        .single();
     final actor = await AuthService().getCurrentUsername() ?? 'admin';
     await payroll.logAudit(
       actorUsername: actor,
@@ -1885,13 +2118,19 @@ class SchoolService {
     );
     final updates = <String, dynamic>{
       if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
-      if (code != null && code.trim().isNotEmpty) 'code': code.trim().toUpperCase(),
+      if (code != null && code.trim().isNotEmpty)
+        'code': code.trim().toUpperCase(),
       if (classId != null) 'class_id': classId.isEmpty ? null : classId,
       if (isActive != null) 'is_active': isActive,
     };
     if (updates.isEmpty) throw Exception('No changes provided to update.');
 
-    final res = await _supabase.from('school_subjects').update(updates).eq('id', id).select().single();
+    final res = await _supabase
+        .from('school_subjects')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
     final actor = await AuthService().getCurrentUsername() ?? 'admin';
     await payroll.logAudit(
       actorUsername: actor,
@@ -1989,7 +2228,8 @@ class SchoolService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getTeacherTimetable(String username, {String? day}) async {
+  Future<List<Map<String, dynamic>>> getTeacherTimetable(String username,
+      {String? day}) async {
     try {
       final selectedDay = day ?? _weekdayName(DateTime.now().weekday);
       final response = await _supabase
@@ -2044,8 +2284,7 @@ class SchoolService {
       }
       final response = await query.order('period');
       final rows = List<Map<String, dynamic>>.from(response);
-      final matches =
-          rows.where((row) => _classMatches(row, aliases)).toList();
+      final matches = rows.where((row) => _classMatches(row, aliases)).toList();
       if (matches.isNotEmpty) return matches;
     } catch (_) {}
 
@@ -2113,7 +2352,8 @@ class SchoolService {
     return options;
   }
 
-  Future<List<Map<String, dynamic>>> getAllTimetableEntries({String? day}) async {
+  Future<List<Map<String, dynamic>>> getAllTimetableEntries(
+      {String? day}) async {
     try {
       var query = _supabase.from('school_timetable').select();
       if (day != null && day.isNotEmpty) {
@@ -2487,7 +2727,9 @@ class SchoolService {
           result.add({
             'id': row['id'],
             'title': row['title'],
-            'date': map['Date'] ?? row['created_at']?.toString().split('T')[0] ?? '',
+            'date': map['Date'] ??
+                row['created_at']?.toString().split('T')[0] ??
+                '',
             'day': map['Day'] ?? 'Monday',
             'period': map['Period'] ?? '1',
             'class_id': map['Class'] ?? '',
@@ -2522,7 +2764,8 @@ class SchoolService {
       'subject': 'Mathematics',
       'chapter_no': 'Chapter 4',
       'chapter_title': 'Quadratic Equations',
-      'topic': 'Solving Quadratic Equations by Factorisation & Quadratic Formula',
+      'topic':
+          'Solving Quadratic Equations by Factorisation & Quadratic Formula',
       'sub_topics': [
         'Standard form ax² + bx + c = 0 (a ≠ 0)',
         'Middle-term split method with factor sign rules',
@@ -2544,39 +2787,69 @@ class SchoolService {
         'Apply the quadratic formula with 100% computational accuracy for irrational roots.',
       ],
       'five_e_model': {
-        'engage': 'Show a visual video clip of a basketball shot trajectory and ask students at what time t the ball touches ground level h = 0.',
-        'explore': 'Distribute 4 parabolic graph cards to pairs; challenge students to identify why the curves intersect the x-axis at 0, 1, or 2 points.',
-        'explain': 'Derive standard form ax² + bx + c = 0 and middle-term split using geometric algebra tiles on the interactive digital smartboard.',
-        'elaborate': 'Challenge with a geometry problem: find dimensions of a rectangular prayer hall whose area is 300 m² and length is 1m more than twice its breadth.',
-        'evaluate': '3-Minute Formative Exit Ticket: 2 quick questions (1 middle-term split, 1 discriminant evaluation).',
+        'engage':
+            'Show a visual video clip of a basketball shot trajectory and ask students at what time t the ball touches ground level h = 0.',
+        'explore':
+            'Distribute 4 parabolic graph cards to pairs; challenge students to identify why the curves intersect the x-axis at 0, 1, or 2 points.',
+        'explain':
+            'Derive standard form ax² + bx + c = 0 and middle-term split using geometric algebra tiles on the interactive digital smartboard.',
+        'elaborate':
+            'Challenge with a geometry problem: find dimensions of a rectangular prayer hall whose area is 300 m² and length is 1m more than twice its breadth.',
+        'evaluate':
+            '3-Minute Formative Exit Ticket: 2 quick questions (1 middle-term split, 1 discriminant evaluation).',
       },
       'tlm_resources': [
-        {'name': 'NCERT Class 10 Textbook (Ex 4.1 to 4.3)', 'type': 'Textbook', 'url': ''},
-        {'name': 'GeoGebra Dynamic Parabola Simulation', 'type': 'Digital Tool', 'url': 'https://www.geogebra.org/m/parabola'},
-        {'name': 'Algebra Tiles Physical Manipulatives', 'type': 'Lab Kit', 'url': ''},
-        {'name': 'Smart Interactive Board Presentation #MATH-10-04', 'type': 'Smart Classroom', 'url': ''},
+        {
+          'name': 'NCERT Class 10 Textbook (Ex 4.1 to 4.3)',
+          'type': 'Textbook',
+          'url': ''
+        },
+        {
+          'name': 'GeoGebra Dynamic Parabola Simulation',
+          'type': 'Digital Tool',
+          'url': 'https://www.geogebra.org/m/parabola'
+        },
+        {
+          'name': 'Algebra Tiles Physical Manipulatives',
+          'type': 'Lab Kit',
+          'url': ''
+        },
+        {
+          'name': 'Smart Interactive Board Presentation #MATH-10-04',
+          'type': 'Smart Classroom',
+          'url': ''
+        },
       ],
-      'classwork_summary': 'Solved NCERT Ex 4.2 Q1 (i, iv, v) and Q3 on board with peer explanation rounds.',
-      'homework_assigned': 'NCERT Ex 4.2 Q2, Q4, Q5 & Worksheet #04 in Mathematics Register.',
-      'exit_ticket_quiz': 'Evaluate discriminant D for 2x² - 4x + 3 = 0 and state nature of roots.',
+      'classwork_summary':
+          'Solved NCERT Ex 4.2 Q1 (i, iv, v) and Q3 on board with peer explanation rounds.',
+      'homework_assigned':
+          'NCERT Ex 4.2 Q2, Q4, Q5 & Worksheet #04 in Mathematics Register.',
+      'exit_ticket_quiz':
+          'Evaluate discriminant D for 2x² - 4x + 3 = 0 and state nature of roots.',
       'inclusive_strategies': {
-        'slower_learners': 'Provide step-by-step cue card for middle-term splitting with visual integer factor pairs.',
-        'gifted_students': 'Bonus task: Prove why discriminant b² - 4ac < 0 implies no real roots using completing-the-square vertex form.',
+        'slower_learners':
+            'Provide step-by-step cue card for middle-term splitting with visual integer factor pairs.',
+        'gifted_students':
+            'Bonus task: Prove why discriminant b² - 4ac < 0 implies no real roots using completing-the-square vertex form.',
       },
       'status': 'Approved',
       'approval_audit': {
         'approved_by': 'Dr. K. S. Rawat (Principal)',
         'approved_at': '2026-11-04 15:30',
         'rubric_rating': 5,
-        'hod_remarks': 'Exemplary lesson structure with active 5E model and GeoGebra integration. Approved for execution.',
+        'hod_remarks':
+            'Exemplary lesson structure with active 5E model and GeoGebra integration. Approved for execution.',
       },
       'reflection': {
         'is_recorded': true,
         'taught_on': '2026-11-05',
         'concept_mastery_pct': 88.0,
-        'what_went_well': 'GeoGebra simulation helped 90% students intuitively visualize why roots are x-intercepts.',
-        'learning_gaps': 'Students struggled with negative coefficient signs during middle term split in Q5.',
-        'remedial_action': '15-minute zero period practice session scheduled on Friday with buddy mentorship.',
+        'what_went_well':
+            'GeoGebra simulation helped 90% students intuitively visualize why roots are x-intercepts.',
+        'learning_gaps':
+            'Students struggled with negative coefficient signs during middle term split in Q5.',
+        'remedial_action':
+            '15-minute zero period practice session scheduled on Friday with buddy mentorship.',
         'struggling_students': ['sstudent1', 'student4'],
       },
     },
@@ -2610,39 +2883,70 @@ class SchoolService {
         'Calculate magnification m and predict whether image is magnified, diminished, real, or virtual.',
       ],
       'five_e_model': {
-        'engage': 'Show reflection of face in stainless steel spoon (inner concave vs outer convex) and ask why face appears inverted.',
-        'explore': 'In Physics Lab, students use optical bench, concave mirror (f = 15cm) and illuminated candle to capture sharp image on screen.',
-        'explain': 'Draw the 4 standard rays on blackboard. Formalize mirror formula 1/f = 1/v + 1/u and linear magnification m = -v/u.',
-        'elaborate': 'Discuss real-world optics: dentist head mirrors, solar concentrators, vehicle headlights, and satellite reflector antennas.',
-        'evaluate': 'Exit slip numerical: An object 4 cm in height is placed at 25 cm in front of a concave mirror of focal length 15 cm. Find image distance and height.',
+        'engage':
+            'Show reflection of face in stainless steel spoon (inner concave vs outer convex) and ask why face appears inverted.',
+        'explore':
+            'In Physics Lab, students use optical bench, concave mirror (f = 15cm) and illuminated candle to capture sharp image on screen.',
+        'explain':
+            'Draw the 4 standard rays on blackboard. Formalize mirror formula 1/f = 1/v + 1/u and linear magnification m = -v/u.',
+        'elaborate':
+            'Discuss real-world optics: dentist head mirrors, solar concentrators, vehicle headlights, and satellite reflector antennas.',
+        'evaluate':
+            'Exit slip numerical: An object 4 cm in height is placed at 25 cm in front of a concave mirror of focal length 15 cm. Find image distance and height.',
       },
       'tlm_resources': [
-        {'name': 'NCERT Class 10 Science (Light Chapter 10)', 'type': 'Textbook', 'url': ''},
-        {'name': 'PhET Interactive Geometric Optics Simulation', 'type': 'Digital Tool', 'url': 'https://phet.colorado.edu/en/simulations/geometric-optics'},
-        {'name': 'Physics Lab Optical Bench, Concave Mirrors (f=15cm, f=20cm), Candle', 'type': 'Lab Kit', 'url': ''},
-        {'name': 'Laser Ray Box with Cylindrical Lenses', 'type': 'Lab Apparatus', 'url': ''},
+        {
+          'name': 'NCERT Class 10 Science (Light Chapter 10)',
+          'type': 'Textbook',
+          'url': ''
+        },
+        {
+          'name': 'PhET Interactive Geometric Optics Simulation',
+          'type': 'Digital Tool',
+          'url': 'https://phet.colorado.edu/en/simulations/geometric-optics'
+        },
+        {
+          'name':
+              'Physics Lab Optical Bench, Concave Mirrors (f=15cm, f=20cm), Candle',
+          'type': 'Lab Kit',
+          'url': ''
+        },
+        {
+          'name': 'Laser Ray Box with Cylindrical Lenses',
+          'type': 'Lab Apparatus',
+          'url': ''
+        },
       ],
-      'classwork_summary': 'Demonstrated ray diagrams for 4 cases on board; students solved Example 10.1 & 10.2.',
-      'homework_assigned': 'NCERT In-text Questions Pg 168 (Q1 to Q4) & Ray diagram drawing sheet in Practical Journal.',
-      'exit_ticket_quiz': 'Where should an object be placed in front of a concave mirror to get a virtual and magnified image?',
+      'classwork_summary':
+          'Demonstrated ray diagrams for 4 cases on board; students solved Example 10.1 & 10.2.',
+      'homework_assigned':
+          'NCERT In-text Questions Pg 168 (Q1 to Q4) & Ray diagram drawing sheet in Practical Journal.',
+      'exit_ticket_quiz':
+          'Where should an object be placed in front of a concave mirror to get a virtual and magnified image?',
       'inclusive_strategies': {
-        'slower_learners': 'Provide optical color-coded ray diagram template (Parallel ray = Red, Focal ray = Green).',
-        'gifted_students': 'Derive why magnification m = h\'/h = -v/u using similar triangles theorem.',
+        'slower_learners':
+            'Provide optical color-coded ray diagram template (Parallel ray = Red, Focal ray = Green).',
+        'gifted_students':
+            'Derive why magnification m = h\'/h = -v/u using similar triangles theorem.',
       },
       'status': 'Taught',
       'approval_audit': {
         'approved_by': 'Mrs. Sunita Kaul (HOD Science)',
         'approved_at': '2026-11-03 11:20',
         'rubric_rating': 5,
-        'hod_remarks': 'Excellent laboratory integration with PhET simulation backup. Approved.',
+        'hod_remarks':
+            'Excellent laboratory integration with PhET simulation backup. Approved.',
       },
       'reflection': {
         'is_recorded': true,
         'taught_on': '2026-11-04',
         'concept_mastery_pct': 92.5,
-        'what_went_well': 'Hands-on optical bench experiment gave students crystal clear understanding of real vs virtual focal plane.',
-        'learning_gaps': 'A few students forgot negative sign for focal length of concave mirror in Cartesian convention.',
-        'remedial_action': 'Reinforced Cartesian coordinate axis trick (+ right, - left of pole P) in 5-minute revision recap.',
+        'what_went_well':
+            'Hands-on optical bench experiment gave students crystal clear understanding of real vs virtual focal plane.',
+        'learning_gaps':
+            'A few students forgot negative sign for focal length of concave mirror in Cartesian convention.',
+        'remedial_action':
+            'Reinforced Cartesian coordinate axis trick (+ right, - left of pole P) in 5-minute revision recap.',
         'struggling_students': ['student3'],
       },
     },
@@ -2654,7 +2958,8 @@ class SchoolService {
       'subject': 'English',
       'chapter_no': 'Chapter 1',
       'chapter_title': 'First Flight: A Letter to God',
-      'topic': 'Blind Faith vs Rationality, Dramatic Irony & Character Sketch of Lencho',
+      'topic':
+          'Blind Faith vs Rationality, Dramatic Irony & Character Sketch of Lencho',
       'sub_topics': [
         'Detailed textual reading and pronunciation nuances',
         'Lencho\'s unshakeable faith in divine providence',
@@ -2676,23 +2981,41 @@ class SchoolService {
         'Draft an empathetic diary entry from the postmaster\'s point of view.',
       ],
       'five_e_model': {
-        'engage': 'Ask class: "If you found an envelope with ₹10,000 cash on a rainy street addressed to God, what would you do?"',
-        'explore': 'Students read Lencho\'s letter to God in groups and note down key adjectives describing Lencho\'s emotional state.',
-        'explain': 'Discuss dramatic irony: the contrast between what Lencho believes vs what the reader and author know.',
-        'elaborate': 'Pair role-play: Conversation between the Postmaster and the clerk when opening the second letter.',
-        'evaluate': 'Short answer question: Why did the postmaster send money to Lencho? Why did he sign the letter "God"?',
+        'engage':
+            'Ask class: "If you found an envelope with ₹10,000 cash on a rainy street addressed to God, what would you do?"',
+        'explore':
+            'Students read Lencho\'s letter to God in groups and note down key adjectives describing Lencho\'s emotional state.',
+        'explain':
+            'Discuss dramatic irony: the contrast between what Lencho believes vs what the reader and author know.',
+        'elaborate':
+            'Pair role-play: Conversation between the Postmaster and the clerk when opening the second letter.',
+        'evaluate':
+            'Short answer question: Why did the postmaster send money to Lencho? Why did he sign the letter "God"?',
       },
       'tlm_resources': [
         {'name': 'NCERT First Flight Textbook', 'type': 'Textbook', 'url': ''},
-        {'name': 'Audio Narration Recording with Authentic Tone', 'type': 'Audio-Visual', 'url': ''},
-        {'name': 'Character Comparative Graphic Organizer', 'type': 'Worksheet', 'url': ''},
+        {
+          'name': 'Audio Narration Recording with Authentic Tone',
+          'type': 'Audio-Visual',
+          'url': ''
+        },
+        {
+          'name': 'Character Comparative Graphic Organizer',
+          'type': 'Worksheet',
+          'url': ''
+        },
       ],
-      'classwork_summary': 'Read pages 3-6 aloud; discussed oral comprehension questions 1 to 3.',
-      'homework_assigned': 'Write a 120-word diary entry as the Postmaster after receiving Lencho\'s ungrateful second letter.',
-      'exit_ticket_quiz': 'State one positive trait and one tragic flaw in Lencho\'s personality.',
+      'classwork_summary':
+          'Read pages 3-6 aloud; discussed oral comprehension questions 1 to 3.',
+      'homework_assigned':
+          'Write a 120-word diary entry as the Postmaster after receiving Lencho\'s ungrateful second letter.',
+      'exit_ticket_quiz':
+          'State one positive trait and one tragic flaw in Lencho\'s personality.',
       'inclusive_strategies': {
-        'slower_learners': 'Provide bilingual vocabulary glossary for words like "downpour", "hailstones", "solitary", "crooks".',
-        'gifted_students': 'Debate topic: Was the postmaster right in deceiving Lencho to preserve his faith, or should he have revealed the truth?',
+        'slower_learners':
+            'Provide bilingual vocabulary glossary for words like "downpour", "hailstones", "solitary", "crooks".',
+        'gifted_students':
+            'Debate topic: Was the postmaster right in deceiving Lencho to preserve his faith, or should he have revealed the truth?',
       },
       'status': 'In Progress',
       'approval_audit': {
@@ -2719,7 +3042,8 @@ class SchoolService {
       'subject': 'Social Science',
       'chapter_no': 'History Chapter 1',
       'chapter_title': 'The Rise of Nationalism in Europe',
-      'topic': 'Frederic Sorrieu\'s Utopian Vision & The French Revolution as Catalyst',
+      'topic':
+          'Frederic Sorrieu\'s Utopian Vision & The French Revolution as Catalyst',
       'sub_topics': [
         'Analysis of print "The Dream of Worldwide Democratic and Social Republics"',
         'Measures introduced by French revolutionaries to create collective identity (la patrie, le citoyen)',
@@ -2741,23 +3065,44 @@ class SchoolService {
         'Construct a timeline of European nationalism from 1789 to 1848.',
       ],
       'five_e_model': {
-        'engage': 'Display high-resolution image of Frederic Sorrieu\'s 1848 print on smart screen; ask students to spot the Statue of Liberty and the shattered crowns.',
-        'explore': 'Give 4 source excerpts from 1789 decrees; students identify 3 reforms that forged a collective national identity.',
-        'explain': 'Synthesize concepts on board: unified currency, standardized weights, national tricolor flag, metric system adoption.',
-        'elaborate': 'Compare how people in Holland and Switzerland initially hailed Napoleon as a harbinger of liberty, but later revolted due to taxation & censorship.',
+        'engage':
+            'Display high-resolution image of Frederic Sorrieu\'s 1848 print on smart screen; ask students to spot the Statue of Liberty and the shattered crowns.',
+        'explore':
+            'Give 4 source excerpts from 1789 decrees; students identify 3 reforms that forged a collective national identity.',
+        'explain':
+            'Synthesize concepts on board: unified currency, standardized weights, national tricolor flag, metric system adoption.',
+        'elaborate':
+            'Compare how people in Holland and Switzerland initially hailed Napoleon as a harbinger of liberty, but later revolted due to taxation & censorship.',
         'evaluate': '5-Minute MCQ & Assertion-Reason formative check.',
       },
       'tlm_resources': [
-        {'name': 'NCERT India and the Contemporary World II', 'type': 'Textbook', 'url': ''},
-        {'name': 'High-Res Digital Slide: Frederic Sorrieu 1848 Print', 'type': 'Smart Classroom', 'url': ''},
-        {'name': 'Map of Europe in 1815 after Congress of Vienna', 'type': 'Map & Atlas', 'url': ''},
+        {
+          'name': 'NCERT India and the Contemporary World II',
+          'type': 'Textbook',
+          'url': ''
+        },
+        {
+          'name': 'High-Res Digital Slide: Frederic Sorrieu 1848 Print',
+          'type': 'Smart Classroom',
+          'url': ''
+        },
+        {
+          'name': 'Map of Europe in 1815 after Congress of Vienna',
+          'type': 'Map & Atlas',
+          'url': ''
+        },
       ],
-      'classwork_summary': 'Source study of Fig. 1; tabulated pros and cons of Napoleonic Code 1804.',
-      'homework_assigned': 'Answer Question 1 & 2 from NCERT exercises; draw concept map of French revolutionary symbols.',
-      'exit_ticket_quiz': 'List two reasons why the Napoleonic Code was opposed by the middle class in conquered territories.',
+      'classwork_summary':
+          'Source study of Fig. 1; tabulated pros and cons of Napoleonic Code 1804.',
+      'homework_assigned':
+          'Answer Question 1 & 2 from NCERT exercises; draw concept map of French revolutionary symbols.',
+      'exit_ticket_quiz':
+          'List two reasons why the Napoleonic Code was opposed by the middle class in conquered territories.',
       'inclusive_strategies': {
-        'slower_learners': 'Provide bulleted summary card for Napoleonic Code points.',
-        'gifted_students': 'Examine the contradiction between political freedom and economic modernization under Napoleon.',
+        'slower_learners':
+            'Provide bulleted summary card for Napoleonic Code points.',
+        'gifted_students':
+            'Examine the contradiction between political freedom and economic modernization under Napoleon.',
       },
       'status': 'Under Review',
       'approval_audit': {
@@ -2806,23 +3151,46 @@ class SchoolService {
         'Validate form submissions using native HTML5 constraint validation.',
       ],
       'five_e_model': {
-        'engage': 'Show a broken web form with misaligned labels vs a modern sleek form; ask what makes the UI user-friendly.',
-        'explore': 'In Computer Lab, students open VS Code and code a 4-field registration form without CSS.',
-        'explain': 'Demonstrate <form>, <input type="...">, <label for="...">, and display: flex on parent container.',
-        'elaborate': 'Build an authentic School Library Book Request Form with live CSS hover styling.',
-        'evaluate': 'Live code walkthrough: check if form triggers browser validation on invalid email or empty required fields.',
+        'engage':
+            'Show a broken web form with misaligned labels vs a modern sleek form; ask what makes the UI user-friendly.',
+        'explore':
+            'In Computer Lab, students open VS Code and code a 4-field registration form without CSS.',
+        'explain':
+            'Demonstrate <form>, <input type="...">, <label for="...">, and display: flex on parent container.',
+        'elaborate':
+            'Build an authentic School Library Book Request Form with live CSS hover styling.',
+        'evaluate':
+            'Live code walkthrough: check if form triggers browser validation on invalid email or empty required fields.',
       },
       'tlm_resources': [
-        {'name': 'CBSE Computer Applications Class 10 Textbook (Code 165)', 'type': 'Textbook', 'url': ''},
-        {'name': 'Computer Lab 32-node networked Ubuntu/Windows terminals with VS Code & Chrome DevTools', 'type': 'Computer Lab', 'url': ''},
-        {'name': 'Interactive Live CodePen Sandbox Playground', 'type': 'Digital Tool', 'url': 'https://codepen.io'},
+        {
+          'name': 'CBSE Computer Applications Class 10 Textbook (Code 165)',
+          'type': 'Textbook',
+          'url': ''
+        },
+        {
+          'name':
+              'Computer Lab 32-node networked Ubuntu/Windows terminals with VS Code & Chrome DevTools',
+          'type': 'Computer Lab',
+          'url': ''
+        },
+        {
+          'name': 'Interactive Live CodePen Sandbox Playground',
+          'type': 'Digital Tool',
+          'url': 'https://codepen.io'
+        },
       ],
-      'classwork_summary': 'Coded standard student bio-data form; debugged HTML closing tag errors.',
-      'homework_assigned': 'Design a "School Event Registration" HTML web page and submit zipped file on portal.',
-      'exit_ticket_quiz': 'What is the purpose of the "for" attribute in an HTML <label> tag?',
+      'classwork_summary':
+          'Coded standard student bio-data form; debugged HTML closing tag errors.',
+      'homework_assigned':
+          'Design a "School Event Registration" HTML web page and submit zipped file on portal.',
+      'exit_ticket_quiz':
+          'What is the purpose of the "for" attribute in an HTML <label> tag?',
       'inclusive_strategies': {
-        'slower_learners': 'Pair slower typists with peer mentors; provide boilerplate starter code template.',
-        'gifted_students': 'Add custom CSS pseudo-classes :focus, :valid, and :invalid for dynamic green/red border feedback.',
+        'slower_learners':
+            'Pair slower typists with peer mentors; provide boilerplate starter code template.',
+        'gifted_students':
+            'Add custom CSS pseudo-classes :focus, :valid, and :invalid for dynamic green/red border feedback.',
       },
       'status': 'Approved',
       'approval_audit': {
@@ -2843,61 +3211,457 @@ class SchoolService {
     },
   ];
 
-  static final Map<String, Map<String, List<Map<String, dynamic>>>> _defaultCurriculumSyllabusUnits = {
+  static final Map<String, Map<String, List<Map<String, dynamic>>>>
+      _defaultCurriculumSyllabusUnits = {
     'cls-10a': {
       'Mathematics': [
-        {'unit_no': 'Ch 1', 'title': 'Real Numbers', 'hours_est': 8, 'hours_taught': 8, 'weightage': 6, 'status': 'Completed', 'learning_outcome': 'Euclid lemma, fundamental theorem of arithmetic, irrationality proofs'},
-        {'unit_no': 'Ch 2', 'title': 'Polynomials', 'hours_est': 8, 'hours_taught': 8, 'weightage': 5, 'status': 'Completed', 'learning_outcome': 'Geometric meaning of zeroes, relationship between zeroes & coefficients'},
-        {'unit_no': 'Ch 3', 'title': 'Linear Equations in 2 Variables', 'hours_est': 12, 'hours_taught': 12, 'weightage': 8, 'status': 'Completed', 'learning_outcome': 'Graphical method, substitution, elimination, consistency criteria'},
-        {'unit_no': 'Ch 4', 'title': 'Quadratic Equations', 'hours_est': 10, 'hours_taught': 8, 'weightage': 8, 'status': 'In Progress', 'learning_outcome': 'Factorisation, quadratic formula, discriminant & nature of roots'},
-        {'unit_no': 'Ch 5', 'title': 'Arithmetic Progressions (AP)', 'hours_est': 10, 'hours_taught': 10, 'weightage': 7, 'status': 'Completed', 'learning_outcome': 'nth term derivation, sum of first n terms application problems'},
-        {'unit_no': 'Ch 6', 'title': 'Triangles', 'hours_est': 14, 'hours_taught': 14, 'weightage': 9, 'status': 'Completed', 'learning_outcome': 'Basic proportionality theorem (BPT) proof & similarity criteria'},
-        {'unit_no': 'Ch 7', 'title': 'Coordinate Geometry', 'hours_est': 8, 'hours_taught': 8, 'weightage': 6, 'status': 'Completed', 'learning_outcome': 'Distance formula, section formula (internal division)'},
-        {'unit_no': 'Ch 8', 'title': 'Introduction to Trigonometry', 'hours_est': 10, 'hours_taught': 10, 'weightage': 8, 'status': 'Completed', 'learning_outcome': 'Trig ratios of acute angles, standard values (0°, 30°, 45°, 60°, 90°)'},
-        {'unit_no': 'Ch 9', 'title': 'Some Applications of Trigonometry', 'hours_est': 8, 'hours_taught': 5, 'weightage': 6, 'status': 'In Progress', 'learning_outcome': 'Heights and distances, angles of elevation and depression'},
-        {'unit_no': 'Ch 10', 'title': 'Circles', 'hours_est': 8, 'hours_taught': 3, 'weightage': 6, 'status': 'Planned', 'learning_outcome': 'Tangents at any point, lengths of tangents from external point'},
-        {'unit_no': 'Ch 12', 'title': 'Surface Areas and Volumes', 'hours_est': 12, 'hours_taught': 0, 'weightage': 9, 'status': 'Planned', 'learning_outcome': 'Combinations of solids: cubes, cuboids, spheres, cylinders, cones'},
-        {'unit_no': 'Ch 13', 'title': 'Statistics', 'hours_est': 10, 'hours_taught': 0, 'weightage': 8, 'status': 'Planned', 'learning_outcome': 'Mean (assumed mean), median, mode of grouped frequency distributions'},
+        {
+          'unit_no': 'Ch 1',
+          'title': 'Real Numbers',
+          'hours_est': 8,
+          'hours_taught': 8,
+          'weightage': 6,
+          'status': 'Completed',
+          'learning_outcome':
+              'Euclid lemma, fundamental theorem of arithmetic, irrationality proofs'
+        },
+        {
+          'unit_no': 'Ch 2',
+          'title': 'Polynomials',
+          'hours_est': 8,
+          'hours_taught': 8,
+          'weightage': 5,
+          'status': 'Completed',
+          'learning_outcome':
+              'Geometric meaning of zeroes, relationship between zeroes & coefficients'
+        },
+        {
+          'unit_no': 'Ch 3',
+          'title': 'Linear Equations in 2 Variables',
+          'hours_est': 12,
+          'hours_taught': 12,
+          'weightage': 8,
+          'status': 'Completed',
+          'learning_outcome':
+              'Graphical method, substitution, elimination, consistency criteria'
+        },
+        {
+          'unit_no': 'Ch 4',
+          'title': 'Quadratic Equations',
+          'hours_est': 10,
+          'hours_taught': 8,
+          'weightage': 8,
+          'status': 'In Progress',
+          'learning_outcome':
+              'Factorisation, quadratic formula, discriminant & nature of roots'
+        },
+        {
+          'unit_no': 'Ch 5',
+          'title': 'Arithmetic Progressions (AP)',
+          'hours_est': 10,
+          'hours_taught': 10,
+          'weightage': 7,
+          'status': 'Completed',
+          'learning_outcome':
+              'nth term derivation, sum of first n terms application problems'
+        },
+        {
+          'unit_no': 'Ch 6',
+          'title': 'Triangles',
+          'hours_est': 14,
+          'hours_taught': 14,
+          'weightage': 9,
+          'status': 'Completed',
+          'learning_outcome':
+              'Basic proportionality theorem (BPT) proof & similarity criteria'
+        },
+        {
+          'unit_no': 'Ch 7',
+          'title': 'Coordinate Geometry',
+          'hours_est': 8,
+          'hours_taught': 8,
+          'weightage': 6,
+          'status': 'Completed',
+          'learning_outcome':
+              'Distance formula, section formula (internal division)'
+        },
+        {
+          'unit_no': 'Ch 8',
+          'title': 'Introduction to Trigonometry',
+          'hours_est': 10,
+          'hours_taught': 10,
+          'weightage': 8,
+          'status': 'Completed',
+          'learning_outcome':
+              'Trig ratios of acute angles, standard values (0°, 30°, 45°, 60°, 90°)'
+        },
+        {
+          'unit_no': 'Ch 9',
+          'title': 'Some Applications of Trigonometry',
+          'hours_est': 8,
+          'hours_taught': 5,
+          'weightage': 6,
+          'status': 'In Progress',
+          'learning_outcome':
+              'Heights and distances, angles of elevation and depression'
+        },
+        {
+          'unit_no': 'Ch 10',
+          'title': 'Circles',
+          'hours_est': 8,
+          'hours_taught': 3,
+          'weightage': 6,
+          'status': 'Planned',
+          'learning_outcome':
+              'Tangents at any point, lengths of tangents from external point'
+        },
+        {
+          'unit_no': 'Ch 12',
+          'title': 'Surface Areas and Volumes',
+          'hours_est': 12,
+          'hours_taught': 0,
+          'weightage': 9,
+          'status': 'Planned',
+          'learning_outcome':
+              'Combinations of solids: cubes, cuboids, spheres, cylinders, cones'
+        },
+        {
+          'unit_no': 'Ch 13',
+          'title': 'Statistics',
+          'hours_est': 10,
+          'hours_taught': 0,
+          'weightage': 8,
+          'status': 'Planned',
+          'learning_outcome':
+              'Mean (assumed mean), median, mode of grouped frequency distributions'
+        },
       ],
       'Science': [
-        {'unit_no': 'Ch 1', 'title': 'Chemical Reactions & Equations', 'hours_est': 10, 'hours_taught': 10, 'weightage': 6, 'status': 'Completed', 'learning_outcome': 'Types of reactions, oxidation-reduction, corrosion, rancidity'},
-        {'unit_no': 'Ch 2', 'title': 'Acids, Bases and Salts', 'hours_est': 10, 'hours_taught': 10, 'weightage': 7, 'status': 'Completed', 'learning_outcome': 'pH scale importance, preparation of bleaching powder, baking soda, POP'},
-        {'unit_no': 'Ch 3', 'title': 'Metals and Non-metals', 'hours_est': 12, 'hours_taught': 12, 'weightage': 8, 'status': 'Completed', 'learning_outcome': 'Reactivity series, ionic bond properties, metallurgy basic concepts'},
-        {'unit_no': 'Ch 4', 'title': 'Carbon and its Compounds', 'hours_est': 14, 'hours_taught': 9, 'weightage': 9, 'status': 'In Progress', 'learning_outcome': 'Covalent bonding, homologous series, functional groups, soap micelles'},
-        {'unit_no': 'Ch 6', 'title': 'Life Processes', 'hours_est': 14, 'hours_taught': 14, 'weightage': 9, 'status': 'Completed', 'learning_outcome': 'Nutrition, respiration, double circulation, human excretory system'},
-        {'unit_no': 'Ch 7', 'title': 'Control and Coordination', 'hours_est': 10, 'hours_taught': 10, 'weightage': 6, 'status': 'Completed', 'learning_outcome': 'Neuron structure, reflex arc, human brain, phytohormones'},
-        {'unit_no': 'Ch 8', 'title': 'How do Organisms Reproduce?', 'hours_est': 10, 'hours_taught': 10, 'weightage': 7, 'status': 'Completed', 'learning_outcome': 'Asexual modes, flower anatomy, male & female reproductive systems'},
-        {'unit_no': 'Ch 9', 'title': 'Heredity and Evolution', 'hours_est': 8, 'hours_taught': 8, 'weightage': 5, 'status': 'Completed', 'learning_outcome': 'Mendel laws of inheritance, monohybrid & dihybrid cross, sex determination'},
-        {'unit_no': 'Ch 10', 'title': 'Light - Reflection and Refraction', 'hours_est': 12, 'hours_taught': 12, 'weightage': 9, 'status': 'Completed', 'learning_outcome': 'Mirror and lens formulas, ray diagrams, refractive index, power of lens'},
-        {'unit_no': 'Ch 11', 'title': 'Human Eye & Colourful World', 'hours_est': 8, 'hours_taught': 4, 'weightage': 5, 'status': 'In Progress', 'learning_outcome': 'Defects of vision (myopia, hypermetropia), prism dispersion, scattering'},
-        {'unit_no': 'Ch 12', 'title': 'Electricity', 'hours_est': 12, 'hours_taught': 0, 'weightage': 8, 'status': 'Planned', 'learning_outcome': 'Ohm law, series-parallel combinations, Joule heating effect, electric power'},
-        {'unit_no': 'Ch 13', 'title': 'Magnetic Effects of Electric Current', 'hours_est': 10, 'hours_taught': 0, 'weightage': 6, 'status': 'Planned', 'learning_outcome': 'Right-hand thumb rule, solenoid, Fleming left-hand rule, domestic circuits'},
+        {
+          'unit_no': 'Ch 1',
+          'title': 'Chemical Reactions & Equations',
+          'hours_est': 10,
+          'hours_taught': 10,
+          'weightage': 6,
+          'status': 'Completed',
+          'learning_outcome':
+              'Types of reactions, oxidation-reduction, corrosion, rancidity'
+        },
+        {
+          'unit_no': 'Ch 2',
+          'title': 'Acids, Bases and Salts',
+          'hours_est': 10,
+          'hours_taught': 10,
+          'weightage': 7,
+          'status': 'Completed',
+          'learning_outcome':
+              'pH scale importance, preparation of bleaching powder, baking soda, POP'
+        },
+        {
+          'unit_no': 'Ch 3',
+          'title': 'Metals and Non-metals',
+          'hours_est': 12,
+          'hours_taught': 12,
+          'weightage': 8,
+          'status': 'Completed',
+          'learning_outcome':
+              'Reactivity series, ionic bond properties, metallurgy basic concepts'
+        },
+        {
+          'unit_no': 'Ch 4',
+          'title': 'Carbon and its Compounds',
+          'hours_est': 14,
+          'hours_taught': 9,
+          'weightage': 9,
+          'status': 'In Progress',
+          'learning_outcome':
+              'Covalent bonding, homologous series, functional groups, soap micelles'
+        },
+        {
+          'unit_no': 'Ch 6',
+          'title': 'Life Processes',
+          'hours_est': 14,
+          'hours_taught': 14,
+          'weightage': 9,
+          'status': 'Completed',
+          'learning_outcome':
+              'Nutrition, respiration, double circulation, human excretory system'
+        },
+        {
+          'unit_no': 'Ch 7',
+          'title': 'Control and Coordination',
+          'hours_est': 10,
+          'hours_taught': 10,
+          'weightage': 6,
+          'status': 'Completed',
+          'learning_outcome':
+              'Neuron structure, reflex arc, human brain, phytohormones'
+        },
+        {
+          'unit_no': 'Ch 8',
+          'title': 'How do Organisms Reproduce?',
+          'hours_est': 10,
+          'hours_taught': 10,
+          'weightage': 7,
+          'status': 'Completed',
+          'learning_outcome':
+              'Asexual modes, flower anatomy, male & female reproductive systems'
+        },
+        {
+          'unit_no': 'Ch 9',
+          'title': 'Heredity and Evolution',
+          'hours_est': 8,
+          'hours_taught': 8,
+          'weightage': 5,
+          'status': 'Completed',
+          'learning_outcome':
+              'Mendel laws of inheritance, monohybrid & dihybrid cross, sex determination'
+        },
+        {
+          'unit_no': 'Ch 10',
+          'title': 'Light - Reflection and Refraction',
+          'hours_est': 12,
+          'hours_taught': 12,
+          'weightage': 9,
+          'status': 'Completed',
+          'learning_outcome':
+              'Mirror and lens formulas, ray diagrams, refractive index, power of lens'
+        },
+        {
+          'unit_no': 'Ch 11',
+          'title': 'Human Eye & Colourful World',
+          'hours_est': 8,
+          'hours_taught': 4,
+          'weightage': 5,
+          'status': 'In Progress',
+          'learning_outcome':
+              'Defects of vision (myopia, hypermetropia), prism dispersion, scattering'
+        },
+        {
+          'unit_no': 'Ch 12',
+          'title': 'Electricity',
+          'hours_est': 12,
+          'hours_taught': 0,
+          'weightage': 8,
+          'status': 'Planned',
+          'learning_outcome':
+              'Ohm law, series-parallel combinations, Joule heating effect, electric power'
+        },
+        {
+          'unit_no': 'Ch 13',
+          'title': 'Magnetic Effects of Electric Current',
+          'hours_est': 10,
+          'hours_taught': 0,
+          'weightage': 6,
+          'status': 'Planned',
+          'learning_outcome':
+              'Right-hand thumb rule, solenoid, Fleming left-hand rule, domestic circuits'
+        },
       ],
       'English': [
-        {'unit_no': 'Ch 1', 'title': 'A Letter to God (First Flight)', 'hours_est': 6, 'hours_taught': 6, 'weightage': 6, 'status': 'Completed', 'learning_outcome': 'Theme of faith, dramatic irony, character sketch'},
-        {'unit_no': 'Ch 2', 'title': 'Nelson Mandela: Long Walk to Freedom', 'hours_est': 6, 'hours_taught': 6, 'weightage': 6, 'status': 'Completed', 'learning_outcome': 'Courage, apartheid struggle, ideals of democratic transition'},
-        {'unit_no': 'Ch 3', 'title': 'Two Stories About Flying', 'hours_est': 6, 'hours_taught': 6, 'weightage': 5, 'status': 'Completed', 'learning_outcome': 'Conquering inner fear, mystery in black aeroplane'},
-        {'unit_no': 'Ch 4', 'title': 'From the Diary of Anne Frank', 'hours_est': 6, 'hours_taught': 6, 'weightage': 6, 'status': 'Completed', 'learning_outcome': 'Confessional diary writing, adolescence introspection'},
-        {'unit_no': 'Ch 7', 'title': 'Glimpses of India', 'hours_est': 8, 'hours_taught': 5, 'weightage': 6, 'status': 'In Progress', 'learning_outcome': 'Cultural geography of Goa, Coorg coffee, Assam tea estates'},
-        {'unit_no': 'Grammar', 'title': 'Tenses, Modals & Determiners', 'hours_est': 10, 'hours_taught': 10, 'weightage': 10, 'status': 'Completed', 'learning_outcome': 'Error correction, gap filling, subject-verb concord'},
-        {'unit_no': 'Writing', 'title': 'Formal Letter & Analytical Paragraph', 'hours_est': 10, 'hours_taught': 8, 'weightage': 10, 'status': 'In Progress', 'learning_outcome': 'Data chart analysis, complaint letters, letters to editor'},
+        {
+          'unit_no': 'Ch 1',
+          'title': 'A Letter to God (First Flight)',
+          'hours_est': 6,
+          'hours_taught': 6,
+          'weightage': 6,
+          'status': 'Completed',
+          'learning_outcome': 'Theme of faith, dramatic irony, character sketch'
+        },
+        {
+          'unit_no': 'Ch 2',
+          'title': 'Nelson Mandela: Long Walk to Freedom',
+          'hours_est': 6,
+          'hours_taught': 6,
+          'weightage': 6,
+          'status': 'Completed',
+          'learning_outcome':
+              'Courage, apartheid struggle, ideals of democratic transition'
+        },
+        {
+          'unit_no': 'Ch 3',
+          'title': 'Two Stories About Flying',
+          'hours_est': 6,
+          'hours_taught': 6,
+          'weightage': 5,
+          'status': 'Completed',
+          'learning_outcome':
+              'Conquering inner fear, mystery in black aeroplane'
+        },
+        {
+          'unit_no': 'Ch 4',
+          'title': 'From the Diary of Anne Frank',
+          'hours_est': 6,
+          'hours_taught': 6,
+          'weightage': 6,
+          'status': 'Completed',
+          'learning_outcome':
+              'Confessional diary writing, adolescence introspection'
+        },
+        {
+          'unit_no': 'Ch 7',
+          'title': 'Glimpses of India',
+          'hours_est': 8,
+          'hours_taught': 5,
+          'weightage': 6,
+          'status': 'In Progress',
+          'learning_outcome':
+              'Cultural geography of Goa, Coorg coffee, Assam tea estates'
+        },
+        {
+          'unit_no': 'Grammar',
+          'title': 'Tenses, Modals & Determiners',
+          'hours_est': 10,
+          'hours_taught': 10,
+          'weightage': 10,
+          'status': 'Completed',
+          'learning_outcome':
+              'Error correction, gap filling, subject-verb concord'
+        },
+        {
+          'unit_no': 'Writing',
+          'title': 'Formal Letter & Analytical Paragraph',
+          'hours_est': 10,
+          'hours_taught': 8,
+          'weightage': 10,
+          'status': 'In Progress',
+          'learning_outcome':
+              'Data chart analysis, complaint letters, letters to editor'
+        },
       ],
       'Social Science': [
-        {'unit_no': 'Hist 1', 'title': 'The Rise of Nationalism in Europe', 'hours_est': 10, 'hours_taught': 7, 'weightage': 8, 'status': 'In Progress', 'learning_outcome': 'Sorrieu vision, French revolution, Napoleonic code, German unification'},
-        {'unit_no': 'Hist 2', 'title': 'Nationalism in India', 'hours_est': 10, 'hours_taught': 10, 'weightage': 8, 'status': 'Completed', 'learning_outcome': 'Non-cooperation, Civil disobedience, Salt march, differing strands'},
-        {'unit_no': 'Geo 1', 'title': 'Resources and Development', 'hours_est': 8, 'hours_taught': 8, 'weightage': 5, 'status': 'Completed', 'learning_outcome': 'Resource planning, soil erosion, sustainable development Rio summit'},
-        {'unit_no': 'Geo 4', 'title': 'Agriculture', 'hours_est': 8, 'hours_taught': 8, 'weightage': 6, 'status': 'Completed', 'learning_outcome': 'Kharif, Rabi, Zaid crops, technological & institutional reforms'},
-        {'unit_no': 'Pol 1', 'title': 'Power Sharing', 'hours_est': 6, 'hours_taught': 6, 'weightage': 5, 'status': 'Completed', 'learning_outcome': 'Belgium vs Sri Lanka model, horizontal vs vertical power sharing'},
-        {'unit_no': 'Pol 2', 'title': 'Federalism', 'hours_est': 6, 'hours_taught': 6, 'weightage': 5, 'status': 'Completed', 'learning_outcome': 'Union, State, Concurrent lists, linguistic states, 1992 decentralisation'},
-        {'unit_no': 'Eco 1', 'title': 'Development', 'hours_est': 6, 'hours_taught': 6, 'weightage': 5, 'status': 'Completed', 'learning_outcome': 'Per capita income, HDI criteria, infant mortality rate, sustainability'},
-        {'unit_no': 'Eco 2', 'title': 'Sectors of the Indian Economy', 'hours_est': 8, 'hours_taught': 8, 'weightage': 6, 'status': 'Completed', 'learning_outcome': 'Primary, secondary, tertiary GDP shares, disguised unemployment, MGNREGA'},
+        {
+          'unit_no': 'Hist 1',
+          'title': 'The Rise of Nationalism in Europe',
+          'hours_est': 10,
+          'hours_taught': 7,
+          'weightage': 8,
+          'status': 'In Progress',
+          'learning_outcome':
+              'Sorrieu vision, French revolution, Napoleonic code, German unification'
+        },
+        {
+          'unit_no': 'Hist 2',
+          'title': 'Nationalism in India',
+          'hours_est': 10,
+          'hours_taught': 10,
+          'weightage': 8,
+          'status': 'Completed',
+          'learning_outcome':
+              'Non-cooperation, Civil disobedience, Salt march, differing strands'
+        },
+        {
+          'unit_no': 'Geo 1',
+          'title': 'Resources and Development',
+          'hours_est': 8,
+          'hours_taught': 8,
+          'weightage': 5,
+          'status': 'Completed',
+          'learning_outcome':
+              'Resource planning, soil erosion, sustainable development Rio summit'
+        },
+        {
+          'unit_no': 'Geo 4',
+          'title': 'Agriculture',
+          'hours_est': 8,
+          'hours_taught': 8,
+          'weightage': 6,
+          'status': 'Completed',
+          'learning_outcome':
+              'Kharif, Rabi, Zaid crops, technological & institutional reforms'
+        },
+        {
+          'unit_no': 'Pol 1',
+          'title': 'Power Sharing',
+          'hours_est': 6,
+          'hours_taught': 6,
+          'weightage': 5,
+          'status': 'Completed',
+          'learning_outcome':
+              'Belgium vs Sri Lanka model, horizontal vs vertical power sharing'
+        },
+        {
+          'unit_no': 'Pol 2',
+          'title': 'Federalism',
+          'hours_est': 6,
+          'hours_taught': 6,
+          'weightage': 5,
+          'status': 'Completed',
+          'learning_outcome':
+              'Union, State, Concurrent lists, linguistic states, 1992 decentralisation'
+        },
+        {
+          'unit_no': 'Eco 1',
+          'title': 'Development',
+          'hours_est': 6,
+          'hours_taught': 6,
+          'weightage': 5,
+          'status': 'Completed',
+          'learning_outcome':
+              'Per capita income, HDI criteria, infant mortality rate, sustainability'
+        },
+        {
+          'unit_no': 'Eco 2',
+          'title': 'Sectors of the Indian Economy',
+          'hours_est': 8,
+          'hours_taught': 8,
+          'weightage': 6,
+          'status': 'Completed',
+          'learning_outcome':
+              'Primary, secondary, tertiary GDP shares, disguised unemployment, MGNREGA'
+        },
       ],
       'Computer Applications': [
-        {'unit_no': 'Unit 1', 'title': 'Internet Basics & Protocols', 'hours_est': 8, 'hours_taught': 8, 'weightage': 8, 'status': 'Completed', 'learning_outcome': 'TCP/IP, HTTP, HTTPS, FTP, DNS, URL breakdown, ISP'},
-        {'unit_no': 'Unit 2', 'title': 'HTML5 Formatting & Images', 'hours_est': 10, 'hours_taught': 10, 'weightage': 10, 'status': 'Completed', 'learning_outcome': 'Heading tags, paragraph, lists, anchor links, tables, img'},
-        {'unit_no': 'Unit 3', 'title': 'HTML5 Web Forms & Controls', 'hours_est': 10, 'hours_taught': 8, 'weightage': 12, 'status': 'In Progress', 'learning_outcome': 'Form validation, text inputs, radio, checkboxes, dropdowns, submit'},
-        {'unit_no': 'Unit 4', 'title': 'CSS3 Styling & Box Model', 'hours_est': 12, 'hours_taught': 8, 'weightage': 12, 'status': 'In Progress', 'learning_outcome': 'Inline/internal/external CSS, selectors, flexbox, border, padding, margin'},
-        {'unit_no': 'Unit 5', 'title': 'Cyber Ethics & Intellectual Property', 'hours_est': 8, 'hours_taught': 0, 'weightage': 8, 'status': 'Planned', 'learning_outcome': 'Digital footprints, copyright, plagiarism, software licensing, cybersecurity'},
+        {
+          'unit_no': 'Unit 1',
+          'title': 'Internet Basics & Protocols',
+          'hours_est': 8,
+          'hours_taught': 8,
+          'weightage': 8,
+          'status': 'Completed',
+          'learning_outcome':
+              'TCP/IP, HTTP, HTTPS, FTP, DNS, URL breakdown, ISP'
+        },
+        {
+          'unit_no': 'Unit 2',
+          'title': 'HTML5 Formatting & Images',
+          'hours_est': 10,
+          'hours_taught': 10,
+          'weightage': 10,
+          'status': 'Completed',
+          'learning_outcome':
+              'Heading tags, paragraph, lists, anchor links, tables, img'
+        },
+        {
+          'unit_no': 'Unit 3',
+          'title': 'HTML5 Web Forms & Controls',
+          'hours_est': 10,
+          'hours_taught': 8,
+          'weightage': 12,
+          'status': 'In Progress',
+          'learning_outcome':
+              'Form validation, text inputs, radio, checkboxes, dropdowns, submit'
+        },
+        {
+          'unit_no': 'Unit 4',
+          'title': 'CSS3 Styling & Box Model',
+          'hours_est': 12,
+          'hours_taught': 8,
+          'weightage': 12,
+          'status': 'In Progress',
+          'learning_outcome':
+              'Inline/internal/external CSS, selectors, flexbox, border, padding, margin'
+        },
+        {
+          'unit_no': 'Unit 5',
+          'title': 'Cyber Ethics & Intellectual Property',
+          'hours_est': 8,
+          'hours_taught': 0,
+          'weightage': 8,
+          'status': 'Planned',
+          'learning_outcome':
+              'Digital footprints, copyright, plagiarism, software licensing, cybersecurity'
+        },
       ],
     },
   };
@@ -2917,13 +3681,22 @@ class SchoolService {
       final pSubject = (plan['subject'] ?? '').toString();
       final pStatus = (plan['status'] ?? '').toString();
 
-      if (classId != null && classId.isNotEmpty && classId != '__all__' && pClass != classId) {
+      if (classId != null &&
+          classId.isNotEmpty &&
+          classId != '__all__' &&
+          pClass != classId) {
         return false;
       }
-      if (subject != null && subject.isNotEmpty && subject != 'All' && pSubject.toLowerCase() != subject.toLowerCase()) {
+      if (subject != null &&
+          subject.isNotEmpty &&
+          subject != 'All' &&
+          pSubject.toLowerCase() != subject.toLowerCase()) {
         return false;
       }
-      if (status != null && status.isNotEmpty && status != 'All' && pStatus.toLowerCase() != status.toLowerCase()) {
+      if (status != null &&
+          status.isNotEmpty &&
+          status != 'All' &&
+          pStatus.toLowerCase() != status.toLowerCase()) {
         return false;
       }
       return true;
@@ -2931,18 +3704,21 @@ class SchoolService {
   }
 
   /// Create or edit an enterprise lesson plan
-  Future<Map<String, dynamic>> saveEnterpriseLessonPlan(Map<String, dynamic> planData) async {
+  Future<Map<String, dynamic>> saveEnterpriseLessonPlan(
+      Map<String, dynamic> planData) async {
     if (_enterpriseLessonPlansStore.isEmpty) {
       _enterpriseLessonPlansStore.addAll(_defaultEnterpriseLessonPlans);
     }
 
-    final id = planData['id']?.toString() ?? 'LP-2026-${DateTime.now().millisecondsSinceEpoch}';
+    final id = planData['id']?.toString() ??
+        'LP-2026-${DateTime.now().millisecondsSinceEpoch}';
     final index = _enterpriseLessonPlansStore.indexWhere((p) => p['id'] == id);
 
     final updated = {
       ...planData,
       'id': id,
-      'plan_code': planData['plan_code'] ?? 'CBSE/10/${(planData['subject'] ?? 'GEN').toString().substring(0, 3).toUpperCase()}/${DateTime.now().millisecondsSinceEpoch % 1000}',
+      'plan_code': planData['plan_code'] ??
+          'CBSE/10/${(planData['subject'] ?? 'GEN').toString().substring(0, 3).toUpperCase()}/${DateTime.now().millisecondsSinceEpoch % 1000}',
       'status': planData['status'] ?? 'Approved',
     };
 
@@ -2962,7 +3738,8 @@ class SchoolService {
 
       await _supabase.from('school_circulars').insert({
         'institute_code': 'SHIV-SCH',
-        'title': 'Lesson Plan: ${updated['subject']} (${updated['chapter_title']})',
+        'title':
+            'Lesson Plan: ${updated['subject']} (${updated['chapter_title']})',
         'content': structured,
         'category': 'LessonPlan',
         'target_audience': 'all',
@@ -2992,7 +3769,10 @@ class SchoolService {
       if (approverName != null) audit['approved_by'] = approverName;
       if (remarks != null) audit['hod_remarks'] = remarks;
       if (rubricRating != null) audit['rubric_rating'] = rubricRating;
-      audit['approved_at'] = DateTime.now().toIso8601String().substring(0, 16).replaceAll('T', ' ');
+      audit['approved_at'] = DateTime.now()
+          .toIso8601String()
+          .substring(0, 16)
+          .replaceAll('T', ' ');
 
       _enterpriseLessonPlansStore[index] = {
         ...existing,
@@ -3047,7 +3827,8 @@ class SchoolService {
     required String classId,
     required String subject,
   }) async {
-    final classUnits = _defaultCurriculumSyllabusUnits[classId] ?? _defaultCurriculumSyllabusUnits['cls-10a']!;
+    final classUnits = _defaultCurriculumSyllabusUnits[classId] ??
+        _defaultCurriculumSyllabusUnits['cls-10a']!;
     return classUnits[subject] ?? classUnits['Mathematics'] ?? [];
   }
 
@@ -3056,8 +3837,11 @@ class SchoolService {
     final plans = await getEnterpriseLessonPlans(classId: classId);
     final totalPlans = plans.length;
     final taughtCount = plans.where((p) => p['status'] == 'Taught').length;
-    final inProgressCount = plans.where((p) => p['status'] == 'In Progress' || p['status'] == 'Approved').length;
-    final underReviewCount = plans.where((p) => p['status'] == 'Under Review').length;
+    final inProgressCount = plans
+        .where((p) => p['status'] == 'In Progress' || p['status'] == 'Approved')
+        .length;
+    final underReviewCount =
+        plans.where((p) => p['status'] == 'Under Review').length;
 
     double avgMastery = 0.0;
     int ratedCount = 0;
@@ -3074,15 +3858,18 @@ class SchoolService {
     avgMastery = ratedCount > 0 ? (avgMastery / ratedCount) : 88.4;
 
     // Calculate overall curriculum chapters completed across Class 10
-    final classMap = _defaultCurriculumSyllabusUnits[classId] ?? _defaultCurriculumSyllabusUnits['cls-10a']!;
+    final classMap = _defaultCurriculumSyllabusUnits[classId] ??
+        _defaultCurriculumSyllabusUnits['cls-10a']!;
     int totalChapters = 0;
     int completedChapters = 0;
     for (final subjectList in classMap.values) {
       totalChapters += subjectList.length;
-      completedChapters += subjectList.where((u) => u['status'] == 'Completed').length;
+      completedChapters +=
+          subjectList.where((u) => u['status'] == 'Completed').length;
     }
 
-    final double syllabusPct = totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 78.5;
+    final double syllabusPct =
+        totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 78.5;
     final bool onTrack = syllabusPct >= 70.0;
 
     return {
@@ -3093,7 +3880,9 @@ class SchoolService {
       'remedial_sessions_count': 4,
       'syllabus_percentage': syllabusPct,
       'average_concept_mastery': avgMastery,
-      'pacing_label': onTrack ? 'On Track • Pre-Board Ready' : 'Lagging Alert • Action Required',
+      'pacing_label': onTrack
+          ? 'On Track • Pre-Board Ready'
+          : 'Lagging Alert • Action Required',
       'is_on_track': onTrack,
       'term_exam_countdown_days': 24,
     };
@@ -3101,7 +3890,8 @@ class SchoolService {
 
   // ===== BACKWARD COMPATIBLE TIMETABLE LESSON PLANS =====
 
-  Future<List<Map<String, dynamic>>> getLessonPlans({String? classId, String? subject}) async {
+  Future<List<Map<String, dynamic>>> getLessonPlans(
+      {String? classId, String? subject}) async {
     return getEnterpriseLessonPlans(classId: classId, subject: subject);
   }
 
@@ -3131,7 +3921,8 @@ class SchoolService {
       'pedagogy_method': 'Inquiry-Based Learning',
       'specific_learning_outcomes': [objective],
       'five_e_model': {
-        'engage': 'Opening classroom discussion on practical applications of $topic.',
+        'engage':
+            'Opening classroom discussion on practical applications of $topic.',
         'explore': 'Hands-on problem solving in pairs with guided hints.',
         'explain': 'Formal concept derivation on smartboard.',
         'elaborate': 'Higher order thinking application problems.',
@@ -3149,7 +3940,8 @@ class SchoolService {
     final plans = await getEnterpriseLessonPlans(classId: classId);
     final totalUnits = plans.length;
     final taughtUnits = plans.where((p) => p['status'] == 'Taught').length;
-    final coveragePct = (pacing['syllabus_percentage'] as num?)?.toDouble() ?? 80.0;
+    final coveragePct =
+        (pacing['syllabus_percentage'] as num?)?.toDouble() ?? 80.0;
     final isLagging = !pacing['is_on_track'];
 
     return {
@@ -3194,7 +3986,8 @@ class SchoolService {
   }
 
   // ===== STUDENT ATTENDANCE & PERFORMANCE =====
-  Future<double> getStudentAttendancePercent(String studentId, {DateTime? month}) async {
+  Future<double> getStudentAttendancePercent(String studentId,
+      {DateTime? month}) async {
     try {
       final now = month ?? DateTime.now();
       final firstDay = '${now.year}-${now.month.toString().padLeft(2, '0')}-01';
@@ -3210,13 +4003,11 @@ class SchoolService {
       if (records.isNotEmpty) {
         // Excused leave is not an absence; late attendance still counts.
         final counted = records
-            .where((r) =>
-                r['status'] != 'excused' && r['status'] != 'leave')
+            .where((r) => r['status'] != 'excused' && r['status'] != 'leave')
             .toList();
         if (counted.isEmpty) return 100;
         final present = counted
-            .where((r) =>
-                r['status'] == 'present' || r['status'] == 'late')
+            .where((r) => r['status'] == 'present' || r['status'] == 'late')
             .length;
         return (present / counted.length) * 100;
       }
@@ -3240,7 +4031,8 @@ class SchoolService {
     }
   }
 
-  Future<int> getPendingHomeworkCount(String classId) async {    try {
+  Future<int> getPendingHomeworkCount(String classId) async {
+    try {
       final now = DateTime.now().toIso8601String().substring(0, 10);
       final response = await _supabase
           .from('school_homework')
@@ -3270,7 +4062,10 @@ class SchoolService {
 
     return {
       'subject': 'Mathematics Mid-Term',
-      'exam_date': DateTime.now().add(const Duration(days: 4)).toIso8601String().substring(0, 10),
+      'exam_date': DateTime.now()
+          .add(const Duration(days: 4))
+          .toIso8601String()
+          .substring(0, 10),
       'duration': '2.5 Hours',
       'max_marks': 80,
     };
@@ -3294,8 +4089,7 @@ class SchoolService {
           .select()
           .eq('date', dateStr);
       final rows = List<Map<String, dynamic>>.from(response);
-      final matches =
-          rows.where((row) => _classMatches(row, aliases)).toList();
+      final matches = rows.where((row) => _classMatches(row, aliases)).toList();
       if (matches.isNotEmpty) {
         _attendanceStore[key] = matches;
         return matches;
@@ -3311,7 +4105,8 @@ class SchoolService {
   /// Persist one attendance row per student for the selected date.
   /// Returns false when nothing could be written, so the UI never claims a
   /// silent success.
-  Future<bool> markAttendance(List<Map<String, dynamic>> records, {bool forceUpdate = false}) async {
+  Future<bool> markAttendance(List<Map<String, dynamic>> records,
+      {bool forceUpdate = false}) async {
     if (records.isEmpty) return false;
 
     // Enforce live role check from database
@@ -3322,8 +4117,8 @@ class SchoolService {
 
     final first = records.first;
     final classId = first['class_id']?.toString() ?? '';
-    final dateStr =
-        first['date']?.toString() ?? DateTime.now().toIso8601String().substring(0, 10);
+    final dateStr = first['date']?.toString() ??
+        DateTime.now().toIso8601String().substring(0, 10);
     final key = '${classId}_$dateStr';
 
     final studentIds = records
@@ -3363,16 +4158,13 @@ class SchoolService {
             .eq('date', dateStr)
             .maybeSingle();
         if (existing != null) {
-          await _supabase
-              .from('school_attendance')
-              .update({
-                'status': record['status'],
-                'class_id': record['class_id'],
-                'class_name': record['class_name'],
-                'student_name': record['student_name'],
-                'marked_by': record['marked_by'],
-              })
-              .eq('id', existing['id']);
+          await _supabase.from('school_attendance').update({
+            'status': record['status'],
+            'class_id': record['class_id'],
+            'class_name': record['class_name'],
+            'student_name': record['student_name'],
+            'marked_by': record['marked_by'],
+          }).eq('id', existing['id']);
         } else {
           await _supabase.from('school_attendance').insert(record);
         }
@@ -3420,7 +4212,8 @@ class SchoolService {
     required DateTime from,
     required DateTime to,
   }) async {
-    final list = await getAttendanceReport(classId: classId, from: from, to: to);
+    final list =
+        await getAttendanceReport(classId: classId, from: from, to: to);
     final total = list.length;
     final present = list.where((r) => r['status'] == 'present').length;
     final absent = list.where((r) => r['status'] == 'absent').length;
@@ -3439,7 +4232,8 @@ class SchoolService {
   /// Build PostgREST `or(...)` filter that matches a class robustly across
   /// backend formats (class_id like 'cls-10a', class_name 'Class 10-A',
   /// or base name 'Class 10' + section 'A').
-  String? _homeworkClassFilter(String? classId, String? className, String? section) {
+  String? _homeworkClassFilter(
+      String? classId, String? className, String? section) {
     final conditions = <String>[];
     if (classId != null && classId.isNotEmpty) {
       conditions.add('class_id.eq.$classId');
@@ -3447,7 +4241,9 @@ class SchoolService {
     if (className != null && className.isNotEmpty) {
       conditions.add('class_name.eq."$className"');
       // Base class name without the "-section" suffix, e.g. 'Class 10-A' -> 'Class 10'
-      final base = className.contains('-') ? className.substring(0, className.lastIndexOf('-')) : className;
+      final base = className.contains('-')
+          ? className.substring(0, className.lastIndexOf('-'))
+          : className;
       if (base != className && base.isNotEmpty) {
         if (section != null && section.isNotEmpty) {
           conditions.add('and(class_name.eq."$base",section.eq."$section")');
@@ -3460,7 +4256,8 @@ class SchoolService {
     return conditions.join(',');
   }
 
-  Future<List<Map<String, dynamic>>> getHomework({String? classId, String? className, String? section}) async {
+  Future<List<Map<String, dynamic>>> getHomework(
+      {String? classId, String? className, String? section}) async {
     final filter = _homeworkClassFilter(classId, className, section);
     try {
       var query = _supabase.from('school_homework').select();
@@ -3495,8 +4292,12 @@ class SchoolService {
         'class_id': classId ?? 'Class 10-A',
         'class_name': classId ?? 'Class 10-A',
         'teacher_name': 'Mr. Sharma',
-        'description': 'Solve problems 1-15 from the NCERT textbook. Show step-by-step working in homework notebook.',
-        'due_date': DateTime.now().add(const Duration(days: 2)).toIso8601String().substring(0, 10),
+        'description':
+            'Solve problems 1-15 from the NCERT textbook. Show step-by-step working in homework notebook.',
+        'due_date': DateTime.now()
+            .add(const Duration(days: 2))
+            .toIso8601String()
+            .substring(0, 10),
         'status': 'pending',
         'submission_count': 18,
         'total_students': 24,
@@ -3508,8 +4309,12 @@ class SchoolService {
         'class_id': classId ?? 'Class 10-A',
         'class_name': classId ?? 'Class 10-A',
         'teacher_name': 'Mrs. Gupta',
-        'description': 'Draw neat and labelled diagram on A4 chart paper showing double circulation.',
-        'due_date': DateTime.now().add(const Duration(days: 4)).toIso8601String().substring(0, 10),
+        'description':
+            'Draw neat and labelled diagram on A4 chart paper showing double circulation.',
+        'due_date': DateTime.now()
+            .add(const Duration(days: 4))
+            .toIso8601String()
+            .substring(0, 10),
         'status': 'pending',
         'submission_count': 12,
         'total_students': 24,
@@ -3521,8 +4326,12 @@ class SchoolService {
         'class_id': classId ?? 'Class 10-A',
         'class_name': classId ?? 'Class 10-A',
         'teacher_name': 'Ms. Verma',
-        'description': 'Write 300 words essay with proper introduction, body points, and conclusion.',
-        'due_date': DateTime.now().subtract(const Duration(days: 1)).toIso8601String().substring(0, 10),
+        'description':
+            'Write 300 words essay with proper introduction, body points, and conclusion.',
+        'due_date': DateTime.now()
+            .subtract(const Duration(days: 1))
+            .toIso8601String()
+            .substring(0, 10),
         'status': 'submitted',
         'submission_count': 23,
         'total_students': 24,
@@ -3562,8 +4371,7 @@ class SchoolService {
       'title': data['title'],
       'description': data['description'],
       'due_date': data['due_date'],
-      'teacher_username':
-          data['teacher_username'] ?? data['teacher'] ?? '',
+      'teacher_username': data['teacher_username'] ?? data['teacher'] ?? '',
       'attachment_url': data['attachment_url'],
     };
     payload.removeWhere((_, value) => value == null);
@@ -3585,8 +4393,7 @@ class SchoolService {
     try {
       await _supabase
           .from('school_homework')
-          .update({'status': status})
-          .eq('id', homeworkId);
+          .update({'status': status}).eq('id', homeworkId);
     } catch (_) {}
     return true;
   }
@@ -3652,12 +4459,18 @@ class SchoolService {
     final safeName = '_' + cleanName;
     final path = 'submissions/' + safeName;
     try {
-      await _supabase.storage.from('assignments').uploadBinary(path, Uint8List.fromList(bytes));
+      await _supabase.storage
+          .from('assignments')
+          .uploadBinary(path, Uint8List.fromList(bytes));
       return _supabase.storage.from('assignments').getPublicUrl(path);
     } catch (_) {
       try {
-        await _supabase.storage.from('assignment-submissions').uploadBinary(path, Uint8List.fromList(bytes));
-        return _supabase.storage.from('assignment-submissions').getPublicUrl(path);
+        await _supabase.storage
+            .from('assignment-submissions')
+            .uploadBinary(path, Uint8List.fromList(bytes));
+        return _supabase.storage
+            .from('assignment-submissions')
+            .getPublicUrl(path);
       } catch (_) {
         return 'attachment://' + fileName;
       }
@@ -3678,7 +4491,8 @@ class SchoolService {
       if (studentId != null) 'student_id': studentId,
       if (studentName != null) 'student_name': studentName,
       if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
-      if (attachmentUrl != null && attachmentUrl.trim().isNotEmpty) 'attachment_url': attachmentUrl.trim(),
+      if (attachmentUrl != null && attachmentUrl.trim().isNotEmpty)
+        'attachment_url': attachmentUrl.trim(),
       'submitted_at': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
       'status': 'submitted',
@@ -3846,20 +4660,24 @@ class SchoolService {
     return false;
   }
 
-  Future<bool> _isParentLinkedToStudent(String parentUsername, String studentId) async {
+  Future<bool> _isParentLinkedToStudent(
+      String parentUsername, String studentId) async {
     try {
       final links = await _supabase
           .from('parent_student_links')
           .select('student_username')
           .eq('parent_username', parentUsername);
-      final usernames = (links as List).map((l) => l['student_username']?.toString() ?? '').toSet();
+      final usernames = (links as List)
+          .map((l) => l['student_username']?.toString() ?? '')
+          .toSet();
       if (usernames.contains(studentId)) return true;
       if (usernames.isNotEmpty) {
         final students = await _supabase
             .from('school_students')
             .select('id')
             .inFilter('username', usernames.toList());
-        final ids = (students as List).map((s) => s['id']?.toString() ?? '').toSet();
+        final ids =
+            (students as List).map((s) => s['id']?.toString() ?? '').toSet();
         return ids.contains(studentId);
       }
     } catch (_) {}
@@ -3880,12 +4698,14 @@ class SchoolService {
       if (role == 'student' || role == 'sstudent') {
         final isOwn = await _isOwnStudentRecord(currentUser, studentId);
         if (!isOwn) {
-          throw Exception('Access Denied: Students are only permitted to inspect their own marks records.');
+          throw Exception(
+              'Access Denied: Students are only permitted to inspect their own marks records.');
         }
       } else if (role == 'parent' || role == 'sparent') {
         final isLinked = await _isParentLinkedToStudent(currentUser, studentId);
         if (!isLinked) {
-          throw Exception('Access Denied: Parents are only permitted to inspect marks for their linked children.');
+          throw Exception(
+              'Access Denied: Parents are only permitted to inspect marks for their linked children.');
         }
       }
     }
@@ -3898,7 +4718,9 @@ class SchoolService {
       if (key.isEmpty) return;
       try {
         var query = _supabase.from('school_marks').select();
-        query = byName ? query.eq('student_name', key) : query.eq('student_id', key);
+        query = byName
+            ? query.eq('student_name', key)
+            : query.eq('student_id', key);
         if (examType != null && examType != 'All' && examType.isNotEmpty) {
           query = query.eq('exam_type', examType);
         }
@@ -3915,8 +4737,8 @@ class SchoolService {
     }
 
     final rows = rowsById.values.toList()
-      ..sort((a, b) =>
-          (a['subject']?.toString() ?? '').compareTo(b['subject']?.toString() ?? ''));
+      ..sort((a, b) => (a['subject']?.toString() ?? '')
+          .compareTo(b['subject']?.toString() ?? ''));
     return rows;
   }
 
@@ -3953,7 +4775,8 @@ class SchoolService {
       final tot = (m['total_marks'] ?? m['total'] ?? 100) as num;
       if (tot <= 0) continue;
       final pct = (obt / tot) * 100;
-      final grade = SchoolService.calculateCbseGrade(pct.toDouble())['grade'] as String;
+      final grade =
+          SchoolService.calculateCbseGrade(pct.toDouble())['grade'] as String;
       obtained += obt.toInt();
       max += tot.toInt();
       if (pct >= 33) passed++;
@@ -3977,7 +4800,8 @@ class SchoolService {
       'subjects_passed': passed,
       'subjects_total': breakdown.length,
       'grade': SchoolService.calculateCbseGrade(overallPct.toDouble())['grade'],
-      'grade_point': SchoolService.calculateCbseGrade(overallPct.toDouble())['point'],
+      'grade_point':
+          SchoolService.calculateCbseGrade(overallPct.toDouble())['point'],
       'strongest': breakdown.isEmpty ? null : breakdown.first,
       'weakest': breakdown.isEmpty ? null : breakdown.last,
       'grade_counts': gradeCounts,
@@ -3998,8 +4822,8 @@ class SchoolService {
           .eq('student_id', studentId)
           .eq('exam_type', examType);
       final rows = List<Map<String, dynamic>>.from(response);
-      rows.sort(
-          (a, b) => (a['area']?.toString() ?? '').compareTo(b['area']?.toString() ?? ''));
+      rows.sort((a, b) =>
+          (a['area']?.toString() ?? '').compareTo(b['area']?.toString() ?? ''));
       return rows;
     } catch (_) {
       return [];
@@ -4033,8 +4857,12 @@ class SchoolService {
   }) async {
     lastMarksError = null;
     final role = await AuthService().getCurrentUserRole();
-    if (role != 'admin' && role != 'sadmin' && role != 'teacher' && role != 'steacher') {
-      lastMarksError = 'Only teachers and administrators can update report card remarks.';
+    if (role != 'admin' &&
+        role != 'sadmin' &&
+        role != 'teacher' &&
+        role != 'steacher') {
+      lastMarksError =
+          'Only teachers and administrators can update report card remarks.';
       return false;
     }
     try {
@@ -4061,18 +4889,25 @@ class SchoolService {
     required List<Map<String, dynamic>> areas,
   }) async {
     final role = await AuthService().getCurrentUserRole();
-    if (role != 'admin' && role != 'sadmin' && role != 'teacher' && role != 'steacher') {
+    if (role != 'admin' &&
+        role != 'sadmin' &&
+        role != 'teacher' &&
+        role != 'steacher') {
       return false;
     }
     try {
-      final rows = areas.map((a) => {
-        'student_id': studentId,
-        'exam_type': examType,
-        'area': a['area'],
-        'grade': a['grade'],
-        'term': examType,
-      }).toList();
-      await _supabase.from('school_co_scholastic').upsert(rows, onConflict: 'student_id,exam_type,area');
+      final rows = areas
+          .map((a) => {
+                'student_id': studentId,
+                'exam_type': examType,
+                'area': a['area'],
+                'grade': a['grade'],
+                'term': examType,
+              })
+          .toList();
+      await _supabase
+          .from('school_co_scholastic')
+          .upsert(rows, onConflict: 'student_id,exam_type,area');
       return true;
     } catch (_) {
       return false;
@@ -4109,18 +4944,23 @@ class SchoolService {
       subject: subject,
     );
     if (isLocked) {
-      lastMarksError = 'Marks entry is locked for $subject ($examType). Administrative override required.';
+      lastMarksError =
+          'Marks entry is locked for $subject ($examType). Administrative override required.';
       throw Exception(lastMarksError);
     }
 
     final rows = <Map<String, dynamic>>[];
     for (final raw in marksList) {
-      final obtained = (raw['marks_obtained'] ?? raw['obtained_marks'] ??
-              raw['obtained'] ?? 0)
-          as num;
-      final total = (raw['total_marks'] ?? raw['max_marks'] ?? raw['total'] ?? 100)
-          as num;
-      final pct = total > 0 ? (obtained.toDouble() / total.toDouble()) * 100 : 0.0;
+      final obtained = (raw['marks_obtained'] ??
+          raw['obtained_marks'] ??
+          raw['obtained'] ??
+          0) as num;
+      final total = (raw['total_marks'] ??
+          raw['max_marks'] ??
+          raw['total'] ??
+          100) as num;
+      final pct =
+          total > 0 ? (obtained.toDouble() / total.toDouble()) * 100 : 0.0;
       final row = <String, dynamic>{
         if (raw['id'] != null) 'id': raw['id'],
         'student_id': raw['student_id']?.toString() ?? '',
@@ -4176,7 +5016,10 @@ class SchoolService {
         final list = List<Map<String, dynamic>>.from(existing);
         if (list.isNotEmpty) {
           row['id'] = list.first['id'];
-          await _supabase.from('school_marks').update(row).eq('id', row['id'].toString());
+          await _supabase
+              .from('school_marks')
+              .update(row)
+              .eq('id', row['id'].toString());
         } else {
           await _supabase.from('school_marks').insert(row);
         }
@@ -4201,7 +5044,8 @@ class SchoolService {
       var query = _supabase.from('school_marks').select();
       if (classId != 'All' && classId.isNotEmpty) {
         if (className != null && className.isNotEmpty && className != classId) {
-          query = query.or('class_id.eq.$classId,class_name.eq.$classId,class_name.eq.$className,class_id.eq.$className');
+          query = query.or(
+              'class_id.eq.$classId,class_name.eq.$classId,class_name.eq.$className,class_id.eq.$className');
         } else {
           query = query.or('class_id.eq.$classId,class_name.eq.$classId');
         }
@@ -4225,20 +5069,66 @@ class SchoolService {
 
   // ===== CBSE BOARD 9-POINT GRADING SCALE CONFIGURATION =====
   static const Map<String, Map<String, dynamic>> cbse9PointGradingScale = {
-    'A1': {'min': 91.0, 'max': 100.0, 'point': 10.0, 'remark': 'Top 1/8th of passed candidates (Outstanding)'},
-    'A2': {'min': 81.0, 'max': 90.99, 'point': 9.0, 'remark': 'Next 1/8th (Excellent)'},
-    'B1': {'min': 71.0, 'max': 80.99, 'point': 8.0, 'remark': 'Next 1/8th (Very Good)'},
-    'B2': {'min': 61.0, 'max': 70.99, 'point': 7.0, 'remark': 'Next 1/8th (Good)'},
-    'C1': {'min': 51.0, 'max': 60.99, 'point': 6.0, 'remark': 'Next 1/8th (Fair)'},
-    'C2': {'min': 41.0, 'max': 50.99, 'point': 5.0, 'remark': 'Next 1/8th (Average)'},
-    'D':  {'min': 33.0, 'max': 40.99, 'point': 4.0, 'remark': 'Pass (Minimum Qualifying)'},
-    'E1': {'min': 21.0, 'max': 32.99, 'point': 0.0, 'remark': 'Essential Repeat / Remedial'},
-    'E2': {'min': 0.0,  'max': 20.99, 'point': 0.0, 'remark': 'Essential Repeat'},
+    'A1': {
+      'min': 91.0,
+      'max': 100.0,
+      'point': 10.0,
+      'remark': 'Top 1/8th of passed candidates (Outstanding)'
+    },
+    'A2': {
+      'min': 81.0,
+      'max': 90.99,
+      'point': 9.0,
+      'remark': 'Next 1/8th (Excellent)'
+    },
+    'B1': {
+      'min': 71.0,
+      'max': 80.99,
+      'point': 8.0,
+      'remark': 'Next 1/8th (Very Good)'
+    },
+    'B2': {
+      'min': 61.0,
+      'max': 70.99,
+      'point': 7.0,
+      'remark': 'Next 1/8th (Good)'
+    },
+    'C1': {
+      'min': 51.0,
+      'max': 60.99,
+      'point': 6.0,
+      'remark': 'Next 1/8th (Fair)'
+    },
+    'C2': {
+      'min': 41.0,
+      'max': 50.99,
+      'point': 5.0,
+      'remark': 'Next 1/8th (Average)'
+    },
+    'D': {
+      'min': 33.0,
+      'max': 40.99,
+      'point': 4.0,
+      'remark': 'Pass (Minimum Qualifying)'
+    },
+    'E1': {
+      'min': 21.0,
+      'max': 32.99,
+      'point': 0.0,
+      'remark': 'Essential Repeat / Remedial'
+    },
+    'E2': {
+      'min': 0.0,
+      'max': 20.99,
+      'point': 0.0,
+      'remark': 'Essential Repeat'
+    },
   };
 
   static Map<String, dynamic> calculateCbseGrade(double percentage) {
     for (final entry in cbse9PointGradingScale.entries) {
-      if (percentage >= entry.value['min'] && percentage <= entry.value['max']) {
+      if (percentage >= entry.value['min'] &&
+          percentage <= entry.value['max']) {
         return {
           'grade': entry.key,
           'point': entry.value['point'],
@@ -4262,14 +5152,15 @@ class SchoolService {
         .or('id.eq.$studentId,username.eq.$studentId')
         .maybeSingle();
 
-    final s = studentResp ?? {
-      'id': studentId,
-      'name': 'Student',
-      'class_name': 'Class 10',
-      'class_id': 'cls-10a',
-      'roll_number': '01',
-      'admission_no': 'ADM202601',
-    };
+    final s = studentResp ??
+        {
+          'id': studentId,
+          'name': 'Student',
+          'class_name': 'Class 10',
+          'class_id': 'cls-10a',
+          'roll_number': '01',
+          'admission_no': 'ADM202601',
+        };
 
     // 2. Fetch scholastic marks
     final marks = await getStudentMarks(studentId, examType: exam);
@@ -4281,7 +5172,8 @@ class SchoolService {
     int totalObtained = 0;
     int totalMax = 0;
     for (final m in marks) {
-      totalObtained += ((m['marks_obtained'] ?? m['obtained'] ?? 0) as num).toInt();
+      totalObtained +=
+          ((m['marks_obtained'] ?? m['obtained'] ?? 0) as num).toInt();
       totalMax += ((m['total_marks'] ?? m['total'] ?? 100) as num).toInt();
     }
     final pct = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0.0;
@@ -4289,16 +5181,34 @@ class SchoolService {
 
     // 5. Co-Scholastic Assessment (3-point scale: A, B, C)
     final coScholastic = [
-      {'area': 'Work Education (ICT / Pre-Vocational)', 'grade': 'A', 'descriptor': 'Exceptional problem-solving in digital simulations'},
-      {'area': 'Art Education (Visual & Performing)', 'grade': 'A', 'descriptor': 'High creative expression and aesthetic appreciation'},
-      {'area': 'Health & Physical Education (Sports)', 'grade': 'A', 'descriptor': 'Exemplary teamwork, stamina, and track participation'},
-      {'area': 'Discipline & Value Inculcation', 'grade': 'A', 'descriptor': 'Exemplary code of conduct, punctuality, and peer support'},
+      {
+        'area': 'Work Education (ICT / Pre-Vocational)',
+        'grade': 'A',
+        'descriptor': 'Exceptional problem-solving in digital simulations'
+      },
+      {
+        'area': 'Art Education (Visual & Performing)',
+        'grade': 'A',
+        'descriptor': 'High creative expression and aesthetic appreciation'
+      },
+      {
+        'area': 'Health & Physical Education (Sports)',
+        'grade': 'A',
+        'descriptor': 'Exemplary teamwork, stamina, and track participation'
+      },
+      {
+        'area': 'Discipline & Value Inculcation',
+        'grade': 'A',
+        'descriptor': 'Exemplary code of conduct, punctuality, and peer support'
+      },
     ];
 
     // 6. Promotion Linkage Decision
     final isPromoted = pct >= 33.0 && attPct >= 75.0;
     final currentClass = s['class_name'] ?? 'Class 10';
-    final nextClass = currentClass.contains('10') ? 'Class 11 (Senior Secondary)' : 'Next Class';
+    final nextClass = currentClass.contains('10')
+        ? 'Class 11 (Senior Secondary)'
+        : 'Next Class';
 
     final promotionVerdict = isPromoted
         ? 'PROMOTED TO $nextClass (Session 2025-2026)'
@@ -4356,8 +5266,11 @@ class SchoolService {
             final decoded = jsonDecode(content);
             if (decoded is Map<String, dynamic>) {
               parsed.add({
-                'id': r['id']?.toString() ?? decoded['id'] ?? 'head-${parsed.length}',
-                'title': r['title']?.toString() ?? decoded['title'] ?? 'Fee Head',
+                'id': r['id']?.toString() ??
+                    decoded['id'] ??
+                    'head-${parsed.length}',
+                'title':
+                    r['title']?.toString() ?? decoded['title'] ?? 'Fee Head',
                 'amount': (decoded['amount'] as num?)?.toDouble() ?? 0.0,
                 'frequency': decoded['frequency'] ?? 'Monthly',
                 'category': decoded['category'] ?? 'Academic',
@@ -4374,20 +5287,23 @@ class SchoolService {
       }
     } catch (_) {}
 
-    _customFeeHeadsStore = List<Map<String, dynamic>>.from(_defaultSchoolFeeHeads);
+    _customFeeHeadsStore =
+        List<Map<String, dynamic>>.from(_defaultSchoolFeeHeads);
     return List<Map<String, dynamic>>.from(_customFeeHeadsStore);
   }
 
   /// Admin method: Create or update a Fee Head (e.g. Tuition Fee, Computer Fee, Lab Fee)
   Future<bool> saveSchoolFeeHead(Map<String, dynamic> head) async {
-    final headId = head['id']?.toString() ?? 'head-${DateTime.now().millisecondsSinceEpoch}';
+    final headId = head['id']?.toString() ??
+        'head-${DateTime.now().millisecondsSinceEpoch}';
     final headData = {
       ...head,
       'id': headId,
       'is_active': head['is_active'] ?? true,
     };
 
-    final existingIdx = _customFeeHeadsStore.indexWhere((h) => h['id'] == headId || h['title'] == head['title']);
+    final existingIdx = _customFeeHeadsStore
+        .indexWhere((h) => h['id'] == headId || h['title'] == head['title']);
     if (existingIdx >= 0) {
       _customFeeHeadsStore[existingIdx] = headData;
     } else {
@@ -4447,7 +5363,8 @@ class SchoolService {
 
   /// Reset fee heads to CBSE standard defaults
   Future<void> resetSchoolFeeHeadsToDefault() async {
-    _customFeeHeadsStore = List<Map<String, dynamic>>.from(_defaultSchoolFeeHeads);
+    _customFeeHeadsStore =
+        List<Map<String, dynamic>>.from(_defaultSchoolFeeHeads);
     try {
       await _supabase
           .from('school_circulars')
@@ -4496,8 +5413,18 @@ class SchoolService {
 
     final schedule = <Map<String, dynamic>>[];
     const monthNames = [
-      'April', 'May', 'June', 'July', 'August', 'September',
-      'October', 'November', 'December', 'January', 'February', 'March'
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+      'January',
+      'February',
+      'March'
     ];
     const monthNumbers = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
 
@@ -4530,9 +5457,12 @@ class SchoolService {
               baseMonthlyAmount)
           : 0.0;
       final String? receiptNo = isPaid ? match['receipt_no']?.toString() : null;
-      final String? paymentMode = isPaid ? match['payment_mode']?.toString() : null;
+      final String? paymentMode =
+          isPaid ? match['payment_mode']?.toString() : null;
       final String? paidOn = isPaid
-          ? (match['paid_on']?.toString() ?? match['created_at']?.toString() ?? dueDateStr)
+          ? (match['paid_on']?.toString() ??
+              match['created_at']?.toString() ??
+              dueDateStr)
           : null;
 
       // Late fee statutory rule:
@@ -4541,7 +5471,8 @@ class SchoolService {
       final bool isCurrentMonth = now.year == year && now.month == monthNum;
       final bool isOverdue = !isPaid && isPast5th;
       final double lateFee = isOverdue ? 100.0 : 0.0;
-      final double totalPayable = isPaid ? paidAmount : (baseMonthlyAmount + lateFee);
+      final double totalPayable =
+          isPaid ? paidAmount : (baseMonthlyAmount + lateFee);
 
       String status;
       if (isPaid) {
@@ -4574,13 +5505,15 @@ class SchoolService {
         'receipt_no': receiptNo,
         'payment_mode': paymentMode,
         'paid_on': paidOn,
-        'heads': activeHeads.map((h) => {
-          'id': h['id'],
-          'title': h['title'],
-          'amount': (h['amount'] as num?)?.toDouble() ?? 0.0,
-          'category': h['category'] ?? 'Academic',
-          'frequency': h['frequency'] ?? 'Monthly',
-        }).toList(),
+        'heads': activeHeads
+            .map((h) => {
+                  'id': h['id'],
+                  'title': h['title'],
+                  'amount': (h['amount'] as num?)?.toDouble() ?? 0.0,
+                  'category': h['category'] ?? 'Academic',
+                  'frequency': h['frequency'] ?? 'Monthly',
+                })
+            .toList(),
       });
     }
 
@@ -4597,7 +5530,8 @@ class SchoolService {
     String? classId,
     String? note,
   }) async {
-    final receiptNo = 'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
+    final receiptNo =
+        'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
     final totalAmount = baseAmount + lateFee;
     final today = DateTime.now().toIso8601String().substring(0, 10);
     final headTitle = lateFee > 0
@@ -4642,7 +5576,8 @@ class SchoolService {
   }
 
   /// Quick summary of fee metrics for a student
-  Future<Map<String, dynamic>> getStudentFeeSummary(String studentUsername) async {
+  Future<Map<String, dynamic>> getStudentFeeSummary(
+      String studentUsername) async {
     final schedule = await getMonthlyFeeSchedule(studentUsername);
     double totalAnnual = 0.0;
     double totalPaid = 0.0;
@@ -4763,16 +5698,22 @@ class SchoolService {
     return students.map((student) {
       final username = (student['username'] ?? '').toString();
       final className = (student['class_name'] ?? '').toString();
-      final section = (student['section'] ?? (className.contains('-') ? className.split('-').last : '')).toString();
-      final stats = feesByStudent[username] ?? {'paid_amount': 0.0, 'paid_count': 0};
+      final section = (student['section'] ??
+              (className.contains('-') ? className.split('-').last : ''))
+          .toString();
+      final stats =
+          feesByStudent[username] ?? {'paid_amount': 0.0, 'paid_count': 0};
       final paidAmount = (stats['paid_amount'] as num?)?.toDouble() ?? 0.0;
       final paidMonths = (stats['paid_count'] as int?) ??
-          (paidAmount / (baseMonthlyAmount > 0 ? baseMonthlyAmount : 1)).floor();
+          (paidAmount / (baseMonthlyAmount > 0 ? baseMonthlyAmount : 1))
+              .floor();
 
-      final overdueMonthsCount = (monthsElapsedPast5th - paidMonths).clamp(0, 12);
+      final overdueMonthsCount =
+          (monthsElapsedPast5th - paidMonths).clamp(0, 12);
       final double totalLateFee = overdueMonthsCount * 100.0;
       final double totalFeeWithLateFine = annualBaseFee + totalLateFee;
-      final double pendingAmount = (totalFeeWithLateFine - paidAmount).clamp(0.0, double.infinity);
+      final double pendingAmount =
+          (totalFeeWithLateFine - paidAmount).clamp(0.0, double.infinity);
 
       return {
         ...student,
@@ -4819,8 +5760,11 @@ class SchoolService {
     );
 
     final cleanHead = head.trim();
-    final uniqueUsernames =
-        studentUsernames.map((username) => username.trim()).where((username) => username.isNotEmpty).toSet().toList();
+    final uniqueUsernames = studentUsernames
+        .map((username) => username.trim())
+        .where((username) => username.isNotEmpty)
+        .toSet()
+        .toList();
     if (cleanHead.isEmpty) throw Exception('Fee head is required.');
     if (!amount.isFinite || amount <= 0) {
       throw Exception('Enter an amount greater than zero.');
@@ -4890,8 +5834,7 @@ class SchoolService {
         throw Exception('A selected student is missing a database ID.');
       }
 
-      final academicYear =
-          (student['academic_year'] ?? '2024-2025').toString();
+      final academicYear = (student['academic_year'] ?? '2024-2025').toString();
       final existing = await _supabase
           .from('school_fee_accounts')
           .select('id, total_fee, paid_amount')
@@ -4936,8 +5879,7 @@ class SchoolService {
           .eq('account_id', accountId)
           .eq('fee_head', head)
           .maybeSingle();
-      final previousAmount =
-          (existingItem?['amount'] as num?)?.toDouble() ?? 0;
+      final previousAmount = (existingItem?['amount'] as num?)?.toDouble() ?? 0;
       await _supabase.from('school_fee_items').upsert(
         {
           'account_id': accountId,
@@ -5002,7 +5944,8 @@ class SchoolService {
       feature: 'fees',
       requiredPermission: 'edit',
     );
-    final receiptNo = 'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
+    final receiptNo =
+        'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
     final studentId = data['student_id']?.toString() ?? '';
     final paymentMode = data['payment_mode']?.toString() ?? 'Cash';
     final paymentHead = data['head']?.toString() ?? '';
@@ -5047,8 +5990,10 @@ class SchoolService {
       final aHead = (a['head']?.toString() ?? '').toLowerCase();
       final bHead = (b['head']?.toString() ?? '').toLowerCase();
       final lHead = paymentHead.toLowerCase();
-      final aMatch = lHead.isNotEmpty && aHead.contains(lHead.split(' ').first) ? 0 : 1;
-      final bMatch = lHead.isNotEmpty && bHead.contains(lHead.split(' ').first) ? 0 : 1;
+      final aMatch =
+          lHead.isNotEmpty && aHead.contains(lHead.split(' ').first) ? 0 : 1;
+      final bMatch =
+          lHead.isNotEmpty && bHead.contains(lHead.split(' ').first) ? 0 : 1;
       if (aMatch != bMatch) return aMatch - bMatch;
       final aDue = a['due_date']?.toString() ?? '9999-12-31';
       final bDue = b['due_date']?.toString() ?? '9999-12-31';
@@ -5098,7 +6043,8 @@ class SchoolService {
         'receipt_no': receiptNo,
         'student_id': studentId,
         'class_id': data['class_id'],
-        'amount': applied > 0 ? applied : (data['amount'] as num?)?.toDouble() ?? 0.0,
+        'amount':
+            applied > 0 ? applied : (data['amount'] as num?)?.toDouble() ?? 0.0,
         'payment_mode': paymentMode,
         'head': settledHeads.isNotEmpty
             ? settledHeads.join(', ')
@@ -5208,8 +6154,7 @@ class SchoolService {
           .select()
           .eq('student_id', studentId)
           .eq('head', head.trim())
-          .inFilter('status', ['pending', 'partial'])
-          .limit(1);
+          .inFilter('status', ['pending', 'partial']).limit(1);
       final rows = List<Map<String, dynamic>>.from(existing);
 
       if (rows.isNotEmpty) {
@@ -5238,13 +6183,18 @@ class SchoolService {
       });
       return 'created';
     } catch (_) {
-      throw Exception('Could not save the fee demand. Check your connection and retry.');
+      throw Exception(
+          'Could not save the fee demand. Check your connection and retry.');
     }
   }
 
-  Future<Map<String, dynamic>> getDefaultersWithAgeing({String? classId}) async {
+  Future<Map<String, dynamic>> getDefaultersWithAgeing(
+      {String? classId}) async {
     try {
-      var query = _supabase.from('school_fee_payments').select().eq('status', 'pending');
+      var query = _supabase
+          .from('school_fee_payments')
+          .select()
+          .eq('status', 'pending');
       if (classId != null && classId.isNotEmpty) {
         query = query.eq('class_id', classId);
       }
@@ -5276,7 +6226,8 @@ class SchoolService {
       }
 
       return {
-        'total_pending': list.fold<double>(0.0, (s, i) => s + ((i['amount'] as num?)?.toDouble() ?? 0.0)),
+        'total_pending': list.fold<double>(
+            0.0, (s, i) => s + ((i['amount'] as num?)?.toDouble() ?? 0.0)),
         'total_defaulters': list.length,
         'bucket_0_30': bucket0to30,
         'bucket_31_60': bucket31to60,
@@ -5295,7 +6246,8 @@ class SchoolService {
     }
   }
 
-  Future<Map<String, dynamic>> getFeeReport({String? classId, DateTime? from, DateTime? to}) async {
+  Future<Map<String, dynamic>> getFeeReport(
+      {String? classId, DateTime? from, DateTime? to}) async {
     return {
       'total_collected': 2450000,
       'total_pending': 320000,
@@ -5304,12 +6256,33 @@ class SchoolService {
     };
   }
 
-  Future<List<Map<String, dynamic>>> getFeeCollectionReport({String? classId, DateTime? month}) async {
+  Future<List<Map<String, dynamic>>> getFeeCollectionReport(
+      {String? classId, DateTime? month}) async {
     return [
-      {'date': '2026-10-01', 'collections': 145000, 'receipts_count': 12, 'mode': 'Online'},
-      {'date': '2026-10-02', 'collections': 98000, 'receipts_count': 8, 'mode': 'Cheque'},
-      {'date': '2026-10-03', 'collections': 210000, 'receipts_count': 16, 'mode': 'Online'},
-      {'date': '2026-10-04', 'collections': 65000, 'receipts_count': 5, 'mode': 'Cash'},
+      {
+        'date': '2026-10-01',
+        'collections': 145000,
+        'receipts_count': 12,
+        'mode': 'Online'
+      },
+      {
+        'date': '2026-10-02',
+        'collections': 98000,
+        'receipts_count': 8,
+        'mode': 'Cheque'
+      },
+      {
+        'date': '2026-10-03',
+        'collections': 210000,
+        'receipts_count': 16,
+        'mode': 'Online'
+      },
+      {
+        'date': '2026-10-04',
+        'collections': 65000,
+        'receipts_count': 5,
+        'mode': 'Cash'
+      },
     ];
   }
 
@@ -5336,7 +6309,8 @@ class SchoolService {
       {
         'id': 'circ-1',
         'title': 'Annual Sports Day 2026 - Registration Open',
-        'content': 'All students from classes 6 to 12 are invited to register for track and field events with their respective house captains by Friday.',
+        'content':
+            'All students from classes 6 to 12 are invited to register for track and field events with their respective house captains by Friday.',
         'category': 'Events',
         'target_audience': 'All',
         'published_at': '2026-11-01',
@@ -5346,7 +6320,8 @@ class SchoolService {
       {
         'id': 'circ-2',
         'title': 'Parent-Teacher Meeting (PTM) Scheduled for Nov 15',
-        'content': 'Mandatory PTM to discuss Mid-Term evaluation progress and academic performance. Slot timings sent to registered parent emails.',
+        'content':
+            'Mandatory PTM to discuss Mid-Term evaluation progress and academic performance. Slot timings sent to registered parent emails.',
         'category': 'Academic',
         'target_audience': 'Parents',
         'published_at': '2026-10-28',
@@ -5356,7 +6331,8 @@ class SchoolService {
       {
         'id': 'circ-3',
         'title': 'Winter Uniform Transition Guidelines',
-        'content': 'Winter uniform guidelines will be in effect starting Monday, 17th November. Please refer to school handbook for blazer and sweater specs.',
+        'content':
+            'Winter uniform guidelines will be in effect starting Monday, 17th November. Please refer to school handbook for blazer and sweater specs.',
         'category': 'General',
         'target_audience': 'All',
         'published_at': '2026-10-25',
@@ -5390,7 +6366,8 @@ class SchoolService {
     return true;
   }
 
-  Future<List<Map<String, dynamic>>> getSchoolNotices({String? targetRole}) async {
+  Future<List<Map<String, dynamic>>> getSchoolNotices(
+      {String? targetRole}) async {
     return getCirculars(category: targetRole);
   }
 
@@ -5401,28 +6378,27 @@ class SchoolService {
   // ===== TRANSPORT =====
   Future<List<Map<String, dynamic>>> getTransportRoutes() async {
     try {
-      final response = await _supabase.from('school_transport').select().order('route_name');
+      final response =
+          await _supabase.from('school_transport').select().order('route_name');
       final list = List<Map<String, dynamic>>.from(response);
       if (list.isNotEmpty) {
         return list.map((r) {
           final stopsList = _parseStops(r['stops']);
-          // Check vehicle compliance expiry
-          final isFitnessExpired = r['bus_number'] == 'UK-07-PA-1024'; // Test expired vehicle document
           return {
             'id': r['id']?.toString() ?? '',
-            'route_no': r['route_name']?.toString().split(' - ').first ?? 'Route',
-            'name': r['route_name'] ?? 'School Route',
-            'bus_no': r['bus_number'] ?? 'N/A',
-            'driver_name': r['driver_name'] ?? 'Driver',
+            'route_no': r['route_name']?.toString().split(' - ').first ?? '',
+            'name': r['route_name'] ?? '',
+            'bus_no': r['bus_number'] ?? '',
+            'driver_name': r['driver_name'] ?? '',
             'driver_phone': r['driver_phone'] ?? '',
-            'pickup_time': r['pickup_time'] ?? '07:15 AM',
+            'pickup_time': r['pickup_time'] ?? '',
             'stops': stopsList,
-            'students': 28,
-            'status': isFitnessExpired ? 'Doc Expired Alert' : 'On Time',
-            'fitness_expired': isFitnessExpired,
-            'insurance_expiry': '2026-11-20',
-            'fitness_expiry': isFitnessExpired ? '2026-10-15 (EXPIRED)' : '2027-05-20',
-            'driver_verified': true,
+            'students': r['students'],
+            'status': r['status'],
+            'fitness_expired': r['fitness_expired'],
+            'insurance_expiry': r['insurance_expiry'],
+            'fitness_expiry': r['fitness_expiry'],
+            'driver_verified': r['driver_verified'],
           };
         }).toList();
       }
@@ -5441,43 +6417,29 @@ class SchoolService {
           if (decoded is List) return decoded.map((s) => s.toString()).toList();
         } catch (_) {}
       }
-      return rawStops.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      return rawStops
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
     }
-    return ['School Gate'];
-  }
-
-  Future<List<Map<String, dynamic>>> getStudentTransport(String studentId) async {
-    try {
-      final routes = await getTransportRoutes();
-      if (routes.isNotEmpty) {
-        final r = routes.first;
-        final stops = r['stops'] as List<String>;
-        return [
-          {
-            'route_no': r['route_no'],
-            'bus_no': r['bus_no'],
-            'pickup_point': stops.length > 2 ? stops[2] : (stops.isNotEmpty ? stops.first : 'School Gate'),
-            'pickup_time': r['pickup_time'],
-            'drop_time': '02:45 PM',
-            'driver_name': r['driver_name'],
-            'driver_phone': r['driver_phone'],
-            'live_status': r['status'],
-            'current_stop': stops.length > 1 ? stops[1] : 'School Gate',
-            'eta_minutes': 8,
-            'stops': stops,
-          }
-        ];
-      }
-    } catch (_) {}
     return [];
   }
 
+  Future<List<Map<String, dynamic>>> getStudentTransport(
+      String studentId) async {
+    final status = await getParentChildTransportStatus(studentId);
+    return status['assigned'] == true ? [status] : [];
+  }
+
   // ===== TRANSPORT ROSTER =====
-  Future<List<Map<String, dynamic>>> getTransportRoster({String? routeId}) async {
+  Future<List<Map<String, dynamic>>> getTransportRoster(
+      {String? routeId}) async {
     try {
       final res = await _supabase
           .from('school_students')
-          .select('username, name, class_name, roll_number, parent_name, parent_phone')
+          .select(
+              'username, name, class_name, roll_number, parent_name, parent_phone')
           .order('name');
       final list = List<Map<String, dynamic>>.from(res);
       return list.map((s) {
@@ -5520,8 +6482,10 @@ class SchoolService {
 
     final now = DateTime.now();
     final todayStr = now.toIso8601String().split('T')[0];
-    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    final currentUsername = await AuthService().getCurrentUsername() ?? 'Bus Attendant';
+    final timeStr =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final currentUsername =
+        await AuthService().getCurrentUsername() ?? 'Bus Attendant';
     final actualRecorder = recordedBy ?? currentUsername;
     final isPresent = (action == 'Boarded' || action == 'Dropped');
 
@@ -5595,9 +6559,13 @@ class SchoolService {
       }
       final response = await query.order('created_at', ascending: false);
       for (final row in response) {
-        final rRoute = row['route_id']?.toString() ?? row['bus_id']?.toString() ?? '';
+        final rRoute =
+            row['route_id']?.toString() ?? row['bus_id']?.toString() ?? '';
         final rShift = row['shift']?.toString() ?? 'Morning Pickup';
-        if (routeId != null && routeId.isNotEmpty && routeId != '__all__' && rRoute != routeId) {
+        if (routeId != null &&
+            routeId.isNotEmpty &&
+            routeId != '__all__' &&
+            rRoute != routeId) {
           continue;
         }
         if (shift != null && shift.isNotEmpty && rShift != shift) {
@@ -5618,7 +6586,8 @@ class SchoolService {
           'route_id': rRoute,
           'stop': row['stop_name']?.toString() ?? '',
           'shift': rShift,
-          'action': row['action']?.toString() ?? (row['is_present'] == true ? 'Boarded' : 'Absent'),
+          'action': row['action']?.toString() ??
+              (row['is_present'] == true ? 'Boarded' : 'Absent'),
           'notes': row['notes']?.toString() ?? '',
           'time': timeStr,
           'date': row['attendance_date']?.toString() ?? '',
@@ -5630,10 +6599,15 @@ class SchoolService {
 
     // Include cached in-memory logs if not duplicate
     for (final l in _busAttendanceStore) {
-      if (studentId != null && studentId.isNotEmpty && l['student_id'] != studentId) continue;
+      if (studentId != null &&
+          studentId.isNotEmpty &&
+          l['student_id'] != studentId) continue;
       if (date != null && date.isNotEmpty && l['date'] != date) continue;
       if (shift != null && shift.isNotEmpty && l['shift'] != shift) continue;
-      if (routeId != null && routeId.isNotEmpty && routeId != '__all__' && l['route_id'] != routeId) continue;
+      if (routeId != null &&
+          routeId.isNotEmpty &&
+          routeId != '__all__' &&
+          l['route_id'] != routeId) continue;
 
       final exists = list.any((e) =>
           e['student_id'] == l['student_id'] &&
@@ -5648,7 +6622,8 @@ class SchoolService {
   }
 
   /// Child Safety Audit: Discrepancy detector between Morning Pickup and Evening Drop
-  Future<List<Map<String, dynamic>>> getTransportTripDiscrepancies({String? date}) async {
+  Future<List<Map<String, dynamic>>> getTransportTripDiscrepancies(
+      {String? date}) async {
     final targetDate = date ?? DateTime.now().toIso8601String().split('T')[0];
     final roster = await getTransportRoster();
     final logs = await getBusAttendanceLogs(date: targetDate);
@@ -5659,12 +6634,18 @@ class SchoolService {
       final sid = student['student_id'] as String;
 
       final morningLog = logs.firstWhere(
-        (l) => l['student_id'] == sid && (l['shift'] == 'Morning Pickup' || l['action'] == 'Boarded'),
+        (l) =>
+            l['student_id'] == sid &&
+            (l['shift'] == 'Morning Pickup' || l['action'] == 'Boarded'),
         orElse: () => <String, dynamic>{},
       );
 
       final eveningLog = logs.firstWhere(
-        (l) => l['student_id'] == sid && (l['shift'] == 'Evening Drop' || l['action'] == 'Dropped' || l['action'] == 'ParentHandover'),
+        (l) =>
+            l['student_id'] == sid &&
+            (l['shift'] == 'Evening Drop' ||
+                l['action'] == 'Dropped' ||
+                l['action'] == 'ParentHandover'),
         orElse: () => <String, dynamic>{},
       );
 
@@ -5672,7 +6653,8 @@ class SchoolService {
       final eveningAction = eveningLog['action']?.toString() ?? 'Unrecorded';
 
       // 1. Boarded in morning bus, but not boarded/dropped in evening bus!
-      if (morningAction == 'Boarded' && (eveningAction == 'Unrecorded' || eveningAction == 'Absent')) {
+      if (morningAction == 'Boarded' &&
+          (eveningAction == 'Unrecorded' || eveningAction == 'Absent')) {
         discrepancies.add({
           'student_id': sid,
           'name': student['name'],
@@ -5682,11 +6664,15 @@ class SchoolService {
           'drop_stop': student['drop_stop'],
           'parent_name': student['parent_name'],
           'parent_phone': student['parent_phone'],
-          'morning_status': 'Boarded at ${morningLog['time'] ?? '07:20 AM'} (${morningLog['stop'] ?? student['pickup_stop']})',
-          'evening_status': eveningAction == 'Absent' ? 'Marked Absent on Return Bus' : 'Unrecorded / Not Aboard',
+          'morning_status':
+              'Boarded at ${morningLog['time'] ?? '07:20 AM'} (${morningLog['stop'] ?? student['pickup_stop']})',
+          'evening_status': eveningAction == 'Absent'
+              ? 'Marked Absent on Return Bus'
+              : 'Unrecorded / Not Aboard',
           'anomaly_type': 'BOARDED_MORNING_MISSING_EVENING',
           'severity': 'Critical',
-          'description': 'Student boarded morning bus from ${student['pickup_stop']}, but has NOT boarded or was not dropped on the return bus!',
+          'description':
+              'Student boarded morning bus from ${student['pickup_stop']}, but has NOT boarded or was not dropped on the return bus!',
           'is_resolved': false,
         });
       } else if (eveningAction == 'ParentHandover') {
@@ -5703,7 +6689,8 @@ class SchoolService {
           'evening_status': 'Parent Handover at School Gate',
           'anomaly_type': 'PARENT_HANDOVER_RESOLVED',
           'severity': 'Resolved',
-          'description': 'Student came via bus in morning; handed over directly to ${student['parent_name']} at school gate.',
+          'description':
+              'Student came via bus in morning; handed over directly to ${student['parent_name']} at school gate.',
           'is_resolved': true,
         });
       } else if (morningAction == 'Absent' && eveningAction == 'Boarded') {
@@ -5720,7 +6707,8 @@ class SchoolService {
           'evening_status': 'Boarded Return Bus',
           'anomaly_type': 'PARENT_DROP_BUS_RETURN',
           'severity': 'Normal',
-          'description': 'Student did not take morning bus (parent dropped at school), but is boarding the return bus to ${student['drop_stop']}.',
+          'description':
+              'Student did not take morning bus (parent dropped at school), but is boarding the return bus to ${student['drop_stop']}.',
           'is_resolved': true,
         });
       }
@@ -5741,7 +6729,8 @@ class SchoolService {
         'evening_status': 'Unrecorded / Not Aboard',
         'anomaly_type': 'BOARDED_MORNING_MISSING_EVENING',
         'severity': 'Critical',
-        'description': 'Sneha boarded the morning bus from Rajpur Road at 07:15 AM, but was NOT aboard the 02:40 PM return bus!',
+        'description':
+            'Sneha boarded the morning bus from Rajpur Road at 07:15 AM, but was NOT aboard the 02:40 PM return bus!',
         'is_resolved': false,
       });
     }
@@ -5763,7 +6752,9 @@ class SchoolService {
     final now = DateTime.now();
     final passNo = 'GP-${now.millisecondsSinceEpoch.toString().substring(7)}';
     final todayStr = now.toIso8601String().split('T')[0];
-    final status = isAuthorizedOnRecord ? 'Security Approved' : 'Pending Principal Approval';
+    final status = isAuthorizedOnRecord
+        ? 'Security Approved'
+        : 'Pending Principal Approval';
 
     final payload = {
       'id': passNo,
@@ -5774,7 +6765,8 @@ class SchoolService {
       'class_name': className,
       'out_time': now.toIso8601String(),
       'expected_in_time': now.add(const Duration(hours: 4)).toIso8601String(),
-      'reason': '$reason (Pickup: $pickupPersonName - $pickupPersonRelation, Ph: $pickupPersonPhone)',
+      'reason':
+          '$reason (Pickup: $pickupPersonName - $pickupPersonRelation, Ph: $pickupPersonPhone)',
       'parent_status': 'Approved',
       'warden_status': isAuthorizedOnRecord ? 'Approved' : 'Pending',
       'status': status,
@@ -5820,7 +6812,8 @@ class SchoolService {
     };
   }
 
-  Future<List<Map<String, dynamic>>> getGatePasses({String? status, String? studentId}) async {
+  Future<List<Map<String, dynamic>>> getGatePasses(
+      {String? status, String? studentId}) async {
     final list = <Map<String, dynamic>>[];
 
     try {
@@ -5837,12 +6830,15 @@ class SchoolService {
         list.add({
           'id': row['id']?.toString() ?? '',
           'pass_no': row['id']?.toString() ?? 'GP-001',
-          'date': row['created_at'] != null ? row['created_at'].toString().split('T')[0] : '',
+          'date': row['created_at'] != null
+              ? row['created_at'].toString().split('T')[0]
+              : '',
           'student_id': row['student_id']?.toString() ?? '',
           'student_name': row['student_name']?.toString() ?? '',
           'class': row['class_name']?.toString() ?? '',
           'reason': reason,
-          'exit_time': row['out_time'] != null && row['out_time'].toString().contains('T')
+          'exit_time': row['out_time'] != null &&
+                  row['out_time'].toString().contains('T')
               ? row['out_time'].toString().split('T').last.substring(0, 5)
               : '',
           'pickup_person': row['student_name']?.toString() ?? '',
@@ -5856,9 +6852,12 @@ class SchoolService {
     } catch (_) {}
 
     for (final p in _simulatedGatePasses) {
-      if (studentId != null && studentId.isNotEmpty && p['student_id'] != studentId) continue;
+      if (studentId != null &&
+          studentId.isNotEmpty &&
+          p['student_id'] != studentId) continue;
       if (status != null && status != 'All' && p['status'] != status) continue;
-      if (!list.any((e) => e['id'] == p['id'] || e['pass_no'] == p['pass_no'])) {
+      if (!list
+          .any((e) => e['id'] == p['id'] || e['pass_no'] == p['pass_no'])) {
         list.add(Map<String, dynamic>.from(p));
       }
     }
@@ -5896,11 +6895,8 @@ class SchoolService {
 
   // ===== ADMISSIONS =====
 
-
-
-
-  Future<List<Map<String, dynamic>>> getAdmissions({String? status, String? grade}) async {
-
+  Future<List<Map<String, dynamic>>> getAdmissions(
+      {String? status, String? grade}) async {
     try {
       var query = _supabase.from('school_admissions').select();
       if (status != null && status != 'all') {
@@ -5916,19 +6912,31 @@ class SchoolService {
           final rid = remote['id']?.toString() ?? '';
           final localIdx = _admissionsStore.indexWhere((l) => l['id'] == rid);
           if (localIdx >= 0) {
-            _admissionsStore[localIdx] = {..._admissionsStore[localIdx], ...remote};
+            _admissionsStore[localIdx] = {
+              ..._admissionsStore[localIdx],
+              ...remote
+            };
           } else {
             _admissionsStore.add({
               'id': rid,
-              'application_no': 'SIS/2026/${rid.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}',
-              'applicant_name': remote['student_name'] ?? remote['applicant_name'] ?? 'Applicant',
-              'grade_applying': remote['class_applying'] ?? remote['grade_applying'] ?? 'Class 1',
+              'application_no':
+                  'SIS/2026/${rid.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}',
+              'applicant_name': remote['student_name'] ??
+                  remote['applicant_name'] ??
+                  'Applicant',
+              'grade_applying': remote['class_applying'] ??
+                  remote['grade_applying'] ??
+                  'Class 1',
               'stream': 'General',
               'parent_name': remote['parent_name'] ?? 'Parent',
               'parent_phone': remote['phone'] ?? remote['parent_phone'] ?? '',
               'email': remote['email'] ?? '',
               'dob': remote['dob'] ?? '2016-05-12',
-              'status': (remote['status'] == 'approved' ? 'Approved' : (remote['status'] == 'rejected' ? 'Rejected' : 'Under Review')),
+              'status': (remote['status'] == 'approved'
+                  ? 'Approved'
+                  : (remote['status'] == 'rejected'
+                      ? 'Rejected'
+                      : 'Under Review')),
               'doc_status': remote['doc_status'] ?? 'Verified',
               'documents': {
                 'birth_cert': true,
@@ -5943,7 +6951,9 @@ class SchoolService {
               'test_score': 40,
               'fee_demanded': 30000.0,
               'fee_paid': 0.0,
-              'date': (remote['created_at'] != null) ? remote['created_at'].toString().substring(0, 10) : DateTime.now().toIso8601String().substring(0, 10),
+              'date': (remote['created_at'] != null)
+                  ? remote['created_at'].toString().substring(0, 10)
+                  : DateTime.now().toIso8601String().substring(0, 10),
             });
           }
         }
@@ -5955,7 +6965,9 @@ class SchoolService {
       result = result.where((a) => a['status'] == status).toList();
     }
     if (grade != null && grade.isNotEmpty && grade != 'all') {
-      result = result.where((a) => (a['grade_applying'] ?? '').toString() == grade).toList();
+      result = result
+          .where((a) => (a['grade_applying'] ?? '').toString() == grade)
+          .toList();
     }
     return result;
   }
@@ -5966,9 +6978,12 @@ class SchoolService {
 
     // In-memory check
     final existsLocal = _admissionsStore.any((a) {
-      final p = (a['parent_phone'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '');
+      final p = (a['parent_phone'] ?? '')
+          .toString()
+          .replaceAll(RegExp(r'[^0-9]'), '');
       final n = (a['applicant_name'] ?? '').toString().trim().toLowerCase();
-      return (p.isNotEmpty && p == phoneClean) || (n.isNotEmpty && n == nameClean);
+      return (p.isNotEmpty && p == phoneClean) ||
+          (n.isNotEmpty && n == nameClean);
     });
     if (existsLocal) return true;
 
@@ -5988,9 +7003,12 @@ class SchoolService {
     final parentName = data['parent_name'] ?? '';
     final phone = data['parent_phone'] ?? data['phone'] ?? '';
     final email = data['email'] ?? '';
-    final classApplying = data['grade_applying'] ?? data['class_applying'] ?? 'Class 1';
-    final id = data['id'] ?? 'ADM-2026-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
-    final appNo = data['application_no'] ?? 'SIS/2026/${id.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}';
+    final classApplying =
+        data['grade_applying'] ?? data['class_applying'] ?? 'Class 1';
+    final id = data['id'] ??
+        'ADM-2026-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+    final appNo = data['application_no'] ??
+        'SIS/2026/${id.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}';
 
     final normalized = {
       ...data,
@@ -6015,15 +7033,16 @@ class SchoolService {
       'previous_grade': data['previous_grade'] ?? '',
       'status': data['status'] ?? 'Under Review',
       'doc_status': data['doc_status'] ?? 'Pending',
-      'documents': data['documents'] ?? {
-        'birth_cert': true,
-        'student_aadhaar': true,
-        'parent_aadhaar': true,
-        'transfer_cert': false,
-        'previous_report_card': true,
-        'medical_fitness': true,
-        'rte_income_cert': false,
-      },
+      'documents': data['documents'] ??
+          {
+            'birth_cert': true,
+            'student_aadhaar': true,
+            'parent_aadhaar': true,
+            'transfer_cert': false,
+            'previous_report_card': true,
+            'medical_fitness': true,
+            'rte_income_cert': false,
+          },
       'test_status': data['test_status'] ?? 'Pending',
       'test_score': data['test_score'] ?? 0,
       'fee_demanded': (data['fee_demanded'] as num?)?.toDouble() ?? 0.0,
@@ -6054,16 +7073,21 @@ class SchoolService {
     return true;
   }
 
-  Future<bool> updateAdmissionStatus(String admissionId, String newStatus) async {
-    final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+  Future<bool> updateAdmissionStatus(
+      String admissionId, String newStatus) async {
+    final idx =
+        _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
       _admissionsStore[idx] = {..._admissionsStore[idx], 'status': newStatus};
     }
-    final dbStatus = (newStatus.toLowerCase() == 'approved' || newStatus.toLowerCase() == 'enrolled')
+    final dbStatus = (newStatus.toLowerCase() == 'approved' ||
+            newStatus.toLowerCase() == 'enrolled')
         ? 'approved'
         : (newStatus.toLowerCase() == 'rejected' ? 'rejected' : 'pending');
     try {
-      await _supabase.from('school_admissions').update({'status': dbStatus}).eq('id', admissionId);
+      await _supabase
+          .from('school_admissions')
+          .update({'status': dbStatus}).eq('id', admissionId);
     } catch (_) {}
     return true;
   }
@@ -6073,7 +7097,8 @@ class SchoolService {
     String docStatus, {
     Map<String, bool>? documents,
   }) async {
-    final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+    final idx =
+        _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
       final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
       updated['doc_status'] = docStatus;
@@ -6091,7 +7116,8 @@ class SchoolService {
     required String notes,
     required String verdict,
   }) async {
-    final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+    final idx =
+        _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
       final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
       updated['test_score'] = score;
@@ -6112,7 +7138,8 @@ class SchoolService {
     required double feeDemanded,
     required String validTill,
   }) async {
-    final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+    final idx =
+        _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
       final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
       updated['status'] = 'Offer Letter Issued';
@@ -6131,13 +7158,18 @@ class SchoolService {
     double? feePaid,
     String? paymentMode,
   }) async {
-    final studentName = admission['applicant_name'] ?? admission['student_name'] ?? 'New Student';
+    final studentName = admission['applicant_name'] ??
+        admission['student_name'] ??
+        'New Student';
     final parentName = admission['parent_name'] ?? 'Parent';
-    final contact = admission['parent_phone'] ?? admission['phone'] ?? '9876543210';
+    final contact =
+        admission['parent_phone'] ?? admission['phone'] ?? '9876543210';
     final className = '$classId-$section';
-    final newStudentId = 'SCH-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    final newStudentId =
+        'SCH-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
     final username = 'student_${newStudentId.toLowerCase()}';
-    final admissionNo = 'ADM${DateTime.now().year}${newStudentId.replaceAll(RegExp(r'[^0-9]'), '')}';
+    final admissionNo =
+        'ADM${DateTime.now().year}${newStudentId.replaceAll(RegExp(r'[^0-9]'), '')}';
 
     // 1. Insert into school_students
     final studentRow = {
@@ -6176,13 +7208,15 @@ class SchoolService {
         'payment_mode': paymentMode ?? 'Online / UPI',
         'status': paid > 0 ? 'paid' : 'pending',
         'head': 'Admission & First Quarter Composite Fee',
-        'receipt_no': 'REC-ADM-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+        'receipt_no':
+            'REC-ADM-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
       });
     } catch (_) {}
 
     // 4. Update status in local memory and database
     if (admission['id'] != null) {
-      final idx = _admissionsStore.indexWhere((a) => a['id']?.toString() == admission['id']?.toString());
+      final idx = _admissionsStore.indexWhere(
+          (a) => a['id']?.toString() == admission['id']?.toString());
       if (idx >= 0) {
         _admissionsStore[idx] = {
           ..._admissionsStore[idx],
@@ -6211,7 +7245,8 @@ class SchoolService {
     required String className,
     String? section,
   }) async {
-    await permissions.enforce(feature: 'admissions', requiredPermission: 'edit');
+    await permissions.enforce(
+        feature: 'admissions', requiredPermission: 'edit');
     final actor = await AuthService().getCurrentUsername() ?? 'admin';
 
     try {
@@ -6241,7 +7276,8 @@ class SchoolService {
   }
 
   /// Teacher Class & Subject Mapping (B5)
-  Future<List<Map<String, dynamic>>> getTeacherAssignedClasses(String teacherUsername) async {
+  Future<List<Map<String, dynamic>>> getTeacherAssignedClasses(
+      String teacherUsername) async {
     try {
       final res = await _supabase
           .from('school_teacher_classes')
@@ -6281,9 +7317,9 @@ class SchoolService {
         'academic_year': academicYear,
       };
       await _supabase.from('school_teacher_classes').upsert(
-        row,
-        onConflict: 'teacher_username,class_id,subject_name',
-      );
+            row,
+            onConflict: 'teacher_username,class_id,subject_name',
+          );
 
       await payroll.logAudit(
         action: 'assign_teacher_class',
@@ -6301,7 +7337,8 @@ class SchoolService {
   Future<bool> removeTeacherClass({
     required String id,
   }) async {
-    await permissions.enforce(feature: 'academics', requiredPermission: 'delete');
+    await permissions.enforce(
+        feature: 'academics', requiredPermission: 'delete');
     final actor = await AuthService().getCurrentUsername() ?? 'admin';
     try {
       await _supabase.from('school_teacher_classes').delete().eq('id', id);
@@ -6323,7 +7360,8 @@ class SchoolService {
   }
 
   Future<bool> saveAdmissionEnquiry(Map<String, dynamic> enquiry) async {
-    final id = enquiry['id']?.toString() ?? 'ENQ-2026-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+    final id = enquiry['id']?.toString() ??
+        'ENQ-2026-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
     final payload = Map<String, dynamic>.from(enquiry)..['id'] = id;
     final idx = _enquiriesStore.indexWhere((e) => e['id'] == id);
     if (idx >= 0) {
@@ -6334,7 +7372,8 @@ class SchoolService {
     return true;
   }
 
-  Future<Map<String, dynamic>?> convertEnquiryToApplication(String enquiryId) async {
+  Future<Map<String, dynamic>?> convertEnquiryToApplication(
+      String enquiryId) async {
     final idx = _enquiriesStore.indexWhere((e) => e['id'] == enquiryId);
     if (idx < 0) return null;
 
@@ -6356,7 +7395,8 @@ class SchoolService {
 
   // ===== PROMOTION & SESSION CHANGEOVER ENGINE =====
 
-  Future<List<Map<String, dynamic>>> getPromotionCandidates({required String classId}) async {
+  Future<List<Map<String, dynamic>>> getPromotionCandidates(
+      {required String classId}) async {
     try {
       final studentsResp = await _supabase
           .from('school_students')
@@ -6366,11 +7406,15 @@ class SchoolService {
       final students = List<Map<String, dynamic>>.from(studentsResp);
 
       // Fetch marks for these students
-      final marksResp = await _supabase.from('school_marks').select().eq('class_id', classId);
+      final marksResp =
+          await _supabase.from('school_marks').select().eq('class_id', classId);
       final allMarks = List<Map<String, dynamic>>.from(marksResp);
 
       // Fetch attendance for these students
-      final attResp = await _supabase.from('school_attendance').select().eq('class_id', classId);
+      final attResp = await _supabase
+          .from('school_attendance')
+          .select()
+          .eq('class_id', classId);
       final allAtt = List<Map<String, dynamic>>.from(attResp);
 
       final candidates = <Map<String, dynamic>>[];
@@ -6380,10 +7424,12 @@ class SchoolService {
         final username = s['username']?.toString() ?? '';
 
         // Calculate marks percentage
-        final studentMarks = allMarks.where((m) =>
-            m['student_id'] == studentId ||
-            m['student_id'] == username ||
-            m['roll_number'] == s['roll_number']).toList();
+        final studentMarks = allMarks
+            .where((m) =>
+                m['student_id'] == studentId ||
+                m['student_id'] == username ||
+                m['roll_number'] == s['roll_number'])
+            .toList();
 
         double avgMarks = 0.0;
         if (studentMarks.isNotEmpty) {
@@ -6398,12 +7444,14 @@ class SchoolService {
         }
 
         // Calculate attendance percentage
-        final studentAtt = allAtt.where((a) =>
-            a['student_id'] == studentId ||
-            a['student_id'] == username).toList();
+        final studentAtt = allAtt
+            .where((a) =>
+                a['student_id'] == studentId || a['student_id'] == username)
+            .toList();
         double attPct = 85.0;
         if (studentAtt.isNotEmpty) {
-          final presentCount = studentAtt.where((a) => a['status'] == 'present').length;
+          final presentCount =
+              studentAtt.where((a) => a['status'] == 'present').length;
           attPct = (presentCount / studentAtt.length) * 100.0;
         }
 
@@ -6412,7 +7460,8 @@ class SchoolService {
         String reason = 'Eligible for yearly advancement';
         if (avgMarks < 33.0) {
           recommendedStatus = 'Detained';
-          reason = 'Academic deficiency (Score: ${avgMarks.toStringAsFixed(1)}% < 33%)';
+          reason =
+              'Academic deficiency (Score: ${avgMarks.toStringAsFixed(1)}% < 33%)';
         } else if (attPct < 75.0) {
           recommendedStatus = 'Detained';
           reason = 'Attendance shortage (${attPct.toStringAsFixed(1)}% < 75%)';
@@ -6504,7 +7553,8 @@ class SchoolService {
 
     await _supabase.from('school_circulars').insert({
       'institute_code': 'SHIV-SCH',
-      'title': 'Session Changeover: $currentSession -> $targetSession ($sourceClassId -> $targetClassName)',
+      'title':
+          'Session Changeover: $currentSession -> $targetSession ($sourceClassId -> $targetClassName)',
       'content': archiveContent,
       'category': 'SessionArchive',
       'target_audience': 'all',
@@ -6570,13 +7620,18 @@ class SchoolService {
   static final List<Map<String, dynamic>> _simulatedGatePasses = [];
 
   /// Real Parent Children Resolver with strict privacy boundary
-  Future<List<Map<String, dynamic>>> getParentChildren(String parentUsername) async {
+  Future<List<Map<String, dynamic>>> getParentChildren(
+      String parentUsername) async {
     final currentUser = await AuthService().getCurrentUsername();
     if (currentUser != null && currentUser.isNotEmpty) {
       final role = await SchoolPermissionService().getLiveUserRole(currentUser);
-      final isAdmin = role == 'admin' || role == 'sadmin' || role == 'principal' || role == 'superadmin';
+      final isAdmin = role == 'admin' ||
+          role == 'sadmin' ||
+          role == 'principal' ||
+          role == 'superadmin';
       if (!isAdmin && currentUser != parentUsername) {
-        throw Exception('Access Denied: Parents are restricted to viewing only their own linked wards.');
+        throw Exception(
+            'Access Denied: Parents are restricted to viewing only their own linked wards.');
       }
     }
     try {
@@ -6616,7 +7671,8 @@ class SchoolService {
             'bus_number': sMap['bus_number'],
             'blood_group': sMap['blood_group'] ?? 'Not Recorded',
             'house': sMap['house'] ?? 'General',
-            'wallet_balance': (sMap['wallet_balance'] as num?)?.toDouble() ?? 0.0,
+            'wallet_balance':
+                (sMap['wallet_balance'] as num?)?.toDouble() ?? 0.0,
           });
         }
       }
@@ -6634,7 +7690,8 @@ class SchoolService {
     try {
       final attPct = await getStudentAttendancePercent(studentId);
       final ledger = await getParentChildFeeLedger(studentId);
-      final pendingAmount = (ledger['pending_amount'] as num?)?.toDouble() ?? 0.0;
+      final pendingAmount =
+          (ledger['pending_amount'] as num?)?.toDouble() ?? 0.0;
       final hw = await getHomework(classId: classId);
       final pendingHw = hw.where((h) => h['status'] == 'pending').length;
 
@@ -6680,7 +7737,8 @@ class SchoolService {
   }
 
   /// Real Attendance Summary & Daily Heatmap Data from school_attendance
-  Future<Map<String, dynamic>> getParentChildAttendanceSummary(String studentId) async {
+  Future<Map<String, dynamic>> getParentChildAttendanceSummary(
+      String studentId) async {
     try {
       final records = await _supabase
           .from('school_attendance')
@@ -6712,16 +7770,23 @@ class SchoolService {
       final attPct = totalDays > 0 ? ((present + late) / totalDays) * 100 : 0.0;
 
       final now = DateTime.now();
-      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-      final todayRec = list.where((r) => (r['date']?.toString() ?? '').startsWith(todayStr)).firstOrNull;
+      final todayStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final todayRec = list
+          .where((r) => (r['date']?.toString() ?? '').startsWith(todayStr))
+          .firstOrNull;
 
       String todayStatus = 'Not Marked Yet';
       if (todayRec != null) {
         final st = (todayRec['status']?.toString() ?? '').toLowerCase();
-        if (st == 'present') todayStatus = 'Present (In-Campus)';
-        else if (st == 'absent') todayStatus = 'Absent';
-        else if (st == 'late') todayStatus = 'Late Arrival';
-        else if (st == 'leave' || st == 'excused') todayStatus = 'Excused Leave';
+        if (st == 'present')
+          todayStatus = 'Present (In-Campus)';
+        else if (st == 'absent')
+          todayStatus = 'Absent';
+        else if (st == 'late')
+          todayStatus = 'Late Arrival';
+        else if (st == 'leave' || st == 'excused')
+          todayStatus = 'Excused Leave';
       }
 
       final scanLogs = list.take(10).map((r) {
@@ -6745,7 +7810,8 @@ class SchoolService {
         'medical_leaves': leaves,
         'late_arrivals': late,
         'today_status': todayStatus,
-        'today_gate_entry': todayStatus.contains('Present') ? 'Recorded at Campus' : '--',
+        'today_gate_entry':
+            todayStatus.contains('Present') ? 'Recorded at Campus' : '--',
         'today_expected_exit': '--',
         'smart_card_id': 'STUDENT-$studentId',
         'recent_scan_logs': scanLogs,
@@ -6804,7 +7870,9 @@ class SchoolService {
       }
 
       final overallPct = totalMax > 0 ? (totalObt / totalMax) * 100 : 0.0;
-      final overallGrade = marks.isNotEmpty ? (SchoolService.calculateCbseGrade(overallPct)['grade'] ?? 'N/A') : 'N/A';
+      final overallGrade = marks.isNotEmpty
+          ? (SchoolService.calculateCbseGrade(overallPct)['grade'] ?? 'N/A')
+          : 'N/A';
 
       final coScholastic = <Map<String, dynamic>>[];
       try {
@@ -6833,7 +7901,8 @@ class SchoolService {
         'class_teacher_remarks': marks.isNotEmpty
             ? 'Performance evaluated under CBSE 9-Point Assessment Scheme.'
             : 'No examination records submitted for the active session.',
-        'principal_seal': 'Verified Digital Seal • Shivalik International School',
+        'principal_seal':
+            'Verified Digital Seal • Shivalik International School',
         'scholastic_subjects': subjectRows,
         'co_scholastic_activities': coScholastic,
       };
@@ -6847,8 +7916,10 @@ class SchoolService {
         'cbse_rank': 'N/A',
         'total_obtained': 0,
         'max_marks': 0,
-        'class_teacher_remarks': 'No examination records submitted for the active session.',
-        'principal_seal': 'Verified Digital Seal • Shivalik International School',
+        'class_teacher_remarks':
+            'No examination records submitted for the active session.',
+        'principal_seal':
+            'Verified Digital Seal • Shivalik International School',
         'scholastic_subjects': <Map<String, dynamic>>[],
         'co_scholastic_activities': <Map<String, dynamic>>[],
       };
@@ -6856,7 +7927,8 @@ class SchoolService {
   }
 
   /// Real Transport Status from school_students & school_transport
-  Future<Map<String, dynamic>> getParentChildTransportStatus(String studentId) async {
+  Future<Map<String, dynamic>> getParentChildTransportStatus(
+      String studentId) async {
     try {
       final sResp = await _supabase
           .from('school_students')
@@ -6882,26 +7954,13 @@ class SchoolService {
 
       return {
         'assigned': true,
-        'bus_number': tResp?['bus_number'] ?? 'Assigned Bus',
+        'bus_number': tResp?['bus_number'] ?? '',
         'bus_tag': tResp?['route_name'] ?? routeName,
         'route_name': tResp?['route_name'] ?? routeName,
-        'stop_name': stopName ?? 'Designated School Stop',
-        'pickup_scheduled': '07:30 AM',
-        'pickup_actual': '07:30 AM',
-        'campus_drop_actual': '08:00 AM',
-        'afternoon_departure_scheduled': '02:00 PM',
-        'afternoon_drop_estimated': '02:30 PM',
-        'live_status': 'Safe On Campus',
-        'live_status_code': 'on_campus',
-        'speed_kmph': 0,
-        'driver_name': tResp?['driver_name'] ?? 'Assigned Driver',
-        'driver_phone': tResp?['driver_phone'] ?? 'Campus Transport Desk',
-        'conductor_name': tResp?['conductor_name'] ?? 'Transport Assistant',
-        'conductor_phone': tResp?['conductor_phone'] ?? '--',
-        'transport_manager_phone': '+91 135-2749921',
-        'cctv_status': 'Installed & Active',
-        'gps_status': 'Scheduled Route Transit',
-        'today_attendance_sync': 'Morning In: Verified',
+        'stop_name': stopName ?? '',
+        'pickup_scheduled': tResp?['pickup_time'] ?? '',
+        'driver_name': tResp?['driver_name'] ?? '',
+        'driver_phone': tResp?['driver_phone'] ?? '',
       };
     } catch (_) {
       return {
@@ -6926,15 +7985,21 @@ class SchoolService {
       final receipts = <Map<String, dynamic>>[];
 
       for (final p in payments) {
-        final amt = (p['amount_paid'] as num?)?.toDouble() ?? (p['amount'] as num?)?.toDouble() ?? 0.0;
+        final amt = (p['amount_paid'] as num?)?.toDouble() ??
+            (p['amount'] as num?)?.toDouble() ??
+            0.0;
         final status = (p['status']?.toString() ?? '').toLowerCase();
         if (status == 'paid') {
           totalPaid += amt;
           receipts.add({
-            'receipt_no': p['receipt_number'] ?? p['receipt_no'] ?? 'REC-${p['id']?.toString().substring(0, 8)}',
+            'receipt_no': p['receipt_number'] ??
+                p['receipt_no'] ??
+                'REC-${p['id']?.toString().substring(0, 8)}',
             'quarter': p['month_name'] ?? p['quarter'] ?? 'Academic Fee',
             'amount': amt,
-            'paid_date': p['payment_date'] ?? p['created_at']?.toString().split('T')[0] ?? 'Recorded',
+            'paid_date': p['payment_date'] ??
+                p['created_at']?.toString().split('T')[0] ??
+                'Recorded',
             'payment_mode': p['payment_mode'] ?? 'Online',
             'transaction_id': p['transaction_id'] ?? p['id']?.toString() ?? '',
             'status': 'Paid & Reconciled',
@@ -6962,11 +8027,14 @@ class SchoolService {
 
       return {
         'academic_session': '2025-2026',
-        'annual_total': annualTotal > 0 ? annualTotal : totalPaid + pendingAmount,
+        'annual_total':
+            annualTotal > 0 ? annualTotal : totalPaid + pendingAmount,
         'total_paid': totalPaid,
         'pending_amount': pendingAmount,
-        'next_due_date': pendingAmount > 0 ? '5th of Every Month' : 'Fully Cleared',
-        'next_installment_name': pendingAmount > 0 ? 'Monthly Academic Dues' : 'No Dues Pending',
+        'next_due_date':
+            pendingAmount > 0 ? '5th of Every Month' : 'Fully Cleared',
+        'next_installment_name':
+            pendingAmount > 0 ? 'Monthly Academic Dues' : 'No Dues Pending',
         'fee_heads_breakdown': feeHeadsBreakdown,
         'receipts': receipts,
       };
@@ -6993,7 +8061,8 @@ class SchoolService {
     required String paymentMode,
   }) async {
     final now = DateTime.now();
-    final receiptNo = 'RCP-${now.year}-${now.millisecondsSinceEpoch.toString().substring(7)}';
+    final receiptNo =
+        'RCP-${now.year}-${now.millisecondsSinceEpoch.toString().substring(7)}';
     final modeCode = paymentMode.replaceAll(' ', '_').toUpperCase();
     final txnId = 'TXN_${modeCode}_${now.millisecondsSinceEpoch}';
 
@@ -7047,10 +8116,19 @@ class SchoolService {
   }
 
   /// Real Today's Timetable from school_timetable
-  Future<Map<String, dynamic>> getParentChildTodayTimetable(String classId) async {
+  Future<Map<String, dynamic>> getParentChildTodayTimetable(
+      String classId) async {
     try {
       final now = DateTime.now();
-      const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const weekdays = [
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday'
+      ];
       final currentDay = weekdays[now.weekday - 1];
 
       final ttResp = await _supabase
@@ -7088,7 +8166,9 @@ class SchoolService {
         'class_id': classId,
         'today_day': currentDay,
         'active_period_number': 1,
-        'active_subject': periods.isNotEmpty ? periods.first['subject'] : 'Classes in Session',
+        'active_subject': periods.isNotEmpty
+            ? periods.first['subject']
+            : 'Classes in Session',
         'periods': periods,
       };
     } catch (_) {
@@ -7103,10 +8183,12 @@ class SchoolService {
   }
 
   /// Real Student Health & Blood Group from SchoolLivingService & school_infirmary_records
-  Future<Map<String, dynamic>> getParentChildInfirmaryRecord(String studentId) async {
+  Future<Map<String, dynamic>> getParentChildInfirmaryRecord(
+      String studentId) async {
     try {
       final healthRec = await living.getStudentHealthRecord(studentId);
-      final visits = await living.getInfirmaryVisits(studentId: studentId, limit: 10);
+      final visits =
+          await living.getInfirmaryVisits(studentId: studentId, limit: 10);
 
       return {
         'student_id': studentId,
@@ -7117,8 +8199,10 @@ class SchoolService {
         'vision_left': healthRec['vision_left']?.toString() ?? '--',
         'vision_right': healthRec['vision_right']?.toString() ?? '--',
         'known_allergies': healthRec['allergies'] ?? 'None Reported',
-        'chronic_conditions': healthRec['chronic_conditions'] ?? 'None Reported',
-        'medical_insurance_policy': healthRec['medical_insurance_policy'] ?? 'Standard Institutional Coverage',
+        'chronic_conditions':
+            healthRec['chronic_conditions'] ?? 'None Reported',
+        'medical_insurance_policy': healthRec['medical_insurance_policy'] ??
+            'Standard Institutional Coverage',
         'campus_doctor': 'Campus Medical Officer',
         'campus_nurse': 'Infirmary Desk',
         'emergency_ambulance': '+91 135-2748800',
@@ -7144,7 +8228,8 @@ class SchoolService {
   }
 
   /// Real Cafeteria Wallet & Orders from SchoolLivingService
-  Future<Map<String, dynamic>> getParentChildCafeteriaStatus(String studentId) async {
+  Future<Map<String, dynamic>> getParentChildCafeteriaStatus(
+      String studentId) async {
     try {
       final sResp = await _supabase
           .from('school_students')
@@ -7153,14 +8238,17 @@ class SchoolService {
           .maybeSingle();
       final balance = (sResp?['wallet_balance'] as num?)?.toDouble() ?? 0.0;
       final weekday = _weekdayName(DateTime.now().weekday);
-      final menus = await living.getCafeteriaMenus(dayOfWeek: weekday, mealType: 'Lunch');
-      final orders = await living.getCanteenOrders(studentId: studentId, limit: 10);
+      final menus =
+          await living.getCafeteriaMenus(dayOfWeek: weekday, mealType: 'Lunch');
+      final orders =
+          await living.getCanteenOrders(studentId: studentId, limit: 10);
 
       final lunchItem = menus.isNotEmpty
           ? menus.first
           : {
               'item_name': 'Nutritious Campus Meal (Balanced Diet)',
-              'description': 'Freshly prepared vegetarian meal adhering to FSSAI guidelines.',
+              'description':
+                  'Freshly prepared vegetarian meal adhering to FSSAI guidelines.',
               'category': '100% Pure Vegetarian',
             };
 
@@ -7172,7 +8260,8 @@ class SchoolService {
         'junk_food_lock_enabled': true,
         'today_lunch_menu': {
           'title': lunchItem['item_name'] ?? 'Balanced Institutional Lunch',
-          'items': lunchItem['description'] ?? 'Wholesome nutritious meal prepared under hygiene standards.',
+          'items': lunchItem['description'] ??
+              'Wholesome nutritious meal prepared under hygiene standards.',
           'calories': '520 kcal',
           'protein': '18g',
           'diet_type': lunchItem['category'] ?? '100% Pure Vegetarian',
@@ -7199,7 +8288,8 @@ class SchoolService {
   }
 
   /// Real Hostel & Gate Pass Status for Parent
-  Future<Map<String, dynamic>> getParentChildHostelStatus(String studentId) async {
+  Future<Map<String, dynamic>> getParentChildHostelStatus(
+      String studentId) async {
     try {
       final allocs = await living.getHostelAllocations(studentId: studentId);
       final passes = await living.getGatePasses(studentId: studentId);
@@ -7212,7 +8302,8 @@ class SchoolService {
           'room_id': a['room_id'],
           'bed_number': a['bed_number'] ?? 'Bed 1',
           'allocated_date': a['allocated_date'],
-          'active_gate_passes': passes.where((p) => p['status'] == 'Active').toList(),
+          'active_gate_passes':
+              passes.where((p) => p['status'] == 'Active').toList(),
           'recent_gate_passes': passes.take(5).toList(),
         };
       }
@@ -7245,8 +8336,8 @@ class SchoolService {
       final updated = cur + amount;
       await _supabase
           .from('school_students')
-          .update({'wallet_balance': updated})
-          .or('id.eq.$studentId,username.eq.$studentId');
+          .update({'wallet_balance': updated}).or(
+              'id.eq.$studentId,username.eq.$studentId');
 
       return {
         'success': true,
@@ -7265,7 +8356,8 @@ class SchoolService {
   }
 
   /// Real Directory of Teachers for class from timetable and school_classes
-  Future<List<Map<String, dynamic>>> getParentTeachersDirectory(String classId) async {
+  Future<List<Map<String, dynamic>>> getParentTeachersDirectory(
+      String classId) async {
     try {
       final teachers = <Map<String, dynamic>>[];
       final seenUsernames = <String>{};
@@ -7378,7 +8470,8 @@ class SchoolService {
       }
 
       final now = DateTime.now();
-      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final todayStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
       return hwList.map((hw) {
         final hid = hw['id']?.toString() ?? '';
@@ -7423,7 +8516,8 @@ class SchoolService {
     try {
       final now = DateTime.now();
       final fromDate = now.subtract(Duration(days: days));
-      final fromStr = '${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}';
+      final fromStr =
+          '${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}';
 
       final resp = await _supabase
           .from('school_attendance')
@@ -7465,7 +8559,8 @@ class SchoolService {
       }
 
       final totalDays = records.length;
-      final overallPct = totalDays > 0 ? ((present + late + excused) / totalDays) * 100 : 0.0;
+      final overallPct =
+          totalDays > 0 ? ((present + late + excused) / totalDays) * 100 : 0.0;
       final isCbseWarningActive = totalDays > 0 && overallPct < 75.0;
 
       return {
@@ -7477,7 +8572,9 @@ class SchoolService {
         'days_excused': excused,
         'overall_pct': overallPct,
         'is_cbse_warning_active': isCbseWarningActive,
-        'cbse_shortage_days': isCbseWarningActive ? ((0.75 * totalDays) - (present + late + excused)).ceil() : 0,
+        'cbse_shortage_days': isCbseWarningActive
+            ? ((0.75 * totalDays) - (present + late + excused)).ceil()
+            : 0,
         'daily_points': dailyPoints,
       };
     } catch (_) {
@@ -7497,7 +8594,8 @@ class SchoolService {
   }
 
   /// PN12: Real Exam Countdown & Datesheet Banner
-  Future<Map<String, dynamic>> getChildUpcomingExamCountdown({required String className}) async {
+  Future<Map<String, dynamic>> getChildUpcomingExamCountdown(
+      {required String className}) async {
     try {
       final resp = await _supabase
           .from('school_exam_sessions')
@@ -7552,7 +8650,8 @@ class SchoolService {
         if (classId != null && classId.isNotEmpty) {
           query = query.or('class_id.eq.$classId,class_id.eq.all');
         }
-        final resp = await query.order('created_at', ascending: false).limit(20);
+        final resp =
+            await query.order('created_at', ascending: false).limit(20);
         for (final m in resp) {
           messages.add({
             'id': m['id']?.toString() ?? '',
@@ -7613,15 +8712,19 @@ class SchoolService {
       for (final c in resp) {
         // Skip specialized encoded rows
         final cat = c['category']?.toString() ?? '';
-        if (cat.contains('PTMSlot') || cat.contains('ParentComplaint') || cat.contains('StudentLeave')) {
+        if (cat.contains('PTMSlot') ||
+            cat.contains('ParentComplaint') ||
+            cat.contains('StudentLeave')) {
           continue;
         }
         final rawContent = c['content']?.toString() ?? '';
         final title = c['title']?.toString() ?? 'School Circular';
         final sender = c['published_by'] ?? c['author'] ?? 'Administration';
-        final pubAt = c['published_at']?.toString() ?? c['created_at']?.toString() ?? '';
+        final pubAt =
+            c['published_at']?.toString() ?? c['created_at']?.toString() ?? '';
 
-        if (cat == 'ClassNotice' || rawContent.startsWith('CLASS_ANNOUNCEMENT')) {
+        if (cat == 'ClassNotice' ||
+            rawContent.startsWith('CLASS_ANNOUNCEMENT')) {
           String bodyText = rawContent;
           String parsedTeacher = sender;
           String priority = 'normal';
@@ -7633,7 +8736,8 @@ class SchoolService {
             } else if (trimPart.startsWith('Teacher:')) {
               parsedTeacher = trimPart.replaceFirst('Teacher:', '').trim();
             } else if (trimPart.startsWith('Priority:')) {
-              priority = trimPart.replaceFirst('Priority:', '').trim().toLowerCase();
+              priority =
+                  trimPart.replaceFirst('Priority:', '').trim().toLowerCase();
             }
           }
 
@@ -7666,8 +8770,10 @@ class SchoolService {
 
     // Sort by created_at descending
     messages.sort((a, b) {
-      final tA = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2020);
-      final tB = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2020);
+      final tA = DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+          DateTime(2020);
+      final tB = DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+          DateTime(2020);
       return tB.compareTo(tA);
     });
 
@@ -7725,7 +8831,8 @@ class SchoolService {
             'id': 'att-${a['id'] ?? dt}',
             'type': 'absence',
             'title': 'Student Marked Absent',
-            'body': 'Attendance recorded as Absent on $dt. Please submit a leave request if required.',
+            'body':
+                'Attendance recorded as Absent on $dt. Please submit a leave request if required.',
             'link_route': '/school/attendance',
             'created_at': dt,
             'is_read': false,
@@ -7735,7 +8842,8 @@ class SchoolService {
             'id': 'att-${a['id'] ?? dt}',
             'type': 'leave_update',
             'title': 'Leave Approved / Excused',
-            'body': 'Absence on $dt marked as authorized Excused Leave by faculty.',
+            'body':
+                'Absence on $dt marked as authorized Excused Leave by faculty.',
             'link_route': '/school/attendance',
             'created_at': dt,
             'is_read': true,
@@ -7762,7 +8870,8 @@ class SchoolService {
             'id': 'fee-due-$studentId',
             'type': 'fee_due',
             'title': 'Term Fee Payment Outstanding',
-            'body': 'Outstanding dues of ₹${amt.toInt()} are pending. Due by $due to avoid late fine.',
+            'body':
+                'Outstanding dues of ₹${amt.toInt()} are pending. Due by $due to avoid late fine.',
             'link_route': '/school/fees',
             'created_at': DateTime.now().toIso8601String(),
             'is_read': false,
@@ -7788,7 +8897,8 @@ class SchoolService {
           'title': 'New Homework: $subj',
           'body': '$title assigned. Due date: $due.',
           'link_route': '/school/homework',
-          'created_at': h['created_at']?.toString() ?? DateTime.now().toIso8601String(),
+          'created_at':
+              h['created_at']?.toString() ?? DateTime.now().toIso8601String(),
           'is_read': false,
         });
       }
@@ -7804,14 +8914,17 @@ class SchoolService {
           .limit(1);
       for (final c in circResp) {
         final cat = c['category']?.toString() ?? '';
-        if (cat.contains('PTMSlot') || cat.contains('ParentComplaint') || cat.contains('StudentLeave')) continue;
+        if (cat.contains('PTMSlot') ||
+            cat.contains('ParentComplaint') ||
+            cat.contains('StudentLeave')) continue;
         alerts.add({
           'id': 'circ-${c['id']}',
           'type': 'circular',
           'title': c['title']?.toString() ?? 'Administrative Notice',
           'body': c['content']?.toString() ?? '',
           'link_route': '/school/circulars',
-          'created_at': c['published_at']?.toString() ?? DateTime.now().toIso8601String(),
+          'created_at':
+              c['published_at']?.toString() ?? DateTime.now().toIso8601String(),
           'is_read': false,
         });
       }
@@ -8021,41 +9134,41 @@ class SchoolService {
     }
 
     // Legacy storage (pre-migration databases).
-      final structured =
-          'STUDENT_LEAVE_APPLICATION | StudentId: $username | StudentName: $studentName | '
-          'ClassId: $classId | StartDate: $startDate | EndDate: $endDate | Type: $leaveType | '
-          'Reason: $reason | Doc: ${documentUrl ?? "Self Certified"} | Status: Pending Teacher Review';
+    final structured =
+        'STUDENT_LEAVE_APPLICATION | StudentId: $username | StudentName: $studentName | '
+        'ClassId: $classId | StartDate: $startDate | EndDate: $endDate | Type: $leaveType | '
+        'Reason: $reason | Doc: ${documentUrl ?? "Self Certified"} | Status: Pending Teacher Review';
 
-      final resp = await _supabase
-          .from('school_circulars')
-          .insert({
-            'institute_code': 'SHIV-SCH',
-            'title': 'Student Leave Application: $studentName ($leaveType)',
-            'content': structured,
-            'category': 'StudentLeave',
-            'target_audience': 'teachers',
-            'published_by': appliedByRole ?? 'Student',
-          })
-          .select()
-          .single();
+    final resp = await _supabase
+        .from('school_circulars')
+        .insert({
+          'institute_code': 'SHIV-SCH',
+          'title': 'Student Leave Application: $studentName ($leaveType)',
+          'content': structured,
+          'category': 'StudentLeave',
+          'target_audience': 'teachers',
+          'published_by': appliedByRole ?? 'Student',
+        })
+        .select()
+        .single();
 
-      return {
-        'id': resp['id'],
-        'student_id': studentId,
-        'student_username': username,
-        'student_name': studentName,
-        'class_id': classId,
-        'class_name': className,
-        'section': section,
-        'start_date': startDate,
-        'end_date': endDate,
-        'total_days': totalDays,
-        'leave_type': leaveType,
-        'type': leaveType,
-        'reason': reason,
-        'status': 'pending',
-        'legacy': true,
-      };
+    return {
+      'id': resp['id'],
+      'student_id': studentId,
+      'student_username': username,
+      'student_name': studentName,
+      'class_id': classId,
+      'class_name': className,
+      'section': section,
+      'start_date': startDate,
+      'end_date': endDate,
+      'total_days': totalDays,
+      'leave_type': leaveType,
+      'type': leaveType,
+      'reason': reason,
+      'status': 'pending',
+      'legacy': true,
+    };
   }
 
   Map<String, dynamic> _normaliseLeaveRow(Map<String, dynamic> row) {
@@ -8206,7 +9319,8 @@ class SchoolService {
 
   /// A readable class label for any of the id/name shapes used across school
   /// tables, e.g. "Class 10 · A" for class_id "cls-10a".
-  String classDisplayName({String? classId, String? className, String? section}) {
+  String classDisplayName(
+      {String? classId, String? className, String? section}) {
     var name = (className ?? '').trim();
     if (name.isEmpty) name = _classNameFromAppId((classId ?? '').trim());
     if (name.isEmpty) name = (classId ?? '').trim();
@@ -8271,9 +9385,12 @@ class SchoolService {
 
   String _legacyLeaveStatus(String raw) {
     final s = raw.toLowerCase();
-    if (s.startsWith('approved') || s.contains('approved by')) return 'approved';
-    if (s.startsWith('rejected') || s.contains('rejected by')) return 'rejected';
-    if (s.startsWith('cancelled') || s.startsWith('canceled')) return 'cancelled';
+    if (s.startsWith('approved') || s.contains('approved by'))
+      return 'approved';
+    if (s.startsWith('rejected') || s.contains('rejected by'))
+      return 'rejected';
+    if (s.startsWith('cancelled') || s.startsWith('canceled'))
+      return 'cancelled';
     return 'pending';
   }
 
@@ -8315,8 +9432,8 @@ class SchoolService {
           'type': map['Type'] ?? 'Casual Leave',
           'start_date': map['StartDate'] ?? '',
           'end_date': map['EndDate'] ?? '',
-          'total_days': _leaveDayCount(
-              map['StartDate'] ?? '', map['EndDate'] ?? ''),
+          'total_days':
+              _leaveDayCount(map['StartDate'] ?? '', map['EndDate'] ?? ''),
           'reason': map['Reason'] ?? '',
           'document_url': map['Doc'] ?? '',
           'status': status,
@@ -8342,7 +9459,8 @@ class SchoolService {
     String? reviewerName,
     String? remarks,
   }) async {
-    final normalised = status.toLowerCase() == 'approved' ? 'approved' : 'rejected';
+    final normalised =
+        status.toLowerCase() == 'approved' ? 'approved' : 'rejected';
     final now = DateTime.now().toIso8601String();
 
     try {
@@ -8543,18 +9661,22 @@ class SchoolService {
     String? bookingId;
     if (!_missingTables.contains('school_ptm_bookings')) {
       try {
-        final res = await _supabase.from('school_ptm_bookings').insert({
-          'parent_username': parentUsername,
-          'student_id': studentId ?? parentUsername,
-          'student_name': studentName,
-          'teacher_id': teacherId ?? teacherName,
-          'teacher_name': teacherName,
-          'date': date,
-          'time_slot': timeSlot,
-          'agenda': agenda,
-          'status': 'confirmed',
-          'created_at': DateTime.now().toIso8601String(),
-        }).select().single();
+        final res = await _supabase
+            .from('school_ptm_bookings')
+            .insert({
+              'parent_username': parentUsername,
+              'student_id': studentId ?? parentUsername,
+              'student_name': studentName,
+              'teacher_id': teacherId ?? teacherName,
+              'teacher_name': teacherName,
+              'date': date,
+              'time_slot': timeSlot,
+              'agenda': agenda,
+              'status': 'confirmed',
+              'created_at': DateTime.now().toIso8601String(),
+            })
+            .select()
+            .single();
         bookingId = res['id']?.toString();
         return {
           'id': bookingId,
@@ -8611,8 +9733,7 @@ class SchoolService {
         try {
           await _supabase
               .from('school_ptm_bookings')
-              .update({'status': 'cancelled'})
-              .eq('id', bookingId);
+              .update({'status': 'cancelled'}).eq('id', bookingId);
         } catch (e) {
           if (_isTableMissingError(e)) {
             _missingTables.add('school_ptm_bookings');
@@ -8621,10 +9742,17 @@ class SchoolService {
       }
 
       try {
-        final row = await _supabase.from('school_circulars').select().eq('id', bookingId).single();
+        final row = await _supabase
+            .from('school_circulars')
+            .select()
+            .eq('id', bookingId)
+            .single();
         final content = row['content']?.toString() ?? '';
-        final updatedContent = content.replaceAll('Status: Confirmed', 'Status: Cancelled');
-        await _supabase.from('school_circulars').update({'content': updatedContent}).eq('id', bookingId);
+        final updatedContent =
+            content.replaceAll('Status: Confirmed', 'Status: Cancelled');
+        await _supabase
+            .from('school_circulars')
+            .update({'content': updatedContent}).eq('id', bookingId);
       } catch (_) {}
 
       return true;
@@ -8633,7 +9761,8 @@ class SchoolService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getPtmBookings({String? parentUsername}) async {
+  Future<List<Map<String, dynamic>>> getPtmBookings(
+      {String? parentUsername}) async {
     final list = <Map<String, dynamic>>[];
     final seenIds = <String>{};
 
@@ -8687,7 +9816,9 @@ class SchoolService {
             }
           }
 
-          if (parentUsername != null && parentUsername.isNotEmpty && map['Parent'] != parentUsername) continue;
+          if (parentUsername != null &&
+              parentUsername.isNotEmpty &&
+              map['Parent'] != parentUsername) continue;
 
           final rId = row['id']?.toString() ?? '';
           if (seenIds.contains(rId)) continue;
@@ -8720,24 +9851,29 @@ class SchoolService {
     required String description,
     String? studentId,
   }) async {
-    final ticketNo = 'TKT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    final ticketNo =
+        'TKT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
     // 1. Try dedicated table school_parent_grievances
     String? grievanceId;
     if (!_missingTables.contains('school_parent_grievances')) {
       try {
-        final res = await _supabase.from('school_parent_grievances').insert({
-          'ticket_no': ticketNo,
-          'parent_username': parentUsername,
-          'student_id': studentId ?? parentUsername,
-          'student_name': studentName,
-          'category': category,
-          'subject': subject,
-          'description': description,
-          'status': 'submitted',
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        }).select().single();
+        final res = await _supabase
+            .from('school_parent_grievances')
+            .insert({
+              'ticket_no': ticketNo,
+              'parent_username': parentUsername,
+              'student_id': studentId ?? parentUsername,
+              'student_name': studentName,
+              'category': category,
+              'subject': subject,
+              'description': description,
+              'status': 'submitted',
+              'created_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .select()
+            .single();
         grievanceId = res['id']?.toString();
         return {
           'id': grievanceId,
@@ -8788,7 +9924,8 @@ class SchoolService {
     };
   }
 
-  Future<List<Map<String, dynamic>>> getParentComplaints({String? parentUsername}) async {
+  Future<List<Map<String, dynamic>>> getParentComplaints(
+      {String? parentUsername}) async {
     final list = <Map<String, dynamic>>[];
     final seenTickets = <String>{};
 
@@ -8843,7 +9980,9 @@ class SchoolService {
             }
           }
 
-          if (parentUsername != null && parentUsername.isNotEmpty && map['Parent'] != parentUsername) continue;
+          if (parentUsername != null &&
+              parentUsername.isNotEmpty &&
+              map['Parent'] != parentUsername) continue;
 
           final ticket = map['Ticket'] ?? '';
           if (ticket.isNotEmpty && seenTickets.contains(ticket)) continue;
@@ -8871,10 +10010,10 @@ class SchoolService {
     try {
       if (!_missingTables.contains('school_parent_grievances')) {
         try {
-          await _supabase
-              .from('school_parent_grievances')
-              .update({'status': 'reopened', 'updated_at': DateTime.now().toIso8601String()})
-              .eq('id', complaintId);
+          await _supabase.from('school_parent_grievances').update({
+            'status': 'reopened',
+            'updated_at': DateTime.now().toIso8601String()
+          }).eq('id', complaintId);
         } catch (e) {
           if (_isTableMissingError(e)) {
             _missingTables.add('school_parent_grievances');
@@ -8883,10 +10022,17 @@ class SchoolService {
       }
 
       try {
-        final row = await _supabase.from('school_circulars').select().eq('id', complaintId).single();
+        final row = await _supabase
+            .from('school_circulars')
+            .select()
+            .eq('id', complaintId)
+            .single();
         final content = row['content']?.toString() ?? '';
-        final updatedContent = content.replaceAll(RegExp(r'Status:\s*[^\|]+'), 'Status: Reopened ');
-        await _supabase.from('school_circulars').update({'content': updatedContent}).eq('id', complaintId);
+        final updatedContent = content.replaceAll(
+            RegExp(r'Status:\s*[^\|]+'), 'Status: Reopened ');
+        await _supabase
+            .from('school_circulars')
+            .update({'content': updatedContent}).eq('id', complaintId);
       } catch (_) {}
 
       return true;
@@ -8915,13 +10061,19 @@ class SchoolService {
         }
       }
 
-      final row = await _supabase.from('school_circulars').select().eq('id', complaintId).single();
+      final row = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('id', complaintId)
+          .single();
       final content = row['content']?.toString() ?? '';
       final updatedContent = content.replaceAll(
         RegExp(r'Status:\s*[^\|]+'),
         'Status: Resolved ($resolutionNotes) ',
       );
-      await _supabase.from('school_circulars').update({'content': updatedContent}).eq('id', complaintId);
+      await _supabase
+          .from('school_circulars')
+          .update({'content': updatedContent}).eq('id', complaintId);
       return true;
     } catch (_) {
       return false;
@@ -8931,7 +10083,8 @@ class SchoolService {
   // ===== LMS-LITE (STUDY MATERIALS & ONLINE QUIZZES — N3, N4) =====
 
   /// N3: Get authentic study materials published by teachers for the student cohort
-  Future<List<Map<String, dynamic>>> getStudyMaterials({required String classId, String? subject}) async {
+  Future<List<Map<String, dynamic>>> getStudyMaterials(
+      {required String classId, String? subject}) async {
     try {
       final response = await _supabase
           .from('school_circulars')
@@ -8952,7 +10105,10 @@ class SchoolService {
             }
           }
           if (map['ClassId'] != classId && map['ClassId'] != 'All') continue;
-          if (subject != null && subject.isNotEmpty && subject != 'All' && map['Subject'] != subject) continue;
+          if (subject != null &&
+              subject.isNotEmpty &&
+              subject != 'All' &&
+              map['Subject'] != subject) continue;
 
           list.add({
             'id': row['id'],
@@ -8999,7 +10155,8 @@ class SchoolService {
   }
 
   /// N4: Get active online quizzes for student class cohort
-  Future<List<Map<String, dynamic>>> getOnlineQuizzes({required String classId}) async {
+  Future<List<Map<String, dynamic>>> getOnlineQuizzes(
+      {required String classId}) async {
     if (!_missingTables.contains('school_quizzes')) {
       try {
         final response = await _supabase
@@ -9089,7 +10246,8 @@ class SchoolService {
   }
 
   /// N4: Get past quiz attempts for a student
-  Future<List<Map<String, dynamic>>> getStudentQuizAttempts({required String studentUsername}) async {
+  Future<List<Map<String, dynamic>>> getStudentQuizAttempts(
+      {required String studentUsername}) async {
     if (!_missingTables.contains('school_quiz_attempts')) {
       try {
         final response = await _supabase
@@ -9109,7 +10267,8 @@ class SchoolService {
 
   // ===== N6: STUDENT TARGET GOALS =====
 
-  Future<List<Map<String, dynamic>>> getStudentGoals(String studentUsername) async {
+  Future<List<Map<String, dynamic>>> getStudentGoals(
+      String studentUsername) async {
     if (!_missingTables.contains('school_student_goals')) {
       try {
         final response = await _supabase
@@ -9140,7 +10299,9 @@ class SchoolService {
     };
     if (!_missingTables.contains('school_student_goals')) {
       try {
-        await _supabase.from('school_student_goals').upsert(payload, onConflict: 'student_id,subject');
+        await _supabase
+            .from('school_student_goals')
+            .upsert(payload, onConflict: 'student_id,subject');
         return true;
       } catch (e) {
         if (_isTableMissingError(e)) {
@@ -9153,7 +10314,8 @@ class SchoolService {
 
   // ===== N10: STUDENT NOTIFICATIONS CENTER =====
 
-  Future<List<Map<String, dynamic>>> getStudentNotifications(String studentUsername) async {
+  Future<List<Map<String, dynamic>>> getStudentNotifications(
+      String studentUsername) async {
     final notifications = <Map<String, dynamic>>[];
 
     if (!_missingTables.contains('school_notifications')) {
@@ -9190,8 +10352,11 @@ class SchoolService {
         final classId = profile?['class_id']?.toString() ?? '';
         final className = profile?['class_name']?.toString() ?? '';
 
-        final hwList = await getHomework(classId: classId.isNotEmpty ? classId : null, className: className.isNotEmpty ? className : null);
-        final mySubs = await getHomeworkSubmissions(studentUsername: studentUsername);
+        final hwList = await getHomework(
+            classId: classId.isNotEmpty ? classId : null,
+            className: className.isNotEmpty ? className : null);
+        final mySubs =
+            await getHomeworkSubmissions(studentUsername: studentUsername);
         final subMap = {for (var s in mySubs) s['homework_id']?.toString(): s};
         int pendingHwCount = 0;
         for (final h in hwList) {
@@ -9203,7 +10368,9 @@ class SchoolService {
           notifications.add({
             'id': 'notif-hw',
             'title': 'Pending Homework Assignments',
-            'body': 'You have ' + pendingHwCount.toString() + ' pending assignment(s) due. Complete and submit for evaluation.',
+            'body': 'You have ' +
+                pendingHwCount.toString() +
+                ' pending assignment(s) due. Complete and submit for evaluation.',
             'type': 'homework',
             'route': '/school/homework',
             'is_read': false,
@@ -9217,7 +10384,9 @@ class SchoolService {
           notifications.add({
             'id': 'notif-fee',
             'title': 'School Fee Due Reminder',
-            'body': 'Outstanding school fees of ₹' + due.toInt().toString() + ' pending. Pay by 5th to avoid late fine.',
+            'body': 'Outstanding school fees of ₹' +
+                due.toInt().toString() +
+                ' pending. Pay by 5th to avoid late fine.',
             'type': 'fee',
             'route': '/school/fees',
             'is_read': false,
@@ -9228,15 +10397,21 @@ class SchoolService {
         final leaves = await getStudentLeaves(studentId: studentUsername);
         if (leaves.isNotEmpty) {
           final latestLeave = leaves.first;
-          final status = (latestLeave['status']?.toString() ?? 'pending').toUpperCase();
+          final status =
+              (latestLeave['status']?.toString() ?? 'pending').toUpperCase();
           notifications.add({
             'id': 'notif-leave-' + (latestLeave['id']?.toString() ?? '0'),
             'title': 'Leave Application Status: ' + status,
-            'body': 'Your leave request for ' + (latestLeave['category']?.toString() ?? 'Leave') + ' is ' + status + '.',
+            'body': 'Your leave request for ' +
+                (latestLeave['category']?.toString() ?? 'Leave') +
+                ' is ' +
+                status +
+                '.',
             'type': 'leave',
             'route': '/school/leave',
             'is_read': true,
-            'time': latestLeave['created_at'] ?? DateTime.now().toIso8601String(),
+            'time':
+                latestLeave['created_at'] ?? DateTime.now().toIso8601String(),
           });
         }
 
@@ -9245,7 +10420,8 @@ class SchoolService {
           notifications.add({
             'id': 'notif-circ-' + (c['id']?.toString() ?? '0'),
             'title': c['title']?.toString() ?? 'School Notice',
-            'body': c['content']?.toString() ?? 'New institutional circular published.',
+            'body': c['content']?.toString() ??
+                'New institutional circular published.',
             'type': 'circular',
             'route': '/school/circulars',
             'is_read': true,
@@ -9292,7 +10468,8 @@ class SchoolService {
     return false;
   }
 
-  Future<List<Map<String, dynamic>>> getStudentQueries({required String studentUsername}) async {
+  Future<List<Map<String, dynamic>>> getStudentQueries(
+      {required String studentUsername}) async {
     if (!_missingTables.contains('school_student_queries')) {
       try {
         final response = await _supabase
@@ -9312,7 +10489,8 @@ class SchoolService {
 
   // ===== STEP 11: CERTIFICATES, LIBRARY, AND REPORTING WORKFLOWS =====
 
-  Future<Map<String, dynamic>> checkCertificateNoDues(String studentUsername) async {
+  Future<Map<String, dynamic>> checkCertificateNoDues(
+      String studentUsername) async {
     try {
       // 1. Library check: any active/overdue issues?
       final libResp = await _supabase
@@ -9334,10 +10512,13 @@ class SchoolService {
       final hasTransportDue = false;
 
       final details = <String>[];
-      if (hasUnreturnedBooks) details.add('Library: ${libResp.length} book(s) unreturned');
-      if (hasPendingFees) details.add('Finance: Pending fee clearance required');
+      if (hasUnreturnedBooks)
+        details.add('Library: ${libResp.length} book(s) unreturned');
+      if (hasPendingFees)
+        details.add('Finance: Pending fee clearance required');
 
-      final allClear = !hasUnreturnedBooks && !hasPendingFees && !hasTransportDue;
+      final allClear =
+          !hasUnreturnedBooks && !hasPendingFees && !hasTransportDue;
 
       return {
         'libraryClear': !hasUnreturnedBooks,
@@ -9364,9 +10545,11 @@ class SchoolService {
     required String certType,
     required String authorizedBy,
   }) async {
-    final certSerial = 'CERT-2026-${requestId.replaceAll(RegExp(r'[^0-9]'), '').padLeft(4, '0')}';
+    final certSerial =
+        'CERT-2026-${requestId.replaceAll(RegExp(r'[^0-9]'), '').padLeft(4, '0')}';
     final issueDate = DateTime.now().toIso8601String().split('T')[0];
-    final qrUrl = 'https://shivalikschool.edu.in/verify/certificate?cert_id=$certSerial&student=${Uri.encodeComponent(studentName)}&type=${Uri.encodeComponent(certType)}';
+    final qrUrl =
+        'https://shivalikschool.edu.in/verify/certificate?cert_id=$certSerial&student=${Uri.encodeComponent(studentName)}&type=${Uri.encodeComponent(certType)}';
 
     await _supabase.from('school_certificate_requests').update({
       'status': 'Issued',
@@ -9394,9 +10577,13 @@ class SchoolService {
     required String className,
     required int daysToReturn,
   }) async {
-    final issueId = 'LIB-ISS-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    final issueId =
+        'LIB-ISS-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
     final issueDate = DateTime.now().toIso8601String().split('T')[0];
-    final dueDate = DateTime.now().add(Duration(days: daysToReturn)).toIso8601String().split('T')[0];
+    final dueDate = DateTime.now()
+        .add(Duration(days: daysToReturn))
+        .toIso8601String()
+        .split('T')[0];
 
     final payload = {
       'id': issueId,
@@ -9414,10 +10601,15 @@ class SchoolService {
 
     // Decrement available copies in school_library
     try {
-      final bookResp = await _supabase.from('school_library').select().eq('id', bookId).maybeSingle();
+      final bookResp = await _supabase
+          .from('school_library')
+          .select()
+          .eq('id', bookId)
+          .maybeSingle();
       if (bookResp != null) {
         final avail = (bookResp['available'] as num?)?.toInt() ?? 1;
-        await _supabase.from('school_library').update({'available': (avail > 0 ? avail - 1 : 0)}).eq('id', bookId);
+        await _supabase.from('school_library').update(
+            {'available': (avail > 0 ? avail - 1 : 0)}).eq('id', bookId);
       }
     } catch (_) {}
 
@@ -9430,15 +10622,22 @@ class SchoolService {
     required String studentUsername,
   }) async {
     // 1. Fetch issue record to evaluate late fines
-    final issue = await _supabase.from('school_library_issues').select().eq('id', issueId).single();
-    final dueDateStr = issue['due_date']?.toString() ?? DateTime.now().toIso8601String().split('T')[0];
+    final issue = await _supabase
+        .from('school_library_issues')
+        .select()
+        .eq('id', issueId)
+        .single();
+    final dueDateStr = issue['due_date']?.toString() ??
+        DateTime.now().toIso8601String().split('T')[0];
     final dueDate = DateTime.parse(dueDateStr);
     final today = DateTime.now();
 
     double fineAmount = 0.0;
     if (today.isAfter(dueDate)) {
       final daysLate = today.difference(dueDate).inDays;
-      fineAmount = (daysLate > 0 ? daysLate * 5.0 : 0.0); // Rs 5 per day standard CBSE library fine
+      fineAmount = (daysLate > 0
+          ? daysLate * 5.0
+          : 0.0); // Rs 5 per day standard CBSE library fine
     }
 
     // 2. Mark issue as returned
@@ -9449,22 +10648,30 @@ class SchoolService {
 
     // 3. Increment book availability
     try {
-      final bookResp = await _supabase.from('school_library').select().eq('id', bookId).maybeSingle();
+      final bookResp = await _supabase
+          .from('school_library')
+          .select()
+          .eq('id', bookId)
+          .maybeSingle();
       if (bookResp != null) {
         final avail = (bookResp['available'] as num?)?.toInt() ?? 0;
-        await _supabase.from('school_library').update({'available': avail + 1}).eq('id', bookId);
+        await _supabase
+            .from('school_library')
+            .update({'available': avail + 1}).eq('id', bookId);
       }
     } catch (_) {}
 
     // 4. If fine is incurred, auto-post to student fee payments ledger
     if (fineAmount > 0) {
-      final fineReceipt = 'LIB-FINE-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+      final fineReceipt =
+          'LIB-FINE-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
       await _supabase.from('school_fee_payments').insert({
         'student_id': studentUsername,
         'class_id': issue['class'] ?? 'cls-10a',
         'amount': fineAmount,
         'paid_amount': 0.0,
-        'due_date': today.add(const Duration(days: 7)).toIso8601String().split('T')[0],
+        'due_date':
+            today.add(const Duration(days: 7)).toIso8601String().split('T')[0],
         'payment_mode': 'Cash',
         'receipt_no': fineReceipt,
         'status': 'pending',
@@ -9484,9 +10691,13 @@ class SchoolService {
     try {
       // 1. Attendance Today
       final todayStr = DateTime.now().toIso8601String().split('T')[0];
-      final attToday = await _supabase.from('school_attendance').select().eq('date', todayStr);
+      final attToday = await _supabase
+          .from('school_attendance')
+          .select()
+          .eq('date', todayStr);
       final totalMarked = attToday.length;
-      final presentCount = attToday.where((a) => a['status'] == 'present').length;
+      final presentCount =
+          attToday.where((a) => a['status'] == 'present').length;
       final attPct = totalMarked > 0 ? (presentCount / totalMarked) * 100 : 0.0;
 
       // 2. Collections vs Dues
@@ -9508,13 +10719,16 @@ class SchoolService {
 
       // 4. Open parent complaints
       final complaints = await getParentComplaints();
-      final openComplaints = complaints.where((c) => c['status'] == 'Open' || c['status'] == 'open').length;
+      final openComplaints = complaints
+          .where((c) => c['status'] == 'Open' || c['status'] == 'open')
+          .length;
 
       // 5. Total enrolled students
       final students = await _supabase.from('school_students').select();
       final enrolledCount = students.length;
 
-      final instName = await getSchoolInstituteName() ?? 'Shivalik International School';
+      final instName =
+          await getSchoolInstituteName() ?? 'Shivalik International School';
 
       return {
         'attendance_percent': attPct,
@@ -9556,7 +10770,11 @@ class SchoolService {
       final teachers = await _supabase.from('school_teachers').select();
       teacherCount = teachers.length;
       if (teacherCount == 0) {
-        final usersTeachers = await _supabase.from('users').select().eq('role', 'teacher').eq('institute_type', 'school');
+        final usersTeachers = await _supabase
+            .from('users')
+            .select()
+            .eq('role', 'teacher')
+            .eq('institute_type', 'school');
         teacherCount = usersTeachers.length;
       }
     } catch (_) {}
@@ -9564,11 +10782,17 @@ class SchoolService {
     // Check RTE admissions
     int rteCount = 0;
     try {
-      final rteApps = await _supabase.from('school_admissions').select().or('quota.eq.RTE,is_rte.eq.true');
-      rteCount = rteApps.where((a) => (a['status']?.toString().toLowerCase() == 'enrolled')).length;
+      final rteApps = await _supabase
+          .from('school_admissions')
+          .select()
+          .or('quota.eq.RTE,is_rte.eq.true');
+      rteCount = rteApps
+          .where((a) => (a['status']?.toString().toLowerCase() == 'enrolled'))
+          .length;
     } catch (_) {}
 
-    final instName = await getSchoolInstituteName() ?? 'Shivalik International School';
+    final instName =
+        await getSchoolInstituteName() ?? 'Shivalik International School';
 
     final ptrStr = teacherCount > 0 && totalStudents > 0
         ? '${(totalStudents / teacherCount).toStringAsFixed(1)}:1 (Real DB Count: $totalStudents students / $teacherCount faculty)'
@@ -9593,7 +10817,8 @@ class SchoolService {
       'rte_25_quota_seats': 0,
       'rte_students_enrolled': rteCount,
       'pupil_teacher_ratio': ptrStr,
-      'sanitation_drinking_water': 'Pending Verification / Requires Physical Audit Record',
+      'sanitation_drinking_water':
+          'Pending Verification / Requires Physical Audit Record',
       'separate_boys_girls_toilets': 'Pending Statutory Facility Audit',
       'cwsn_ramp_facilities': 'Available on Ground Floor Access Corridors',
       'smart_ict_classrooms': 0,
@@ -9601,7 +10826,8 @@ class SchoolService {
       'composite_skill_lab': 0,
       'playground_facility': 'Campus Sports Ground',
       'fire_safety_noc_status': 'Pending Certified NOC Upload',
-      'status_indicator': 'INCOMPLETE STATUTORY RECORD (Missing Gender Split & Certified NOC Records)',
+      'status_indicator':
+          'INCOMPLETE STATUTORY RECORD (Missing Gender Split & Certified NOC Records)',
     };
   }
 
@@ -9637,7 +10863,8 @@ class SchoolService {
   }
 
   /// N5: Save School Statutory Settings & Log Audit Event
-  Future<bool> saveSchoolSettings(Map<String, dynamic> settings, {required String actorUsername}) async {
+  Future<bool> saveSchoolSettings(Map<String, dynamic> settings,
+      {required String actorUsername}) async {
     try {
       await _supabase.from('school_circulars').insert({
         'institute_code': 'SHIV-SCH',
@@ -9653,7 +10880,8 @@ class SchoolService {
         action: 'Updated Institute Statutory Settings',
         entityType: 'Settings',
         entityId: 'global',
-        details: 'Affiliation: ${settings['affiliation_no']}, Session: ${settings['academic_session']}, RTE: ${settings['rte_quota_seats']}',
+        details:
+            'Affiliation: ${settings['affiliation_no']}, Session: ${settings['academic_session']}, RTE: ${settings['rte_quota_seats']}',
       );
       return true;
     } catch (_) {
@@ -9670,15 +10898,18 @@ class SchoolService {
           .order('created_at', ascending: false)
           .limit(limit);
       if ((rows as List).isNotEmpty) {
-        return (rows as List).map((r) => {
-          'id': r['id']?.toString() ?? '',
-          'published_at': r['created_at']?.toString() ?? '',
-          'actor_username': r['actor_username']?.toString() ?? 'sadmin1',
-          'action': r['action']?.toString() ?? 'Action Executed',
-          'entity_type': r['entity']?.toString() ?? '',
-          'entity_id': r['entity_id']?.toString() ?? '',
-          'details': jsonEncode(r['new_value'] ?? {}),
-        }).toList();
+        return (rows as List)
+            .map((r) => {
+                  'id': r['id']?.toString() ?? '',
+                  'published_at': r['created_at']?.toString() ?? '',
+                  'actor_username':
+                      r['actor_username']?.toString() ?? 'sadmin1',
+                  'action': r['action']?.toString() ?? 'Action Executed',
+                  'entity_type': r['entity']?.toString() ?? '',
+                  'entity_id': r['entity_id']?.toString() ?? '',
+                  'details': jsonEncode(r['new_value'] ?? {}),
+                })
+            .toList();
       }
     } catch (_) {}
 
@@ -9700,11 +10931,16 @@ class SchoolService {
           'details': content,
         };
         for (final p in parts) {
-          if (p.startsWith('Actor: ')) map['actor_username'] = p.replaceFirst('Actor: ', '');
-          if (p.startsWith('Action: ')) map['action'] = p.replaceFirst('Action: ', '');
-          if (p.startsWith('Entity: ')) map['entity_type'] = p.replaceFirst('Entity: ', '');
-          if (p.startsWith('EntityId: ')) map['entity_id'] = p.replaceFirst('EntityId: ', '');
-          if (p.startsWith('Details: ')) map['details'] = p.replaceFirst('Details: ', '');
+          if (p.startsWith('Actor: '))
+            map['actor_username'] = p.replaceFirst('Actor: ', '');
+          if (p.startsWith('Action: '))
+            map['action'] = p.replaceFirst('Action: ', '');
+          if (p.startsWith('Entity: '))
+            map['entity_type'] = p.replaceFirst('Entity: ', '');
+          if (p.startsWith('EntityId: '))
+            map['entity_id'] = p.replaceFirst('EntityId: ', '');
+          if (p.startsWith('Details: '))
+            map['details'] = p.replaceFirst('Details: ', '');
         }
         return map;
       }).toList();
@@ -9726,7 +10962,9 @@ class SchoolService {
           .from('teacher_details')
           .select('teacher_id, name, subject, department, phone, email');
 
-      final detailsMap = {for (var d in details) d['teacher_id']?.toString() ?? '': d};
+      final detailsMap = {
+        for (var d in details) d['teacher_id']?.toString() ?? '': d
+      };
 
       final list = <Map<String, dynamic>>[];
       for (final u in usersTeachers) {
@@ -9751,16 +10989,40 @@ class SchoolService {
   }
 
   /// N12: Universal Institutional Search
-  Future<Map<String, List<Map<String, dynamic>>>> searchInstitutionalEntities(String query) async {
+  Future<Map<String, List<Map<String, dynamic>>>> searchInstitutionalEntities(
+      String query) async {
     final q = query.trim().toLowerCase();
-    if (q.isEmpty) return {'students': [], 'faculty': [], 'circulars': [], 'admissions': []};
+    if (q.isEmpty)
+      return {'students': [], 'faculty': [], 'circulars': [], 'admissions': []};
 
     try {
       final results = await Future.wait([
-        _supabase.from('school_students').select('id, name, admission_no, class_name').ilike('name', '%$q%').limit(5).catchError((_) => []),
-        _supabase.from('users').select('username, role').eq('role', 'teacher').eq('institute_type', 'school').ilike('username', '%$q%').limit(5).catchError((_) => []),
-        _supabase.from('school_circulars').select('id, title, category, published_at').ilike('title', '%$q%').limit(5).catchError((_) => []),
-        _supabase.from('school_admissions').select('id, student_name, class_applying, status').ilike('student_name', '%$q%').limit(5).catchError((_) => []),
+        _supabase
+            .from('school_students')
+            .select('id, name, admission_no, class_name')
+            .ilike('name', '%$q%')
+            .limit(5)
+            .catchError((_) => []),
+        _supabase
+            .from('users')
+            .select('username, role')
+            .eq('role', 'teacher')
+            .eq('institute_type', 'school')
+            .ilike('username', '%$q%')
+            .limit(5)
+            .catchError((_) => []),
+        _supabase
+            .from('school_circulars')
+            .select('id, title, category, published_at')
+            .ilike('title', '%$q%')
+            .limit(5)
+            .catchError((_) => []),
+        _supabase
+            .from('school_admissions')
+            .select('id, student_name, class_applying, status')
+            .ilike('student_name', '%$q%')
+            .limit(5)
+            .catchError((_) => []),
       ]);
 
       return {
@@ -9787,13 +11049,15 @@ class SchoolService {
           'title': 'Half Yearly / Mid-Term Examination 2026-27',
           'term': 'Term 1',
           'academic_year': '2026-2027',
-          'status': 'Ongoing', // Draft, Scheduled, Ongoing, Evaluation, Published
+          'status':
+              'Ongoing', // Draft, Scheduled, Ongoing, Evaluation, Published
           'start_date': '2026-09-15',
           'end_date': '2026-09-28',
           'passing_percentage': 33.0,
           'total_papers': 6,
           'classes_count': 12,
-          'instructions': 'CBSE Uniform mandatory. Entry closes 15 mins before paper. Non-programmable calculators allowed for 11th/12th Physics only.',
+          'instructions':
+              'CBSE Uniform mandatory. Entry closes 15 mins before paper. Non-programmable calculators allowed for 11th/12th Physics only.',
           'is_published': false,
         },
         {
@@ -9807,7 +11071,8 @@ class SchoolService {
           'passing_percentage': 33.0,
           'total_papers': 5,
           'classes_count': 12,
-          'instructions': 'Internal assessment unit test series. Weightage 10% towards annual aggregate.',
+          'instructions':
+              'Internal assessment unit test series. Weightage 10% towards annual aggregate.',
           'is_published': false,
         },
         {
@@ -9821,7 +11086,8 @@ class SchoolService {
           'passing_percentage': 33.0,
           'total_papers': 5,
           'classes_count': 4,
-          'instructions': 'Complete 3-hour CBSE mock test environment for 10th & 12th board aspirants.',
+          'instructions':
+              'Complete 3-hour CBSE mock test environment for 10th & 12th board aspirants.',
           'is_published': false,
         },
         {
@@ -9835,7 +11101,8 @@ class SchoolService {
           'passing_percentage': 33.0,
           'total_papers': 5,
           'classes_count': 12,
-          'instructions': 'First cycle unit test. Results published and report cards archived.',
+          'instructions':
+              'First cycle unit test. Results published and report cards archived.',
           'is_published': true,
         },
       ]);
@@ -9845,7 +11112,8 @@ class SchoolService {
 
   /// Create or update an exam session
   Future<bool> saveExamSession(Map<String, dynamic> session) async {
-    final id = session['id']?.toString() ?? 'sess-${DateTime.now().millisecondsSinceEpoch}';
+    final id = session['id']?.toString() ??
+        'sess-${DateTime.now().millisecondsSinceEpoch}';
     final payload = Map<String, dynamic>.from(session)..['id'] = id;
     final idx = _examSessionsStore.indexWhere((s) => s['id'] == id);
     if (idx >= 0) {
@@ -9859,7 +11127,8 @@ class SchoolService {
       await _supabase.from('school_circulars').insert({
         'institute_code': 'SHIV-SCH',
         'title': 'EXAM NOTIFICATION: ${payload['title']}',
-        'content': 'Status: ${payload['status']} | Term: ${payload['term']} | Start: ${payload['start_date']} | End: ${payload['end_date']}',
+        'content':
+            'Status: ${payload['status']} | Term: ${payload['term']} | Start: ${payload['start_date']} | End: ${payload['end_date']}',
         'category': 'Exam',
         'target_audience': 'all',
         'published_by': 'Controller of Examinations',
@@ -9877,7 +11146,8 @@ class SchoolService {
   }
 
   /// Update Exam Session status (Draft -> Scheduled -> Ongoing -> Evaluation -> Published)
-  Future<bool> updateExamSessionStatus(String sessionId, String newStatus) async {
+  Future<bool> updateExamSessionStatus(
+      String sessionId, String newStatus) async {
     final idx = _examSessionsStore.indexWhere((s) => s['id'] == sessionId);
     if (idx >= 0) {
       _examSessionsStore[idx]['status'] = newStatus;
@@ -10014,16 +11284,21 @@ class SchoolService {
       ]);
     }
 
-    var list = _examDateSheetStore.where((p) => p['session_id'] == sid).toList();
+    var list =
+        _examDateSheetStore.where((p) => p['session_id'] == sid).toList();
     if (classId != null && classId.isNotEmpty && classId != '__all__') {
-      list = list.where((p) => (p['class_id'] == classId || p['class_name'] == classId)).toList();
+      list = list
+          .where(
+              (p) => (p['class_id'] == classId || p['class_name'] == classId))
+          .toList();
     }
     return list;
   }
 
   /// Add / update paper in Date Sheet
   Future<bool> saveExamPaper(Map<String, dynamic> paper) async {
-    final id = paper['id']?.toString() ?? 'paper-${DateTime.now().millisecondsSinceEpoch}';
+    final id = paper['id']?.toString() ??
+        'paper-${DateTime.now().millisecondsSinceEpoch}';
     final payload = Map<String, dynamic>.from(paper)..['id'] = id;
     final idx = _examDateSheetStore.indexWhere((p) => p['id'] == id);
     if (idx >= 0) {
@@ -10097,7 +11372,8 @@ class SchoolService {
           'block': 'Senior Academic Wing, Ground Floor',
           'capacity': 60,
           'allocated_count': 56,
-          'allocated_classes': 'Class 10-A (Roll 1-30), Class 12-Science (Roll 1-26)',
+          'allocated_classes':
+              'Class 10-A (Roll 1-30), Class 12-Science (Roll 1-26)',
           'chief_invigilator': 'Mrs. Sunita Sharma (PGT Mathematics)',
           'support_invigilator': 'Mr. Rajesh Verma (TGT Science)',
           'bench_type': 'Single Desk CCTV Monitored',
@@ -10146,7 +11422,8 @@ class SchoolService {
 
   /// Create or edit an Exam Room allocation
   Future<bool> saveExamRoom(Map<String, dynamic> room) async {
-    final id = room['id']?.toString() ?? 'room-${DateTime.now().millisecondsSinceEpoch}';
+    final id = room['id']?.toString() ??
+        'room-${DateTime.now().millisecondsSinceEpoch}';
     final payload = Map<String, dynamic>.from(room)..['id'] = id;
     final idx = _examRoomsStore.indexWhere((r) => r['id'] == id);
     if (idx >= 0) {
@@ -10158,7 +11435,8 @@ class SchoolService {
   }
 
   /// Marks upload and evaluation progress for Exam Sessions
-  Future<List<Map<String, dynamic>>> getExamEvaluationProgress({String? sessionId}) async {
+  Future<List<Map<String, dynamic>>> getExamEvaluationProgress(
+      {String? sessionId}) async {
     return [
       {
         'class_name': 'Class 10-A',
@@ -10261,7 +11539,8 @@ class SchoolService {
   }
 
   /// 3. Student Marks Trend across Exam Sessions (STU-R03)
-  Future<List<Map<String, dynamic>>> getStudentMarksTrend(String username) async {
+  Future<List<Map<String, dynamic>>> getStudentMarksTrend(
+      String username) async {
     try {
       final resp = await _supabase
           .from('school_marks')
@@ -10306,7 +11585,8 @@ class SchoolService {
   }
 
   /// 4. Student Subject-Wise Performance for Latest Exam (STU-R04)
-  Future<List<Map<String, dynamic>>> getStudentSubjectPerformance(String username) async {
+  Future<List<Map<String, dynamic>>> getStudentSubjectPerformance(
+      String username) async {
     try {
       final resp = await _supabase
           .from('school_marks')
@@ -10317,7 +11597,9 @@ class SchoolService {
       if (records.isEmpty) return [];
 
       final latestExam = records.first['exam_type']?.toString() ?? '';
-      final latestRecords = records.where((r) => (r['exam_type']?.toString() ?? '') == latestExam).toList();
+      final latestRecords = records
+          .where((r) => (r['exam_type']?.toString() ?? '') == latestExam)
+          .toList();
 
       final list = <Map<String, dynamic>>[];
       for (final r in latestRecords) {
@@ -10427,7 +11709,8 @@ class SchoolService {
   }
 
   /// 6. Student Issued Books (STU-R11)
-  Future<List<Map<String, dynamic>>> getStudentLibraryIssues(String username) async {
+  Future<List<Map<String, dynamic>>> getStudentLibraryIssues(
+      String username) async {
     try {
       final resp = await _supabase
           .from('school_library_issues')
@@ -10441,7 +11724,8 @@ class SchoolService {
   }
 
   /// 7. Student Certificate Requests (STU-R13)
-  Future<List<Map<String, dynamic>>> getStudentCertificateRequests(String username) async {
+  Future<List<Map<String, dynamic>>> getStudentCertificateRequests(
+      String username) async {
     try {
       final resp = await _supabase
           .from('school_certificate_requests')
@@ -10456,7 +11740,15 @@ class SchoolService {
 
   // ===== HELPERS =====
   String _weekdayName(int weekday) {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
     return days[weekday - 1];
   }
 
