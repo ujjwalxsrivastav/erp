@@ -18,14 +18,16 @@ class _SchoolMastersScreenState extends State<SchoolMastersScreen>
   List<Map<String, dynamic>> _classes = [];
   List<Map<String, dynamic>> _subjects = [];
   List<Map<String, dynamic>> _teachers = [];
+  List<Map<String, dynamic>> _teacherMappings = [];
 
   String _classSearchQuery = '';
   String _selectedClassFilter = 'All';
+  String _mappingSearchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadMastersData();
   }
 
@@ -45,12 +47,14 @@ class _SchoolMastersScreenState extends State<SchoolMastersScreen>
       final classes = await _schoolService.getSchoolClasses();
       final subjects = await _schoolService.getSchoolSubjects();
       final teachers = await _schoolService.getStaffDirectory();
+      final mappings = await _schoolService.getAllTeacherClassMappings();
 
       if (mounted) {
         setState(() {
           _classes = classes;
           _subjects = subjects;
           _teachers = teachers;
+          _teacherMappings = mappings;
           _isLoading = false;
         });
       }
@@ -109,6 +113,10 @@ class _SchoolMastersScreenState extends State<SchoolMastersScreen>
               icon: const Icon(Icons.menu_book_outlined, size: 20),
               text: 'Curriculum Subjects (${_subjects.length})',
             ),
+            Tab(
+              icon: const Icon(Icons.people_outline, size: 20),
+              text: 'Faculty Mapping (${_teacherMappings.length})',
+            ),
           ],
         ),
       ),
@@ -121,18 +129,25 @@ class _SchoolMastersScreenState extends State<SchoolMastersScreen>
                   children: [
                     _buildClassesTab(),
                     _buildSubjectsTab(),
+                    _buildFacultyMappingTab(),
                   ],
                 ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFF0F172A),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
-        label: Text(_tabController.index == 0 ? 'New Class Cohort' : 'New Subject'),
+        label: Text(_tabController.index == 0
+            ? 'New Class Cohort'
+            : _tabController.index == 1
+                ? 'New Subject'
+                : 'Map Faculty'),
         onPressed: () {
           if (_tabController.index == 0) {
             _showCreateClassDialog();
-          } else {
+          } else if (_tabController.index == 1) {
             _showCreateSubjectDialog();
+          } else {
+            _showAssignTeacherDialog();
           }
         },
       ),
@@ -681,6 +696,298 @@ class _SchoolMastersScreenState extends State<SchoolMastersScreen>
                 }
               },
               child: const Text('Update'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================================
+  // TAB 3: FACULTY CLASS & SUBJECT MAPPING (B5)
+  // ============================================================================
+  Widget _buildFacultyMappingTab() {
+    final filtered = _teacherMappings.where((m) {
+      if (_mappingSearchQuery.isEmpty) return true;
+      final q = _mappingSearchQuery.toLowerCase();
+      final t = (m['teacher_username'] ?? '').toString().toLowerCase();
+      final c = (m['class_id'] ?? '').toString().toLowerCase();
+      final s = (m['subject_name'] ?? '').toString().toLowerCase();
+      return t.contains(q) || c.contains(q) || s.contains(q);
+    }).toList();
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          color: Colors.white,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search, size: 20),
+                    hintText: 'Search faculty assignments by teacher, class, or subject...',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onChanged: (val) => setState(() => _mappingSearchQuery = val),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                icon: const Icon(Icons.person_add_alt_1, size: 18),
+                label: const Text('Assign Faculty'),
+                onPressed: _showAssignTeacherDialog,
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.assignment_ind_outlined, size: 56, color: Colors.black26),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'No faculty assignments found',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Map teachers to classes and subjects to enable timetable & grading workflows',
+                        style: TextStyle(fontSize: 13, color: Colors.black45),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Create Assignment'),
+                        onPressed: _showAssignTeacherDialog,
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, i) {
+                    final item = filtered[i];
+                    final id = item['id']?.toString() ?? '';
+                    final teacher = item['teacher_username']?.toString() ?? 'Unknown Teacher';
+                    final classId = item['class_id']?.toString() ?? 'N/A';
+                    final subject = item['subject_name']?.toString() ?? 'General Faculty';
+                    final year = item['academic_year']?.toString() ?? '2026-2027';
+
+                    final matchClass = _classes.firstWhere(
+                      (c) => c['id']?.toString() == classId,
+                      orElse: () => {'name': classId},
+                    );
+                    final className = matchClass['name']?.toString() ?? classId;
+
+                    return Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: const Color(0xFFE0E7FF),
+                              child: const Icon(Icons.school, color: Color(0xFF4338CA)),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        teacher,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFECFDF5),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          year,
+                                          style: const TextStyle(fontSize: 11, color: Color(0xFF059669), fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Class: $className ($classId) • Subject: $subject',
+                                    style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                              tooltip: 'Remove Assignment',
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Remove Assignment'),
+                                    content: Text('Remove $teacher from $className ($subject)?'),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                        onPressed: () => Navigator.pop(ctx, true),
+                                        child: const Text('Remove'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true && id.isNotEmpty) {
+                                  await _schoolService.removeTeacherClass(id: id);
+                                  _loadMastersData();
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  void _showAssignTeacherDialog() {
+    String selectedTeacher = _teachers.isNotEmpty
+        ? (_teachers.first['username'] ?? _teachers.first['email'] ?? 'teacher1').toString()
+        : 'teacher1';
+    String selectedClass = _classes.isNotEmpty
+        ? (_classes.first['id'] ?? 'cls-10a').toString()
+        : 'cls-10a';
+    String selectedSubject = _subjects.isNotEmpty
+        ? (_subjects.first['name'] ?? 'Mathematics').toString()
+        : 'Mathematics';
+    final yearCtrl = TextEditingController(text: '2026-2027');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          title: const Text('Assign Faculty to Class & Subject', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedTeacher,
+                    decoration: const InputDecoration(labelText: 'Faculty Member'),
+                    items: _teachers.isNotEmpty
+                        ? _teachers.map((t) {
+                            final uname = t['username']?.toString() ?? t['email']?.toString() ?? '';
+                            final name = t['name']?.toString() ?? uname;
+                            return DropdownMenuItem(value: uname, child: Text('$name ($uname)'));
+                          }).toList()
+                        : [const DropdownMenuItem(value: 'teacher1', child: Text('teacher1 (Default Faculty)'))],
+                    onChanged: (v) {
+                      if (v != null) setDState(() => selectedTeacher = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedClass,
+                    decoration: const InputDecoration(labelText: 'Class Cohort'),
+                    items: _classes.isNotEmpty
+                        ? _classes.map((c) {
+                            final cid = c['id']?.toString() ?? '';
+                            final name = c['name']?.toString() ?? cid;
+                            return DropdownMenuItem(value: cid, child: Text('$name ($cid)'));
+                          }).toList()
+                        : [const DropdownMenuItem(value: 'cls-10a', child: Text('Class 10-A (cls-10a)'))],
+                    onChanged: (v) {
+                      if (v != null) setDState(() => selectedClass = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedSubject,
+                    decoration: const InputDecoration(labelText: 'Teaching Subject'),
+                    items: _subjects.isNotEmpty
+                        ? _subjects.map((s) {
+                            final name = s['name']?.toString() ?? '';
+                            return DropdownMenuItem(value: name, child: Text(name));
+                          }).toList()
+                        : [const DropdownMenuItem(value: 'Mathematics', child: Text('Mathematics'))],
+                    onChanged: (v) {
+                      if (v != null) setDState(() => selectedSubject = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: yearCtrl,
+                    decoration: const InputDecoration(labelText: 'Academic Year'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F172A),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                try {
+                  final ok = await _schoolService.assignTeacherClass(
+                    teacherUsername: selectedTeacher,
+                    classId: selectedClass,
+                    subjectName: selectedSubject,
+                    academicYear: yearCtrl.text.trim(),
+                  );
+                  Navigator.pop(ctx);
+                  if (ok) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Faculty assigned to class successfully!')),
+                    );
+                    _loadMastersData();
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Failed to assign faculty'), backgroundColor: Colors.red),
+                    );
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('Assign Faculty'),
             ),
           ],
         ),
