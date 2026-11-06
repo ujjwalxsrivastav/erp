@@ -126,20 +126,127 @@ import '../features/school/ai/school_ai_assistant_screen.dart';
 import '../features/school/calendar/school_academic_calendar_screen.dart';
 import '../services/auth_service.dart';
 
+/// Route permission mappings for School ERP (Deny-by-default access control)
+const _schoolAdminRoles = {'admin', 'sadmin', 'principal', 'superadmin'};
+const _schoolStaffRoles = {'admin', 'sadmin', 'principal', 'superadmin', 'teacher', 'steacher'};
+const _schoolAccountantRoles = {'admin', 'sadmin', 'principal', 'superadmin', 'accountant'};
+const _allSchoolRoles = {
+  'admin', 'sadmin', 'principal', 'superadmin',
+  'teacher', 'steacher',
+  'student', 'sstudent',
+  'parent', 'sparent',
+  'warden', 'nurse', 'conductor', 'librarian', 'alumni', 'staff', 'accountant',
+};
+
+final Map<String, Set<String>> _schoolRoutePermissions = {
+  // Admin only
+  '/school/admin-dashboard': _schoolAdminRoles,
+  '/school/admissions': _schoolAdminRoles,
+  '/school/admissions/apply': _schoolAdminRoles,
+  '/school/promotion': _schoolAdminRoles,
+  '/school/multi-admin': {'admin', 'sadmin', 'superadmin'},
+  '/school/permissions': {'admin', 'sadmin', 'superadmin'},
+  '/school/payroll': _schoolAccountantRoles,
+
+  // Staff (Teacher + Admin)
+  '/school/teacher-dashboard': _schoolStaffRoles,
+  '/school/marks-entry': _schoolStaffRoles,
+  '/school/marks/csv': _schoolStaffRoles,
+  '/school/attendance': _schoolStaffRoles,
+  '/school/homework/add': _schoolStaffRoles,
+  '/school/lesson-plans': _schoolStaffRoles,
+  '/school/examination': _schoolStaffRoles,
+  '/school/ai-tools': _schoolStaffRoles,
+  '/school/discipline': _schoolStaffRoles,
+  '/school/inventory': _schoolStaffRoles,
+  '/school/reports': _schoolStaffRoles,
+  '/school/my-payslips': {..._schoolStaffRoles, 'staff', 'accountant'},
+
+  // Student specific
+  '/school/student-dashboard': {'student', 'sstudent', ..._schoolAdminRoles},
+
+  // Parent specific
+  '/school/parent-dashboard': {'parent', 'sparent', ..._schoolAdminRoles},
+
+  // Shared / Multi-role (views adapt based on role)
+  '/school/homework': _allSchoolRoles,
+  '/school/leave': _allSchoolRoles,
+  '/school/report-card': _allSchoolRoles,
+  '/school/timetable': _allSchoolRoles,
+  '/school/circulars': _allSchoolRoles,
+  '/school/transport': {..._allSchoolRoles, 'conductor'},
+  '/school/fees': {'parent', 'sparent', 'student', 'sstudent', ..._schoolAccountantRoles},
+  '/school/library': {..._allSchoolRoles, 'librarian'},
+  '/school/library-deep': {..._allSchoolRoles, 'librarian'},
+  '/school/certificates': _allSchoolRoles,
+  '/school/living': {..._allSchoolRoles, 'warden', 'nurse'},
+  '/school/alumni': {..._allSchoolRoles, 'alumni'},
+  '/school/activities': _allSchoolRoles,
+  '/school/chatbot': _allSchoolRoles,
+  '/school/calendar': _allSchoolRoles,
+  '/school/academic-calendar': _allSchoolRoles,
+};
+
 final router = GoRouter(
   redirect: (context, state) async {
     final path = state.uri.path;
-    if (path == '/school/admin-dashboard') {
+
+    if (path.startsWith('/school')) {
       final authService = AuthService();
       final isLoggedIn = await authService.isLoggedIn();
       if (!isLoggedIn) return '/login';
-      final role = await authService.getCurrentUserRole();
-      final instType = await authService.getCurrentInstituteType();
-      if (instType != 'school' || (role != 'admin' && role != 'sadmin' && role != 'principal' && role != 'superadmin')) {
-        if (role == 'teacher') return '/school/teacher-dashboard';
-        if (role == 'student') return '/school/student-dashboard';
-        if (role == 'parent') return '/school/parent-dashboard';
+
+      final instType = (await authService.getCurrentInstituteType() ?? '').toLowerCase().trim();
+      final rawRole = (await authService.getCurrentUserRole() ?? '').toLowerCase().trim();
+      final normalizedRole = rawRole.startsWith('s') &&
+              (rawRole == 'steacher' || rawRole == 'sstudent' || rawRole == 'sparent' || rawRole == 'sadmin')
+          ? rawRole.substring(1)
+          : rawRole;
+
+      // College users attempting to access school routes are bounced to their portal
+      if (instType != 'school') {
+        if (normalizedRole == 'teacher') return '/teacher-dashboard';
+        if (normalizedRole == 'student') return '/student-dashboard';
+        if (normalizedRole == 'parent') return '/parent-dashboard';
+        if (normalizedRole == 'admin' || normalizedRole == 'principal' || normalizedRole == 'superadmin') {
+          return '/admin-dashboard';
+        }
         return '/login';
+      }
+
+      String getHomeDashboard() {
+        if (normalizedRole == 'admin' || normalizedRole == 'principal' || normalizedRole == 'superadmin') {
+          return '/school/admin-dashboard';
+        } else if (normalizedRole == 'teacher') {
+          return '/school/teacher-dashboard';
+        } else if (normalizedRole == 'student') {
+          return '/school/student-dashboard';
+        } else if (normalizedRole == 'parent') {
+          return '/school/parent-dashboard';
+        } else if (normalizedRole == 'warden') {
+          return '/warden-dashboard';
+        } else if (normalizedRole == 'conductor') {
+          return '/conductor-dashboard';
+        }
+        return '/login';
+      }
+
+      // Root path /school redirect
+      if (path == '/school' || path == '/school/') {
+        return getHomeDashboard();
+      }
+
+      // Deny-by-default route check
+      final allowedRoles = _schoolRoutePermissions[path];
+      if (allowedRoles == null) {
+        final home = getHomeDashboard();
+        return (path == home) ? null : home;
+      }
+
+      final hasAccess = allowedRoles.contains(rawRole) || allowedRoles.contains(normalizedRole);
+      if (!hasAccess) {
+        final home = getHomeDashboard();
+        return (path == home) ? null : home;
       }
     }
     return null;
