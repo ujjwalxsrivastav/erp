@@ -92,7 +92,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
   double _feePending = 0;
 
   // --- Marks tab state ---
-  String _examType = 'Annual'; // Options strictly 'Half Yearly' and 'Annual'
+  // Hydrated from the database in _initRoleAndData (Half Yearly, Final, class tests…).
+  String _examType = 'Half Yearly';
   String _marksClass = 'Class 10-A';
   String _marksSubject = 'All Subjects (Overall Rank)';
   bool _marksLoading = false;
@@ -162,8 +163,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     });
   }
 
-  // Filter options strictly for Half Yearly and Annual
-  final List<String> _examTypes = ['Half Yearly', 'Annual'];
+  // Exam options come from the DB so uploaded marks always have a chip.
+  List<String> _examTypes = const ['Half Yearly', 'Final'];
   final List<String> _subjects = [
     'All Subjects (Overall Rank)',
     'Mathematics',
@@ -211,6 +212,12 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       allClasses = await _schoolService.getSchoolClasses();
     } catch (_) {}
 
+    List<String> examTypes = const ['Half Yearly', 'Final'];
+    try {
+      final available = await _schoolService.getAvailableExamTypes();
+      if (available.isNotEmpty) examTypes = available;
+    } catch (_) {}
+
     final dynamicClassNames = <String>[];
     if (isTeacher) {
       for (final c in teacherClasses) {
@@ -247,6 +254,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       _classTeacherClassNames = classTeacherClassNames;
       _allClasses = allClasses;
       _classes = isTeacher ? dynamicClassNames : ['All', ...dynamicClassNames];
+      _examTypes = examTypes;
+      if (!_examTypes.contains(_examType)) _examType = _examTypes.first;
       _marksClass = defaultClass;
       _attClass = isTeacher ? defaultClass : 'All';
       _hwClass = defaultClass;
@@ -2799,74 +2808,80 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 ),
                 const SizedBox(height: 14),
 
-                // 1. Examination Term Segmented Filter (Half Yearly vs Annual)
+                // 1. Examination Term Filter — scrolls horizontally so class
+                // tests (and any other assessment) stay readable.
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Row(
-                    children: _examTypes.map((exam) {
-                      final isSelected = _examType == exam;
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            if (_examType != exam) {
-                              setState(() => _examType = exam);
-                              _generateMarksReport();
-                            }
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Colors.white
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black
-                                            .withValues(alpha: 0.08),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  exam == 'Half Yearly'
-                                      ? Icons.calendar_today_outlined
-                                      : Icons.emoji_events,
-                                  size: 16,
-                                  color: isSelected
-                                      ? _primary
-                                      : const Color(0xFF64748B),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  exam,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w800
-                                        : FontWeight.w600,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _examTypes.map((exam) {
+                        final isSelected = _examType == exam;
+                        return ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 136),
+                          child: GestureDetector(
+                            onTap: () {
+                              if (_examType != exam) {
+                                setState(() => _examType = exam);
+                                _generateMarksReport();
+                              }
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 10, horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.08),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    exam == 'Half Yearly'
+                                        ? Icons.calendar_today_outlined
+                                        : Icons.emoji_events,
+                                    size: 16,
                                     color: isSelected
                                         ? _primary
                                         : const Color(0xFF64748B),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    exam,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w800
+                                          : FontWeight.w600,
+                                      color: isSelected
+                                          ? _primary
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -3383,9 +3398,18 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     );
   }
 
+  /// The weak-learner radar is safe for any class a teacher can select — the
+  /// class picker only ever lists classes assigned to that teacher. This used
+  /// to be restricted to the teacher's *class-teacher* classes, so a subject
+  /// teacher (no class-teacher assignment) never saw the section at all.
   bool get _canViewWeakStudentInsights {
     if (!_isTeacher) return true;
-    return _classTeacherClassNames.contains(_marksClass);
+    if (_classTeacherClassNames.contains(_marksClass)) return true;
+    return _classes.contains(_marksClass) ||
+        _teacherClasses.any((c) =>
+            c['name']?.toString() == _marksClass ||
+            c['class_name']?.toString() == _marksClass ||
+            c['id']?.toString() == _marksClass);
   }
 
   Widget _buildWeakStudentsInsightPanel() {
