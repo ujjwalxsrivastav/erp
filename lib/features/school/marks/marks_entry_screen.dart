@@ -27,7 +27,14 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   Map<String, dynamic>? _selectedClass;
   Map<String, dynamic>? _selectedSubject;
   String _selectedExam = 'Half Yearly';
-  List<String> _examSessions = ['Half Yearly', 'Final', 'Periodic Test 1', 'Periodic Test 2', 'Unit Test 1', 'Unit Test 2'];
+  List<String> _examSessions = [
+    'Half Yearly',
+    'Final',
+    'Periodic Test 1',
+    'Periodic Test 2',
+    'Unit Test 1',
+    'Unit Test 2'
+  ];
 
   // Scholastic Controllers
   final Map<String, TextEditingController> _marksControllers = {};
@@ -37,7 +44,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
   // Co-Scholastic & Narrative Controllers (for Class Teachers & Admins)
   Map<String, dynamic>? _selectedStudentForNarrative;
-  final TextEditingController _teacherRemarkController = TextEditingController();
+  final TextEditingController _teacherRemarkController =
+      TextEditingController();
   String _selectedPromotionVerdict = 'Promoted';
   final Map<String, String> _coScholasticGrades = {
     'Work Education': 'A',
@@ -65,7 +73,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     final username = await _authService.getCurrentUsername() ?? '';
 
     // Allow both Teachers (subject/class) and Admins
-    final isStaff = role == 'admin' || role == 'sadmin' || role == 'teacher' || role == 'steacher';
+    final isStaff = role == 'admin' ||
+        role == 'sadmin' ||
+        role == 'teacher' ||
+        role == 'steacher';
     if (!isStaff) {
       if (mounted) {
         setState(() {
@@ -117,7 +128,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
     try {
       final subjects = await _schoolService.getSchoolSubjects(classId: classId);
-      final students = await _schoolService.getStudentsInClass(classId, className: className);
+      final students = await _schoolService.getStudentsInClass(classId,
+          className: className);
 
       if (!mounted) return;
 
@@ -162,7 +174,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
   Future<void> _loadExistingMarks() async {
     final classId = _selectedClass?['id']?.toString();
-    final subject = _selectedSubject?['name']?.toString() ?? _selectedSubject?['id']?.toString();
+    final subject = _selectedSubject?['name']?.toString() ??
+        _selectedSubject?['id']?.toString();
     if (classId == null || subject == null) return;
 
     try {
@@ -206,7 +219,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   }
 
   Future<void> _loadStudentNarrative(Map<String, dynamic> student) async {
-    final sid = student['username']?.toString() ?? student['id']?.toString() ?? '';
+    final sid =
+        student['username']?.toString() ?? student['id']?.toString() ?? '';
     if (sid.isEmpty) return;
 
     try {
@@ -221,8 +235,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
       if (!mounted) return;
       setState(() {
-        _teacherRemarkController.text = meta['teacher_remark']?.toString() ?? '';
-        _selectedPromotionVerdict = meta['promotion_verdict']?.toString() ?? 'Promoted';
+        _teacherRemarkController.text =
+            meta['teacher_remark']?.toString() ?? '';
+        _selectedPromotionVerdict =
+            meta['promotion_verdict']?.toString() ?? 'Promoted';
 
         for (final item in coScholastic) {
           final area = item['area']?.toString() ?? '';
@@ -241,11 +257,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   Future<void> _saveMarks() async {
     final classId = _selectedClass?['id']?.toString() ?? '';
     final className = _selectedClass?['name']?.toString() ?? '';
-    final subject = _selectedSubject?['name']?.toString() ?? _selectedSubject?['id']?.toString() ?? '';
+    final subject = _selectedSubject?['name']?.toString() ??
+        _selectedSubject?['id']?.toString() ??
+        '';
 
     if (subject.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a subject to enter marks.'), backgroundColor: Color(0xFFEF4444)),
+        const SnackBar(
+            content: Text('Please select a subject to enter marks.'),
+            backgroundColor: Color(0xFFEF4444)),
       );
       return;
     }
@@ -261,7 +281,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       if (val == null || val < 0 || val > _maxMarks) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Invalid mark for ${s['name'] ?? sid}. Marks must be between 0 and $_maxMarks.'),
+            content: Text(
+                'Invalid mark for ${s['name'] ?? sid}. Marks must be between 0 and $_maxMarks.'),
             backgroundColor: const Color(0xFFEF4444),
             behavior: SnackBarBehavior.floating,
           ),
@@ -289,7 +310,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     if (marksList.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No marks entered to save. Please type student marks in the inputs.'),
+          content: Text(
+              'No marks entered to save. Please type student marks in the inputs.'),
           backgroundColor: Color(0xFFF59E0B),
           behavior: SnackBarBehavior.floating,
         ),
@@ -303,12 +325,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     setState(() => _isSavingMarks = false);
 
     if (ok) {
-      final avg = marksList.fold<double>(0.0, (acc, m) => acc + (m['marks_obtained'] as double)) / marksList.length;
+      final avg = marksList.fold<double>(
+              0.0, (acc, m) => acc + (m['marks_obtained'] as double)) /
+          marksList.length;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const Icon(Icons.check_circle_rounded,
+                  color: Colors.white, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -320,13 +345,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           ),
           backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_schoolService.lastMarksError ?? 'Failed to save marks to the database.'),
+          content: Text(_schoolService.lastMarksError ??
+              'Failed to save marks to the database.'),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
@@ -340,7 +367,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   Future<void> _saveNarrative() async {
     final student = _selectedStudentForNarrative;
     if (student == null) return;
-    final sid = student['username']?.toString() ?? student['id']?.toString() ?? '';
+    final sid =
+        student['username']?.toString() ?? student['id']?.toString() ?? '';
     if (sid.isEmpty) return;
 
     setState(() => _isSavingNarrative = true);
@@ -368,40 +396,24 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     if (okMeta && okCo) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Report Card remarks & co-scholastic grades saved for ${student['name'] ?? sid}!'),
+          content: Text(
+              'Report Card remarks & co-scholastic grades saved for ${student['name'] ?? sid}!'),
           backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_schoolService.lastMarksError ?? 'Could not save remarks. Please try again.'),
+          content: Text(_schoolService.lastMarksError ??
+              'Could not save remarks. Please try again.'),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
       );
     }
-  }
-
-  void _autoFillPassingMarks() {
-    final passing = (_maxMarks * 0.35).ceil();
-    setState(() {
-      for (final s in _students) {
-        final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
-        if (_marksControllers[sid]?.text.trim().isEmpty ?? true) {
-          _marksControllers[sid]?.text = passing.toString();
-        }
-      }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Auto-filled $passing / $_maxMarks (35% passing mark) for unrecorded students.'),
-        backgroundColor: const Color(0xFF3B82F6),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   void _clearAllMarks() {
@@ -426,7 +438,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
   int get _gradedCount {
     return _marksControllers.values
-        .where((c) => c.text.trim().isNotEmpty && double.tryParse(c.text.trim()) != null)
+        .where((c) =>
+            c.text.trim().isNotEmpty && double.tryParse(c.text.trim()) != null)
         .length;
   }
 
@@ -466,7 +479,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           backgroundColor: Colors.white,
           foregroundColor: const Color(0xFF0F172A),
           elevation: 0,
-          title: const Text('Assessment & Marks Entry', style: TextStyle(fontWeight: FontWeight.w700)),
+          title: const Text('Assessment & Marks Entry',
+              style: TextStyle(fontWeight: FontWeight.w700)),
         ),
         body: _buildLoadingSkeleton(),
       );
@@ -479,7 +493,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           backgroundColor: Colors.white,
           foregroundColor: const Color(0xFF0F172A),
           elevation: 0,
-          title: const Text('Assessment & Marks Entry', style: TextStyle(fontWeight: FontWeight.w700)),
+          title: const Text('Assessment & Marks Entry',
+              style: TextStyle(fontWeight: FontWeight.w700)),
         ),
         body: Center(
           child: Padding(
@@ -487,11 +502,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_person_outlined, size: 54, color: Color(0xFFEF4444)),
+                const Icon(Icons.lock_person_outlined,
+                    size: 54, color: Color(0xFFEF4444)),
                 const SizedBox(height: 14),
                 const Text(
                   'Teacher & Administrator Access Required',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 6),
                 const Text(
@@ -505,7 +524,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0F172A),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('View Report Card'),
                 ),
@@ -530,11 +550,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             children: [
               const Text(
                 'Assessment & Marks Entry',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A)),
               ),
               Text(
                 'CBSE Academic Year 2026-27 • ${_selectedExam} Session',
-                style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                style:
+                    const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
               ),
             ],
           ),
@@ -549,8 +573,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 unselectedLabelColor: Color(0xFF64748B),
                 indicatorColor: Color(0xFF0F172A),
                 indicatorWeight: 3,
-                labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                labelStyle:
+                    TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                unselectedLabelStyle:
+                    TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                 tabs: [
                   Tab(text: '1. Subject Marks Ledger'),
                   Tab(text: '2. Co-Scholastic & Remarks'),
@@ -618,7 +644,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   label: 'Class',
                   value: _selectedClass,
                   items: _classes,
-                  itemLabel: (c) => c['name']?.toString() ?? c['id']?.toString() ?? '',
+                  itemLabel: (c) =>
+                      c['name']?.toString() ?? c['id']?.toString() ?? '',
                   onChanged: (v) {
                     setState(() => _selectedClass = v);
                     _loadSubjectsAndStudents();
@@ -634,7 +661,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   label: 'Subject',
                   value: _selectedSubject,
                   items: _subjects,
-                  itemLabel: (s) => s['name']?.toString() ?? s['id']?.toString() ?? '',
+                  itemLabel: (s) =>
+                      s['name']?.toString() ?? s['id']?.toString() ?? '',
                   onChanged: (v) {
                     setState(() => _selectedSubject = v);
                     _loadExistingMarks();
@@ -669,7 +697,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             children: [
               // Max Marks Config
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(10),
@@ -678,19 +707,27 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Max Marks: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+                    const Text('Max Marks: ',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B))),
                     SizedBox(
                       width: 44,
                       height: 28,
                       child: TextField(
                         controller: _maxMarksController,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A)),
                         textAlign: TextAlign.center,
                         decoration: const InputDecoration(
                           isDense: true,
                           contentPadding: EdgeInsets.symmetric(vertical: 4),
-                          border: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF0F172A))),
+                          border: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Color(0xFF0F172A))),
                         ),
                         onSubmitted: (val) {
                           final parsed = int.tryParse(val);
@@ -716,11 +753,14 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   ),
                   child: TextField(
                     onChanged: (v) => setState(() => _searchQuery = v),
-                    style: const TextStyle(fontSize: 12.5, color: Color(0xFF0F172A)),
+                    style: const TextStyle(
+                        fontSize: 12.5, color: Color(0xFF0F172A)),
                     decoration: const InputDecoration(
                       hintText: 'Filter student by name or roll…',
-                      hintStyle: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                      prefixIcon: Icon(Icons.search_rounded, size: 16, color: Color(0xFF94A3B8)),
+                      hintStyle:
+                          TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      prefixIcon: Icon(Icons.search_rounded,
+                          size: 16, color: Color(0xFF94A3B8)),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(vertical: 10),
                     ),
@@ -753,15 +793,20 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           value: value,
           isExpanded: true,
           dropdownColor: Colors.white,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
-          hint: Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded,
+              size: 16, color: Color(0xFF64748B)),
+          hint: Text(label,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
           items: items.map((item) {
             return DropdownMenuItem<T>(
               value: item,
               child: Text(
                 itemLabel(item),
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A)),
               ),
             );
           }).toList(),
@@ -781,11 +826,20 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Row(
         children: [
-          _buildStatPill('Graded', '$graded / $total', const Color(0xFF0F172A), const Color(0xFFF1F5F9)),
+          _buildStatPill('Graded', '$graded / $total', const Color(0xFF0F172A),
+              const Color(0xFFF1F5F9)),
           const SizedBox(width: 8),
-          _buildStatPill('Class Average', '${avg.toStringAsFixed(1)} / $_maxMarks', const Color(0xFF2563EB), const Color(0xFFEFF6FF)),
+          _buildStatPill(
+              'Class Average',
+              '${avg.toStringAsFixed(1)} / $_maxMarks',
+              const Color(0xFF2563EB),
+              const Color(0xFFEFF6FF)),
           const SizedBox(width: 8),
-          _buildStatPill('Average %', '${total == 0 ? "0" : ((avg / _maxMarks) * 100).toStringAsFixed(0)}%', const Color(0xFF10B981), const Color(0xFFECFDF5)),
+          _buildStatPill(
+              'Average %',
+              '${total == 0 ? "0" : ((avg / _maxMarks) * 100).toStringAsFixed(0)}%',
+              const Color(0xFF10B981),
+              const Color(0xFFECFDF5)),
         ],
       ),
     );
@@ -802,8 +856,14 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         ),
         child: Column(
           children: [
-            Text(value, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: color)),
-            Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.85))),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 13.5, fontWeight: FontWeight.w800, color: color)),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: color.withValues(alpha: 0.85))),
           ],
         ),
       ),
@@ -817,7 +877,11 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         children: [
           Text(
             'STUDENT LIST (${_filteredStudents.length})',
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: Color(0xFF64748B)),
+            style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+                color: Color(0xFF64748B)),
           ),
           const Spacer(),
           OutlinedButton.icon(
@@ -831,7 +895,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                       final obtStr = _marksControllers[sid]?.text.trim() ?? '';
                       final obt = double.tryParse(obtStr) ?? 0.0;
                       final pct = _maxMarks > 0 ? (obt / _maxMarks) * 100 : 0.0;
-                      final grade = SchoolService.calculateCbseGrade(pct)['grade'];
+                      final grade =
+                          SchoolService.calculateCbseGrade(pct)['grade'];
                       final remark = _remarksControllers[sid]?.text.trim();
 
                       studentRows.add({
@@ -846,31 +911,25 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                       });
                     }
 
-                    final cName = _selectedClass?['name']?.toString() ?? 'Class';
+                    final cName =
+                        _selectedClass?['name']?.toString() ?? 'Class';
                     SchoolExportService.exportGradebookExcel(
                       context: context,
                       className: cName,
                       examType: _selectedExam,
                       teacherName: 'Faculty',
                       students: studentRows,
-                      classAverage: _computedClassAverage > 0 && _maxMarks > 0 ? (_computedClassAverage / _maxMarks) * 100 : 0.0,
+                      classAverage: _computedClassAverage > 0 && _maxMarks > 0
+                          ? (_computedClassAverage / _maxMarks) * 100
+                          : 0.0,
                     );
                   },
             icon: const Icon(Icons.file_download_outlined, size: 14),
-            label: const Text('Export Excel', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+            label: const Text('Export Excel',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF0F172A),
               side: const BorderSide(color: Color(0xFFCBD5E1)),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton.icon(
-            onPressed: _autoFillPassingMarks,
-            icon: const Icon(Icons.bolt_rounded, size: 14),
-            label: const Text('Auto-fill 35%', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF2563EB),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             ),
           ),
@@ -878,7 +937,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           TextButton.icon(
             onPressed: _clearAllMarks,
             icon: const Icon(Icons.clear_all_rounded, size: 14),
-            label: const Text('Clear', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+            label: const Text('Clear',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
             style: TextButton.styleFrom(
               foregroundColor: const Color(0xFFEF4444),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -896,9 +956,11 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline_rounded, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.people_outline_rounded,
+                size: 48, color: Colors.grey.shade300),
             const SizedBox(height: 10),
-            const Text('No students found for this class', style: TextStyle(color: Color(0xFF64748B), fontSize: 13.5)),
+            const Text('No students found for this class',
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 13.5)),
           ],
         ),
       );
@@ -915,15 +977,21 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   }
 
   Widget _buildStudentMarksRow(Map<String, dynamic> student, int index) {
-    final sid = student['username']?.toString() ?? student['id']?.toString() ?? '';
-    final roll = student['roll_number']?.toString() ?? '${student['roll'] ?? (index + 1)}';
-    final name = student['name']?.toString() ?? student['username']?.toString() ?? 'Student';
+    final sid =
+        student['username']?.toString() ?? student['id']?.toString() ?? '';
+    final roll = student['roll_number']?.toString() ??
+        '${student['roll'] ?? (index + 1)}';
+    final name = student['name']?.toString() ??
+        student['username']?.toString() ??
+        'Student';
     final ctrl = _marksControllers[sid] ?? TextEditingController();
     final remarkCtrl = _remarksControllers[sid] ?? TextEditingController();
 
     final markVal = double.tryParse(ctrl.text.trim());
-    final pct = (markVal != null && _maxMarks > 0) ? (markVal / _maxMarks) * 100 : null;
-    final gradeInfo = pct != null ? SchoolService.calculateCbseGrade(pct) : null;
+    final pct =
+        (markVal != null && _maxMarks > 0) ? (markVal / _maxMarks) * 100 : null;
+    final gradeInfo =
+        pct != null ? SchoolService.calculateCbseGrade(pct) : null;
 
     Color gradeBg = const Color(0xFFF1F5F9);
     Color gradeColor = const Color(0xFF64748B);
@@ -971,7 +1039,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             child: Center(
               child: Text(
                 roll,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A)),
               ),
             ),
           ),
@@ -985,11 +1056,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A)),
                 ),
                 Text(
                   sid,
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  style:
+                      const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                 ),
               ],
             ),
@@ -1006,11 +1081,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
               ),
               child: Text(
                 '${gradeInfo['grade']} • ${pct!.toStringAsFixed(0)}%',
-                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: gradeColor),
+                style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: gradeColor),
               ),
             )
           else
-            const Text('—', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+            const Text('—',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
 
           const SizedBox(width: 12),
 
@@ -1025,9 +1104,13 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             ),
             child: TextField(
               controller: ctrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A)),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(vertical: 8),
@@ -1038,15 +1121,23 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             ),
           ),
           const SizedBox(width: 6),
-          Text('/$_maxMarks', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+          Text('/$_maxMarks',
+              style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B))),
 
           const SizedBox(width: 8),
           // Remark toggle button
           IconButton(
             icon: Icon(
-              remarkCtrl.text.trim().isNotEmpty ? Icons.chat_bubble_rounded : Icons.chat_bubble_outline_rounded,
+              remarkCtrl.text.trim().isNotEmpty
+                  ? Icons.chat_bubble_rounded
+                  : Icons.chat_bubble_outline_rounded,
               size: 16,
-              color: remarkCtrl.text.trim().isNotEmpty ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
+              color: remarkCtrl.text.trim().isNotEmpty
+                  ? const Color(0xFF2563EB)
+                  : const Color(0xFF94A3B8),
             ),
             tooltip: 'Add remark',
             onPressed: () => _showStudentRemarkSheet(sid, name, remarkCtrl),
@@ -1056,22 +1147,30 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     );
   }
 
-  void _showStudentRemarkSheet(String sid, String name, TextEditingController ctrl) {
+  void _showStudentRemarkSheet(
+      String sid, String name, TextEditingController ctrl) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.rate_review_outlined, color: Color(0xFF0F172A), size: 20),
+                const Icon(Icons.rate_review_outlined,
+                    color: Color(0xFF0F172A), size: 20),
                 const SizedBox(width: 8),
-                Text('Remark for $name', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                Text('Remark for $name',
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A))),
               ],
             ),
             const SizedBox(height: 12),
@@ -1080,11 +1179,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
               maxLines: 2,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: 'e.g. Needs practice in trigonometry, commendable effort…',
-                hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                hintText:
+                    'e.g. Needs practice in trigonometry, commendable effort…',
+                hintStyle:
+                    const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
                 filled: true,
                 fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
               ),
             ),
             const SizedBox(height: 14),
@@ -1099,9 +1202,11 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0F172A),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
-                child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: const Text('Done',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
           ],
@@ -1135,11 +1240,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 children: [
                   Text(
                     '$_gradedCount of ${_students.length} Marks Entered',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0F172A)),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: Color(0xFF0F172A)),
                   ),
                   Text(
                     '${_selectedSubject?['name'] ?? ''} • $_selectedExam',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    style:
+                        const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                   ),
                 ],
               ),
@@ -1149,13 +1258,21 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0F172A),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               icon: _isSavingMarks
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.cloud_upload_outlined, size: 18),
-              label: Text(_isSavingMarks ? 'Saving Marks…' : 'Save & Publish Marks', style: const TextStyle(fontWeight: FontWeight.w700)),
+              label: Text(
+                  _isSavingMarks ? 'Saving Marks…' : 'Save & Publish Marks',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -1189,12 +1306,16 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   children: [
                     Text(
                       'CBSE Co-Scholastic & Narrative Assessment',
-                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF1E40AF)),
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E40AF)),
                     ),
                     SizedBox(height: 3),
                     Text(
                       'Grades entered here populate Part 2 (Co-Scholastic) and Class Teacher Remarks directly on the official student report card.',
-                      style: TextStyle(fontSize: 11.5, color: Color(0xFF3B82F6)),
+                      style:
+                          TextStyle(fontSize: 11.5, color: Color(0xFF3B82F6)),
                     ),
                   ],
                 ),
@@ -1215,10 +1336,15 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Select Student for Narrative Assessment', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+              const Text('Select Student for Narrative Assessment',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF475569))),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(10),
@@ -1234,7 +1360,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                         value: s,
                         child: Text(
                           '${s['name'] ?? s['username']} (Roll: ${s['roll_number'] ?? '—'})',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A)),
                         ),
                       );
                     }).toList(),
@@ -1263,7 +1392,11 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Co-Scholastic 3-Point Scale (A, B, C)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              const Text('Co-Scholastic 3-Point Scale (A, B, C)',
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A))),
               const SizedBox(height: 12),
               ..._coScholasticGrades.keys.map((area) {
                 final currentGrade = _coScholasticGrades[area] ?? 'A';
@@ -1274,7 +1407,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                       Expanded(
                         child: Text(
                           area,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1F2937)),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1F2937)),
                         ),
                       ),
                       Row(
@@ -1283,14 +1419,17 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(left: 6),
                             child: InkWell(
-                              onTap: () => setState(() => _coScholasticGrades[area] = g),
+                              onTap: () =>
+                                  setState(() => _coScholasticGrades[area] = g),
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
                                 width: 34,
                                 height: 34,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: isSel ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                                  color: isSel
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFFF1F5F9),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -1298,7 +1437,9 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w800,
-                                    color: isSel ? Colors.white : const Color(0xFF64748B),
+                                    color: isSel
+                                        ? Colors.white
+                                        : const Color(0xFF64748B),
                                   ),
                                 ),
                               ),
@@ -1326,26 +1467,38 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Class Teacher Narrative Remark', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              const Text('Class Teacher Narrative Remark',
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A))),
               const SizedBox(height: 8),
               TextField(
                 controller: _teacherRemarkController,
                 maxLines: 3,
                 style: const TextStyle(fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: 'e.g. Shows exceptional dedication and analytical aptitude. Active participant in classroom seminars.',
-                  hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  hintText:
+                      'e.g. Shows exceptional dedication and analytical aptitude. Active participant in classroom seminars.',
+                  hintStyle:
+                      const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                   filled: true,
                   fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
                 ),
               ),
               const SizedBox(height: 14),
-
-              const Text('Promotion Verdict (End of Term)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              const Text('Promotion Verdict (End of Term)',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A))),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(10),
@@ -1357,19 +1510,43 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                     isExpanded: true,
                     dropdownColor: Colors.white,
                     items: const [
-                      DropdownMenuItem(value: 'Promoted', child: Text('Promoted to Next Higher Grade', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF10B981)))),
-                      DropdownMenuItem(value: 'Promoted with Grace', child: Text('Promoted with Grace / Concession', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFD97706)))),
-                      DropdownMenuItem(value: 'Eligible for Compartment', child: Text('Eligible for Compartment / Retest', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFEF4444)))),
-                      DropdownMenuItem(value: 'Detained', child: Text('Detained in Current Grade', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF991B1B)))),
+                      DropdownMenuItem(
+                          value: 'Promoted',
+                          child: Text('Promoted to Next Higher Grade',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF10B981)))),
+                      DropdownMenuItem(
+                          value: 'Promoted with Grace',
+                          child: Text('Promoted with Grace / Concession',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFD97706)))),
+                      DropdownMenuItem(
+                          value: 'Eligible for Compartment',
+                          child: Text('Eligible for Compartment / Retest',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFEF4444)))),
+                      DropdownMenuItem(
+                          value: 'Detained',
+                          child: Text('Detained in Current Grade',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF991B1B)))),
                     ],
                     onChanged: (v) {
-                      if (v != null) setState(() => _selectedPromotionVerdict = v);
+                      if (v != null)
+                        setState(() => _selectedPromotionVerdict = v);
                     },
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-
               SizedBox(
                 width: double.infinity,
                 height: 46,
@@ -1378,12 +1555,21 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0F172A),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: _isSavingNarrative
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
                       : const Icon(Icons.save_rounded, size: 18),
-                  label: Text(_isSavingNarrative ? 'Saving Narrative…' : 'Save Remarks & Co-Scholastic', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  label: Text(
+                      _isSavingNarrative
+                          ? 'Saving Narrative…'
+                          : 'Save Remarks & Co-Scholastic',
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
@@ -1418,13 +1604,18 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
+            const Icon(Icons.error_outline_rounded,
+                size: 48, color: Color(0xFFEF4444)),
             const SizedBox(height: 10),
-            Text(_errorMessage ?? 'Failed to load data', style: const TextStyle(fontSize: 13.5, color: Color(0xFF64748B))),
+            Text(_errorMessage ?? 'Failed to load data',
+                style:
+                    const TextStyle(fontSize: 13.5, color: Color(0xFF64748B))),
             const SizedBox(height: 14),
             ElevatedButton(
               onPressed: _loadSubjectsAndStudents,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white),
               child: const Text('Retry'),
             ),
           ],
