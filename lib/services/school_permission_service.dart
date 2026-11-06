@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'school_payroll_service.dart';
+import 'auth_service.dart';
 
 enum AccessLevel { none, view, edit, approve }
 
@@ -157,6 +158,70 @@ class SchoolPermissionService {
     final gVal = hierarchy[granted] ?? 0;
     final rVal = hierarchy[required] ?? 1;
     return gVal >= rVal;
+  }
+
+  /// Get verified user role directly from live `users` database table
+  Future<String?> getLiveUserRole([String? username]) async {
+    return await AuthService().getLiveUserRole(username);
+  }
+
+  /// Enforce authorization policy: role is re-read from live `users` table.
+  /// Throws an Exception if permission is not granted.
+  Future<void> enforce({
+    required String feature,
+    required String requiredPermission,
+    String? username,
+  }) async {
+    final uname = username ?? await AuthService().getCurrentUsername();
+    if (uname == null || uname.isEmpty) {
+      throw Exception('Unauthorized: No active authenticated session.');
+    }
+
+    final liveRole = await getLiveUserRole(uname);
+    if (liveRole == null || liveRole.isEmpty) {
+      throw Exception('Access Denied: User "$uname" does not have an active verified role in the system.');
+    }
+
+    // Normalize roles like 'steacher' -> 'teacher', 'sstudent' -> 'student', 'sparent' -> 'parent', 'sadmin' -> 'admin'
+    final normalized = liveRole.startsWith('s') &&
+            (liveRole == 'steacher' || liveRole == 'sstudent' || liveRole == 'sparent' || liveRole == 'sadmin')
+        ? liveRole.substring(1)
+        : liveRole;
+
+    final allowed = canAccess(
+          userRole: liveRole,
+          feature: feature,
+          requiredPermission: requiredPermission,
+        ) ||
+        canAccess(
+          userRole: normalized,
+          feature: feature,
+          requiredPermission: requiredPermission,
+        );
+
+    if (!allowed) {
+      throw Exception(
+        'Security Enforcement: Role "$liveRole" does not have "$requiredPermission" permission for feature "$feature".',
+      );
+    }
+  }
+
+  /// Check permission with live role check without throwing
+  Future<bool> canPerform({
+    required String feature,
+    required String requiredPermission,
+    String? username,
+  }) async {
+    try {
+      await enforce(
+        feature: feature,
+        requiredPermission: requiredPermission,
+        username: username,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ==========================================

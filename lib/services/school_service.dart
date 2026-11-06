@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import 'school_payroll_service.dart';
 import 'school_living_service.dart';
 import 'school_calendar_service.dart';
+import 'school_permission_service.dart';
 
 class SchoolService {
   static final SchoolService _instance = SchoolService._internal();
@@ -17,6 +18,7 @@ class SchoolService {
   SchoolPayrollService get payroll => SchoolPayrollService();
   SchoolLivingService get living => SchoolLivingService();
   SchoolCalendarService get calendar => SchoolCalendarService();
+  SchoolPermissionService get permissions => SchoolPermissionService();
 
   static final Set<String> _missingTables = <String>{};
   static bool isTableMissing(String table) => _missingTables.contains(table);
@@ -3099,6 +3101,12 @@ class SchoolService {
   Future<bool> markAttendance(List<Map<String, dynamic>> records, {bool forceUpdate = false}) async {
     if (records.isEmpty) return false;
 
+    // Enforce live role check from database
+    await SchoolPermissionService().enforce(
+      feature: 'attendance',
+      requiredPermission: 'edit',
+    );
+
     final first = records.first;
     final classId = first['class_id']?.toString() ?? '';
     final dateStr =
@@ -3601,6 +3609,41 @@ class SchoolService {
     }
   }
 
+  Future<bool> _isOwnStudentRecord(String username, String studentId) async {
+    if (username == studentId) return true;
+    try {
+      final student = await _supabase
+          .from('school_students')
+          .select('id')
+          .eq('username', username)
+          .maybeSingle();
+      if (student != null && student['id']?.toString() == studentId) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<bool> _isParentLinkedToStudent(String parentUsername, String studentId) async {
+    try {
+      final links = await _supabase
+          .from('parent_student_links')
+          .select('student_username')
+          .eq('parent_username', parentUsername);
+      final usernames = (links as List).map((l) => l['student_username']?.toString() ?? '').toSet();
+      if (usernames.contains(studentId)) return true;
+      if (usernames.isNotEmpty) {
+        final students = await _supabase
+            .from('school_students')
+            .select('id')
+            .inFilter('username', usernames.toList());
+        final ids = (students as List).map((s) => s['id']?.toString() ?? '').toSet();
+        return ids.contains(studentId);
+      }
+    } catch (_) {}
+    return false;
+  }
+
   /// Marks for one student. Rows may be stored against the login username OR
   /// the `school_students.id`, so both are queried and merged.
   Future<List<Map<String, dynamic>>> getStudentMarks(
@@ -3608,6 +3651,23 @@ class SchoolService {
     String? examType,
     String? studentName,
   }) async {
+    // Scoped read enforcement: students view only their own records; parents only linked wards
+    final currentUser = await AuthService().getCurrentUsername();
+    if (currentUser != null && currentUser.isNotEmpty) {
+      final role = await SchoolPermissionService().getLiveUserRole(currentUser);
+      if (role == 'student' || role == 'sstudent') {
+        final isOwn = await _isOwnStudentRecord(currentUser, studentId);
+        if (!isOwn) {
+          throw Exception('Access Denied: Students are only permitted to inspect their own marks records.');
+        }
+      } else if (role == 'parent' || role == 'sparent') {
+        final isLinked = await _isParentLinkedToStudent(currentUser, studentId);
+        if (!isLinked) {
+          throw Exception('Access Denied: Parents are only permitted to inspect marks for their linked children.');
+        }
+      }
+    }
+
     final keys = <String>{studentId};
     if (studentName != null && studentName.isNotEmpty) keys.add(studentName);
     final rowsById = <String, Map<String, dynamic>>{};
@@ -3810,10 +3870,25 @@ class SchoolService {
     lastMarksError = null;
     if (marksList.isEmpty) return false;
 
-    final role = await AuthService().getCurrentUserRole();
-    if (role != 'admin' && role != 'sadmin' && role != 'teacher' && role != 'steacher') {
-      lastMarksError = 'Only teachers and administrators can enter or update marks.';
-      return false;
+    // Enforce live database role check
+    await SchoolPermissionService().enforce(
+      feature: 'marks',
+      requiredPermission: 'edit',
+    );
+
+    // Enforce marks lock check
+    final firstMark = marksList.first;
+    final examType = firstMark['exam_type']?.toString() ?? 'Mid Term';
+    final subject = firstMark['subject']?.toString() ?? '';
+    final classId = firstMark['class_id']?.toString() ?? 'Class 10-A';
+    final isLocked = await SchoolPermissionService().isMarksLocked(
+      examId: examType,
+      classId: classId,
+      subject: subject,
+    );
+    if (isLocked) {
+      lastMarksError = 'Marks entry is locked for $subject ($examType). Administrative override required.';
+      throw Exception(lastMarksError);
     }
 
     final rows = <Map<String, dynamic>>[];
@@ -4527,10 +4602,10 @@ class SchoolService {
     required double amount,
     required String dueDate,
   }) async {
-    final role = await AuthService().getCurrentUserRole();
-    if (role != 'admin' && role != 'sadmin') {
-      throw Exception('Only an admin can add fee demands.');
-    }
+    await SchoolPermissionService().enforce(
+      feature: 'fees',
+      requiredPermission: 'edit',
+    );
 
     final cleanHead = head.trim();
     final uniqueUsernames =
@@ -4712,6 +4787,10 @@ class SchoolService {
   ///    `paid_amount` and flipping status `pending -> partial -> paid`.
   ///  - Receipt details are stamped on the demand row that was settled.
   Future<String> recordFeePayment(Map<String, dynamic> data) async {
+    await SchoolPermissionService().enforce(
+      feature: 'fees',
+      requiredPermission: 'edit',
+    );
     final receiptNo = 'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
     final studentId = data['student_id']?.toString() ?? '';
     final paymentMode = data['payment_mode']?.toString() ?? 'Cash';
@@ -6511,6 +6590,14 @@ class SchoolService {
 
   /// Real Parent Children Resolver with strict privacy boundary
   Future<List<Map<String, dynamic>>> getParentChildren(String parentUsername) async {
+    final currentUser = await AuthService().getCurrentUsername();
+    if (currentUser != null && currentUser.isNotEmpty) {
+      final role = await SchoolPermissionService().getLiveUserRole(currentUser);
+      final isAdmin = role == 'admin' || role == 'sadmin' || role == 'principal' || role == 'superadmin';
+      if (!isAdmin && currentUser != parentUsername) {
+        throw Exception('Access Denied: Parents are restricted to viewing only their own linked wards.');
+      }
+    }
     try {
       final linksResp = await _supabase
           .from('parent_student_links')

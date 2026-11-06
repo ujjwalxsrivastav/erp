@@ -397,7 +397,7 @@ class AuthService {
     }
   }
 
-  /// Get current user's role
+  /// Get current user's role (from local session cache)
   Future<String?> getCurrentUserRole() async {
     try {
       final isValid = await isLoggedIn();
@@ -409,6 +409,31 @@ class AuthService {
       _secureLog('Error getting user role');
       return null;
     }
+  }
+
+  /// Get verified user role directly from live `users` database table
+  Future<String?> getLiveUserRole([String? username]) async {
+    try {
+      final uname = username ?? await getCurrentUsername();
+      if (uname == null || uname.isEmpty) return null;
+
+      final response = await _supabase
+          .from('users')
+          .select('role')
+          .eq('username', uname)
+          .maybeSingle();
+
+      if (response != null && response['role'] != null) {
+        final role = response['role'].toString().trim().toLowerCase();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_keyRole, role);
+        return role;
+      }
+    } catch (e) {
+      _secureLog('Error fetching live user role: $e');
+    }
+    // Fallback to cached session if database query fails
+    return await getCurrentUserRole();
   }
 
   /// Get current username
