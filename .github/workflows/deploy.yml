@@ -36,6 +36,8 @@ jobs:
           flutter build web --release --base-href /erp/
           --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL || 'https://rvyzfqffjgwadxtbiuvr.supabase.co' }}"
           --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2eXpmcWZmamd3YWR4dGJpdXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1NDkwMzAsImV4cCI6MjA3OTEyNTAzMH0.focrBupRcbCiPgSCRvRpBpzZnvte9hNkWmsD4LSTBN0' }}"
+          --dart-define=GROQ_API_KEY="${{ secrets.GROQ_API_KEY }}"
+          --dart-define=GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
 
       - name: Verify Web Build Artifact
         run: test -d build/web && test -f build/web/index.html
