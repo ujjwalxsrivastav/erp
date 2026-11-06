@@ -74,7 +74,8 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
     });
     try {
       final role = await _authService.getCurrentUserRole();
-      if (role != 'admin') {
+      if (!const {'admin', 'sadmin', 'principal', 'superadmin'}
+          .contains(role)) {
         if (!mounted) return;
         setState(() {
           _error = 'Only an administrator can edit the timetable.';
@@ -85,9 +86,8 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
 
       final classes = await _service.getSchoolClasses();
       final seen = <String>{};
-      final unique = classes
-          .where((c) => seen.add(c['id']?.toString() ?? ''))
-          .toList();
+      final unique =
+          classes.where((c) => seen.add(c['id']?.toString() ?? '')).toList();
 
       final ids = unique.map((c) => c['id']?.toString() ?? '').toSet();
       if (!ids.contains(_selectedClassId)) {
@@ -331,8 +331,7 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
                     selectedColor: AppTheme.adminPrimary,
                     labelStyle: TextStyle(
                       color: selected ? Colors.white : AppTheme.mediumGray,
-                      fontWeight:
-                          selected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
                     ),
                     onSelected: _isLoading ? null : (_) => _onDayChanged(day),
                   ),
@@ -416,7 +415,7 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
             height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             ),
             child: Text(
@@ -446,8 +445,7 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
                   spacing: 12,
                   runSpacing: 2,
                   children: [
-                    if (time.isNotEmpty)
-                      _meta(Icons.schedule, time),
+                    if (time.isNotEmpty) _meta(Icons.schedule, time),
                     if (teacher.isNotEmpty)
                       _meta(
                         Icons.person_outline,
@@ -500,13 +498,10 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
     );
     final slotTime = _suggestTime(_suggestNextPeriod());
     final startCtrl = TextEditingController(
-      text: isEdit
-          ? existingSlot['start_time']?.toString() ?? ''
-          : slotTime.$1,
+      text: isEdit ? existingSlot['start_time']?.toString() ?? '' : slotTime.$1,
     );
     final endCtrl = TextEditingController(
-      text:
-          isEdit ? existingSlot['end_time']?.toString() ?? '' : slotTime.$2,
+      text: isEdit ? existingSlot['end_time']?.toString() ?? '' : slotTime.$2,
     );
     final subjectCtrl = TextEditingController(
       text: isEdit ? existingSlot['subject']?.toString() ?? '' : '',
@@ -580,8 +575,7 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
               ),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius:
-                    BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: SingleChildScrollView(
                 child: Form(
@@ -637,8 +631,7 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
                                   ? null
                                   : (v) {
                                       if (v != null) {
-                                        setSheetState(
-                                            () => selectedDay = v);
+                                        setSheetState(() => selectedDay = v);
                                       }
                                     },
                             ),
@@ -667,9 +660,8 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
                             child: TextFormField(
                               controller: startCtrl,
                               decoration: _decoration('Start Time'),
-                              validator: (v) => (v ?? '').trim().isEmpty
-                                  ? 'Required'
-                                  : null,
+                              validator: (v) =>
+                                  (v ?? '').trim().isEmpty ? 'Required' : null,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -677,9 +669,8 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
                             child: TextFormField(
                               controller: endCtrl,
                               decoration: _decoration('End Time'),
-                              validator: (v) => (v ?? '').trim().isEmpty
-                                  ? 'Required'
-                                  : null,
+                              validator: (v) =>
+                                  (v ?? '').trim().isEmpty ? 'Required' : null,
                             ),
                           ),
                         ],
@@ -689,9 +680,8 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
                         controller: subjectCtrl,
                         textCapitalization: TextCapitalization.words,
                         decoration: _decoration('Subject'),
-                        validator: (v) => (v ?? '').trim().isEmpty
-                            ? 'Enter a subject'
-                            : null,
+                        validator: (v) =>
+                            (v ?? '').trim().isEmpty ? 'Enter a subject' : null,
                       ),
                       const SizedBox(height: 14),
                       Row(
@@ -713,8 +703,8 @@ class _ManageTimetableScreenState extends State<ManageTimetableScreen> {
                                   .toList(),
                               onChanged: saving
                                   ? null
-                                  : (v) => setSheetState(
-                                      () => selectedTeacher = v),
+                                  : (v) =>
+                                      setSheetState(() => selectedTeacher = v),
                               validator: (v) =>
                                   (v == null || v.isEmpty) ? 'Required' : null,
                             ),

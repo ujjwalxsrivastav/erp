@@ -69,6 +69,45 @@ class SchoolService {
   }
 
   static final Set<String> _missingTables = <String>{};
+  static const String _demoQuizId = '00000000-0000-4000-8000-000000000001';
+  final Map<String, List<Map<String, dynamic>>> _demoQuizAttempts = {};
+
+  static const Map<String, dynamic> _demoPracticeQuiz = {
+    'id': _demoQuizId,
+    'subject': 'Science',
+    'title': 'Science Basics: Demo Practice Quiz',
+    'duration_minutes': 5,
+    'total_questions': 5,
+    'weightage_percent': 0,
+    'is_demo': true,
+    'questions': [
+      {
+        'question': 'Which part of a plant absorbs water from the soil?',
+        'options': ['Leaf', 'Root', 'Flower', 'Stem'],
+        'correct_index': 1,
+      },
+      {
+        'question': 'What is the main source of energy for Earth?',
+        'options': ['The Moon', 'The Sun', 'Wind', 'Coal'],
+        'correct_index': 1,
+      },
+      {
+        'question': 'Water changes into vapour during which process?',
+        'options': ['Freezing', 'Melting', 'Evaporation', 'Condensation'],
+        'correct_index': 2,
+      },
+      {
+        'question': 'Which organ pumps blood around the human body?',
+        'options': ['Lungs', 'Brain', 'Heart', 'Stomach'],
+        'correct_index': 2,
+      },
+      {
+        'question': 'Which material is attracted to a magnet?',
+        'options': ['Wood', 'Plastic', 'Iron', 'Glass'],
+        'correct_index': 2,
+      },
+    ],
+  };
   static bool isTableMissing(String table) => _missingTables.contains(table);
   static void markTableMissing(String table) => _missingTables.add(table);
   static bool _isTableMissingError(dynamic e) {
@@ -2698,7 +2737,10 @@ class SchoolService {
         feature: 'timetable', requiredPermission: 'edit', username: username);
     final role =
         (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
-    if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
+    if (role != 'admin' &&
+        role != 'sadmin' &&
+        role != 'principal' &&
+        role != 'superadmin') {
       throw Exception('Only school administrators can edit timetable periods.');
     }
     // Live clash detection before saving
@@ -2734,6 +2776,8 @@ class SchoolService {
           .eq('id', id)
           .select()
           .single();
+      invalidateCache('timetable:');
+      invalidateCache('my_timetable:');
       return Map<String, dynamic>.from(response);
     } else {
       final response = await _supabase
@@ -2741,6 +2785,8 @@ class SchoolService {
           .insert(payload)
           .select()
           .single();
+      invalidateCache('timetable:');
+      invalidateCache('my_timetable:');
       return Map<String, dynamic>.from(response);
     }
   }
@@ -2751,12 +2797,17 @@ class SchoolService {
         feature: 'timetable', requiredPermission: 'edit', username: username);
     final role =
         (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
-    if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
+    if (role != 'admin' &&
+        role != 'sadmin' &&
+        role != 'principal' &&
+        role != 'superadmin') {
       throw Exception(
           'Only school administrators can delete timetable periods.');
     }
     try {
       await _supabase.from('school_timetable').delete().eq('id', id);
+      invalidateCache('timetable:');
+      invalidateCache('my_timetable:');
       return true;
     } catch (_) {
       return false;
@@ -4709,6 +4760,49 @@ class SchoolService {
     return fallback;
   }
 
+  /// Every assessment that exists — published sessions first (Half Yearly,
+  /// Final, …) followed by any custom name a teacher typed at marks entry
+  /// (e.g. 'Class Test 1'). Students pick from this list so class-test marks
+  /// are reachable, not just the main examinations.
+  Future<List<String>> getAvailableExamTypes({String? studentId}) {
+    final key = 'exam_types:${(studentId ?? '').trim()}';
+    return _cachedCall(
+      key,
+      () => _loadAvailableExamTypes(studentId),
+      ttl: const Duration(minutes: 2),
+    );
+  }
+
+  Future<List<String>> _loadAvailableExamTypes(String? studentId) async {
+    final names = <String>[];
+    final seen = <String>{};
+    void add(String? raw) {
+      final name = (raw ?? '').trim();
+      if (name.isEmpty || !seen.add(name.toLowerCase())) return;
+      names.add(name);
+    }
+
+    for (final session in await getExamSessions()) {
+      add(session);
+    }
+
+    // Anything teachers have actually entered marks for — includes class tests
+    // and any other one-off assessment that never became a report-card session.
+    try {
+      var query = _supabase.from('school_marks').select('exam_type');
+      final key = (studentId ?? '').trim();
+      if (key.isNotEmpty) {
+        query = query.eq('student_id', key);
+      }
+      final rows =
+          List<Map<String, dynamic>>.from(await query.timeout(netTimeout));
+      for (final row in rows) {
+        add(row['exam_type']?.toString());
+      }
+    } catch (_) {}
+    return names;
+  }
+
   /// Per-subject analytics for one exam session: strongest / weakest subject,
   /// grade spread, pass count and a per-subject breakdown for charting.
   Map<String, dynamic> buildReportAnalytics(List<Map<String, dynamic>> marks) {
@@ -4972,6 +5066,8 @@ class SchoolService {
         }
         // Report card / dashboard read the cached marks list.
         invalidateCache('student_marks:');
+        // New exam names (class tests) must appear in every picker at once.
+        invalidateCache('exam_types:');
       }
 
       // Preferred path: one upsert keyed on (student, subject, exam) — requires
@@ -10787,14 +10883,27 @@ class SchoolService {
             .select()
             .eq('class_id', classId)
             .order('created_at', ascending: false);
-        return List<Map<String, dynamic>>.from(response as List);
+        final quizzes = List<Map<String, dynamic>>.from(response as List);
+        if (quizzes.isNotEmpty) return quizzes;
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_quizzes');
         }
       }
     }
-    return [];
+    // Keep practice available even before a teacher publishes a class quiz.
+    // Demo attempts are clearly marked and never affect examination marks.
+    return [
+      {
+        ..._demoPracticeQuiz,
+        'class_id': classId,
+        'class_name': classId,
+        'questions': List<Map<String, dynamic>>.from(
+          (_demoPracticeQuiz['questions'] as List)
+              .map((item) => Map<String, dynamic>.from(item as Map)),
+        ),
+      },
+    ];
   }
 
   /// N4: Publish an online practice/assessment quiz
@@ -10845,6 +10954,48 @@ class SchoolService {
     String? quizTitle,
     String? subject,
   }) async {
+    if (quizId == _demoQuizId) {
+      final demoPayload = {
+        'quiz_id': quizId,
+        'student_id': studentUsername,
+        'student_name': studentName ?? studentUsername,
+        'score': score,
+        'total': total,
+        'answers': answers,
+        'attempted_at': DateTime.now().toIso8601String(),
+      };
+      // When the companion seed SQL is installed this is a normal, durable
+      // scorecard row. Fall back to local history if the demo row/table is
+      // not installed yet.
+      if (!_missingTables.contains('school_quiz_attempts')) {
+        try {
+          await _supabase.from('school_quiz_attempts').insert(demoPayload);
+          return true;
+        } catch (e) {
+          if (_isTableMissingError(e)) {
+            _missingTables.add('school_quiz_attempts');
+          }
+        }
+      }
+      final attempts = _demoQuizAttempts.putIfAbsent(
+          studentUsername, () => <Map<String, dynamic>>[]);
+      attempts.insert(0, {
+        'id': 'demo-attempt-${DateTime.now().microsecondsSinceEpoch}',
+        'quiz_id': quizId,
+        'quiz_title': quizTitle ?? _demoPracticeQuiz['title'],
+        'subject': subject ?? _demoPracticeQuiz['subject'],
+        'student_id': studentUsername,
+        'student_name': studentName ?? studentUsername,
+        'score': score,
+        'total': total,
+        'percentage': total > 0 ? (score / total) * 100 : 0.0,
+        'answers': answers,
+        'attempted_at': demoPayload['attempted_at'],
+        'is_demo': true,
+      });
+      return true;
+    }
+
     final payload = {
       'quiz_id': quizId,
       'student_id': studentUsername,
@@ -10871,21 +11022,37 @@ class SchoolService {
   /// N4: Get past quiz attempts for a student
   Future<List<Map<String, dynamic>>> getStudentQuizAttempts(
       {required String studentUsername}) async {
+    final localAttempts = List<Map<String, dynamic>>.from(
+        _demoQuizAttempts[studentUsername] ?? const []);
     if (!_missingTables.contains('school_quiz_attempts')) {
       try {
         final response = await _supabase
             .from('school_quiz_attempts')
-            .select()
+            .select('*, school_quizzes(title,subject)')
             .eq('student_id', studentUsername)
             .order('attempted_at', ascending: false);
-        return List<Map<String, dynamic>>.from(response as List);
+        final remoteAttempts =
+            List<Map<String, dynamic>>.from(response as List).map((row) {
+          final quiz = row['school_quizzes'];
+          if (quiz is Map) {
+            return {
+              ...row,
+              'quiz_title': quiz['title'] ?? row['quiz_title'],
+              'subject': quiz['subject'] ?? row['subject'],
+            };
+          }
+          return row;
+        }).toList();
+        return [...localAttempts, ...remoteAttempts]..sort((a, b) =>
+            (b['attempted_at']?.toString() ?? '')
+                .compareTo(a['attempted_at']?.toString() ?? ''));
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_quiz_attempts');
         }
       }
     }
-    return [];
+    return localAttempts;
   }
 
   // ===== N6: STUDENT TARGET GOALS =====
@@ -11354,6 +11521,91 @@ class SchoolService {
       }
     }
     return [];
+  }
+
+  /// Subject-matched doubt inbox for faculty. A query explicitly assigned to
+  /// this teacher is always visible; otherwise unassigned doubts are shown
+  /// only when their subject is part of the teacher's current allotment.
+  Future<List<Map<String, dynamic>>> getTeacherStudentQueries({
+    required String teacherUsername,
+  }) async {
+    if (teacherUsername.trim().isEmpty ||
+        _missingTables.contains('school_student_queries')) {
+      return [];
+    }
+    try {
+      final subjects = <String>{};
+      try {
+        final rows = await _supabase
+            .from('school_teacher_classes')
+            .select('subject_name')
+            .eq('teacher_username', teacherUsername);
+        for (final row in List<Map<String, dynamic>>.from(rows)) {
+          final subject = row['subject_name']?.toString().trim().toLowerCase();
+          if (subject != null && subject.isNotEmpty) subjects.add(subject);
+        }
+      } catch (_) {}
+      try {
+        final rows = await _supabase
+            .from('school_timetable')
+            .select('subject')
+            .eq('teacher_username', teacherUsername);
+        for (final row in List<Map<String, dynamic>>.from(rows)) {
+          final subject = row['subject']?.toString().trim().toLowerCase();
+          if (subject != null && subject.isNotEmpty) subjects.add(subject);
+        }
+      } catch (_) {}
+
+      final response = await _supabase
+          .from('school_student_queries')
+          .select()
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response).where((query) {
+        final assigned = query['teacher_id']?.toString().trim().toLowerCase();
+        if (assigned == teacherUsername.trim().toLowerCase()) return true;
+        if (assigned != null && assigned.isNotEmpty) return false;
+        final subject = query['subject']?.toString().trim().toLowerCase() ?? '';
+        return subjects.contains(subject);
+      }).toList();
+    } catch (e) {
+      if (_isTableMissingError(e)) _missingTables.add('school_student_queries');
+      return [];
+    }
+  }
+
+  /// Resolves a student doubt and makes the reply available in the student's
+  /// existing “My Doubts & Replies” view.
+  Future<bool> replyToStudentQuery({
+    required String queryId,
+    required String teacherUsername,
+    required String teacherName,
+    required String reply,
+  }) async {
+    if (queryId.isEmpty ||
+        reply.trim().isEmpty ||
+        _missingTables.contains('school_student_queries')) {
+      return false;
+    }
+    try {
+      final allowedQueries = await getTeacherStudentQueries(
+        teacherUsername: teacherUsername,
+      );
+      final isAssigned = allowedQueries.any(
+        (query) => query['id']?.toString() == queryId,
+      );
+      if (!isAssigned) return false;
+      await _supabase.from('school_student_queries').update({
+        'teacher_id': teacherUsername,
+        'teacher_name': teacherName,
+        'reply': reply.trim(),
+        'status': 'replied',
+        'replied_at': DateTime.now().toIso8601String(),
+      }).eq('id', queryId);
+      return true;
+    } catch (e) {
+      if (_isTableMissingError(e)) _missingTables.add('school_student_queries');
+      return false;
+    }
   }
 
   // ===== STEP 11: CERTIFICATES, LIBRARY, AND REPORTING WORKFLOWS =====

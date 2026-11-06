@@ -76,8 +76,8 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
             .where((t) => t['day_of_week'] == day)
             .map((t) => Map<String, dynamic>.from(t))
             .toList();
-        grouped[day]!
-            .sort((a, b) => a['start_time'].compareTo(b['start_time']));
+        grouped[day]!.sort((a, b) => (a['start_time']?.toString() ?? '')
+            .compareTo(b['start_time']?.toString() ?? ''));
       }
 
       if (mounted) {
@@ -97,8 +97,9 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
 
   // Add new time slot
   void _addNewTimeSlot() {
+    if (_timeSlots.isEmpty) return;
     final lastSlot = _timeSlots.last;
-    final lastEndTime = lastSlot['end']!;
+    final lastEndTime = lastSlot['end'] ?? '09:00';
 
     // Parse last end time and add 15 min break
     final parts = lastEndTime.split(':');
@@ -148,9 +149,17 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
       orElse: () => {},
     );
 
-    String? selectedSubjectId = existingEntry?['subject_id'];
-    String? selectedTeacherId = existingEntry?['teacher_id'];
-    String roomNumber = existingEntry?['room_number'] ?? 'Room 101';
+    String? selectedSubjectId = existingEntry?['subject_id']?.toString();
+    String? selectedTeacherId = existingEntry?['teacher_id']?.toString();
+    if (!_subjects
+        .any((s) => s['subject_id']?.toString() == selectedSubjectId)) {
+      selectedSubjectId = null;
+    }
+    if (!_teachers
+        .any((t) => t['teacher_id']?.toString() == selectedTeacherId)) {
+      selectedTeacherId = null;
+    }
+    String roomNumber = existingEntry?['room_number']?.toString() ?? 'Room 101';
 
     await showModalBottomSheet(
       context: context,
@@ -265,8 +274,10 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                             ),
                             items: _subjects.map((subject) {
                               return DropdownMenuItem<String>(
-                                value: subject['subject_id'],
-                                child: Text(subject['subject_name']),
+                                value: subject['subject_id']?.toString(),
+                                child: Text(
+                                    subject['subject_name']?.toString() ??
+                                        'Subject'),
                               );
                             }).toList(),
                             onChanged: (value) {
@@ -314,8 +325,9 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                             ),
                             items: _teachers.map((teacher) {
                               return DropdownMenuItem<String>(
-                                value: teacher['teacher_id'],
-                                child: Text(teacher['name']),
+                                value: teacher['teacher_id']?.toString(),
+                                child: Text(
+                                    teacher['name']?.toString() ?? 'Teacher'),
                               );
                             }).toList(),
                             onChanged: (value) {
@@ -376,7 +388,7 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                       color: Colors.white,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.05),
                           blurRadius: 10,
                           offset: const Offset(0, -4),
                         ),
@@ -599,7 +611,7 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
               border: Border.all(
                 color: entry.isEmpty
                     ? Colors.grey.shade200
-                    : const Color(0xFF0891B2).withOpacity(0.2),
+                    : const Color(0xFF0891B2).withValues(alpha: 0.2),
                 width: 1.5,
               ),
             ),
@@ -610,14 +622,14 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0891B2).withOpacity(0.1),
+                    color: const Color(0xFF0891B2).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        timeSlot['slot']!,
+                        timeSlot['slot'] ?? '${index + 1}',
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
@@ -625,7 +637,7 @@ class _EditTimetableScreenState extends State<EditTimetableScreen>
                         ),
                       ),
                       Text(
-                        timeSlot['start']!,
+                        timeSlot['start'] ?? 'TBA',
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.grey.shade600,

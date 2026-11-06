@@ -133,7 +133,9 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       teacherVerified = isTeacher;
       adminVerified = isAdmin;
 
-      final sessions = await _schoolService.getExamSessions();
+      // Published sessions PLUS every assessment already used at marks entry,
+      // so a class test created earlier stays selectable.
+      final sessions = await _schoolService.getAvailableExamTypes();
       if (sessions.isNotEmpty) {
         _examSessions = sessions;
         _selectedExam = sessions.first;
@@ -818,6 +820,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   },
                 ),
               ),
+              const SizedBox(width: 6),
+              _buildNewAssessmentButton(),
             ],
           ),
           const SizedBox(height: 10),
@@ -914,6 +918,83 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         ],
       ),
     );
+  }
+
+  /// Teachers can name their own assessment (class test, unit test, …)
+  /// without asking the admin to create a report-card session first.
+  Widget _buildNewAssessmentButton() {
+    return Tooltip(
+      message: 'New assessment (Class Test, Unit Test …)',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: _addCustomAssessment,
+        child: Container(
+          width: 40,
+          height: 42,
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          child: const Icon(Icons.add_rounded,
+              size: 18, color: Color(0xFF2563EB)),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addCustomAssessment() async {
+    final controller = TextEditingController();
+    final entered = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('New assessment',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Name it e.g. "Class Test 1" or "Periodic Test 3". Marks are saved '
+              'under this name for the selected class and subject, and students '
+              'can pick the same name in their report card.',
+              style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Assessment name',
+                hintText: 'Class Test 1',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (v) => Navigator.pop(ctx, v),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Use this name'),
+          ),
+        ],
+      ),
+    );
+    final name = (entered ?? '').trim();
+    controller.dispose();
+    if (name.isEmpty || !mounted) return;
+    setState(() {
+      if (!_examSessions.any((e) => e.toLowerCase() == name.toLowerCase())) {
+        _examSessions = [..._examSessions, name];
+      }
+      _selectedExam = name;
+    });
+    await _loadExistingMarks();
   }
 
   Widget _buildDropdownChip<T>({

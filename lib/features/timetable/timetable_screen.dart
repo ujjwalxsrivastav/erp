@@ -123,11 +123,30 @@ class _TimetableScreenState extends State<TimetableScreen>
   }
 
   Widget _buildClassCard(Map<String, dynamic> classItem, int index) {
-    final subject = classItem['subjects'];
-    final teacher = classItem['teacher_details'];
-    final startTime = classItem['start_time'];
-    final endTime = classItem['end_time'];
-    final room = classItem['room_number'];
+    // This legacy route may receive either `timetable` rows with nested
+    // relations or the newer flat `school_timetable` rows.  Relations can be
+    // null when a subject/teacher was removed, so never dereference them.
+    final subjectData = classItem['subjects'];
+    final teacherData = classItem['teacher_details'];
+    final subject = subjectData is Map
+        ? (subjectData['subject_name']?.toString() ??
+            classItem['subject']?.toString() ??
+            'Subject')
+        : (classItem['subject']?.toString() ?? 'Subject');
+    final teacher = teacherData is Map
+        ? (teacherData['name']?.toString() ??
+            classItem['teacher_username']?.toString() ??
+            'Teacher TBA')
+        : (classItem['teacher_username']?.toString() ?? 'Teacher TBA');
+    final startTime = classItem['start_time']?.toString() ?? 'Time TBA';
+    final endTime = classItem['end_time']?.toString() ?? '';
+    final room = classItem['room_number']?.toString() ??
+        classItem['room']?.toString() ??
+        'Room TBA';
+    final timeSlot = classItem['time_slot']?.toString() ??
+        (classItem['period'] == null
+            ? 'Class'
+            : 'Period ${classItem['period']}');
 
     // Color scheme based on index
     final colors = [
@@ -146,7 +165,7 @@ class _TimetableScreenState extends State<TimetableScreen>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -157,7 +176,7 @@ class _TimetableScreenState extends State<TimetableScreen>
           // Time indicator
           Container(
             width: 6,
-            height: 120,
+            height: 132,
             decoration: BoxDecoration(
               color: color,
               borderRadius: const BorderRadius.only(
@@ -178,11 +197,11 @@ class _TimetableScreenState extends State<TimetableScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
+                          color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          classItem['time_slot'],
+                          timeSlot,
                           style: TextStyle(
                             color: color,
                             fontSize: 12,
@@ -190,23 +209,34 @@ class _TimetableScreenState extends State<TimetableScreen>
                           ),
                         ),
                       ),
-                      const Spacer(),
-                      Icon(Icons.access_time,
-                          size: 16, color: Colors.grey.shade600),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$startTime - $endTime',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.access_time,
+                                size: 16, color: Colors.grey.shade600),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                endTime.isEmpty
+                                    ? startTime
+                                    : '$startTime - $endTime',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    subject['subject_name'],
+                    subject,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -219,11 +249,15 @@ class _TimetableScreenState extends State<TimetableScreen>
                       Icon(Icons.person_outline,
                           size: 16, color: Colors.grey.shade600),
                       const SizedBox(width: 6),
-                      Text(
-                        teacher['name'],
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade700,
+                      Expanded(
+                        child: Text(
+                          teacher,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade700,
+                          ),
                         ),
                       ),
                     ],
@@ -234,11 +268,15 @@ class _TimetableScreenState extends State<TimetableScreen>
                       Icon(Icons.room_outlined,
                           size: 16, color: Colors.grey.shade600),
                       const SizedBox(width: 6),
-                      Text(
-                        room,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade700,
+                      Expanded(
+                        child: Text(
+                          room,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade700,
+                          ),
                         ),
                       ),
                     ],

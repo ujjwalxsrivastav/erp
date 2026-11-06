@@ -57,10 +57,10 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
       };
       _isAdmin = _userRole == 'admin' || _userRole == 'sadmin';
       _isStaff = _userRole != 'student' && _userRole != 'parent';
-      _examSessions = await _schoolService.getExamSessions();
-      if (_examSessions.isNotEmpty) _selectedExam = _examSessions.first;
 
       if (_isStaff) {
+        _examSessions = await _schoolService.getAvailableExamTypes();
+        if (_examSessions.isNotEmpty) _selectedExam = _examSessions.first;
         _classes = await _schoolService.getSchoolClasses();
         _classes = [
           {'id': '__all__', 'name': 'All classes'},
@@ -70,6 +70,16 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
         await _loadStudentsForClass();
       } else {
         await _loadOwnStudent();
+        // A student only sees the assessments they actually have marks for —
+        // this is how class-test marks become selectable.
+        final ownId = _selectedStudent?['username']?.toString() ??
+            _currentUsername;
+        final ownExams =
+            await _schoolService.getAvailableExamTypes(studentId: ownId);
+        if (ownExams.isNotEmpty) {
+          _examSessions = ownExams;
+          _selectedExam = ownExams.first;
+        }
       }
     } catch (_) {
     } finally {

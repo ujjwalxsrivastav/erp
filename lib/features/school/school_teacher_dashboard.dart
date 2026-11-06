@@ -31,6 +31,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   int _pendingAssignments = 0;
   int _upcomingClasses = 0;
   int _pendingLeaves = 0;
+  List<Map<String, dynamic>> _studentDoubts = [];
 
   // 4-State Lifecycle
   bool _isLoading = true;
@@ -91,21 +92,30 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       final username = await _authService.getCurrentUsername() ?? '';
       _teacherUsername = username;
       final displayName = await _schoolService.getTeacherDisplayName(username);
-      final teacherClasses = await _schoolService.getClassTeacherClasses(username);
+      final teacherClasses =
+          await _schoolService.getClassTeacherClasses(username);
       final instName = await _schoolService.getSchoolInstituteName();
 
       final schedule = await _schoolService.getTeacherTimetable(username);
-      final pendingHw = await _schoolService.getPendingHomeworkToGrade(username);
-      final pendingLeavesList = await _schoolService.getLeaveRequestsForClassTeacher(username);
+      final pendingHw =
+          await _schoolService.getPendingHomeworkToGrade(username);
+      final pendingLeavesList =
+          await _schoolService.getLeaveRequestsForClassTeacher(username);
+      final studentDoubts = await _schoolService.getTeacherStudentQueries(
+        teacherUsername: username,
+      );
 
       // Real Assigned Classes (Union of Class Teacher and Subject Faculty)
-      final allAssigned = await _schoolService.getTeacherAllAssignedClasses(username);
+      final allAssigned =
+          await _schoolService.getTeacherAllAssignedClasses(username);
 
       // Real Teacher Analytics (N2 + T-R01, T-R04, T-R05, T-R07)
       final attTrend = await _schoolService.getTeacherAttendanceTrend(username);
-      final gradeDist = await _schoolService.getTeacherClassGradeDistribution(username);
+      final gradeDist =
+          await _schoolService.getTeacherClassGradeDistribution(username);
       final subAvgs = await _schoolService.getTeacherSubjectAverages(username);
-      final hwStats = await _schoolService.getTeacherHomeworkCompletionStats(username);
+      final hwStats =
+          await _schoolService.getTeacherHomeworkCompletionStats(username);
 
       // Real Attendance for Class Teacher's assigned class today
       int? totalStd;
@@ -155,6 +165,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           _upcomingClasses = schedule.length;
           _pendingAssignments = pendingHw;
           _pendingLeaves = pendingLeavesList.length;
+          _studentDoubts = studentDoubts;
           _isAttendanceMarkedToday = isMarked;
           _totalStudents = totalStd;
           _presentToday = presentStd;
@@ -170,17 +181,23 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         final todayStr = DateTime.now().toIso8601String().substring(0, 10);
         final subs = await _schoolService.getSubstitutionLogs(date: todayStr);
         final mySubs = subs.where((s) {
-          final subT = (s['substitute_teacher']?.toString() ?? '').toLowerCase();
-          return subT.contains(username.toLowerCase()) || subT.contains((_teacherName).toLowerCase());
+          final subT =
+              (s['substitute_teacher']?.toString() ?? '').toLowerCase();
+          return subT.contains(username.toLowerCase()) ||
+              subT.contains((_teacherName).toLowerCase());
         }).toList();
 
-        final upExam = await _schoolService.getNextUpcomingExamForTeacher(username);
+        final upExam =
+            await _schoolService.getNextUpcomingExamForTeacher(username);
         final atRisk = await _schoolService.getTeacherAtRiskStudents(username);
-        final queue = await _schoolService.getTeacherHomeworkGradingQueue(username);
-        final ptms = await _schoolService.getTeacherPtmBookings(displayName ?? username);
+        final queue =
+            await _schoolService.getTeacherHomeworkGradingQueue(username);
+        final ptms =
+            await _schoolService.getTeacherPtmBookings(displayName ?? username);
         final myLeaves = await _schoolService.getTeacherLeaves(username);
         final notifs = await _schoolService.getTeacherNotifications(username);
-        final workload = await _schoolService.getTeacherWeeklyWorkload(username);
+        final workload =
+            await _schoolService.getTeacherWeeklyWorkload(username);
 
         // Period-wise attendance marked checks for today (N13)
         final markedClasses = <String>{};
@@ -193,7 +210,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         for (final s in schedule) {
           final cid = (s['class_id'] ?? s['class'] ?? '').toString();
           if (cid.isNotEmpty && !markedClasses.contains(cid)) {
-            final marked = await _schoolService.hasMarkedAttendanceToday(username, cid);
+            final marked =
+                await _schoolService.hasMarkedAttendanceToday(username, cid);
             if (marked) markedClasses.add(cid);
           }
         }
@@ -212,7 +230,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             _pendingStudentLeaves = pendingLeavesList;
           });
 
-          final velocity = await _schoolService.getTeacherSyllabusVelocity(username);
+          final velocity =
+              await _schoolService.getTeacherSyllabusVelocity(username);
           if (mounted) {
             setState(() {
               _syllabusVelocity = velocity;
@@ -227,7 +246,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Unable to load teacher workspace. Please check your connection and tap retry.';
+          _errorMessage =
+              'Unable to load teacher workspace. Please check your connection and tap retry.';
         });
       }
     }
@@ -297,9 +317,31 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final dateStr = '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]} ${now.year}';
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    final dateStr =
+        '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]} ${now.year}';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -313,7 +355,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           children: [
             const Text(
               'Teacher & Faculty Workspace',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A)),
             ),
             Text(
               _instituteName != null && _instituteName!.isNotEmpty
@@ -350,7 +395,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 15),
+                      Icon(Icons.auto_awesome_rounded,
+                          color: Colors.white, size: 15),
                       SizedBox(width: 5),
                       Text(
                         'AI Studio',
@@ -381,10 +427,14 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   top: 8,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444), shape: BoxShape.circle),
                     child: Text(
                       '${_notifications.where((n) => n['is_read'] != true).length}',
-                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -413,10 +463,12 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         backgroundColor: const Color(0xFF7C3AED),
         foregroundColor: Colors.white,
         elevation: 4,
-        icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Colors.white),
+        icon: const Icon(Icons.auto_awesome_rounded,
+            size: 18, color: Colors.white),
         label: const Text(
           'AI Assistant & Chatbot',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.3),
+          style: TextStyle(
+              fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.3),
         ),
       ),
       body: _isLoading
@@ -443,6 +495,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       if (_pendingStudentLeaves.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         _buildPendingStudentLeavesQueue(),
+                      ],
+                      if (_studentDoubts.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        _buildStudentDoubtsDesk(),
                       ],
                       const SizedBox(height: 20),
                       _buildTeacherAnalyticsSection(),
@@ -480,7 +536,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           SizedBox(height: 16),
           Text(
             'Connecting to Faculty Ledger...',
-            style: TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
+            style: TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 13,
+                fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -494,12 +553,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
+            const Icon(Icons.error_outline_rounded,
+                size: 48, color: Color(0xFFEF4444)),
             const SizedBox(height: 14),
             Text(
               _errorMessage ?? 'Unable to connect to school faculty ledger.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0F172A)),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -509,7 +572,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
             ),
           ],
@@ -544,7 +608,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               border: Border.all(color: const Color(0xFFCBD5E1)),
             ),
             child: const Center(
-              child: Icon(Icons.school_rounded, color: Color(0xFF0F172A), size: 26),
+              child: Icon(Icons.school_rounded,
+                  color: Color(0xFF0F172A), size: 26),
             ),
           ),
           const SizedBox(width: 14),
@@ -557,13 +622,17 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     Flexible(
                       child: Text(
                         _teacherName,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A)),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(6),
@@ -571,7 +640,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       ),
                       child: const Text(
                         'FACULTY',
-                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8)),
+                        style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1D4ED8)),
                       ),
                     ),
                   ],
@@ -579,7 +651,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 const SizedBox(height: 3),
                 Text(
                   _teacherClass,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF64748B)),
                 ),
               ],
             ),
@@ -590,11 +665,13 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               backgroundColor: const Color(0xFF0F172A),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
               elevation: 0,
             ),
             icon: const Icon(Icons.how_to_reg_rounded, size: 16),
-            label: const Text('Register', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+            label: const Text('Register',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
           ),
         ],
       ),
@@ -605,8 +682,12 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   // 2. 4-KPI SUMMARY GRID
   // ──────────────────────────────────────────────
   Widget _buildKpiGrid() {
-    final hasAttendance = _isAttendanceMarkedToday && _presentToday != null && _totalStudents != null && _totalStudents! > 0;
-    final attPct = hasAttendance ? (_presentToday! / _totalStudents!) * 100 : 0.0;
+    final hasAttendance = _isAttendanceMarkedToday &&
+        _presentToday != null &&
+        _totalStudents != null &&
+        _totalStudents! > 0;
+    final attPct =
+        hasAttendance ? (_presentToday! / _totalStudents!) * 100 : 0.0;
     final attValue = hasAttendance
         ? '$_presentToday / $_totalStudents'
         : (_totalStudents != null ? 'Not Marked' : 'No Class');
@@ -620,8 +701,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           title: "Attendance Today",
           value: attValue,
           badgeText: attBadge,
-          badgeBg: hasAttendance ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
-          badgeColor: hasAttendance ? const Color(0xFF10B981) : const Color(0xFFD97706),
+          badgeBg:
+              hasAttendance ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
+          badgeColor:
+              hasAttendance ? const Color(0xFF10B981) : const Color(0xFFD97706),
           icon: Icons.how_to_reg_outlined,
           onTap: () {
             if (_todayAbsentees.isNotEmpty) {
@@ -660,6 +743,17 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           badgeColor: const Color(0xFFEF4444),
           icon: Icons.event_busy_outlined,
           onTap: () => context.push('/school/leave'),
+        ),
+        const SizedBox(width: 10),
+        _buildKpiCard(
+          title: "Student Doubts",
+          value:
+              '${_studentDoubts.where((d) => (d['status']?.toString() ?? 'pending').toLowerCase() != 'replied').length} Pending',
+          badgeText: 'Subject-wise',
+          badgeBg: const Color(0xFFEFF6FF),
+          badgeColor: const Color(0xFF0284C7),
+          icon: Icons.question_answer_outlined,
+          onTap: () => _showStudentDoubtsSheet(),
         ),
       ],
     );
@@ -700,11 +794,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 children: [
                   Icon(icon, size: 20, color: const Color(0xFF64748B)),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(6)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: badgeBg, borderRadius: BorderRadius.circular(6)),
                     child: Text(
                       badgeText,
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: badgeColor),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: badgeColor),
                     ),
                   ),
                 ],
@@ -712,14 +811,20 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               const SizedBox(height: 10),
               Text(
                 value,
-                style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A)),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Text(
                 title,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B)),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -760,7 +865,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.analytics_outlined, size: 18, color: Color(0xFF2563EB)),
+                child: const Icon(Icons.analytics_outlined,
+                    size: 18, color: Color(0xFF2563EB)),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -769,7 +875,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   children: [
                     const Text(
                       'Class Analytics & Academic Velocity',
-                      style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                      style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A)),
                     ),
                     const SizedBox(height: 2),
                     const Text(
@@ -784,12 +893,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0F172A),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                   elevation: 0,
                 ),
                 icon: const Icon(Icons.open_in_new_rounded, size: 14),
-                label: const Text('My Reports Hub', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                label: const Text('My Reports Hub',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
               ),
             ],
           ),
@@ -873,14 +986,22 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Attendance Trajectory (30 Days)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                  Text('CBSE 75% Statutory Limit Reference', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                  Text('Attendance Trajectory (30 Days)',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A))),
+                  Text('CBSE 75% Statutory Limit Reference',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
-                  color: avg >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                  color: avg >= 75
+                      ? const Color(0xFFECFDF5)
+                      : const Color(0xFFFEF2F2),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -888,7 +1009,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
-                    color: avg >= 75 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                    color: avg >= 75
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFDC2626),
                   ),
                 ),
               ),
@@ -898,7 +1021,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           SizedBox(
             height: 160,
             child: spots.isEmpty
-                ? const Center(child: Text('No attendance trajectory data available', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))))
+                ? const Center(
+                    child: Text('No attendance trajectory data available',
+                        style:
+                            TextStyle(fontSize: 11, color: Color(0xFF94A3B8))))
                 : LineChart(
                     LineChartData(
                       minY: 0,
@@ -906,19 +1032,25 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       gridData: FlGridData(
                         show: true,
                         drawVerticalLine: false,
-                        getDrawingHorizontalLine: (val) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                        getDrawingHorizontalLine: (val) => FlLine(
+                            color: const Color(0xFFE2E8F0), strokeWidth: 1),
                       ),
                       borderData: FlBorderData(show: false),
                       titlesData: FlTitlesData(
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 28,
                             getTitlesWidget: (v, m) {
                               if (v == 0 || v == 50 || v == 75 || v == 100) {
-                                return Text('${v.toInt()}%', style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                                return Text('${v.toInt()}%',
+                                    style: const TextStyle(
+                                        fontSize: 8.5,
+                                        color: Color(0xFF64748B)));
                               }
                               return const SizedBox();
                             },
@@ -932,8 +1064,14 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                             getTitlesWidget: (v, m) {
                               final idx = v.toInt();
                               if (idx >= 0 && idx < _attendanceTrend.length) {
-                                final dayNum = _attendanceTrend[idx]['day_number']?.toString() ?? '$idx';
-                                return Text(dayNum, style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                                final dayNum = _attendanceTrend[idx]
+                                            ['day_number']
+                                        ?.toString() ??
+                                    '$idx';
+                                return Text(dayNum,
+                                    style: const TextStyle(
+                                        fontSize: 8.5,
+                                        color: Color(0xFF64748B)));
                               }
                               return const SizedBox();
                             },
@@ -951,7 +1089,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                               show: true,
                               alignment: Alignment.topRight,
                               labelResolver: (l) => '75% CBSE',
-                              style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                              style: const TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFDC2626)),
                             ),
                           ),
                         ],
@@ -966,7 +1107,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                           dotData: const FlDotData(show: false),
                           belowBarData: BarAreaData(
                             show: true,
-                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                            color:
+                                const Color(0xFF10B981).withValues(alpha: 0.12),
                           ),
                         ),
                       ],
@@ -977,14 +1119,20 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Trend reflects active cohort attendance', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              const Text('Trend reflects active cohort attendance',
+                  style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
               InkWell(
                 onTap: () => context.push('/school/reports'),
                 child: const Row(
                   children: [
-                    Text('Full Register (T-R02)', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                    Text('Full Register (T-R02)',
+                        style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF2563EB))),
                     SizedBox(width: 2),
-                    Icon(Icons.arrow_forward_rounded, size: 11, color: Color(0xFF2563EB)),
+                    Icon(Icons.arrow_forward_rounded,
+                        size: 11, color: Color(0xFF2563EB)),
                   ],
                 ),
               ),
@@ -997,7 +1145,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
 
   // 2. CBSE Class Grade Distribution Chart (T-R04)
   Widget _buildGradeDistributionChartCard() {
-    final counts = (_gradeDistribution['counts'] as Map?)?.cast<String, int>() ?? {};
+    final counts =
+        (_gradeDistribution['counts'] as Map?)?.cast<String, int>() ?? {};
     final total = (_gradeDistribution['total'] as num?)?.toInt() ?? 0;
     final avg = (_gradeDistribution['average'] as num?)?.toDouble() ?? 0.0;
     const grades = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D', 'E'];
@@ -1021,7 +1170,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               toY: c,
               color: const Color(0xFF2563EB),
               width: 14,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(4)),
             ),
           ],
         ),
@@ -1044,19 +1194,28 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Evaluation Grade Distribution', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                  Text('CBSE 9-Point Performance Scale', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                  Text('Evaluation Grade Distribution',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A))),
+                  Text('CBSE 9-Point Performance Scale',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '$total Evaluated (${avg.toStringAsFixed(0)}% Avg)',
-                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8)),
+                  style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1D4ED8)),
                 ),
               ),
             ],
@@ -1065,26 +1224,37 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           SizedBox(
             height: 160,
             child: total == 0
-                ? const Center(child: Text('No examination evaluation records available', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))))
+                ? const Center(
+                    child: Text('No examination evaluation records available',
+                        style:
+                            TextStyle(fontSize: 11, color: Color(0xFF94A3B8))))
                 : BarChart(
                     BarChartData(
                       maxY: maxY,
                       gridData: FlGridData(
                         show: true,
                         drawVerticalLine: false,
-                        getDrawingHorizontalLine: (v) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                        getDrawingHorizontalLine: (v) => FlLine(
+                            color: const Color(0xFFE2E8F0), strokeWidth: 1),
                       ),
                       borderData: FlBorderData(show: false),
                       titlesData: FlTitlesData(
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 24,
                             getTitlesWidget: (v, m) {
-                              if (v == 0 || v == (maxY / 2).round() || v == maxY) {
-                                return Text('${v.toInt()}', style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                              if (v == 0 ||
+                                  v == (maxY / 2).round() ||
+                                  v == maxY) {
+                                return Text('${v.toInt()}',
+                                    style: const TextStyle(
+                                        fontSize: 8.5,
+                                        color: Color(0xFF64748B)));
                               }
                               return const SizedBox();
                             },
@@ -1097,7 +1267,11 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                             getTitlesWidget: (v, m) {
                               final idx = v.toInt();
                               if (idx >= 0 && idx < grades.length) {
-                                return Text(grades[idx], style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)));
+                                return Text(grades[idx],
+                                    style: const TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A)));
                               }
                               return const SizedBox();
                             },
@@ -1112,14 +1286,20 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('A1 (Top 1/8th) to E2 (Essential Repeat)', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              const Text('A1 (Top 1/8th) to E2 (Essential Repeat)',
+                  style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
               InkWell(
                 onTap: () => context.push('/school/reports'),
                 child: const Row(
                   children: [
-                    Text('Gradebook (T-R04)', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                    Text('Gradebook (T-R04)',
+                        style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF2563EB))),
                     SizedBox(width: 2),
-                    Icon(Icons.arrow_forward_rounded, size: 11, color: Color(0xFF2563EB)),
+                    Icon(Icons.arrow_forward_rounded,
+                        size: 11, color: Color(0xFF2563EB)),
                   ],
                 ),
               ),
@@ -1144,7 +1324,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               toY: avg,
               color: const Color(0xFF0D9488),
               width: 18,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(4)),
             ),
           ],
         ),
@@ -1167,19 +1348,28 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Subject Performance Averages', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                  Text('Comparative Cohort Benchmark', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                  Text('Subject Performance Averages',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A))),
+                  Text('Comparative Cohort Benchmark',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0FDFA),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '${_subjectAverages.length} Subjects',
-                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF0F766E)),
+                  style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F766E)),
                 ),
               ),
             ],
@@ -1188,26 +1378,35 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           SizedBox(
             height: 160,
             child: _subjectAverages.isEmpty
-                ? const Center(child: Text('No subject benchmarks available', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))))
+                ? const Center(
+                    child: Text('No subject benchmarks available',
+                        style:
+                            TextStyle(fontSize: 11, color: Color(0xFF94A3B8))))
                 : BarChart(
                     BarChartData(
                       maxY: 100,
                       gridData: FlGridData(
                         show: true,
                         drawVerticalLine: false,
-                        getDrawingHorizontalLine: (v) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                        getDrawingHorizontalLine: (v) => FlLine(
+                            color: const Color(0xFFE2E8F0), strokeWidth: 1),
                       ),
                       borderData: FlBorderData(show: false),
                       titlesData: FlTitlesData(
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 28,
                             getTitlesWidget: (v, m) {
                               if (v == 0 || v == 50 || v == 100) {
-                                return Text('${v.toInt()}%', style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                                return Text('${v.toInt()}%',
+                                    style: const TextStyle(
+                                        fontSize: 8.5,
+                                        color: Color(0xFF64748B)));
                               }
                               return const SizedBox();
                             },
@@ -1220,9 +1419,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                             getTitlesWidget: (v, m) {
                               final idx = v.toInt();
                               if (idx >= 0 && idx < _subjectAverages.length) {
-                                final sub = _subjectAverages[idx]['subject']?.toString() ?? '';
-                                final shortName = sub.length > 5 ? sub.substring(0, 4) : sub;
-                                return Text(shortName, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)));
+                                final sub = _subjectAverages[idx]['subject']
+                                        ?.toString() ??
+                                    '';
+                                final shortName =
+                                    sub.length > 5 ? sub.substring(0, 4) : sub;
+                                return Text(shortName,
+                                    style: const TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A)));
                               }
                               return const SizedBox();
                             },
@@ -1237,14 +1443,20 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Marks mean across all class cohorts', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              const Text('Marks mean across all class cohorts',
+                  style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
               InkWell(
                 onTap: () => context.push('/school/reports'),
                 child: const Row(
                   children: [
-                    Text('Subject Comparison (T-R05)', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                    Text('Subject Comparison (T-R05)',
+                        style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF2563EB))),
                     SizedBox(width: 2),
-                    Icon(Icons.arrow_forward_rounded, size: 11, color: Color(0xFF2563EB)),
+                    Icon(Icons.arrow_forward_rounded,
+                        size: 11, color: Color(0xFF2563EB)),
                   ],
                 ),
               ),
@@ -1265,16 +1477,41 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
 
     final sections = <PieChartSectionData>[];
     if (total == 0) {
-      sections.add(PieChartSectionData(value: 1, color: const Color(0xFFE2E8F0), title: '', radius: 24));
+      sections.add(PieChartSectionData(
+          value: 1, color: const Color(0xFFE2E8F0), title: '', radius: 24));
     } else {
       if (sub > 0) {
-        sections.add(PieChartSectionData(value: sub.toDouble(), color: const Color(0xFF10B981), title: '$sub', radius: 24, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)));
+        sections.add(PieChartSectionData(
+            value: sub.toDouble(),
+            color: const Color(0xFF10B981),
+            title: '$sub',
+            radius: 24,
+            titleStyle: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.white)));
       }
       if (late > 0) {
-        sections.add(PieChartSectionData(value: late.toDouble(), color: const Color(0xFFF59E0B), title: '$late', radius: 24, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)));
+        sections.add(PieChartSectionData(
+            value: late.toDouble(),
+            color: const Color(0xFFF59E0B),
+            title: '$late',
+            radius: 24,
+            titleStyle: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.white)));
       }
       if (missing > 0) {
-        sections.add(PieChartSectionData(value: missing.toDouble(), color: const Color(0xFFEF4444), title: '$missing', radius: 24, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)));
+        sections.add(PieChartSectionData(
+            value: missing.toDouble(),
+            color: const Color(0xFFEF4444),
+            title: '$missing',
+            radius: 24,
+            titleStyle: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.white)));
       }
     }
 
@@ -1294,14 +1531,22 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Homework Completion Velocity', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                  Text('Submission & Grading Distribution', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                  Text('Homework Completion Velocity',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A))),
+                  Text('Submission & Grading Distribution',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
-                  color: rate >= 70 ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                  color: rate >= 70
+                      ? const Color(0xFFECFDF5)
+                      : const Color(0xFFFFFBEB),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -1309,7 +1554,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
-                    color: rate >= 70 ? const Color(0xFF059669) : const Color(0xFFD97706),
+                    color: rate >= 70
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFD97706),
                   ),
                 ),
               ),
@@ -1333,9 +1580,14 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   children: [
                     Text(
                       '${rate.toStringAsFixed(0)}%',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A)),
                     ),
-                    const Text('Completed', style: TextStyle(fontSize: 8.5, color: Color(0xFF64748B))),
+                    const Text('Completed',
+                        style:
+                            TextStyle(fontSize: 8.5, color: Color(0xFF64748B))),
                   ],
                 ),
               ],
@@ -1349,7 +1601,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               const SizedBox(width: 12),
               _buildChartLegendDot(const Color(0xFFF59E0B), 'Late ($late)'),
               const SizedBox(width: 12),
-              _buildChartLegendDot(const Color(0xFFEF4444), 'Missing ($missing)'),
+              _buildChartLegendDot(
+                  const Color(0xFFEF4444), 'Missing ($missing)'),
             ],
           ),
         ],
@@ -1361,9 +1614,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontWeight: FontWeight.w600)),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 10,
+                color: Color(0xFF475569),
+                fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -1375,10 +1635,14 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
     final query = _searchQuery.trim().toLowerCase();
     final filtered = _students.where((s) {
       if (query.isEmpty) return true;
-      final name = (s['name'] ?? s['student_name'] ?? '').toString().toLowerCase();
-      final roll = (s['roll_number'] ?? s['roll_no'] ?? '').toString().toLowerCase();
+      final name =
+          (s['name'] ?? s['student_name'] ?? '').toString().toLowerCase();
+      final roll =
+          (s['roll_number'] ?? s['roll_no'] ?? '').toString().toLowerCase();
       final adm = (s['admission_no'] ?? s['id'] ?? '').toString().toLowerCase();
-      return name.contains(query) || roll.contains(query) || adm.contains(query);
+      return name.contains(query) ||
+          roll.contains(query) ||
+          adm.contains(query);
     }).toList();
 
     return Container(
@@ -1407,7 +1671,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.people_alt_rounded, size: 18, color: Color(0xFF2563EB)),
+                child: const Icon(Icons.people_alt_rounded,
+                    size: 18, color: Color(0xFF2563EB)),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1418,18 +1683,25 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       children: [
                         const Text(
                           'My Students Roster',
-                          style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                          style: TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A)),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF1F5F9),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             '${filtered.length} Enrolled',
-                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                            style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF475569)),
                           ),
                         ),
                       ],
@@ -1448,10 +1720,17 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     : () {
                         final currentClassLabel = _selectedClassFilter == 'all'
                             ? 'All Assigned Classes'
-                            : (_assignedClasses.firstWhere(
-                                (c) => c['class_id'] == _selectedClassFilter || c['id'] == _selectedClassFilter,
-                                orElse: () => {'name': _selectedClassFilter},
-                              )['name']?.toString() ?? _selectedClassFilter);
+                            : (_assignedClasses
+                                    .firstWhere(
+                                      (c) =>
+                                          c['class_id'] ==
+                                              _selectedClassFilter ||
+                                          c['id'] == _selectedClassFilter,
+                                      orElse: () =>
+                                          {'name': _selectedClassFilter},
+                                    )['name']
+                                    ?.toString() ??
+                                _selectedClassFilter);
                         SchoolExportService.exportClassRosterExcel(
                           context: context,
                           className: currentClassLabel,
@@ -1462,11 +1741,15 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF0F172A),
                   side: const BorderSide(color: Color(0xFFCBD5E1)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 icon: const Icon(Icons.file_download_outlined, size: 16),
-                label: const Text('Excel Roster', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                label: const Text('Excel Roster',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
               ),
             ],
           ),
@@ -1477,19 +1760,24 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             controller: _searchController,
             onChanged: (val) => setState(() => _searchQuery = val),
             decoration: InputDecoration(
-              hintText: 'Search student by name, roll number, or admission ID...',
-              hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
-              prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF64748B)),
+              hintText:
+                  'Search student by name, roll number, or admission ID...',
+              hintStyle:
+                  const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+              prefixIcon: const Icon(Icons.search_rounded,
+                  size: 20, color: Color(0xFF64748B)),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+                      icon: const Icon(Icons.close_rounded,
+                          size: 18, color: Color(0xFF64748B)),
                       onPressed: () {
                         _searchController.clear();
                         setState(() => _searchQuery = '');
                       },
                     )
                   : null,
-              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              contentPadding:
+                  const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
               border: OutlineInputBorder(
@@ -1502,7 +1790,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                borderSide:
+                    const BorderSide(color: Color(0xFF2563EB), width: 1.5),
               ),
             ),
           ),
@@ -1527,14 +1816,18 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   labelStyle: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
-                    color: _selectedClassFilter == 'all' ? Colors.white : const Color(0xFF475569),
+                    color: _selectedClassFilter == 'all'
+                        ? Colors.white
+                        : const Color(0xFF475569),
                   ),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                   side: BorderSide.none,
                 ),
                 const SizedBox(width: 8),
                 ..._assignedClasses.map((c) {
-                  final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+                  final cid =
+                      c['class_id']?.toString() ?? c['id']?.toString() ?? '';
                   final cname = c['name']?.toString() ?? 'Class';
                   final role = c['role']?.toString() ?? '';
                   final isSelected = _selectedClassFilter == cid;
@@ -1555,9 +1848,11 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       labelStyle: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
-                        color: isSelected ? Colors.white : const Color(0xFF475569),
+                        color:
+                            isSelected ? Colors.white : const Color(0xFF475569),
                       ),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       side: BorderSide.none,
                     ),
                   );
@@ -1575,9 +1870,15 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF2563EB))),
+                    SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.5, color: Color(0xFF2563EB))),
                     SizedBox(height: 12),
-                    Text('Loading cohort roster & attendance...', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                    Text('Loading cohort roster & attendance...',
+                        style:
+                            TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                   ],
                 ),
               ),
@@ -1591,7 +1892,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: const Center(
-                child: Text('No assigned teaching cohorts found for this account.', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+                child: Text(
+                    'No assigned teaching cohorts found for this account.',
+                    style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
               ),
             )
           else if (filtered.isEmpty)
@@ -1606,13 +1909,17 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.search_off_rounded, size: 36, color: Color(0xFF94A3B8)),
+                    const Icon(Icons.search_off_rounded,
+                        size: 36, color: Color(0xFF94A3B8)),
                     const SizedBox(height: 8),
                     Text(
                       _searchQuery.isNotEmpty
                           ? 'No students matching "$_searchQuery" in your assigned classes.'
                           : 'No enrolled students found in this cohort.',
-                      style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
+                      style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
@@ -1660,7 +1967,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
     final nameParts = name.trim().split(RegExp(r'\s+'));
     final initials = nameParts.length >= 2
         ? '${nameParts[0][0]}${nameParts[1][0]}'.toUpperCase()
-        : (name.isNotEmpty ? name.substring(0, name.length >= 2 ? 2 : 1).toUpperCase() : 'ST');
+        : (name.isNotEmpty
+            ? name.substring(0, name.length >= 2 ? 2 : 1).toUpperCase()
+            : 'ST');
 
     return InkWell(
       onTap: () => _showStudent360Modal(context, s),
@@ -1670,20 +1979,25 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         decoration: BoxDecoration(
           color: const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isAtRisk ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
+          border: Border.all(
+              color:
+                  isAtRisk ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
         ),
         child: Row(
           children: [
             // Initials Avatar
             CircleAvatar(
               radius: 20,
-              backgroundColor: isAtRisk ? const Color(0xFFFEE2E2) : const Color(0xFFEFF6FF),
+              backgroundColor:
+                  isAtRisk ? const Color(0xFFFEE2E2) : const Color(0xFFEFF6FF),
               child: Text(
                 initials,
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w800,
-                  color: isAtRisk ? const Color(0xFFEF4444) : const Color(0xFF2563EB),
+                  color: isAtRisk
+                      ? const Color(0xFFEF4444)
+                      : const Color(0xFF2563EB),
                 ),
               ),
             ),
@@ -1697,27 +2011,35 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 children: [
                   Text(
                     name,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Roll: $roll • $adm',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    style:
+                        const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 1.5),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       className,
-                      style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                      style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF475569)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1732,16 +2054,21 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: attPct <= 0
                         ? const Color(0xFFF1F5F9)
-                        : (isAtRisk ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5)),
+                        : (isAtRisk
+                            ? const Color(0xFFFEF2F2)
+                            : const Color(0xFFECFDF5)),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
                       color: attPct <= 0
                           ? const Color(0xFFCBD5E1)
-                          : (isAtRisk ? const Color(0xFFFCA5A5) : const Color(0xFFA7F3D0)),
+                          : (isAtRisk
+                              ? const Color(0xFFFCA5A5)
+                              : const Color(0xFFA7F3D0)),
                     ),
                   ),
                   child: Text(
@@ -1753,7 +2080,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       fontWeight: FontWeight.w800,
                       color: attPct <= 0
                           ? const Color(0xFF64748B)
-                          : (isAtRisk ? const Color(0xFFDC2626) : const Color(0xFF059669)),
+                          : (isAtRisk
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF059669)),
                     ),
                   ),
                 ),
@@ -1763,10 +2092,14 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   children: [
                     Text(
                       '360° View',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF2563EB)),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2563EB)),
                     ),
                     SizedBox(width: 2),
-                    Icon(Icons.arrow_forward_rounded, size: 10, color: Color(0xFF2563EB)),
+                    Icon(Icons.arrow_forward_rounded,
+                        size: 10, color: Color(0xFF2563EB)),
                   ],
                 ),
               ],
@@ -1780,13 +2113,15 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   // ──────────────────────────────────────────────
   // 4. STUDENT 360° PROFILE MODAL (N1)
   // ──────────────────────────────────────────────
-  void _showStudent360Modal(BuildContext context, Map<String, dynamic> student) {
+  void _showStudent360Modal(
+      BuildContext context, Map<String, dynamic> student) {
     final isDesktop = MediaQuery.of(context).size.width > 768;
     if (isDesktop) {
       showDialog(
         context: context,
         builder: (ctx) => Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 820, maxHeight: 680),
             child: _Student360ProfileSheet(
@@ -1823,23 +2158,28 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       children: [
         Row(
           children: [
-            const Icon(Icons.grade_outlined, size: 18, color: Color(0xFF0F172A)),
+            const Icon(Icons.grade_outlined,
+                size: 18, color: Color(0xFF0F172A)),
             const SizedBox(width: 8),
             const Text(
               'Examination & Marks Master',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A)),
             ),
             const Spacer(),
             TextButton.icon(
               onPressed: () => context.push('/school/report-card'),
               icon: const Icon(Icons.arrow_forward_rounded, size: 14),
-              label: const Text('All Cards', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFF2563EB)),
+              label: const Text('All Cards',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF2563EB)),
             ),
           ],
         ),
         const SizedBox(height: 8),
-
         Row(
           children: [
             Expanded(
@@ -1924,14 +2264,18 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   child: Icon(icon, color: accentColor, size: 20),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     tag,
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF475569)),
                   ),
                 ),
               ],
@@ -1939,12 +2283,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             const SizedBox(height: 12),
             Text(
               title,
-              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A)),
             ),
             const SizedBox(height: 3),
             Text(
               subtitle,
-              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
+              style: const TextStyle(
+                  fontSize: 11, color: Color(0xFF64748B), height: 1.3),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -2040,12 +2388,14 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             SizedBox(width: 8),
             Text(
               'Daily Operations & Classroom Tools',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A)),
             ),
           ],
         ),
         const SizedBox(height: 10),
-
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -2070,7 +2420,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               },
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -2084,7 +2435,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                         color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(op['icon'] as IconData, color: color, size: 18),
+                      child:
+                          Icon(op['icon'] as IconData, color: color, size: 18),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -2094,14 +2446,18 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                         children: [
                           Text(
                             op['title'] as String,
-                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                            style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A)),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           Text(
                             op['subtitle'] as String,
-                            style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                            style: const TextStyle(
+                                fontSize: 10.5, color: Color(0xFF64748B)),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -2132,11 +2488,17 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           children: [
             Row(
               children: [
-                const Icon(Icons.schedule_rounded, size: 18, color: Color(0xFF0F172A)),
+                const Icon(Icons.schedule_rounded,
+                    size: 18, color: Color(0xFF0F172A)),
                 const SizedBox(width: 8),
                 Text(
-                  isWeekly ? 'Weekly Teaching Workload (N11)' : "Today's Teaching Schedule",
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                  isWeekly
+                      ? 'Weekly Teaching Workload (N11)'
+                      : "Today's Teaching Schedule",
+                  style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A)),
                 ),
               ],
             ),
@@ -2144,8 +2506,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               children: [
                 SegmentedButton<String>(
                   segments: const [
-                    ButtonSegment(value: 'today', label: Text('Today', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
-                    ButtonSegment(value: 'weekly', label: Text('Week Load', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
+                    ButtonSegment(
+                        value: 'today',
+                        label: Text('Today',
+                            style: TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.w700))),
+                    ButtonSegment(
+                        value: 'weekly',
+                        label: Text('Week Load',
+                            style: TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.w700))),
                   ],
                   selected: {_scheduleViewMode},
                   onSelectionChanged: (val) {
@@ -2160,7 +2530,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   const SizedBox(width: 8),
                   IconButton(
                     tooltip: 'Export Workload Excel (T-R12)',
-                    icon: const Icon(Icons.file_download_outlined, color: Color(0xFF107C41), size: 20),
+                    icon: const Icon(Icons.file_download_outlined,
+                        color: Color(0xFF107C41), size: 20),
                     onPressed: () async {
                       if (_weeklyWorkload != null) {
                         await SchoolExportService.exportWeeklyWorkloadExcel(
@@ -2177,7 +2548,6 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           ],
         ),
         const SizedBox(height: 10),
-
         if (isWeekly) ...[
           _buildWeeklyWorkloadCards(),
         ] else ...[
@@ -2190,7 +2560,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: const Center(
-                child: Text('No lectures scheduled for today. Enjoy your preparation time!', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+                child: Text(
+                    'No lectures scheduled for today. Enjoy your preparation time!',
+                    style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
               ),
             )
           else ...[
@@ -2205,7 +2577,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
     if (_weeklyWorkload == null) return const SizedBox.shrink();
     final days = (_weeklyWorkload!['days'] as List?) ?? [];
     final total = _weeklyWorkload!['total_lectures'] ?? 0;
-    final util = (_weeklyWorkload!['utilization_rate'] as num?)?.toDouble() ?? 0.0;
+    final util =
+        (_weeklyWorkload!['utilization_rate'] as num?)?.toDouble() ?? 0.0;
 
     return Column(
       children: [
@@ -2221,22 +2594,39 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             children: [
               Column(
                 children: [
-                  Text('$total', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                  const Text('Total Weekly Periods', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  Text('$total',
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A))),
+                  const Text('Total Weekly Periods',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                 ],
               ),
               Container(width: 1, height: 28, color: const Color(0xFFCBD5E1)),
               Column(
                 children: [
-                  const Text('48', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
-                  const Text('School Capacity (8x6)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  const Text('48',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF475569))),
+                  const Text('School Capacity (8x6)',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                 ],
               ),
               Container(width: 1, height: 28, color: const Color(0xFFCBD5E1)),
               Column(
                 children: [
-                  Text('${util.toStringAsFixed(1)}%', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: util > 85 ? const Color(0xFFDC2626) : const Color(0xFF2563EB))),
-                  const Text('Utilization Rate', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  Text('${util.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: util > 85
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF2563EB))),
+                  const Text('Utilization Rate',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                 ],
               ),
             ],
@@ -2265,15 +2655,25 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               decoration: BoxDecoration(
                 color: isOver ? const Color(0xFFFEF2F2) : Colors.white,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: isOver ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
+                border: Border.all(
+                    color: isOver
+                        ? const Color(0xFFFECDD3)
+                        : const Color(0xFFE2E8F0)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(dayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                  Text(dayName,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 12.5)),
                   const SizedBox(height: 2),
-                  Text('$lecs Lectures • $free Free', style: TextStyle(fontSize: 11, color: isOver ? const Color(0xFFDC2626) : const Color(0xFF64748B))),
+                  Text('$lecs Lectures • $free Free',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: isOver
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF64748B))),
                 ],
               ),
             );
@@ -2285,9 +2685,15 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
 
   Widget _buildScheduleItem(Map<String, dynamic> item) {
     final subject = item['subject']?.toString() ?? 'Subject';
-    final className = (item['class'] ?? item['class_name'] ?? item['class_id'] ?? 'Class').toString();
+    final className =
+        (item['class'] ?? item['class_name'] ?? item['class_id'] ?? 'Class')
+            .toString();
     final room = item['room']?.toString().trim();
-    final time = (item['time'] ?? (item['start_time'] != null && item['end_time'] != null ? '${item['start_time']} - ${item['end_time']}' : (item['start_time']?.toString() ?? 'Scheduled'))).toString();
+    final time = (item['time'] ??
+            (item['start_time'] != null && item['end_time'] != null
+                ? '${item['start_time']} - ${item['end_time']}'
+                : (item['start_time']?.toString() ?? 'Scheduled')))
+        .toString();
     final period = item['period']?.toString() ?? 'Period';
 
     return Container(
@@ -2315,11 +2721,11 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Center(
-              child: Icon(Icons.menu_book_rounded, color: Color(0xFF2563EB), size: 20),
+              child: Icon(Icons.menu_book_rounded,
+                  color: Color(0xFF2563EB), size: 20),
             ),
           ),
           const SizedBox(width: 12),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2328,31 +2734,40 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   children: [
                     Text(
                       subject,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A)),
                     ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         period,
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                        style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF475569)),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  room != null && room.isNotEmpty ? '$className • Room $room' : className,
-                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                  room != null && room.isNotEmpty
+                      ? '$className • Room $room'
+                      : className,
+                  style:
+                      const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                 ),
               ],
             ),
           ),
-
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
@@ -2362,40 +2777,57 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             ),
             child: Text(
               time,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A)),
             ),
           ),
           const SizedBox(width: 8),
-
           () {
-            final cId = item['class_id']?.toString() ?? item['class']?.toString() ?? '';
-            final isMarked = _attendanceMarkedClassesToday.contains(cId) || _attendanceMarkedClassesToday.contains(className);
+            final cId =
+                item['class_id']?.toString() ?? item['class']?.toString() ?? '';
+            final isMarked = _attendanceMarkedClassesToday.contains(cId) ||
+                _attendanceMarkedClassesToday.contains(className);
 
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
-                    color: isMarked ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                    color: isMarked
+                        ? const Color(0xFFECFDF5)
+                        : const Color(0xFFFFFBEB),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: isMarked ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A)),
+                    border: Border.all(
+                        color: isMarked
+                            ? const Color(0xFFA7F3D0)
+                            : const Color(0xFFFDE68A)),
                   ),
                   child: Text(
                     isMarked ? '✓ Marked' : 'Pending',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: isMarked ? const Color(0xFF059669) : const Color(0xFFD97706),
+                      color: isMarked
+                          ? const Color(0xFF059669)
+                          : const Color(0xFFD97706),
                     ),
                   ),
                 ),
                 const SizedBox(width: 4),
                 IconButton(
                   tooltip: 'Take Attendance for $className ($period)',
-                  icon: Icon(Icons.how_to_reg_rounded, size: 20, color: isMarked ? const Color(0xFF10B981) : const Color(0xFFD97706)),
+                  icon: Icon(Icons.how_to_reg_rounded,
+                      size: 20,
+                      color: isMarked
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFD97706)),
                   onPressed: () {
-                    context.push('/school/attendance?classId=$cId&period=$period');
+                    context
+                        .push('/school/attendance?classId=$cId&period=$period');
                   },
                 ),
               ],
@@ -2405,7 +2837,6 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       ),
     );
   }
-
 
   // ──────────────────────────────────────────────
   // T6.1: LESSON PLAN SYLLABUS VELOCITY CARD (M5)
@@ -2432,12 +2863,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       color: const Color(0xFFEEF2FF),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.auto_stories_rounded, size: 16, color: Color(0xFF4F46E5)),
+                    child: const Icon(Icons.auto_stories_rounded,
+                        size: 16, color: Color(0xFF4F46E5)),
                   ),
                   const SizedBox(width: 8),
                   const Text(
                     'Curriculum Pacing & Syllabus Velocity',
-                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A)),
                   ),
                 ],
               ),
@@ -2450,12 +2885,15 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   );
                 },
                 icon: const Icon(Icons.file_download_outlined, size: 13),
-                label: const Text('Export Excel (T-R09)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                label: const Text('Export Excel (T-R09)',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF107C41),
                   side: const BorderSide(color: Color(0xFFA7F3D0)),
                   backgroundColor: const Color(0xFFECFDF5),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 ),
               ),
             ],
@@ -2492,11 +2930,18 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('$cName (${v['role'] ?? 'Faculty'})', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A))),
+                        Text('$cName (${v['role'] ?? 'Faculty'})',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: Color(0xFF0F172A))),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
-                            color: isLagging ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
+                            color: isLagging
+                                ? const Color(0xFFFEF2F2)
+                                : const Color(0xFFECFDF5),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -2504,7 +2949,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                             style: TextStyle(
                               fontSize: 9.5,
                               fontWeight: FontWeight.w800,
-                              color: isLagging ? const Color(0xFFDC2626) : const Color(0xFF047857),
+                              color: isLagging
+                                  ? const Color(0xFFDC2626)
+                                  : const Color(0xFF047857),
                             ),
                           ),
                         ),
@@ -2519,19 +2966,27 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                             child: LinearProgressIndicator(
                               value: (rate / 100).clamp(0.0, 1.0),
                               backgroundColor: const Color(0xFFE2E8F0),
-                              valueColor: AlwaysStoppedAnimation<Color>(isLagging ? const Color(0xFFF59E0B) : const Color(0xFF10B981)),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  isLagging
+                                      ? const Color(0xFFF59E0B)
+                                      : const Color(0xFF10B981)),
                               minHeight: 6,
                             ),
                           ),
                         ),
                         const SizedBox(width: 10),
-                        Text('${rate.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                        Text('${rate.toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A))),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Text(
                       '$taught of $total units taught • $inProg in progress${lagging > 0 ? " • $lagging need revision" : ""}',
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      style: const TextStyle(
+                          fontSize: 11, color: Color(0xFF64748B)),
                     ),
                   ],
                 ),
@@ -2568,18 +3023,26 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       color: const Color(0xFFFFEDD5),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.event_busy_rounded, size: 16, color: Color(0xFFEA580C)),
+                    child: const Icon(Icons.event_busy_rounded,
+                        size: 16, color: Color(0xFFEA580C)),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Student Leave Approvals Needed (${_pendingStudentLeaves.length})',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A)),
                   ),
                 ],
               ),
               TextButton(
                 onPressed: () => context.push('/school/leave'),
-                child: const Text('Leave Desk', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                child: const Text('Leave Desk',
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF2563EB))),
               ),
             ],
           ),
@@ -2606,9 +3069,15 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('$sName ($cName)', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A))),
+                        Text('$sName ($cName)',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: Color(0xFF0F172A))),
                         const SizedBox(height: 2),
-                        Text('$from to $to • Reason: $reason', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                        Text('$from to $to • Reason: $reason',
+                            style: const TextStyle(
+                                fontSize: 11, color: Color(0xFF64748B))),
                       ],
                     ),
                   ),
@@ -2623,18 +3092,25 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                             remarks: 'Approved by Class Teacher',
                           );
                           if (ok && mounted) {
-                            setState(() => _pendingStudentLeaves.removeWhere((x) => x['id']?.toString() == lid));
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave approved.')));
+                            setState(() => _pendingStudentLeaves.removeWhere(
+                                (x) => x['id']?.toString() == lid));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Leave approved.')));
                           }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF10B981),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                           elevation: 0,
                         ),
-                        child: const Text('Approve', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        child: const Text('Approve',
+                            style: TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 6),
                       OutlinedButton(
@@ -2645,17 +3121,24 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                             remarks: 'Rejected by Class Teacher',
                           );
                           if (ok && mounted) {
-                            setState(() => _pendingStudentLeaves.removeWhere((x) => x['id']?.toString() == lid));
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave rejected.')));
+                            setState(() => _pendingStudentLeaves.removeWhere(
+                                (x) => x['id']?.toString() == lid));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Leave rejected.')));
                           }
                         },
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFFEF4444),
                           side: const BorderSide(color: Color(0xFFFECDD3)),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
-                        child: const Text('Reject', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        child: const Text('Reject',
+                            style: TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -2663,6 +3146,341 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               ),
             );
           }),
+        ],
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> get _openStudentDoubts => _studentDoubts
+      .where((doubt) =>
+          (doubt['status']?.toString() ?? 'pending').toLowerCase() != 'replied')
+      .toList();
+
+  Widget _buildStudentDoubtsDesk() {
+    final openDoubts = _openStudentDoubts;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFEFF6FF), Colors.white],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0284C7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.question_answer_rounded,
+                    size: 17, color: Colors.white),
+              ),
+              const SizedBox(width: 9),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Student Doubt Desk',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A))),
+                    Text('Subject-matched questions from your students',
+                        style:
+                            TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: _showStudentDoubtsSheet,
+                child: const Text('Open Inbox',
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0284C7))),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...openDoubts.take(3).map(_buildDoubtPreviewRow),
+          if (openDoubts.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('+ ${openDoubts.length - 3} more doubts waiting',
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF0369A1),
+                      fontWeight: FontWeight.w700)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDoubtPreviewRow(Map<String, dynamic> doubt) {
+    final student = doubt['student_name']?.toString() ?? 'Student';
+    final subject = doubt['subject']?.toString() ?? 'General';
+    final message = doubt['message']?.toString() ?? 'Question awaiting reply';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFDBEAFE)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: const Color(0xFFE0F2FE),
+            child: Text(
+                student.isEmpty ? 'S' : student.substring(0, 1).toUpperCase(),
+                style: const TextStyle(
+                    color: Color(0xFF0369A1), fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$student · $subject',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A))),
+                const SizedBox(height: 2),
+                Text(message,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11, color: Color(0xFF64748B))),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => _showReplyToDoubtDialog(doubt),
+            child: const Text('Reply',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showStudentDoubtsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        height: MediaQuery.of(sheetContext).size.height * 0.78,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 14, 12),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Student Doubt Inbox',
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A))),
+                        Text('Only questions matching your assigned subjects',
+                            style: TextStyle(
+                                fontSize: 11.5, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close_rounded)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _studentDoubts.isEmpty
+                  ? const Center(
+                      child:
+                          Text('No student doubts matched to your subjects.'))
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
+                      itemCount: _studentDoubts.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 9),
+                      itemBuilder: (_, index) {
+                        final doubt = _studentDoubts[index];
+                        final replied =
+                            (doubt['status']?.toString() ?? '').toLowerCase() ==
+                                'replied';
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: replied
+                                    ? const Color(0xFFA7F3D0)
+                                    : const Color(0xFFBFDBFE)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${doubt['student_name'] ?? 'Student'} · ${doubt['subject'] ?? 'General'}',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF0F172A)),
+                                    ),
+                                  ),
+                                  _doubtStatusChip(replied),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(doubt['message']?.toString() ?? '',
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      color: Color(0xFF334155))),
+                              if (replied) ...[
+                                const SizedBox(height: 10),
+                                Text('Your reply: ${doubt['reply'] ?? ''}',
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF047857),
+                                        fontWeight: FontWeight.w600)),
+                              ] else ...[
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.pop(sheetContext);
+                                      _showReplyToDoubtDialog(doubt);
+                                    },
+                                    icon: const Icon(Icons.reply_rounded,
+                                        size: 16),
+                                    label: const Text('Clear Doubt'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF0284C7),
+                                      foregroundColor: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _doubtStatusChip(bool replied) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: replied ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(replied ? 'CLEARED' : 'PENDING',
+            style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                color: replied
+                    ? const Color(0xFF047857)
+                    : const Color(0xFFB45309))),
+      );
+
+  void _showReplyToDoubtDialog(Map<String, dynamic> doubt) {
+    final replyController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Clear ${doubt['student_name'] ?? 'student'}\'s doubt'),
+        content: TextField(
+          controller: replyController,
+          maxLines: 4,
+          decoration: InputDecoration(
+            hintText: 'Write a clear explanation or next step for the student…',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final reply = replyController.text.trim();
+              if (reply.isEmpty) return;
+              final ok = await _schoolService.replyToStudentQuery(
+                queryId: doubt['id']?.toString() ?? '',
+                teacherUsername: _teacherUsername,
+                teacherName: _teacherName,
+                reply: reply,
+              );
+              if (!dialogContext.mounted) return;
+              Navigator.pop(dialogContext);
+              if (ok && mounted) {
+                setState(() {
+                  final index = _studentDoubts.indexWhere((item) =>
+                      item['id']?.toString() == doubt['id']?.toString());
+                  if (index >= 0) {
+                    _studentDoubts[index] = {
+                      ..._studentDoubts[index],
+                      'reply': reply,
+                      'status': 'replied',
+                      'teacher_id': _teacherUsername,
+                    };
+                  }
+                });
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(ok
+                      ? 'Doubt cleared. The student can now see your reply.'
+                      : 'Could not save the reply. Please try again.'),
+                  backgroundColor:
+                      ok ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                ));
+              }
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white),
+            child: const Text('Send Reply'),
+          ),
         ],
       ),
     );
@@ -2691,7 +3509,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               child: Container(
                 width: 36,
                 height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2)),
               ),
             ),
             const SizedBox(height: 16),
@@ -2700,9 +3520,14 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.inbox_rounded, color: Color(0xFF2563EB), size: 20),
+                    Icon(Icons.inbox_rounded,
+                        color: Color(0xFF2563EB), size: 20),
                     SizedBox(width: 8),
-                    Text('Faculty Notifications & Inbox', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                    Text('Faculty Notifications & Inbox',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A))),
                   ],
                 ),
                 TextButton(
@@ -2714,7 +3539,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     });
                     Navigator.pop(ctx);
                   },
-                  child: const Text('Mark all read', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  child: const Text('Mark all read',
+                      style:
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -2723,7 +3550,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40),
                 child: Center(
-                  child: Text('No unread alerts or notifications.', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+                  child: Text('No unread alerts or notifications.',
+                      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
                 ),
               )
             else
@@ -2760,7 +3588,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                               n['title']?.toString() ?? '',
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                                fontWeight:
+                                    isRead ? FontWeight.w600 : FontWeight.w800,
                                 color: const Color(0xFF0F172A),
                               ),
                             ),
@@ -2769,13 +3598,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                             Container(
                               width: 8,
                               height: 8,
-                              decoration: const BoxDecoration(color: Color(0xFF2563EB), shape: BoxShape.circle),
+                              decoration: const BoxDecoration(
+                                  color: Color(0xFF2563EB),
+                                  shape: BoxShape.circle),
                             ),
                         ],
                       ),
                       subtitle: Text(
                         n['body']?.toString() ?? '',
-                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                        style: const TextStyle(
+                            fontSize: 11.5, color: Color(0xFF64748B)),
                       ),
                       onTap: () {
                         setState(() => n['is_read'] = true);
@@ -2803,7 +3635,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   // ──────────────────────────────────────────────
   Widget _buildUpcomingExamBanner() {
     if (_upcomingExam == null) return const SizedBox.shrink();
-    final name = _upcomingExam!['name'] ?? _upcomingExam!['subject'] ?? 'Upcoming Examination';
+    final name = _upcomingExam!['name'] ??
+        _upcomingExam!['subject'] ??
+        'Upcoming Examination';
     final date = _upcomingExam!['exam_date']?.toString() ?? '';
     final days = _upcomingExam!['days_remaining'] ?? 0;
 
@@ -2830,7 +3664,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.timer_outlined, color: Color(0xFF38BDF8), size: 20),
+            child: const Icon(Icons.timer_outlined,
+                color: Color(0xFF38BDF8), size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2841,18 +3676,25 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   children: [
                     Text(
                       '$name',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13.5),
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1.5),
                       decoration: BoxDecoration(
                         color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         days == 0 ? 'TODAY' : 'IN $days DAYS',
-                        style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 9.5, fontWeight: FontWeight.w800),
+                        style: const TextStyle(
+                            color: Color(0xFF38BDF8),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800),
                       ),
                     ),
                   ],
@@ -2860,7 +3702,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 const SizedBox(height: 2),
                 Text(
                   'Scheduled on $date • CBSE Term Assessment Cycle',
-                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                  style:
+                      const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
                 ),
               ],
             ),
@@ -2871,9 +3714,11 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               foregroundColor: Colors.white,
               side: const BorderSide(color: Color(0xFF475569)),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Datesheet', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            child: const Text('Datesheet',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -2905,18 +3750,26 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       color: const Color(0xFFF3E8FF),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.pending_actions_rounded, size: 16, color: Color(0xFF9333EA)),
+                    child: const Icon(Icons.pending_actions_rounded,
+                        size: 16, color: Color(0xFF9333EA)),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Homework Grading Queue (${_gradingQueue.length})',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A)),
                   ),
                 ],
               ),
               TextButton(
                 onPressed: () => context.push('/school/homework'),
-                child: const Text('View All', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                child: const Text('View All',
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF2563EB))),
               ),
             ],
           ),
@@ -2933,7 +3786,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: isOverdue ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
+                border: Border.all(
+                    color: isOverdue
+                        ? const Color(0xFFFECDD3)
+                        : const Color(0xFFE2E8F0)),
               ),
               child: Row(
                 children: [
@@ -2941,16 +3797,26 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A))),
+                        Text(title,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: Color(0xFF0F172A))),
                         const SizedBox(height: 2),
-                        Text('Class $cName • Due: ${hw['due_date'] ?? 'Upcoming'}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                        Text(
+                            'Class $cName • Due: ${hw['due_date'] ?? 'Upcoming'}',
+                            style: const TextStyle(
+                                fontSize: 11, color: Color(0xFF64748B))),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: isOverdue ? const Color(0xFFFEF2F2) : const Color(0xFFEFF6FF),
+                      color: isOverdue
+                          ? const Color(0xFFFEF2F2)
+                          : const Color(0xFFEFF6FF),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -2958,7 +3824,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFF2563EB),
+                        color: isOverdue
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF2563EB),
                       ),
                     ),
                   ),
@@ -2968,11 +3836,15 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
-                    child: const Text('Grade', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: const Text('Grade',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -3008,24 +3880,32 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       color: const Color(0xFFFEE2E2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFDC2626)),
+                    child: const Icon(Icons.warning_amber_rounded,
+                        size: 16, color: Color(0xFFDC2626)),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Attention Needed & Early Warning (${_atRiskStudents.length})',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A)),
                   ),
                 ],
               ),
               OutlinedButton.icon(
                 onPressed: () async {
-                  final rows = _atRiskStudents.map((s) => {
-                    'name': s['name'] ?? 'Student',
-                    'roll_number': s['roll_number'] ?? '-',
-                    'class': s['class_name'] ?? 'Class',
-                    'attendance_pct': s['attendance_pct'] ?? 0.0,
-                    'risk_reasons': (s['reasons'] as List?)?.join(', ') ?? 'At-risk',
-                  }).toList();
+                  final rows = _atRiskStudents
+                      .map((s) => {
+                            'name': s['name'] ?? 'Student',
+                            'roll_number': s['roll_number'] ?? '-',
+                            'class': s['class_name'] ?? 'Class',
+                            'attendance_pct': s['attendance_pct'] ?? 0.0,
+                            'risk_reasons':
+                                (s['reasons'] as List?)?.join(', ') ??
+                                    'At-risk',
+                          })
+                      .toList();
                   await SchoolExportService.exportDefaultersExcel(
                     context: context,
                     className: 'All Assigned Cohorts',
@@ -3034,12 +3914,15 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   );
                 },
                 icon: const Icon(Icons.file_download_outlined, size: 13),
-                label: const Text('Export Excel (T-R03)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                label: const Text('Export Excel (T-R03)',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFFDC2626),
                   side: const BorderSide(color: Color(0xFFFECACA)),
                   backgroundColor: const Color(0xFFFEF2F2),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 ),
               ),
             ],
@@ -3064,18 +3947,28 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isHigh ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB),
+                  color: isHigh
+                      ? const Color(0xFFFEF2F2)
+                      : const Color(0xFFFFFBEB),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: isHigh ? const Color(0xFFFECDD3) : const Color(0xFFFDE68A)),
+                  border: Border.all(
+                      color: isHigh
+                          ? const Color(0xFFFECDD3)
+                          : const Color(0xFFFDE68A)),
                 ),
                 child: Row(
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor: isHigh ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                      backgroundColor: isHigh
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFFD97706),
                       child: Text(
                         name.isNotEmpty ? name[0] : 'S',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -3085,12 +3978,23 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                         children: [
                           Row(
                             children: [
-                              Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A))),
+                              Text(name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      color: Color(0xFF0F172A))),
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
-                                child: Text(cName, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(4)),
+                                child: Text(cName,
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF475569))),
                               ),
                             ],
                           ),
@@ -3100,13 +4004,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: isHigh ? const Color(0xFFB91C1C) : const Color(0xFFB45309),
+                              color: isHigh
+                                  ? const Color(0xFFB91C1C)
+                                  : const Color(0xFFB45309),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Color(0xFF94A3B8)),
+                    const Icon(Icons.arrow_forward_ios_rounded,
+                        size: 13, color: Color(0xFF94A3B8)),
                   ],
                 ),
               ),
@@ -3135,49 +4042,68 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         children: [
           Row(
             children: [
-              const Icon(Icons.swap_calls_rounded, color: Color(0xFFD97706), size: 18),
+              const Icon(Icons.swap_calls_rounded,
+                  color: Color(0xFFD97706), size: 18),
               const SizedBox(width: 8),
               Text(
                 "Today's Substitution Duty (${_substitutionsToday.length})",
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF92400E), fontSize: 13.5),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF92400E),
+                    fontSize: 13.5),
               ),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
-                child: const Text('ASSIGNED DUTY', style: TextStyle(color: Color(0xFFB45309), fontSize: 9.5, fontWeight: FontWeight.bold)),
+                decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(6)),
+                child: const Text('ASSIGNED DUTY',
+                    style: TextStyle(
+                        color: Color(0xFFB45309),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold)),
               ),
             ],
           ),
           const SizedBox(height: 8),
           ..._substitutionsToday.map((sub) => Container(
-            margin: const EdgeInsets.only(top: 6),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Period ${sub['period']} • Class ${sub['class_id']} • Room ${sub['room'] ?? 'Lab'} • Covering for ${sub['original_teacher']}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                  ),
+                margin: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8)),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Period ${sub['period']} • Class ${sub['class_id']} • Room ${sub['room'] ?? 'Lab'} • Covering for ${sub['original_teacher']}',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A)),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Substitution duty acknowledged.')),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD97706),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                      ),
+                      child: const Text('Acknowledge',
+                          style: TextStyle(
+                              fontSize: 10.5, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
-                ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Substitution duty acknowledged.')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD97706),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  ),
-                  child: const Text('Acknowledge', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-          )),
+              )),
         ],
       ),
     );
@@ -3194,8 +4120,11 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       return;
     }
 
-    String selectedClassId = _assignedClasses.first['class_id']?.toString() ?? _assignedClasses.first['id']?.toString() ?? '';
-    String selectedClassName = _assignedClasses.first['name']?.toString() ?? 'Class';
+    String selectedClassId = _assignedClasses.first['class_id']?.toString() ??
+        _assignedClasses.first['id']?.toString() ??
+        '';
+    String selectedClassName =
+        _assignedClasses.first['name']?.toString() ?? 'Class';
     final titleCtrl = TextEditingController();
     final bodyCtrl = TextEditingController();
     String priority = 'Normal';
@@ -3205,71 +4134,104 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       context: context,
       builder: (dlgCtx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Broadcast Notice to Class Parents', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Broadcast Notice to Class Parents',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Select Target Cohort', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              const Text('Select Target Cohort',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569))),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 initialValue: selectedClassId,
                 items: _assignedClasses.map((c) {
-                  final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
+                  final cid =
+                      c['class_id']?.toString() ?? c['id']?.toString() ?? '';
                   final cname = c['name']?.toString() ?? 'Class';
-                  return DropdownMenuItem(value: cid, child: Text(cname, style: const TextStyle(fontSize: 12)));
+                  return DropdownMenuItem(
+                      value: cid,
+                      child: Text(cname, style: const TextStyle(fontSize: 12)));
                 }).toList(),
                 onChanged: (v) {
                   if (v != null) {
-                    final matched = _assignedClasses.firstWhere((c) => (c['class_id']?.toString() ?? c['id']?.toString()) == v, orElse: () => {});
+                    final matched = _assignedClasses.firstWhere(
+                        (c) =>
+                            (c['class_id']?.toString() ??
+                                c['id']?.toString()) ==
+                            v,
+                        orElse: () => {});
                     setDlgState(() {
                       selectedClassId = v;
-                      selectedClassName = matched['name']?.toString() ?? 'Class';
+                      selectedClassName =
+                          matched['name']?.toString() ?? 'Class';
                     });
                   }
                 },
                 decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
               const SizedBox(height: 12),
-              const Text('Notice Subject', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              const Text('Notice Subject',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569))),
               const SizedBox(height: 6),
               TextField(
                 controller: titleCtrl,
                 decoration: InputDecoration(
                   hintText: 'e.g. Science Test on Friday / Field Trip Consent',
-                  hintStyle: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                  hintStyle:
+                      const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
                   contentPadding: const EdgeInsets.all(10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 style: const TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 12),
-              const Text('Message Body', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              const Text('Message Body',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569))),
               const SizedBox(height: 6),
               TextField(
                 controller: bodyCtrl,
                 maxLines: 3,
                 decoration: InputDecoration(
-                  hintText: 'Write the announcement details clearly for parents...',
-                  hintStyle: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                  hintText:
+                      'Write the announcement details clearly for parents...',
+                  hintStyle:
+                      const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
                   contentPadding: const EdgeInsets.all(10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 style: const TextStyle(fontSize: 12),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dlgCtx),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: isSending
                   ? null
                   : () async {
-                      if (titleCtrl.text.trim().isEmpty || bodyCtrl.text.trim().isEmpty) return;
+                      if (titleCtrl.text.trim().isEmpty ||
+                          bodyCtrl.text.trim().isEmpty) return;
                       setDlgState(() => isSending = true);
                       final ok = await _schoolService.sendClassAnnouncement(
                         teacherUsername: _teacherUsername,
@@ -3283,11 +4245,16 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       if (context.mounted) {
                         Navigator.pop(dlgCtx);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(ok ? 'Notice broadcasted to parents.' : 'Failed to broadcast.')),
+                          SnackBar(
+                              content: Text(ok
+                                  ? 'Notice broadcasted to parents.'
+                                  : 'Failed to broadcast.')),
                         );
                       }
                     },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white),
               child: const Text('Send Notice'),
             ),
           ],
@@ -3303,34 +4270,49 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
         builder: (context, setSheetState) => Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8),
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
-                child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2))),
               ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Faculty Leave Desk', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                  const Text('Faculty Leave Desk',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A))),
                   ElevatedButton.icon(
                     onPressed: () => _openApplyLeaveDialog(context, () async {
-                      final updated = await _schoolService.getTeacherLeaves(_teacherUsername);
+                      final updated = await _schoolService
+                          .getTeacherLeaves(_teacherUsername);
                       setSheetState(() => _teacherLeaves = updated);
                     }),
                     icon: const Icon(Icons.add, size: 14),
-                    label: const Text('Apply Leave', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    label: const Text('Apply Leave',
+                        style: TextStyle(
+                            fontSize: 11.5, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                     ),
                   ),
                 ],
@@ -3339,7 +4321,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               if (_teacherLeaves.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(child: Text('No leave applications recorded for this academic session.', style: TextStyle(color: Color(0xFF94A3B8)))),
+                  child: Center(
+                      child: Text(
+                          'No leave applications recorded for this academic session.',
+                          style: TextStyle(color: Color(0xFF94A3B8)))),
                 )
               else
                 Expanded(
@@ -3349,19 +4334,32 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (ctx, i) {
                       final l = _teacherLeaves[i];
-                      final st = (l['status']?.toString() ?? 'Pending').toLowerCase();
+                      final st =
+                          (l['status']?.toString() ?? 'Pending').toLowerCase();
                       Color c = const Color(0xFFF59E0B);
                       if (st == 'approved') c = const Color(0xFF10B981);
                       if (st == 'rejected') c = const Color(0xFFEF4444);
 
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                        title: Text('${l['type']} Leave', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        subtitle: Text('${l['start_date']} to ${l['end_date']} • Reason: ${l['reason']}', style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                        title: Text('${l['type']} Leave',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13)),
+                        subtitle: Text(
+                            '${l['start_date']} to ${l['end_date']} • Reason: ${l['reason']}',
+                            style: const TextStyle(
+                                fontSize: 11.5, color: Color(0xFF64748B))),
                         trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                          child: Text(st.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: c)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                              color: c.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6)),
+                          child: Text(st.toUpperCase(),
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: c)),
                         ),
                       );
                     },
@@ -3384,26 +4382,34 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       context: context,
       builder: (dlgCtx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Apply Faculty Leave', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Apply Faculty Leave',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
                 initialValue: leaveType,
                 items: const [
-                  DropdownMenuItem(value: 'Casual Leave', child: Text('Casual Leave')),
-                  DropdownMenuItem(value: 'Medical Leave', child: Text('Medical Leave')),
-                  DropdownMenuItem(value: 'Duty Leave', child: Text('Duty Leave')),
-                  DropdownMenuItem(value: 'Earned Leave', child: Text('Earned Leave')),
+                  DropdownMenuItem(
+                      value: 'Casual Leave', child: Text('Casual Leave')),
+                  DropdownMenuItem(
+                      value: 'Medical Leave', child: Text('Medical Leave')),
+                  DropdownMenuItem(
+                      value: 'Duty Leave', child: Text('Duty Leave')),
+                  DropdownMenuItem(
+                      value: 'Earned Leave', child: Text('Earned Leave')),
                 ],
                 onChanged: (v) {
                   if (v != null) setDlgState(() => leaveType = v);
                 },
                 decoration: InputDecoration(
                   labelText: 'Leave Type',
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
               const SizedBox(height: 12),
@@ -3413,29 +4419,37 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 decoration: InputDecoration(
                   labelText: 'Reason for absence',
                   contentPadding: const EdgeInsets.all(10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dlgCtx),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
-                final startStr = '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
-                final endStr = '${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}';
+                final startStr =
+                    '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
+                final endStr =
+                    '${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}';
                 await _schoolService.applyTeacherLeave(
                   teacherUsername: _teacherUsername,
                   teacherName: _teacherName,
                   leaveType: leaveType,
                   startDate: startStr,
                   endDate: endStr,
-                  reason: reasonCtrl.text.trim().isEmpty ? 'Personal reasons' : reasonCtrl.text.trim(),
+                  reason: reasonCtrl.text.trim().isEmpty
+                      ? 'Personal reasons'
+                      : reasonCtrl.text.trim(),
                 );
                 if (context.mounted) {
                   Navigator.pop(dlgCtx);
                   onApplied();
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave application filed.')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Leave application filed.')));
                 }
               },
               child: const Text('Submit Application'),
@@ -3453,27 +4467,43 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
         builder: (context, setSheetState) => Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8),
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
-                child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2))),
               ),
               const SizedBox(height: 16),
-              const Text('Parent-Teacher Meeting (PTM) Slots', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+              const Text('Parent-Teacher Meeting (PTM) Slots',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A))),
               const SizedBox(height: 4),
-              const Text('Review scheduled parent conferences and update completion status.', style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+              const Text(
+                  'Review scheduled parent conferences and update completion status.',
+                  style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
               const Divider(height: 20),
               if (_ptmBookings.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Center(child: Text('No parent meeting appointments booked currently.', style: TextStyle(color: Color(0xFF94A3B8)))),
+                  child: Center(
+                      child: Text(
+                          'No parent meeting appointments booked currently.',
+                          style: TextStyle(color: Color(0xFF94A3B8)))),
                 )
               else
                 Expanded(
@@ -3488,21 +4518,35 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                         contentPadding: const EdgeInsets.symmetric(vertical: 4),
                         leading: const CircleAvatar(
                           backgroundColor: Color(0xFFEFF6FF),
-                          child: Icon(Icons.people_alt_outlined, color: Color(0xFF2563EB), size: 18),
+                          child: Icon(Icons.people_alt_outlined,
+                              color: Color(0xFF2563EB), size: 18),
                         ),
-                        title: Text('Student: ${b['student']} (Parent: ${b['parent']})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        subtitle: Text('Date: ${b['date']} • Time: ${b['time_slot']}\nAgenda: ${b['agenda']}', style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                        title: Text(
+                            'Student: ${b['student']} (Parent: ${b['parent']})',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13)),
+                        subtitle: Text(
+                            'Date: ${b['date']} • Time: ${b['time_slot']}\nAgenda: ${b['agenda']}',
+                            style: const TextStyle(
+                                fontSize: 11.5, color: Color(0xFF64748B))),
                         trailing: ElevatedButton(
                           onPressed: () async {
-                            final newStatus = st == 'Completed' ? 'Confirmed' : 'Completed';
-                            await _schoolService.updatePtmBookingStatus(b['id'], newStatus);
+                            final newStatus =
+                                st == 'Completed' ? 'Confirmed' : 'Completed';
+                            await _schoolService.updatePtmBookingStatus(
+                                b['id'], newStatus);
                             setSheetState(() => b['status'] = newStatus);
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: st == 'Completed' ? const Color(0xFF10B981) : const Color(0xFF2563EB),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            backgroundColor: st == 'Completed'
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFF2563EB),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                           ),
-                          child: Text(st == 'Completed' ? 'Done' : 'Mark Done', style: const TextStyle(fontSize: 10, color: Colors.white)),
+                          child: Text(st == 'Completed' ? 'Done' : 'Mark Done',
+                              style: const TextStyle(
+                                  fontSize: 10, color: Colors.white)),
                         ),
                       );
                     },
@@ -3545,8 +4589,12 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               ),
               const SizedBox(height: 12),
               ..._todayAbsentees.map((a) {
-                final name = a['student_name']?.toString() ?? a['name']?.toString() ?? 'Student';
-                final roll = a['roll_no']?.toString() ?? a['roll_number']?.toString() ?? '';
+                final name = a['student_name']?.toString() ??
+                    a['name']?.toString() ??
+                    'Student';
+                final roll = a['roll_no']?.toString() ??
+                    a['roll_number']?.toString() ??
+                    '';
                 return Container(
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.all(8),
@@ -3560,18 +4608,25 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       const CircleAvatar(
                         radius: 12,
                         backgroundColor: Color(0xFFFEE2E2),
-                        child: Icon(Icons.person, size: 14, color: Color(0xFFEF4444)),
+                        child: Icon(Icons.person,
+                            size: 14, color: Color(0xFFEF4444)),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '$name ${roll.isNotEmpty ? "(Roll: $roll)" : ""}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A)),
                         ),
                       ),
                       const Text(
                         'Absent',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFDC2626)),
                       ),
                     ],
                   ),
@@ -3581,7 +4636,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF10B981),
@@ -3617,7 +4673,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
                     child: const Center(
-                      child: Icon(Icons.school_rounded, color: Color(0xFF0F172A), size: 22),
+                      child: Icon(Icons.school_rounded,
+                          color: Color(0xFF0F172A), size: 22),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -3627,11 +4684,15 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       children: [
                         Text(
                           _teacherName,
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A)),
                         ),
                         Text(
                           _teacherClass,
-                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: Color(0xFF64748B)),
                         ),
                       ],
                     ),
@@ -3642,82 +4703,105 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             const Divider(height: 1, color: Color(0xFFE2E8F0)),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 children: [
-                  _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard', () => Navigator.pop(context)),
-                  _buildDrawerTile(Icons.event_note_rounded, 'Academic Calendar & Milestones', () {
+                  _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard',
+                      () => Navigator.pop(context)),
+                  _buildDrawerTile(Icons.event_note_rounded,
+                      'Academic Calendar & Milestones', () {
                     Navigator.pop(context);
                     context.push('/school/calendar');
                   }),
-                  _buildDrawerTile(Icons.people_alt_rounded, 'My Students Roster', () {
+                  _buildDrawerTile(
+                      Icons.people_alt_rounded, 'My Students Roster', () {
                     Navigator.pop(context);
                     _loadStudents();
                   }),
-                  _buildDrawerTile(Icons.auto_awesome_rounded, 'AI Studio & Question Paper Generator (SP11)', () {
+                  _buildDrawerTile(Icons.auto_awesome_rounded,
+                      'AI Studio & Question Paper Generator (SP11)', () {
                     Navigator.pop(context);
                     context.push('/school/ai-tools-faculty');
                   }),
-                  _buildDrawerTile(Icons.analytics_rounded, 'My Reports & Analytics', () {
+                  _buildDrawerTile(
+                      Icons.analytics_rounded, 'My Reports & Analytics', () {
                     Navigator.pop(context);
                     context.push('/school/reports');
                   }),
-                  _buildDrawerTile(Icons.menu_book_rounded, 'Lesson Plans & 5E Studio', () {
+                  _buildDrawerTile(
+                      Icons.menu_book_rounded, 'Lesson Plans & 5E Studio', () {
                     Navigator.pop(context);
                     context.push('/school/lesson-plans');
                   }),
-                  _buildDrawerTile(Icons.edit_note_rounded, 'Enter & Upload Marks', () {
+                  _buildDrawerTile(
+                      Icons.edit_note_rounded, 'Enter & Upload Marks', () {
                     Navigator.pop(context);
                     context.push('/school/marks-entry');
                   }),
-                  _buildDrawerTile(Icons.upload_file_rounded, 'Bulk CSV Marks Upload', () {
+                  _buildDrawerTile(
+                      Icons.upload_file_rounded, 'Bulk CSV Marks Upload', () {
                     Navigator.pop(context);
                     context.push('/school/marks/csv');
                   }),
-                  _buildDrawerTile(Icons.description_outlined, 'Report Cards & HPC', () {
+                  _buildDrawerTile(
+                      Icons.description_outlined, 'Report Cards & HPC', () {
                     Navigator.pop(context);
                     context.push('/school/report-card');
                   }),
-                  _buildDrawerTile(Icons.fact_check_outlined, 'Exam Sessions & Date Sheet', () {
+                  _buildDrawerTile(
+                      Icons.fact_check_outlined, 'Exam Sessions & Date Sheet',
+                      () {
                     Navigator.pop(context);
                     context.push('/school/examination');
                   }),
-                  _buildDrawerTile(Icons.how_to_reg_rounded, 'Daily Attendance', () {
+                  _buildDrawerTile(Icons.how_to_reg_rounded, 'Daily Attendance',
+                      () {
                     Navigator.pop(context);
                     context.push('/school/attendance');
                   }),
-                  _buildDrawerTile(Icons.assignment_outlined, 'Homework & Tasks', () {
+                  _buildDrawerTile(
+                      Icons.assignment_outlined, 'Homework & Tasks', () {
                     Navigator.pop(context);
                     context.push('/school/homework');
                   }),
-                  _buildDrawerTile(Icons.event_busy_rounded, 'Leave Approvals', () {
+                  _buildDrawerTile(Icons.event_busy_rounded, 'Leave Approvals',
+                      () {
                     Navigator.pop(context);
                     context.push('/school/leave');
                   }),
-                  _buildDrawerTile(Icons.calendar_month_rounded, 'Class Timetable', () {
+                  _buildDrawerTile(
+                      Icons.calendar_month_rounded, 'Class Timetable', () {
                     Navigator.pop(context);
                     context.push('/school/timetable');
                   }),
-                  _buildDrawerTile(Icons.campaign_outlined, 'Official Circulars', () {
+                  _buildDrawerTile(
+                      Icons.campaign_outlined, 'Official Circulars', () {
                     Navigator.pop(context);
                     context.push('/school/circulars');
                   }),
-                  _buildDrawerTile(Icons.chat_bubble_outline_rounded, 'Message Class Parents (N4)', () {
+                  _buildDrawerTile(Icons.chat_bubble_outline_rounded,
+                      'Message Class Parents (N4)', () {
                     Navigator.pop(context);
                     _showMessageParentsDialog();
                   }),
-                  _buildDrawerTile(Icons.time_to_leave_rounded, 'Faculty Leave Desk (N6)', () {
+                  _buildDrawerTile(
+                      Icons.time_to_leave_rounded, 'Faculty Leave Desk (N6)',
+                      () {
                     Navigator.pop(context);
                     _showMyLeaveModal();
                   }),
-                  _buildDrawerTile(Icons.groups_rounded, 'PTM Meeting Slots (N10)', () {
+                  _buildDrawerTile(
+                      Icons.groups_rounded, 'PTM Meeting Slots (N10)', () {
                     Navigator.pop(context);
                     _showPtmSlotsModal();
                   }),
-                  _buildDrawerTile(Icons.inbox_rounded, 'Faculty Notifications & Inbox (N14)', () {
+                  _buildDrawerTile(Icons.inbox_rounded,
+                      'Faculty Notifications & Inbox (N14)', () {
                     Navigator.pop(context);
                     _showInboxModal();
                   }),
-                  _buildDrawerTile(Icons.local_library_outlined, 'School Library', () {
+                  _buildDrawerTile(
+                      Icons.local_library_outlined, 'School Library', () {
                     Navigator.pop(context);
                     context.push('/school/library');
                   }),
@@ -3728,14 +4812,18 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: ListTile(
-                leading: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
-                title: const Text('Logout', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFEF4444))),
+                leading:
+                    const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
+                title: const Text('Logout',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, color: Color(0xFFEF4444))),
                 onTap: () async {
                   await _authService.logout();
                   if (context.mounted) context.go('/login');
                 },
                 dense: true,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
             ),
           ],
@@ -3747,7 +4835,11 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   Widget _buildDrawerTile(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
       leading: Icon(icon, size: 20, color: const Color(0xFF475569)),
-      title: Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+      title: Text(title,
+          style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF0F172A))),
       dense: true,
       onTap: onTap,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -3768,10 +4860,12 @@ class _Student360ProfileSheet extends StatefulWidget {
   });
 
   @override
-  State<_Student360ProfileSheet> createState() => _Student360ProfileSheetState();
+  State<_Student360ProfileSheet> createState() =>
+      _Student360ProfileSheetState();
 }
 
-class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with SingleTickerProviderStateMixin {
+class _Student360ProfileSheetState extends State<_Student360ProfileSheet>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _loading = true;
   String? _errorMessage;
@@ -3804,7 +4898,8 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
           widget.student['id']?.toString() ??
           '';
       final cId = widget.student['class_id']?.toString() ?? '';
-      final res = await widget.schoolService.getStudent360Profile(studentId: sId, classId: cId);
+      final res = await widget.schoolService
+          .getStudent360Profile(studentId: sId, classId: cId);
       final notes = await widget.schoolService.getStudentBehaviourNotes(sId);
       if (mounted) {
         setState(() {
@@ -3817,7 +4912,8 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
       if (mounted) {
         setState(() {
           _loading = false;
-          _errorMessage = 'Could not load student 360 profile. Please try again.';
+          _errorMessage =
+              'Could not load student 360 profile. Please try again.';
         });
       }
     }
@@ -3825,14 +4921,20 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
 
   @override
   Widget build(BuildContext context) {
-    final name = (widget.student['name'] ?? widget.student['student_name'] ?? 'Student').toString();
-    final roll = (widget.student['roll_number'] ?? widget.student['roll_no'] ?? '-').toString();
+    final name =
+        (widget.student['name'] ?? widget.student['student_name'] ?? 'Student')
+            .toString();
+    final roll =
+        (widget.student['roll_number'] ?? widget.student['roll_no'] ?? '-')
+            .toString();
     final adm = (widget.student['admission_no'] ??
             widget.student['username'] ??
             widget.student['id'] ??
             '-')
         .toString();
-    final cls = (widget.student['class_name'] ?? widget.student['class_id'] ?? 'Class').toString();
+    final cls =
+        (widget.student['class_name'] ?? widget.student['class_id'] ?? 'Class')
+            .toString();
 
     return Column(
       children: [
@@ -3844,7 +4946,8 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
               CircleAvatar(
                 radius: 22,
                 backgroundColor: const Color(0xFFEFF6FF),
-                child: const Icon(Icons.person_outline_rounded, color: Color(0xFF2563EB), size: 24),
+                child: const Icon(Icons.person_outline_rounded,
+                    color: Color(0xFF2563EB), size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -3856,20 +4959,27 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                         Flexible(
                           child: Text(
                             name,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A)),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF1F5F9),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             cls,
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF475569)),
                           ),
                         ),
                       ],
@@ -3877,13 +4987,15 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                     const SizedBox(height: 2),
                     Text(
                       'Roll No: $roll • Admission ID: $adm',
-                      style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                      style: const TextStyle(
+                          fontSize: 11.5, color: Color(0xFF64748B)),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.close_rounded, size: 22, color: Color(0xFF64748B)),
+                icon: const Icon(Icons.close_rounded,
+                    size: 22, color: Color(0xFF64748B)),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
@@ -3905,17 +5017,29 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
             tabAlignment: TabAlignment.start,
             labelColor: const Color(0xFF2563EB),
             unselectedLabelColor: const Color(0xFF64748B),
-            labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-            unselectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            labelStyle:
+                const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            unselectedLabelStyle:
+                const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
             indicatorColor: const Color(0xFF2563EB),
             indicatorWeight: 2.5,
             tabs: const [
               Tab(icon: Icon(Icons.badge_outlined, size: 16), text: 'Overview'),
-              Tab(icon: Icon(Icons.how_to_reg_outlined, size: 16), text: 'Attendance'),
-              Tab(icon: Icon(Icons.school_outlined, size: 16), text: 'Marks & CBSE'),
-              Tab(icon: Icon(Icons.assignment_outlined, size: 16), text: 'Homework'),
-              Tab(icon: Icon(Icons.event_busy_outlined, size: 16), text: 'Leaves'),
-              Tab(icon: Icon(Icons.psychology_outlined, size: 16), text: 'Behaviour (N7)'),
+              Tab(
+                  icon: Icon(Icons.how_to_reg_outlined, size: 16),
+                  text: 'Attendance'),
+              Tab(
+                  icon: Icon(Icons.school_outlined, size: 16),
+                  text: 'Marks & CBSE'),
+              Tab(
+                  icon: Icon(Icons.assignment_outlined, size: 16),
+                  text: 'Homework'),
+              Tab(
+                  icon: Icon(Icons.event_busy_outlined, size: 16),
+                  text: 'Leaves'),
+              Tab(
+                  icon: Icon(Icons.psychology_outlined, size: 16),
+                  text: 'Behaviour (N7)'),
             ],
           ),
         ),
@@ -3923,17 +5047,23 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
         // Tab View Body
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)))
+              ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF2563EB)))
               : _errorMessage != null
                   ? Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.error_outline, size: 36, color: Color(0xFFEF4444)),
+                          const Icon(Icons.error_outline,
+                              size: 36, color: Color(0xFFEF4444)),
                           const SizedBox(height: 8),
-                          Text(_errorMessage!, style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+                          Text(_errorMessage!,
+                              style: const TextStyle(
+                                  color: Color(0xFF64748B), fontSize: 13)),
                           const SizedBox(height: 12),
-                          ElevatedButton(onPressed: _loadProfileData, child: const Text('Retry')),
+                          ElevatedButton(
+                              onPressed: _loadProfileData,
+                              child: const Text('Retry')),
                         ],
                       ),
                     )
@@ -3956,7 +5086,8 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
   // 1. Overview Tab
   Widget _buildOverviewTab() {
     final attPct = (_profile?['attendance_pct'] as num?)?.toDouble() ?? 0.0;
-    final marksPct = (_profile?['overall_percentage'] as num?)?.toDouble() ?? 0.0;
+    final marksPct =
+        (_profile?['overall_percentage'] as num?)?.toDouble() ?? 0.0;
     final cbseGrade = _profile?['cbse_grade']?.toString() ?? 'N/A';
     final hwDone = _profile?['homework_submitted'] ?? 0;
     final hwTotal = _profile?['homework_assigned'] ?? 0;
@@ -3976,9 +5107,13 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
             Expanded(
               child: _buildMetricTile(
                 title: 'Attendance Rate',
-                value: attPct > 0 ? '${attPct.toStringAsFixed(1)}%' : 'Not Recorded',
+                value: attPct > 0
+                    ? '${attPct.toStringAsFixed(1)}%'
+                    : 'Not Recorded',
                 subtitle: isAtRisk ? 'Below 75% CBSE limit' : 'Good Standing',
-                color: isAtRisk ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                color: isAtRisk
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFF10B981),
                 icon: Icons.how_to_reg_rounded,
               ),
             ),
@@ -3986,7 +5121,9 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
             Expanded(
               child: _buildMetricTile(
                 title: 'Scholastic Standing',
-                value: marksPct > 0 ? '${marksPct.toStringAsFixed(1)}%' : 'No Marks',
+                value: marksPct > 0
+                    ? '${marksPct.toStringAsFixed(1)}%'
+                    : 'No Marks',
                 subtitle: 'CBSE Grade: $cbseGrade',
                 color: const Color(0xFF2563EB),
                 icon: Icons.school_rounded,
@@ -4027,12 +5164,25 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Identity & Academic Details', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              const Text('Identity & Academic Details',
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A))),
               const SizedBox(height: 12),
               _buildInfoRow('Full Name', std['name']?.toString() ?? '-'),
-              _buildInfoRow('Admission Number', std['admission_no']?.toString() ?? std['id']?.toString() ?? '-'),
-              _buildInfoRow('Roll Number', std['roll_number']?.toString() ?? '-'),
-              _buildInfoRow('Enrolled Class', std['class_name']?.toString() ?? std['class_id']?.toString() ?? '-'),
+              _buildInfoRow(
+                  'Admission Number',
+                  std['admission_no']?.toString() ??
+                      std['id']?.toString() ??
+                      '-'),
+              _buildInfoRow(
+                  'Roll Number', std['roll_number']?.toString() ?? '-'),
+              _buildInfoRow(
+                  'Enrolled Class',
+                  std['class_name']?.toString() ??
+                      std['class_id']?.toString() ??
+                      '-'),
               _buildInfoRow('Academic Session', '2026-2027 (CBSE Affiliated)'),
             ],
           ),
@@ -4050,7 +5200,11 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Parent / Guardian Information', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              const Text('Parent / Guardian Information',
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A))),
               const SizedBox(height: 12),
               _buildInfoRow('Parent / Guardian Name', parent),
               _buildInfoRow('Emergency Contact Phone', contact),
@@ -4081,10 +5235,20 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A))),
           const SizedBox(height: 2),
-          Text(title, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
-          Text(subtitle, style: TextStyle(fontSize: 9.5, color: color, fontWeight: FontWeight.w600)),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B))),
+          Text(subtitle,
+              style: TextStyle(
+                  fontSize: 9.5, color: color, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -4096,8 +5260,13 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+          Text(label,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A))),
         ],
       ),
     );
@@ -4125,26 +5294,40 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Overall Attendance Rate', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                  Text('${attPct.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF2563EB))),
+                  const Text('Overall Attendance Rate',
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  Text('${attPct.toStringAsFixed(1)}%',
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF2563EB))),
                 ],
               ),
               const SizedBox(height: 8),
               LinearProgressIndicator(
                 value: (attPct / 100).clamp(0.0, 1.0),
                 backgroundColor: const Color(0xFFE2E8F0),
-                valueColor: AlwaysStoppedAnimation<Color>(attPct >= 75 ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
+                valueColor: AlwaysStoppedAnimation<Color>(attPct >= 75
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFEF4444)),
                 minHeight: 8,
                 borderRadius: BorderRadius.circular(4),
               ),
               const SizedBox(height: 6),
-              const Text('CBSE Statutory Minimum Requirement: 75.0% for Examination Eligibility', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+              const Text(
+                  'CBSE Statutory Minimum Requirement: 75.0% for Examination Eligibility',
+                  style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
             ],
           ),
         ),
         const SizedBox(height: 16),
 
-        const Text('Recent Daily Register Entries (Last 45 Days)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+        const Text('Recent Daily Register Entries (Last 45 Days)',
+            style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A))),
         const SizedBox(height: 10),
 
         if (records.isEmpty)
@@ -4155,7 +5338,11 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: const Center(child: Text('No daily attendance entries recorded in this period.', style: TextStyle(color: Color(0xFF64748B), fontSize: 12.5))),
+            child: const Center(
+                child: Text(
+                    'No daily attendance entries recorded in this period.',
+                    style:
+                        TextStyle(color: Color(0xFF64748B), fontSize: 12.5))),
           )
         else
           ...records.map((r) {
@@ -4181,14 +5368,22 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.calendar_today_rounded, size: 16, color: color),
+                      Icon(Icons.calendar_today_rounded,
+                          size: 16, color: color),
                       const SizedBox(width: 10),
-                      Text(date, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                      Text(date,
+                          style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A))),
                     ],
                   ),
-                  Text('Marked by: $markedBy', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  Text('Marked by: $markedBy',
+                      style: const TextStyle(
+                          fontSize: 11, color: Color(0xFF64748B))),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
@@ -4196,7 +5391,10 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                     ),
                     child: Text(
                       status.toUpperCase(),
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: color),
                     ),
                   ),
                 ],
@@ -4210,9 +5408,11 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
   // 3. Marks & CBSE Tab
   Widget _buildMarksTab() {
     final marks = (_profile?['marks'] as List?) ?? [];
-    final overallPct = (_profile?['overall_percentage'] as num?)?.toDouble() ?? 0.0;
+    final overallPct =
+        (_profile?['overall_percentage'] as num?)?.toDouble() ?? 0.0;
     final cbseGrade = _profile?['cbse_grade']?.toString() ?? 'N/A';
-    final cbseRemarks = _profile?['cbse_remarks']?.toString() ?? 'No examination records';
+    final cbseRemarks =
+        _profile?['cbse_remarks']?.toString() ?? 'No examination records';
 
     return ListView(
       padding: const EdgeInsets.all(18),
@@ -4235,7 +5435,11 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
-                  child: Text(cbseGrade, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                  child: Text(cbseGrade,
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white)),
                 ),
               ),
               const SizedBox(width: 14),
@@ -4243,22 +5447,35 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('CBSE 9-Point Scale: $cbseGrade', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1E3A8A))),
+                    Text('CBSE 9-Point Scale: $cbseGrade',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E3A8A))),
                     const SizedBox(height: 2),
-                    Text(cbseRemarks, style: const TextStyle(fontSize: 11.5, color: Color(0xFF3B82F6))),
+                    Text(cbseRemarks,
+                        style: const TextStyle(
+                            fontSize: 11.5, color: Color(0xFF3B82F6))),
                   ],
                 ),
               ),
               Text(
                 '${overallPct.toStringAsFixed(1)}%',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1E3A8A)),
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E3A8A)),
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
 
-        const Text('Subject-Wise Examination Marks', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+        const Text('Subject-Wise Examination Marks',
+            style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A))),
         const SizedBox(height: 10),
 
         if (marks.isEmpty)
@@ -4269,7 +5486,11 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: const Center(child: Text('No examination marks entered for this student yet.', style: TextStyle(color: Color(0xFF64748B), fontSize: 12.5))),
+            child: const Center(
+                child: Text(
+                    'No examination marks entered for this student yet.',
+                    style:
+                        TextStyle(color: Color(0xFF64748B), fontSize: 12.5))),
           )
         else
           ...marks.map((m) {
@@ -4295,12 +5516,22 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(subject, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                        Text(subject,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A))),
                         const SizedBox(height: 2),
-                        Text('$exam • Total Max: ${maxM.toStringAsFixed(0)}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                        Text('$exam • Total Max: ${maxM.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                                fontSize: 11, color: Color(0xFF64748B))),
                         if (remark != null && remark.isNotEmpty) ...[
                           const SizedBox(height: 4),
-                          Text('Remark: $remark', style: const TextStyle(fontSize: 10.5, fontStyle: FontStyle.italic, color: Color(0xFF475569))),
+                          Text('Remark: $remark',
+                              style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontStyle: FontStyle.italic,
+                                  color: Color(0xFF475569))),
                         ],
                       ],
                     ),
@@ -4308,17 +5539,26 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('${obt.toStringAsFixed(1)} / ${maxM.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                      Text(
+                          '${obt.toStringAsFixed(1)} / ${maxM.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A))),
                       const SizedBox(height: 2),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1.5),
                         decoration: BoxDecoration(
                           color: const Color(0xFFEFF6FF),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           '$grade (${pct.toStringAsFixed(1)}%)',
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF2563EB)),
+                          style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF2563EB)),
                         ),
                       ),
                     ],
@@ -4352,8 +5592,16 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                 ),
                 child: Column(
                   children: [
-                    Text('$hwSubmitted', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
-                    const Text('Completed / Submitted', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF065F46))),
+                    Text('$hwSubmitted',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF059669))),
+                    const Text('Completed / Submitted',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF065F46))),
                   ],
                 ),
               ),
@@ -4369,8 +5617,16 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                 ),
                 child: Column(
                   children: [
-                    Text('$hwPending', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFFD97706))),
-                    const Text('Pending Homework', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF92400E))),
+                    Text('$hwPending',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFFD97706))),
+                    const Text('Pending Homework',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF92400E))),
                   ],
                 ),
               ),
@@ -4378,10 +5634,12 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
           ],
         ),
         const SizedBox(height: 16),
-
-        const Text('Assigned Class Homework Tasks', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+        const Text('Assigned Class Homework Tasks',
+            style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A))),
         const SizedBox(height: 10),
-
         if (hwList.isEmpty)
           Container(
             padding: const EdgeInsets.all(24),
@@ -4390,7 +5648,10 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: const Center(child: Text('No homework assignments found for this cohort.', style: TextStyle(color: Color(0xFF64748B), fontSize: 12.5))),
+            child: const Center(
+                child: Text('No homework assignments found for this cohort.',
+                    style:
+                        TextStyle(color: Color(0xFF64748B), fontSize: 12.5))),
           )
         else
           ...hwList.map((h) {
@@ -4411,8 +5672,12 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
               child: Row(
                 children: [
                   Icon(
-                    isSubmitted ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-                    color: isSubmitted ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                    isSubmitted
+                        ? Icons.check_circle_rounded
+                        : Icons.pending_actions_rounded,
+                    color: isSubmitted
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFF59E0B),
                     size: 20,
                   ),
                   const SizedBox(width: 12),
@@ -4420,25 +5685,39 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                        Text(title,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A))),
                         const SizedBox(height: 2),
-                        Text('$subject • Due: $dueDate', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                        Text('$subject • Due: $dueDate',
+                            style: const TextStyle(
+                                fontSize: 11, color: Color(0xFF64748B))),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: isSubmitted ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                      color: isSubmitted
+                          ? const Color(0xFFECFDF5)
+                          : const Color(0xFFFFFBEB),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: isSubmitted ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A)),
+                      border: Border.all(
+                          color: isSubmitted
+                              ? const Color(0xFFA7F3D0)
+                              : const Color(0xFFFDE68A)),
                     ),
                     child: Text(
                       isSubmitted ? 'SUBMITTED' : 'PENDING',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
-                        color: isSubmitted ? const Color(0xFF059669) : const Color(0xFFD97706),
+                        color: isSubmitted
+                            ? const Color(0xFF059669)
+                            : const Color(0xFFD97706),
                       ),
                     ),
                   ),
@@ -4457,9 +5736,12 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
     return ListView(
       padding: const EdgeInsets.all(18),
       children: [
-        const Text('Student Absence & Leave History', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+        const Text('Student Absence & Leave History',
+            style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A))),
         const SizedBox(height: 10),
-
         if (leaves.isEmpty)
           Container(
             padding: const EdgeInsets.all(24),
@@ -4468,7 +5750,10 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: const Center(child: Text('No leave applications submitted by this student.', style: TextStyle(color: Color(0xFF64748B), fontSize: 12.5))),
+            child: const Center(
+                child: Text('No leave applications submitted by this student.',
+                    style:
+                        TextStyle(color: Color(0xFF64748B), fontSize: 12.5))),
           )
         else
           ...leaves.map((l) {
@@ -4496,22 +5781,36 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('$type Leave', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                      Text('$type Leave',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A))),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: color.withValues(alpha: 0.3)),
+                          border:
+                              Border.all(color: color.withValues(alpha: 0.3)),
                         ),
-                        child: Text(status.toUpperCase(), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: color)),
+                        child: Text(status.toUpperCase(),
+                            style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: color)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text('Dates: $from to $to', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  Text('Dates: $from to $to',
+                      style: const TextStyle(
+                          fontSize: 11, color: Color(0xFF64748B))),
                   const SizedBox(height: 4),
-                  Text('Reason: $reason', style: const TextStyle(fontSize: 11.5, color: Color(0xFF334155))),
+                  Text('Reason: $reason',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: Color(0xFF334155))),
                 ],
               ),
             );
@@ -4522,8 +5821,12 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
 
   // 6. Behaviour & Pastoral Notes Tab (N7)
   Widget _buildBehaviourNotesTab() {
-    final sId = widget.student['id']?.toString() ?? widget.student['username']?.toString() ?? '';
-    final sName = (widget.student['name'] ?? widget.student['student_name'] ?? 'Student').toString();
+    final sId = widget.student['id']?.toString() ??
+        widget.student['username']?.toString() ??
+        '';
+    final sName =
+        (widget.student['name'] ?? widget.student['student_name'] ?? 'Student')
+            .toString();
     final cId = widget.student['class_id']?.toString() ?? '';
 
     return ListView(
@@ -4534,22 +5837,27 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
           children: [
             const Text(
               'Pastoral Care & Behaviour Log',
-              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A)),
             ),
             ElevatedButton.icon(
               onPressed: () => _openAddNoteDialog(context, sId, sName, cId),
               icon: const Icon(Icons.add, size: 14),
-              label: const Text('Log Note', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+              label: const Text('Log Note',
+                  style:
+                      TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               ),
             ),
           ],
         ),
         const SizedBox(height: 10),
-
         if (_behaviourNotes.isEmpty)
           Container(
             padding: const EdgeInsets.all(28),
@@ -4578,7 +5886,8 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
             if (type.contains('Commendation') || type.contains('Positive')) {
               color = const Color(0xFF10B981);
               icon = Icons.emoji_events_rounded;
-            } else if (type.contains('Concern') || type.contains('Discipline')) {
+            } else if (type.contains('Concern') ||
+                type.contains('Discipline')) {
               color = const Color(0xFFDC2626);
               icon = Icons.warning_amber_rounded;
             }
@@ -4607,14 +5916,24 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(type, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: color)),
-                            Text(date, style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
+                            Text(type,
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12.5,
+                                    color: color)),
+                            Text(date,
+                                style: const TextStyle(
+                                    fontSize: 10.5, color: Color(0xFF94A3B8))),
                           ],
                         ),
                         const SizedBox(height: 3),
-                        Text(note, style: const TextStyle(fontSize: 12, color: Color(0xFF1E293B))),
+                        Text(note,
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF1E293B))),
                         const SizedBox(height: 2),
-                        Text('Recorded by: $teacher', style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                        Text('Recorded by: $teacher',
+                            style: const TextStyle(
+                                fontSize: 10.5, color: Color(0xFF64748B))),
                       ],
                     ),
                   ),
@@ -4626,7 +5945,8 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
     );
   }
 
-  void _openAddNoteDialog(BuildContext context, String studentId, String studentName, String classId) {
+  void _openAddNoteDialog(BuildContext context, String studentId,
+      String studentName, String classId) {
     String noteType = 'Commendation / Merit';
     final noteCtrl = TextEditingController();
 
@@ -4634,25 +5954,36 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
       context: context,
       builder: (dlgCtx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Log Note • $studentName', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Log Note • $studentName',
+              style:
+                  const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
                 initialValue: noteType,
                 items: const [
-                  DropdownMenuItem(value: 'Commendation / Merit', child: Text('Commendation / Merit')),
-                  DropdownMenuItem(value: 'Concern / Discipline', child: Text('Concern / Discipline')),
-                  DropdownMenuItem(value: 'Academic Observation', child: Text('Academic Observation')),
+                  DropdownMenuItem(
+                      value: 'Commendation / Merit',
+                      child: Text('Commendation / Merit')),
+                  DropdownMenuItem(
+                      value: 'Concern / Discipline',
+                      child: Text('Concern / Discipline')),
+                  DropdownMenuItem(
+                      value: 'Academic Observation',
+                      child: Text('Academic Observation')),
                 ],
                 onChanged: (v) {
                   if (v != null) setDlgState(() => noteType = v);
                 },
                 decoration: InputDecoration(
                   labelText: 'Note Category',
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
               const SizedBox(height: 12),
@@ -4663,13 +5994,16 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                   labelText: 'Note description',
                   hintText: 'e.g. Excellent participation in science lab...',
                   contentPadding: const EdgeInsets.all(10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dlgCtx),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
                 if (noteCtrl.text.trim().isEmpty) return;
@@ -4682,11 +6016,13 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
                   type: noteType,
                   note: noteCtrl.text.trim(),
                 );
-                final updated = await widget.schoolService.getStudentBehaviourNotes(studentId);
+                final updated = await widget.schoolService
+                    .getStudentBehaviourNotes(studentId);
                 setState(() => _behaviourNotes = updated);
                 if (context.mounted) {
                   Navigator.pop(dlgCtx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pastoral note recorded.')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Pastoral note recorded.')));
                 }
               },
               child: const Text('Save Note'),

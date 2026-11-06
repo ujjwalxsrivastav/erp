@@ -125,10 +125,17 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     final role = await _authService.getCurrentUserRole();
     if (!mounted) return;
 
-    final isStudent = role == 'student' || role == 'sstudent' || role == 'parent' || role == 'sparent';
+    final isStudent = role == 'student' ||
+        role == 'sstudent' ||
+        role == 'parent' ||
+        role == 'sparent';
     final isParent = role == 'parent' || role == 'sparent';
-    final isTeacher = role == 'teacher' || role == 'steacher' || role == 'class_teacher';
-    final canEdit = role == 'admin' || role == 'sadmin';
+    final isTeacher =
+        role == 'teacher' || role == 'steacher' || role == 'class_teacher';
+    final canEdit = role == 'admin' ||
+        role == 'sadmin' ||
+        role == 'principal' ||
+        role == 'superadmin';
 
     // Synchronize tab controller length based on role
     // Student: 1 tab (timetable only)
@@ -155,7 +162,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     // Students: resolve their OWN class from the backend — no class picker.
     if (_isStudent) {
       final username = await _authService.getCurrentUsername() ?? '';
-      final children = _isParent ? await _service.getParentChildren(username) : <Map<String, dynamic>>[];
+      final children = _isParent
+          ? await _service.getParentChildren(username)
+          : <Map<String, dynamic>>[];
       final profile = _isParent
           ? (children.isEmpty ? null : children.first)
           : await _service.getSchoolStudentProfile(username);
@@ -233,17 +242,21 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
     try {
       final username = await _authService.getCurrentUsername() ?? '';
-      
+
       // Admin gets all classes, teacher gets only their assigned classes
       final classes = _isTeacher
           ? await _service.getTeacherAllAssignedClasses(username)
           : await _service.getSchoolClasses();
-      
-      _classes = classes.map((c) => <String, dynamic>{
-        ...c,
-        'id': c['class_id'] ?? c['id'],
-        'name': c['class_name'] ?? c['name'] ?? c['class_id'] ?? c['id'],
-      }).where((c) => (c['id']?.toString() ?? '').isNotEmpty).toList();
+
+      _classes = classes
+          .map((c) => <String, dynamic>{
+                ...c,
+                'id': c['class_id'] ?? c['id'],
+                'name':
+                    c['class_name'] ?? c['name'] ?? c['class_id'] ?? c['id'],
+              })
+          .where((c) => (c['id']?.toString() ?? '').isNotEmpty)
+          .toList();
 
       // Never offer the same class twice (guard against duplicate backend rows)
       final seen = <String>{};
@@ -251,10 +264,11 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
           _classes.where((c) => seen.add(c['id']?.toString() ?? '')).toList();
 
       if (_classes.isEmpty) {
-        if (mounted) setState(() {
-          _periods = [];
-          _isLoadingTimetable = false;
-        });
+        if (mounted)
+          setState(() {
+            _periods = [];
+            _isLoadingTimetable = false;
+          });
         return;
       }
 
@@ -269,18 +283,21 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         (c) => (c['id']?.toString() ?? '') == _selectedClassId,
         orElse: () => <String, dynamic>{},
       );
-      
+
       // Load timetable for selected class
       final entries = await _service.getTimetableForClass(
         _selectedClassId,
         day: _selectedDay,
         className: selected['name']?.toString(),
       );
-      
+
       // For teachers, filter to show only their own periods
       final scopedEntries = _isTeacher
-          ? entries.where((row) =>
-              row['teacher_username']?.toString().toLowerCase() == username.toLowerCase()).toList()
+          ? entries
+              .where((row) =>
+                  row['teacher_username']?.toString().toLowerCase() ==
+                  username.toLowerCase())
+              .toList()
           : entries;
 
       // Only admin can see all teachers list for editing
@@ -333,11 +350,12 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
           teacherUsername: username,
           date: DateFormat('yyyy-MM-dd').format(DateTime.now()),
         );
-        if (mounted) setState(() {
-          _substitutionLogs = requests;
-          _uncoveredPeriods = [];
-          _isLoadingSubstitutions = false;
-        });
+        if (mounted)
+          setState(() {
+            _substitutionLogs = requests;
+            _uncoveredPeriods = [];
+            _isLoadingSubstitutions = false;
+          });
         return;
       }
       final uncovered = await _service.getUncoveredPeriods(
@@ -354,10 +372,11 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         });
       }
     } catch (_) {
-      if (mounted) setState(() {
-        _substitutionError = 'Substitution data could not be loaded.';
-        _isLoadingSubstitutions = false;
-      });
+      if (mounted)
+        setState(() {
+          _substitutionError = 'Substitution data could not be loaded.';
+          _isLoadingSubstitutions = false;
+        });
     }
   }
 
@@ -369,7 +388,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
       await _service.respondToSubstitution(circularId: id, accept: accept);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(accept ? 'Substitution accepted.' : 'Substitution declined.'),
+        content:
+            Text(accept ? 'Substitution accepted.' : 'Substitution declined.'),
       ));
       await _loadSubstitutionData();
     } catch (error) {
@@ -398,10 +418,11 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         });
       }
     } catch (error) {
-      if (mounted) setState(() {
-        _syllabusError = 'Syllabus data could not be loaded: $error';
-        _isLoadingSyllabus = false;
-      });
+      if (mounted)
+        setState(() {
+          _syllabusError = 'Syllabus data could not be loaded: $error';
+          _isLoadingSyllabus = false;
+        });
     }
   }
 
@@ -429,9 +450,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
     String selectedDay =
         isEdit ? existingSlot['day'] ?? _selectedDay : _selectedDay;
-    String selectedTeacher = isEdit
+    String? selectedTeacher = isEdit
         ? existingSlot['teacher_username']?.toString() ?? ''
-        : (_allTeachers.isNotEmpty ? _allTeachers.first : '');
+        : (_allTeachers.isNotEmpty ? _allTeachers.first : null);
+    if (!_allTeachers.contains(selectedTeacher)) selectedTeacher = null;
 
     showModalBottomSheet(
       context: context,
@@ -560,6 +582,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             initialValue: selectedTeacher,
+                            hint: const Text('Select a teacher'),
                             decoration: InputDecoration(
                               labelText: 'Teacher',
                               isDense: true,
@@ -607,6 +630,17 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         ),
                         onPressed: () async {
                           final periodNum = int.tryParse(periodCtrl.text) ?? 1;
+                          if (selectedTeacher == null ||
+                              selectedTeacher!.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Select a teacher before publishing this timetable slot.'),
+                                backgroundColor: Color(0xFFDC2626),
+                              ),
+                            );
+                            return;
+                          }
                           try {
                             await _service.saveTimetableEntry(
                               id: isEdit ? existingSlot['id'] : null,
@@ -616,7 +650,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               startTime: startCtrl.text.trim(),
                               endTime: endCtrl.text.trim(),
                               subject: subjectCtrl.text.trim(),
-                              teacherUsername: selectedTeacher,
+                              teacherUsername: selectedTeacher!,
                               room: roomCtrl.text.trim(),
                             );
                             if (mounted) {
@@ -668,7 +702,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     final classId = uncovered['class_id']?.toString() ?? _selectedClassId;
     final origTeacher = uncovered['teacher_username']?.toString() ?? '';
     final room = uncovered['room']?.toString() ?? '';
-    final time = '${uncovered['start_time'] ?? ''} - ${uncovered['end_time'] ?? ''}';
+    final time =
+        '${uncovered['start_time'] ?? ''} - ${uncovered['end_time'] ?? ''}';
 
     final available = await _service.getAvailableSubstitutes(
       day: day,
@@ -1172,8 +1207,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _selectedClassId.isNotEmpty && 
-                                   _classes.any((c) => (c['id']?.toString() ?? '') == _selectedClassId)
+                            value: _selectedClassId.isNotEmpty &&
+                                    _classes.any((c) =>
+                                        (c['id']?.toString() ?? '') ==
+                                        _selectedClassId)
                                 ? _selectedClassId
                                 : _classes.first['id']?.toString(),
                             hint: Text(
@@ -1476,10 +1513,12 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Substitution offers', style: Theme.of(context).textTheme.titleLarge),
+          Text('Substitution offers',
+              style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           if (_substitutionLogs.isEmpty)
-            const Card(child: Padding(
+            const Card(
+                child: Padding(
               padding: EdgeInsets.all(20),
               child: Text('No substitution assignments for today.'),
             ))
@@ -1493,12 +1532,14 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         IconButton(
                           tooltip: 'Accept substitution',
                           onPressed: () => _respondToSubstitution(row, true),
-                          icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+                          icon: const Icon(Icons.check_circle_outline,
+                              color: Colors.green),
                         ),
                         IconButton(
                           tooltip: 'Decline substitution',
                           onPressed: () => _respondToSubstitution(row, false),
-                          icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                          icon: const Icon(Icons.cancel_outlined,
+                              color: Colors.red),
                         ),
                       ],
                     )
@@ -1506,8 +1547,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
               return Card(
                 child: ListTile(
                   leading: const Icon(Icons.swap_horiz_rounded),
-                  title: Text('${row['subject'] ?? 'Substitution'} · Period ${row['period']}'),
-                  subtitle: Text('${row['class_id']} · ${row['time']} · Room ${row['room']}'),
+                  title: Text(
+                      '${row['subject'] ?? 'Substitution'} · Period ${row['period']}'),
+                  subtitle: Text(
+                      '${row['class_id']} · ${row['time']} · Room ${row['room']}'),
                   trailing: responseActions,
                 ),
               );
@@ -1905,7 +1948,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   style: const TextStyle(color: _muted, fontSize: 11),
                 )
               else
-                Text(summary['laggingAlert']?.toString() ?? 'No syllabus data available.',
+                Text(
+                    summary['laggingAlert']?.toString() ??
+                        'No syllabus data available.',
                     style: const TextStyle(color: _muted, fontSize: 11)),
             ],
           ),
@@ -2111,7 +2156,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
             Text(
               _isStudent
                   ? (_isParent ? 'Child Class Routine' : 'My Class Routine')
-                  : (_isTeacher ? 'My Teaching Timetable' : 'Timetable Management'),
+                  : (_isTeacher
+                      ? 'My Teaching Timetable'
+                      : 'Timetable Management'),
               style: const TextStyle(
                   fontWeight: FontWeight.w700, fontSize: 16, color: _ink),
             ),
@@ -2209,7 +2256,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     unselectedLabelStyle: const TextStyle(
                         fontWeight: FontWeight.w500, fontSize: 12),
                     tabs: _isTeacher
-                        ? const [Tab(text: 'My Routine'), Tab(text: 'Substitution')]
+                        ? const [
+                            Tab(text: 'My Routine'),
+                            Tab(text: 'Substitution')
+                          ]
                         : const [
                             Tab(text: 'Routine Grid'),
                             Tab(text: 'Coverage'),

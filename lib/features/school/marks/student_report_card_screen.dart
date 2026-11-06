@@ -41,7 +41,8 @@ class _StudentReportCardScreenState extends State<StudentReportCardScreen> {
       if (_username.isEmpty)
         throw StateError('Your session could not be verified.');
       if (refreshSessions) {
-        final sessions = await _service.getExamSessions();
+        // Includes class tests and any other assessment the teacher entered.
+        final sessions = await _service.getAvailableExamTypes(studentId: _username);
         if (sessions.isNotEmpty) {
           _sessions = sessions;
           if (!_sessions.contains(_selectedSession))

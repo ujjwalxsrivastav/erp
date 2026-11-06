@@ -12,6 +12,39 @@ class SchoolReportsScreen extends StatefulWidget {
   State<SchoolReportsScreen> createState() => _SchoolReportsScreenState();
 }
 
+class _PositiveSupportState extends StatelessWidget {
+  const _PositiveSupportState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFECFDF5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFA7F3D0)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.verified_rounded, color: Color(0xFF059669)),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'No learners are currently below the 50% intervention threshold.',
+              style: TextStyle(
+                color: Color(0xFF065F46),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
@@ -20,19 +53,25 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
   final _authService = AuthService();
 
   static const Color _primary = Color(0xFF0F766E); // Deep Teal
-  static const Color _gold = Color(0xFFF59E0B);    // Gold / Amber
+  static const Color _gold = Color(0xFFF59E0B); // Gold / Amber
   static const Color _bg = Color(0xFFF8FAFC);
-
 
   // Authentication & Role
   bool _isInitialized = false;
   bool _isTeacher = false;
   String _teacherDisplayName = 'Faculty';
   List<Map<String, dynamic>> _teacherClasses = [];
+  List<String> _classTeacherClassNames = [];
   List<Map<String, dynamic>> _allClasses = [];
 
   // Shared
-  List<String> _classes = ['All', 'Class 10-A', 'Class 9-A', 'Class 11-Science', 'Class 12-Commerce'];
+  List<String> _classes = [
+    'All',
+    'Class 10-A',
+    'Class 9-A',
+    'Class 11-Science',
+    'Class 12-Commerce'
+  ];
 
   // --- Principal Briefing & Attendance state ---
   bool _briefingLoading = true;
@@ -84,13 +123,39 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
 
   static String _currentMonthLabel() {
     final now = DateTime.now();
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return '${months[now.month - 1]} ${now.year}';
   }
 
   List<String> get _monthOptions {
     final now = DateTime.now();
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return List.generate(6, (i) {
       final d = DateTime(now.year, now.month - i, 1);
       return '${months[d.month - 1]} ${d.year}';
@@ -111,7 +176,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(duration: const Duration(milliseconds: 700), vsync: this);
+    _fadeController = AnimationController(
+        duration: const Duration(milliseconds: 700), vsync: this);
     _initRoleAndData();
   }
 
@@ -122,11 +188,19 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
 
     String teacherName = 'Faculty';
     List<Map<String, dynamic>> teacherClasses = [];
+    List<String> classTeacherClassNames = [];
     if (isTeacher) {
       try {
         final dName = await _schoolService.getTeacherDisplayName(username);
         if (dName != null && dName.isNotEmpty) teacherName = dName;
-        teacherClasses = await _schoolService.getTeacherAllAssignedClasses(username);
+        teacherClasses =
+            await _schoolService.getTeacherAllAssignedClasses(username);
+        final classTeacherClasses =
+            await _schoolService.getClassTeacherClasses(username);
+        classTeacherClassNames = classTeacherClasses
+            .map((item) => item['name']?.toString() ?? '')
+            .where((name) => name.isNotEmpty)
+            .toList();
       } catch (_) {}
     } else {
       teacherName = 'Administrator';
@@ -153,8 +227,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           dynamicClassNames.add(name);
         }
       }
-      if (!dynamicClassNames.contains('Class 10-A')) dynamicClassNames.add('Class 10-A');
-      if (!dynamicClassNames.contains('Class 9-A')) dynamicClassNames.add('Class 9-A');
+      if (!dynamicClassNames.contains('Class 10-A'))
+        dynamicClassNames.add('Class 10-A');
+      if (!dynamicClassNames.contains('Class 9-A'))
+        dynamicClassNames.add('Class 9-A');
     }
 
     String defaultClass = dynamicClassNames.first;
@@ -168,6 +244,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       _teacherDisplayName = teacherName;
       _isTeacher = isTeacher;
       _teacherClasses = teacherClasses;
+      _classTeacherClassNames = classTeacherClassNames;
       _allClasses = allClasses;
       _classes = isTeacher ? dynamicClassNames : ['All', ...dynamicClassNames];
       _marksClass = defaultClass;
@@ -203,11 +280,21 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     if (!_isTeacher) {
       try {
         final res = await Future.wait([
-          _schoolService.getAdminSchoolAttendanceTrend(days: 30).catchError((_) => <Map<String, dynamic>>[]),
-          _schoolService.getAdminFeeCollectionTrend().catchError((_) => <Map<String, dynamic>>[]),
-          _schoolService.getAdminAdmissionFunnel().catchError((_) => <Map<String, dynamic>>[]),
-          _schoolService.getAdminExamClassPassRates().catchError((_) => <Map<String, dynamic>>[]),
-          _schoolService.getAdminFeeHeadDistribution().catchError((_) => <Map<String, dynamic>>[]),
+          _schoolService
+              .getAdminSchoolAttendanceTrend(days: 30)
+              .catchError((_) => <Map<String, dynamic>>[]),
+          _schoolService
+              .getAdminFeeCollectionTrend()
+              .catchError((_) => <Map<String, dynamic>>[]),
+          _schoolService
+              .getAdminAdmissionFunnel()
+              .catchError((_) => <Map<String, dynamic>>[]),
+          _schoolService
+              .getAdminExamClassPassRates()
+              .catchError((_) => <Map<String, dynamic>>[]),
+          _schoolService
+              .getAdminFeeHeadDistribution()
+              .catchError((_) => <Map<String, dynamic>>[]),
         ]);
         attTrend = res[0];
         feeTrend = res[1];
@@ -232,9 +319,14 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
 
   // ===================== ATTENDANCE (INCLUDED IN MORNING BRIEFING) =====================
   Future<void> _generateAttendanceReport() async {
-    setState(() { _attLoading = true; _attRows = []; });
+    setState(() {
+      _attLoading = true;
+      _attRows = [];
+    });
     try {
-      final classId = _attClass == 'All' ? null : (_attClass.contains('10') ? 'cls-10a' : 'cls-9a');
+      final classId = _attClass == 'All'
+          ? null
+          : (_attClass.contains('10') ? 'cls-10a' : 'cls-9a');
       List<Map<String, dynamic>> allRecords = [];
       DateTime cursor = _attFromDate;
       while (!cursor.isAfter(_attToDate)) {
@@ -248,7 +340,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
 
       final Map<String, List<Map<String, dynamic>>> byDateClass = {};
       for (final r in allRecords) {
-        final key = '${r['date']}_${r['class_name'] ?? (_attClass == 'All' ? 'Class 10-A' : _attClass)}';
+        final key =
+            '${r['date']}_${r['class_name'] ?? (_attClass == 'All' ? 'Class 10-A' : _attClass)}';
         byDateClass.putIfAbsent(key, () => []).add(r);
       }
 
@@ -265,7 +358,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
         final parts = e.key.split('_');
         return {
           'date': parts[0],
-          'class': parts.length > 1 ? parts[1] : (_attClass == 'All' ? 'Class 10-A' : _attClass),
+          'class': parts.length > 1
+              ? parts[1]
+              : (_attClass == 'All' ? 'Class 10-A' : _attClass),
           'present': present,
           'absent': absent,
           'late': late,
@@ -298,7 +393,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
         }
       }
 
-      _attOverallPct = totalCount > 0 ? (totalPresent / totalCount * 100) : 94.2;
+      _attOverallPct =
+          totalCount > 0 ? (totalPresent / totalCount * 100) : 94.2;
     } catch (_) {
       _attRows = [];
       _attOverallPct = 94.2;
@@ -309,9 +405,14 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
   // ===================== FEES (ADMIN ONLY) =====================
   Future<void> _generateFeeReport() async {
     if (_isTeacher) return;
-    setState(() { _feeLoading = true; _feeRows = []; });
+    setState(() {
+      _feeLoading = true;
+      _feeRows = [];
+    });
     try {
-      final classId = _feeClass == 'All' ? null : (_feeClass.contains('10') ? 'cls-10a' : 'cls-9a');
+      final classId = _feeClass == 'All'
+          ? null
+          : (_feeClass.contains('10') ? 'cls-10a' : 'cls-9a');
       final payments = await _schoolService.getFeePayments(classId: classId);
 
       double collected = 0;
@@ -323,14 +424,16 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
         if (p['status'] != 'paid') pending += (amt - paid);
       }
 
-      _feeRows = payments.map((p) => {
-        'receipt_no': p['receipt_no'] ?? 'N/A',
-        'student': p['student_id'] ?? 'Student',
-        'head': p['head'] ?? 'Composite Fee',
-        'amount': (p['amount'] as num?)?.toDouble() ?? 0,
-        'paid': (p['paid_amount'] as num?)?.toDouble() ?? 0,
-        'status': p['status'] ?? 'pending',
-      }).toList();
+      _feeRows = payments
+          .map((p) => {
+                'receipt_no': p['receipt_no'] ?? 'N/A',
+                'student': p['student_id'] ?? 'Student',
+                'head': p['head'] ?? 'Composite Fee',
+                'amount': (p['amount'] as num?)?.toDouble() ?? 0,
+                'paid': (p['paid_amount'] as num?)?.toDouble() ?? 0,
+                'status': p['status'] ?? 'pending',
+              })
+          .toList();
 
       _feeCollected = collected;
       _feePending = pending;
@@ -387,16 +490,19 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           (summary['paid_amount'] as double) + (row['paid'] as double);
     }
 
-    final pendingStudents = grouped.values.map((student) {
-      final total = student['total_fee'] as double;
-      final paid = student['paid_amount'] as double;
-      final pending = (total - paid).clamp(0.0, double.infinity);
-      return {
-        ...student,
-        'pending_amount': pending,
-        'status': paid > 0 ? 'Partial' : 'Pending',
-      };
-    }).where((student) => (student['pending_amount'] as double) > 0.01).toList();
+    final pendingStudents = grouped.values
+        .map((student) {
+          final total = student['total_fee'] as double;
+          final paid = student['paid_amount'] as double;
+          final pending = (total - paid).clamp(0.0, double.infinity);
+          return {
+            ...student,
+            'pending_amount': pending,
+            'status': paid > 0 ? 'Partial' : 'Pending',
+          };
+        })
+        .where((student) => (student['pending_amount'] as double) > 0.01)
+        .toList();
 
     if (pendingStudents.isEmpty) return;
     SchoolExportService.showExportOptionsModal(
@@ -408,8 +514,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
         pendingStudents: pendingStudents,
         totalOutstandingAmount: pendingStudents.fold<double>(
           0,
-          (sum, student) =>
-              sum + (student['pending_amount'] as double),
+          (sum, student) => sum + (student['pending_amount'] as double),
         ),
       ),
       onExportCsv: () => SchoolExportService.exportPendingFeesCsv(
@@ -421,7 +526,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
 
   // ===================== MARKS & RANKINGS =====================
   Future<void> _generateMarksReport() async {
-    setState(() { _marksLoading = true; _marksRows = []; });
+    setState(() {
+      _marksLoading = true;
+      _marksRows = [];
+    });
     try {
       final targetClass = _marksClass;
       String targetClassId = targetClass;
@@ -449,7 +557,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       if (isAllSubjects) {
         final Map<String, List<Map<String, dynamic>>> byStudent = {};
         for (final m in raw) {
-          final sKey = (m['student_id'] ?? m['student_name'] ?? 'student').toString();
+          final sKey =
+              (m['student_id'] ?? m['student_name'] ?? 'student').toString();
           byStudent.putIfAbsent(sKey, () => []).add(m);
         }
 
@@ -457,7 +566,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
         for (final entry in byStudent.entries) {
           final studentMarks = entry.value;
           final first = studentMarks.first;
-          final studentName = first['student_name'] ?? first['student'] ?? entry.key;
+          final studentName =
+              first['student_name'] ?? first['student'] ?? entry.key;
           final studentId = first['student_id'] ?? entry.key;
           final rollNumber = first['roll_number'] ?? '';
 
@@ -522,7 +632,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           };
         }).toList();
 
-        ranked.sort((a, b) => (b['pct'] as double).compareTo(a['pct'] as double));
+        ranked
+            .sort((a, b) => (b['pct'] as double).compareTo(a['pct'] as double));
 
         int currentRank = 1;
         for (int i = 0; i < ranked.length; i++) {
@@ -549,7 +660,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           total += pct;
           if (pct > hi) hi = pct;
           if (pct < lo) lo = pct;
-          if (pct >= 33.0) pass++; else fail++;
+          if (pct >= 33.0)
+            pass++;
+          else
+            fail++;
         }
 
         _marksAvg = total / _marksRows.length;
@@ -578,12 +692,16 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
 
   // Fallback marks method purged per Part E standards
 
-
   // ===================== HOMEWORK =====================
   Future<void> _generateHwReport() async {
-    setState(() { _hwLoading = true; _hwRows = []; });
+    setState(() {
+      _hwLoading = true;
+      _hwRows = [];
+    });
     try {
-      final classId = _hwClass == 'All' ? null : (_hwClass.contains('10') ? 'cls-10a' : 'cls-9a');
+      final classId = _hwClass == 'All'
+          ? null
+          : (_hwClass.contains('10') ? 'cls-10a' : 'cls-9a');
       final data = await _schoolService.getHomework(classId: classId);
 
       _hwRows = data.map((r) {
@@ -613,7 +731,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     }
   }
 
-  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   @override
   Widget build(BuildContext context) {
@@ -633,13 +752,17 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 child: const SizedBox(
                   width: 32,
                   height: 32,
-                  child: CircularProgressIndicator(color: _primary, strokeWidth: 3),
+                  child: CircularProgressIndicator(
+                      color: _primary, strokeWidth: 3),
                 ),
               ),
               const SizedBox(height: 16),
               const Text(
                 'Initializing Academic Hub...',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF475569)),
               ),
             ],
           ),
@@ -668,9 +791,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   controller: _tabController,
                   physics: const BouncingScrollPhysics(),
                   children: [
-                    _isTeacher ? _buildTeacherAttendanceTab() : _buildBriefingTab(),
-                    if (!_isTeacher)
-                      _buildFeeTab(),
+                    _isTeacher
+                        ? _buildTeacherAttendanceTab()
+                        : _buildBriefingTab(),
+                    if (!_isTeacher) _buildFeeTab(),
                     _buildMarksTab(),
                     _buildHomeworkTab(),
                     _buildUdiseTab(),
@@ -695,9 +819,21 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       ),
       child: Stack(
         children: [
-          _buildOrb(top: -60, right: -60, size: 260, color: _primary.withValues(alpha: 0.12)),
-          _buildOrb(top: 280, left: -90, size: 240, color: const Color(0xFF3B82F6).withValues(alpha: 0.10)),
-          _buildOrb(bottom: -50, right: -40, size: 220, color: _gold.withValues(alpha: 0.08)),
+          _buildOrb(
+              top: -60,
+              right: -60,
+              size: 260,
+              color: _primary.withValues(alpha: 0.12)),
+          _buildOrb(
+              top: 280,
+              left: -90,
+              size: 240,
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.10)),
+          _buildOrb(
+              bottom: -50,
+              right: -40,
+              size: 220,
+              color: _gold.withValues(alpha: 0.08)),
         ],
       ),
     );
@@ -771,7 +907,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white.withValues(alpha: 0.18),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              width: 2),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.15),
@@ -781,7 +919,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                           ],
                         ),
                         child: Icon(
-                          _isTeacher ? Icons.school : Icons.admin_panel_settings,
+                          _isTeacher
+                              ? Icons.school
+                              : Icons.admin_panel_settings,
                           color: Colors.white,
                           size: 28,
                         ),
@@ -795,7 +935,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             Row(
                               children: [
                                 Text(
-                                  _isTeacher ? 'Teacher Academic Hub' : 'Institutional Reports Hub',
+                                  _isTeacher
+                                      ? 'Teacher Academic Hub'
+                                      : 'Institutional Reports Hub',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 20,
@@ -805,7 +947,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                 ),
                                 const SizedBox(width: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2.5),
                                   decoration: BoxDecoration(
                                     color: _gold.withValues(alpha: 0.9),
                                     borderRadius: BorderRadius.circular(12),
@@ -872,25 +1015,37 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             dividerColor: Colors.transparent,
             labelColor: _primary,
             unselectedLabelColor: Colors.white,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            labelStyle:
+                const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+            unselectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
             tabs: [
               Tab(
-                icon: Icon(_isTeacher ? Icons.how_to_reg_outlined : Icons.dashboard_outlined, size: 16),
-                text: _isTeacher ? 'Attendance & Defaulters' : 'Morning Briefing',
+                icon: Icon(
+                    _isTeacher
+                        ? Icons.how_to_reg_outlined
+                        : Icons.dashboard_outlined,
+                    size: 16),
+                text:
+                    _isTeacher ? 'Attendance & Defaulters' : 'Morning Briefing',
               ),
               if (!_isTeacher)
                 const Tab(icon: Icon(Icons.payment, size: 16), text: 'Fees'),
-              const Tab(icon: Icon(Icons.military_tech_outlined, size: 16), text: 'Marks & Merit'),
-              const Tab(icon: Icon(Icons.assignment_outlined, size: 16), text: 'Homework'),
-              const Tab(icon: Icon(Icons.verified_user_outlined, size: 16), text: 'UDISE+'),
+              const Tab(
+                  icon: Icon(Icons.military_tech_outlined, size: 16),
+                  text: 'Marks & Merit'),
+              const Tab(
+                  icon: Icon(Icons.assignment_outlined, size: 16),
+                  text: 'Homework'),
+              const Tab(
+                  icon: Icon(Icons.verified_user_outlined, size: 16),
+                  text: 'UDISE+'),
             ],
           ),
         ),
       ),
     );
   }
-
 
   // ============================
   // TAB 1 (TEACHER): ATTENDANCE & DEFAULTERS (T-R01, T-R02, T-R03)
@@ -915,15 +1070,22 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         color: _primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.how_to_reg_rounded, color: _primary, size: 20),
+                      child: const Icon(Icons.how_to_reg_rounded,
+                          color: _primary, size: 20),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Cohort Attendance & Statutory Audit', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-                          Text('$_teacherDisplayName • Assigned Classes Only', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                          const Text('Cohort Attendance & Statutory Audit',
+                              style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A))),
+                          Text('$_teacherDisplayName • Assigned Classes Only',
+                              style: const TextStyle(
+                                  fontSize: 11, color: Color(0xFF64748B))),
                         ],
                       ),
                     ),
@@ -939,16 +1101,19 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF0F172A),
                         side: const BorderSide(color: Color(0xFFCBD5E1)),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       icon: const Icon(Icons.file_download_outlined, size: 15),
-                      label: const Text('Export Excel', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                      label: const Text('Export Excel',
+                          style: TextStyle(
+                              fontSize: 11.5, fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
-
                 Row(
                   children: [
                     Expanded(
@@ -999,14 +1164,24 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Attendance Trajectory (T-R01)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-                        Text('Daily percentage with 75% CBSE threshold benchmark', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                        Text('Attendance Trajectory (T-R01)',
+                            style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A))),
+                        Text(
+                            'Daily percentage with 75% CBSE threshold benchmark',
+                            style: TextStyle(
+                                fontSize: 10.5, color: Color(0xFF64748B))),
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: _attOverallPct >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                        color: _attOverallPct >= 75
+                            ? const Color(0xFFECFDF5)
+                            : const Color(0xFFFEF2F2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -1014,7 +1189,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: _attOverallPct >= 75 ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                          color: _attOverallPct >= 75
+                              ? const Color(0xFF059669)
+                              : const Color(0xFFDC2626),
                         ),
                       ),
                     ),
@@ -1024,7 +1201,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 SizedBox(
                   height: 180,
                   child: _attRows.isEmpty
-                      ? const Center(child: Text('No attendance records found for this cohort in selected range.', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))))
+                      ? const Center(
+                          child: Text(
+                              'No attendance records found for this cohort in selected range.',
+                              style: TextStyle(
+                                  fontSize: 12, color: Color(0xFF94A3B8))))
                       : LineChart(
                           LineChartData(
                             minY: 0,
@@ -1032,19 +1213,29 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             gridData: FlGridData(
                               show: true,
                               drawVerticalLine: false,
-                              getDrawingHorizontalLine: (v) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                              getDrawingHorizontalLine: (v) => FlLine(
+                                  color: const Color(0xFFE2E8F0),
+                                  strokeWidth: 1),
                             ),
                             borderData: FlBorderData(show: false),
                             titlesData: FlTitlesData(
-                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              topTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false)),
+                              rightTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false)),
                               leftTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   reservedSize: 32,
                                   getTitlesWidget: (v, m) {
-                                    if (v == 0 || v == 50 || v == 75 || v == 100) {
-                                      return Text('${v.toInt()}%', style: const TextStyle(fontSize: 9, color: Color(0xFF64748B)));
+                                    if (v == 0 ||
+                                        v == 50 ||
+                                        v == 75 ||
+                                        v == 100) {
+                                      return Text('${v.toInt()}%',
+                                          style: const TextStyle(
+                                              fontSize: 9,
+                                              color: Color(0xFF64748B)));
                                     }
                                     return const SizedBox();
                                   },
@@ -1054,14 +1245,22 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   reservedSize: 20,
-                                  interval: (_attRows.length / 6).clamp(1.0, 10.0),
+                                  interval:
+                                      (_attRows.length / 6).clamp(1.0, 10.0),
                                   getTitlesWidget: (v, m) {
                                     final idx = v.toInt();
                                     if (idx >= 0 && idx < _attRows.length) {
-                                      final rawD = _attRows[idx]['date']?.toString() ?? '';
+                                      final rawD =
+                                          _attRows[idx]['date']?.toString() ??
+                                              '';
                                       final parts = rawD.split('-');
-                                      final label = parts.length >= 3 ? '${parts[2]}/${parts[1]}' : rawD;
-                                      return Text(label, style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                                      final label = parts.length >= 3
+                                          ? '${parts[2]}/${parts[1]}'
+                                          : rawD;
+                                      return Text(label,
+                                          style: const TextStyle(
+                                              fontSize: 8.5,
+                                              color: Color(0xFF64748B)));
                                     }
                                     return const SizedBox();
                                   },
@@ -1079,7 +1278,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                     show: true,
                                     alignment: Alignment.topRight,
                                     labelResolver: (l) => '75% CBSE Limit',
-                                    style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                                    style: const TextStyle(
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFDC2626)),
                                   ),
                                 ),
                               ],
@@ -1087,7 +1289,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             lineBarsData: [
                               LineChartBarData(
                                 spots: _attRows.asMap().entries.map((e) {
-                                  final pct = (e.value['pct'] as num?)?.toDouble() ?? 0.0;
+                                  final pct =
+                                      (e.value['pct'] as num?)?.toDouble() ??
+                                          0.0;
                                   return FlSpot(e.key.toDouble(), pct);
                                 }).toList(),
                                 isCurved: true,
@@ -1096,7 +1300,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                 dotData: const FlDotData(show: false),
                                 belowBarData: BarAreaData(
                                   show: true,
-                                  color: const Color(0xFF0F766E).withValues(alpha: 0.12),
+                                  color: const Color(0xFF0F766E)
+                                      .withValues(alpha: 0.12),
                                 ),
                               ),
                             ],
@@ -1116,13 +1321,24 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Daily Register Breakdown (T-R02)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-                    Text('${_attRows.length} Days Audited', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                    const Text('Daily Register Breakdown (T-R02)',
+                        style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A))),
+                    Text('${_attRows.length} Days Audited',
+                        style: const TextStyle(
+                            fontSize: 11, color: Color(0xFF64748B))),
                   ],
                 ),
                 const SizedBox(height: 12),
                 if (_attRows.isEmpty)
-                  const Center(child: Padding(padding: EdgeInsets.all(16), child: Text('No register records found.', style: TextStyle(color: Color(0xFF64748B), fontSize: 12))))
+                  const Center(
+                      child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text('No register records found.',
+                              style: TextStyle(
+                                  color: Color(0xFF64748B), fontSize: 12))))
                 else
                   ..._attRows.map((r) {
                     final d = r['date']?.toString() ?? '-';
@@ -1134,7 +1350,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(8),
@@ -1142,19 +1359,51 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       ),
                       child: Row(
                         children: [
-                          Expanded(flex: 3, child: Text(d, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)))),
-                          Expanded(flex: 2, child: Text('$p Present', style: const TextStyle(fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.w600))),
-                          Expanded(flex: 2, child: Text('$a Absent', style: const TextStyle(fontSize: 11.5, color: Color(0xFFDC2626), fontWeight: FontWeight.w600))),
-                          Expanded(flex: 2, child: Text('$l Late', style: const TextStyle(fontSize: 11.5, color: Color(0xFFD97706), fontWeight: FontWeight.w600))),
+                          Expanded(
+                              flex: 3,
+                              child: Text(d,
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A)))),
+                          Expanded(
+                              flex: 2,
+                              child: Text('$p Present',
+                                  style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFF059669),
+                                      fontWeight: FontWeight.w600))),
+                          Expanded(
+                              flex: 2,
+                              child: Text('$a Absent',
+                                  style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFFDC2626),
+                                      fontWeight: FontWeight.w600))),
+                          Expanded(
+                              flex: 2,
+                              child: Text('$l Late',
+                                  style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFFD97706),
+                                      fontWeight: FontWeight.w600))),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: pct >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                              color: pct >= 75
+                                  ? const Color(0xFFECFDF5)
+                                  : const Color(0xFFFEF2F2),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               '${pct.toStringAsFixed(1)}%',
-                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: pct >= 75 ? const Color(0xFF059669) : const Color(0xFFDC2626)),
+                              style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: pct >= 75
+                                      ? const Color(0xFF059669)
+                                      : const Color(0xFFDC2626)),
                             ),
                           ),
                         ],
@@ -1168,6 +1417,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       ),
     );
   }
+
   // ============================
   // TAB 1: MORNING BRIEFING (NOW WITH CLASS ATTENDANCE & AUDIT LOG)
   // ============================
@@ -1201,7 +1451,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         color: _primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.wb_sunny_outlined, color: _primary, size: 22),
+                      child: const Icon(Icons.wb_sunny_outlined,
+                          color: _primary, size: 22),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1209,12 +1460,20 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _isTeacher ? 'Teacher Daily Operational Briefing' : 'Principal Morning Briefing',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            _isTeacher
+                                ? 'Teacher Daily Operational Briefing'
+                                : 'Principal Morning Briefing',
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A)),
                           ),
                           Text(
                             '${d['school_name'] ?? 'Shivalik International School'} · Session ${d['academic_session'] ?? '2026-2027'}',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF64748B)),
                           ),
                         ],
                       ),
@@ -1269,7 +1528,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         child: _buildBentoStat(
                           title: 'My Class Att.',
                           value: '95.2%',
-                          subtitle: _teacherClasses.isNotEmpty ? _teacherClasses.first['name'] : 'Class 10-A',
+                          subtitle: _teacherClasses.isNotEmpty
+                              ? _teacherClasses.first['name']
+                              : 'Class 10-A',
                           icon: Icons.stars_outlined,
                           color: const Color(0xFF059669),
                           bgColor: const Color(0xFFF0FDF4),
@@ -1280,7 +1541,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       Expanded(
                         child: _buildBentoStat(
                           title: 'Fee Collected',
-                          value: '₹${(((d['fee_collected'] as num?)?.toDouble() ?? 0.0) / 1000).toInt()}k',
+                          value:
+                              '₹${(((d['fee_collected'] as num?)?.toDouble() ?? 0.0) / 1000).toInt()}k',
                           subtitle: 'Fiscal Session Dues',
                           icon: Icons.currency_rupee,
                           color: const Color(0xFF059669),
@@ -1297,10 +1559,15 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       child: _buildBentoStat(
                         title: 'Open Inquiries',
                         value: '$complaints',
-                        subtitle: complaints > 0 ? 'Requires attention' : 'All clear',
+                        subtitle:
+                            complaints > 0 ? 'Requires attention' : 'All clear',
                         icon: Icons.chat_bubble_outline,
-                        color: complaints > 0 ? Colors.red : const Color(0xFF10B981),
-                        bgColor: complaints > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
+                        color: complaints > 0
+                            ? Colors.red
+                            : const Color(0xFF10B981),
+                        bgColor: complaints > 0
+                            ? const Color(0xFFFEF2F2)
+                            : const Color(0xFFECFDF5),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1334,13 +1601,17 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.pie_chart_outline, color: Color(0xFF3B82F6), size: 18),
+                      child: const Icon(Icons.pie_chart_outline,
+                          color: Color(0xFF3B82F6), size: 18),
                     ),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
                         "Today's Live Class Attendance Radar",
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A)),
                       ),
                     ),
                   ],
@@ -1355,14 +1626,18 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   ..._allClasses.take(4).map((c) {
                     final name = c['name']?.toString() ?? 'Class';
                     final strength = (c['strength'] as num?)?.toInt() ?? 40;
-                    final present = (c['present'] as num?)?.toInt() ?? (strength > 0 ? (strength * 0.95).round() : 0);
+                    final present = (c['present'] as num?)?.toInt() ??
+                        (strength > 0 ? (strength * 0.95).round() : 0);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: _buildClassRadarRow(name, present, strength, isMyClass: _isTeacher && _teacherClasses.any((tc) => tc['name'] == name)),
+                      child: _buildClassRadarRow(name, present, strength,
+                          isMyClass: _isTeacher &&
+                              _teacherClasses.any((tc) => tc['name'] == name)),
                     );
                   })
                 else ...[
-                  _buildClassRadarRow('Class 10-A', 38, 40, isMyClass: _isTeacher),
+                  _buildClassRadarRow('Class 10-A', 38, 40,
+                      isMyClass: _isTeacher),
                   const SizedBox(height: 10),
                   _buildClassRadarRow('Class 9-A', 39, 42),
                 ],
@@ -1392,12 +1667,16 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             color: _primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.how_to_reg, color: _primary, size: 18),
+                          child: const Icon(Icons.how_to_reg,
+                              color: _primary, size: 18),
                         ),
                         const SizedBox(width: 10),
                         const Text(
                           'Attendance Register & Audit Log',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A)),
                         ),
                       ],
                     ),
@@ -1411,28 +1690,40 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    Expanded(child: _dateTile('From', _attFromDate, (d) => setState(() => _attFromDate = d))),
+                    Expanded(
+                        child: _dateTile('From', _attFromDate,
+                            (d) => setState(() => _attFromDate = d))),
                     const SizedBox(width: 10),
-                    Expanded(child: _dateTile('To', _attToDate, (d) => setState(() => _attToDate = d))),
+                    Expanded(
+                        child: _dateTile('To', _attToDate,
+                            (d) => setState(() => _attToDate = d))),
                   ],
                 ),
                 const SizedBox(height: 12),
-                _dropdownField('Class', _attClass, _classes, (v) => setState(() => _attClass = v!)),
+                _dropdownField('Class', _attClass, _classes,
+                    (v) => setState(() => _attClass = v!)),
                 const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _attLoading ? null : _generateAttendanceReport,
                     icon: _attLoading
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.analytics_outlined, size: 18),
-                    label: Text(_attLoading ? 'Generating...' : 'Generate Attendance Register'),
+                    label: Text(_attLoading
+                        ? 'Generating...'
+                        : 'Generate Attendance Register'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ),
@@ -1441,17 +1732,25 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: _attOverallPct >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                      color: _attOverallPct >= 75
+                          ? const Color(0xFFECFDF5)
+                          : const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: _attOverallPct >= 75 ? const Color(0xFF10B981).withValues(alpha: 0.3) : Colors.red.withValues(alpha: 0.3),
+                        color: _attOverallPct >= 75
+                            ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                            : Colors.red.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
                       children: [
                         Icon(
-                          _attOverallPct >= 75 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
-                          color: _attOverallPct >= 75 ? const Color(0xFF10B981) : Colors.red,
+                          _attOverallPct >= 75
+                              ? Icons.check_circle_outline
+                              : Icons.warning_amber_rounded,
+                          color: _attOverallPct >= 75
+                              ? const Color(0xFF10B981)
+                              : Colors.red,
                           size: 24,
                         ),
                         const SizedBox(width: 12),
@@ -1464,7 +1763,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: _attOverallPct >= 75 ? const Color(0xFF065F46) : const Color(0xFF991B1B),
+                                  color: _attOverallPct >= 75
+                                      ? const Color(0xFF065F46)
+                                      : const Color(0xFF991B1B),
                                 ),
                               ),
                               Text(
@@ -1472,7 +1773,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: _attOverallPct >= 75 ? const Color(0xFF047857) : Colors.red,
+                                  color: _attOverallPct >= 75
+                                      ? const Color(0xFF047857)
+                                      : Colors.red,
                                 ),
                               ),
                             ],
@@ -1485,16 +1788,29 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(_primary.withValues(alpha: 0.08)),
+                      headingRowColor: WidgetStateProperty.all(
+                          _primary.withValues(alpha: 0.08)),
                       dataRowMinHeight: 46,
                       dataRowMaxHeight: 48,
                       columns: const [
-                        DataColumn(label: Text('Date', style: TextStyle(fontWeight: FontWeight.w700))),
-                        DataColumn(label: Text('Class', style: TextStyle(fontWeight: FontWeight.w700))),
-                        DataColumn(label: Text('Present', style: TextStyle(fontWeight: FontWeight.w700))),
-                        DataColumn(label: Text('Absent', style: TextStyle(fontWeight: FontWeight.w700))),
-                        DataColumn(label: Text('Late', style: TextStyle(fontWeight: FontWeight.w700))),
-                        DataColumn(label: Text('%', style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Date',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Class',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Present',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Absent',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Late',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('%',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
                       ],
                       rows: _attRows.map((r) {
                         final p = (r['present'] as int?) ?? 0;
@@ -1502,15 +1818,29 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         final l = (r['late'] as int?) ?? 0;
                         final pct = (r['pct'] as num?)?.toDouble() ?? 0.0;
                         return DataRow(cells: [
-                          DataCell(Text(r['date'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500))),
+                          DataCell(Text(r['date'] ?? '',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w500))),
                           DataCell(Text(r['class'] ?? '')),
-                          DataCell(Text('$p', style: const TextStyle(color: Color(0xFF15803D), fontWeight: FontWeight.w700))),
-                          DataCell(Text('$a', style: const TextStyle(color: Color(0xFFB91C1C), fontWeight: FontWeight.w700))),
-                          DataCell(Text('$l', style: const TextStyle(color: Color(0xFFB45309), fontWeight: FontWeight.w700))),
+                          DataCell(Text('$p',
+                              style: const TextStyle(
+                                  color: Color(0xFF15803D),
+                                  fontWeight: FontWeight.w700))),
+                          DataCell(Text('$a',
+                              style: const TextStyle(
+                                  color: Color(0xFFB91C1C),
+                                  fontWeight: FontWeight.w700))),
+                          DataCell(Text('$l',
+                              style: const TextStyle(
+                                  color: Color(0xFFB45309),
+                                  fontWeight: FontWeight.w700))),
                           DataCell(Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: pct >= 75 ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                              color: pct >= 75
+                                  ? const Color(0xFFDCFCE7)
+                                  : const Color(0xFFFEE2E2),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -1518,7 +1848,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                               style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 11,
-                                color: pct >= 75 ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                                color: pct >= 75
+                                    ? const Color(0xFF15803D)
+                                    : const Color(0xFFB91C1C),
                               ),
                             ),
                           )),
@@ -1528,7 +1860,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   ),
                 ] else if (!_attLoading) ...[
                   const SizedBox(height: 16),
-                  _buildEmptyState('No attendance logs found for this filter. Tap Generate Attendance Register.'),
+                  _buildEmptyState(
+                      'No attendance logs found for this filter. Tap Generate Attendance Register.'),
                 ],
               ],
             ),
@@ -1548,25 +1881,31 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         color: const Color(0xFF10B981).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.shield_outlined, color: Color(0xFF10B981), size: 18),
+                      child: const Icon(Icons.shield_outlined,
+                          color: Color(0xFF10B981), size: 18),
                     ),
                     const SizedBox(width: 10),
                     const Text(
                       'Operational Compliance & Safety Status',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
                 _buildComplianceTile(
                   title: 'Morning Teacher Substitution Coverage',
-                  status: 'Nominal · All periods fully assigned without loss of instruction',
+                  status:
+                      'Nominal · All periods fully assigned without loss of instruction',
                   isGood: true,
                 ),
                 const Divider(height: 20),
                 _buildComplianceTile(
                   title: 'Bus Telematics & Speed Governors',
-                  status: 'Live · All 3 school transport routes monitored within safe limits',
+                  status:
+                      'Live · All 3 school transport routes monitored within safe limits',
                   isGood: true,
                 ),
                 const Divider(height: 20),
@@ -1606,7 +1945,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             children: [
               Text(
                 title,
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.9)),
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color.withValues(alpha: 0.9)),
               ),
               Icon(icon, color: color, size: 18),
             ],
@@ -1614,19 +1956,27 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           const SizedBox(height: 8),
           Text(
             value,
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color, letterSpacing: -0.5),
+            style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: color,
+                letterSpacing: -0.5),
           ),
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Colors.grey.shade600),
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildClassRadarRow(String className, int present, int total, {bool isMyClass = false}) {
+  Widget _buildClassRadarRow(String className, int present, int total,
+      {bool isMyClass = false}) {
     final pct = total > 0 ? (present / total) : 0.0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1655,21 +2005,26 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       className,
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: isMyClass ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight:
+                            isMyClass ? FontWeight.w800 : FontWeight.w600,
                         color: const Color(0xFF1E293B),
                       ),
                     ),
                     if (isMyClass) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           color: _primary,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Text(
                           'My Class',
-                          style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800),
                         ),
                       ),
                     ],
@@ -1678,7 +2033,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
               ),
               Text(
                 '$present / $total Present',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF475569)),
               ),
               const SizedBox(width: 10),
               Text(
@@ -1686,7 +2044,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
-                  color: pct >= 0.9 ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                  color: pct >= 0.9
+                      ? const Color(0xFF15803D)
+                      : const Color(0xFFB45309),
                 ),
               ),
             ],
@@ -1708,19 +2068,27 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     );
   }
 
-  Widget _buildComplianceTile({required String title, required String status, required bool isGood}) {
+  Widget _buildComplianceTile(
+      {required String title, required String status, required bool isGood}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(isGood ? Icons.verified : Icons.warning_amber, color: isGood ? const Color(0xFF10B981) : Colors.orange, size: 20),
+        Icon(isGood ? Icons.verified : Icons.warning_amber,
+            color: isGood ? const Color(0xFF10B981) : Colors.orange, size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B))),
               const SizedBox(height: 2),
-              Text(status, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+              Text(status,
+                  style:
+                      const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
             ],
           ),
         ),
@@ -1747,10 +2115,12 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0F766E).withValues(alpha: 0.12),
+                          color:
+                              const Color(0xFF0F766E).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.show_chart_rounded, color: Color(0xFF0F766E), size: 18),
+                        child: const Icon(Icons.show_chart_rounded,
+                            color: Color(0xFF0F766E), size: 18),
                       ),
                       const SizedBox(width: 10),
                       const Column(
@@ -1758,11 +2128,15 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         children: [
                           Text(
                             '30-Day Attendance Trajectory (AD-R03)',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A)),
                           ),
                           Text(
                             'CBSE 75% Statutory Compliance Threshold',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            style: TextStyle(
+                                fontSize: 11, color: Color(0xFF64748B)),
                           ),
                         ],
                       ),
@@ -1771,9 +2145,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.table_view_rounded, size: 20, color: Color(0xFF0F766E)),
+                        icon: const Icon(Icons.table_view_rounded,
+                            size: 20, color: Color(0xFF0F766E)),
                         tooltip: 'Export Attendance Trajectory Excel (AD-R03)',
-                        onPressed: () => SchoolExportService.exportAttendanceTrendExcel(
+                        onPressed: () =>
+                            SchoolExportService.exportAttendanceTrendExcel(
                           context: context,
                           className: 'Whole School',
                           teacherName: _teacherDisplayName,
@@ -1781,7 +2157,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFFECFDF5),
                           borderRadius: BorderRadius.circular(8),
@@ -1789,7 +2166,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         ),
                         child: const Text(
                           'Live Trajectory',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF047857)),
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF047857)),
                         ),
                       ),
                     ],
@@ -1801,7 +2181,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 Container(
                   height: 160,
                   alignment: Alignment.center,
-                  child: const Text('No attendance trajectory data available for past 30 days', style: TextStyle(color: Color(0xFF94A3B8))),
+                  child: const Text(
+                      'No attendance trajectory data available for past 30 days',
+                      style: TextStyle(color: Color(0xFF94A3B8))),
                 )
               else
                 SizedBox(
@@ -1811,7 +2193,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       minY: 0,
                       maxY: 105,
                       minX: 0,
-                      maxX: (_adminAttendanceTrend.length - 1).toDouble().clamp(1.0, 100.0),
+                      maxX: (_adminAttendanceTrend.length - 1)
+                          .toDouble()
+                          .clamp(1.0, 100.0),
                       lineTouchData: LineTouchData(
                         handleBuiltInTouches: true,
                         touchTooltipData: LineTouchTooltipData(
@@ -1819,12 +2203,18 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                           getTooltipItems: (touchedSpots) {
                             return touchedSpots.map((spot) {
                               final idx = spot.spotIndex;
-                              final d = (idx >= 0 && idx < _adminAttendanceTrend.length)
-                                  ? (_adminAttendanceTrend[idx]['date']?.toString() ?? '')
+                              final d = (idx >= 0 &&
+                                      idx < _adminAttendanceTrend.length)
+                                  ? (_adminAttendanceTrend[idx]['date']
+                                          ?.toString() ??
+                                      '')
                                   : '';
                               return LineTooltipItem(
                                 '$d\n${spot.y.toStringAsFixed(1)}% Attendance',
-                                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                                const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11),
                               );
                             }).toList();
                           },
@@ -1840,8 +2230,12 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             label: HorizontalLineLabel(
                               show: true,
                               alignment: Alignment.topRight,
-                              padding: const EdgeInsets.only(right: 6, bottom: 2),
-                              style: const TextStyle(color: Color(0xFFDC2626), fontSize: 9, fontWeight: FontWeight.w700),
+                              padding:
+                                  const EdgeInsets.only(right: 6, bottom: 2),
+                              style: const TextStyle(
+                                  color: Color(0xFFDC2626),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700),
                               labelResolver: (_) => '75% Min',
                             ),
                           ),
@@ -1851,32 +2245,47 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         show: true,
                         drawVerticalLine: false,
                         horizontalInterval: 25,
-                        getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFF1F5F9), strokeWidth: 1),
+                        getDrawingHorizontalLine: (_) => const FlLine(
+                            color: Color(0xFFF1F5F9), strokeWidth: 1),
                       ),
                       titlesData: FlTitlesData(
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 32,
                             interval: 25,
-                            getTitlesWidget: (val, _) => Text('${val.toInt()}%', style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8))),
+                            getTitlesWidget: (val, _) => Text('${val.toInt()}%',
+                                style: const TextStyle(
+                                    fontSize: 9, color: Color(0xFF94A3B8))),
                           ),
                         ),
                         bottomTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 22,
-                            interval: (_adminAttendanceTrend.length / 5).clamp(1.0, 10.0),
+                            interval: (_adminAttendanceTrend.length / 5)
+                                .clamp(1.0, 10.0),
                             getTitlesWidget: (val, _) {
                               final idx = val.toInt();
-                              if (idx >= 0 && idx < _adminAttendanceTrend.length) {
-                                final d = _adminAttendanceTrend[idx]['date']?.toString() ?? '';
+                              if (idx >= 0 &&
+                                  idx < _adminAttendanceTrend.length) {
+                                final d = _adminAttendanceTrend[idx]['date']
+                                        ?.toString() ??
+                                    '';
                                 final parts = d.split('-');
                                 return Padding(
                                   padding: const EdgeInsets.only(top: 4),
-                                  child: Text(parts.length >= 3 ? '${parts[1]}/${parts[2]}' : d, style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8))),
+                                  child: Text(
+                                      parts.length >= 3
+                                          ? '${parts[1]}/${parts[2]}'
+                                          : d,
+                                      style: const TextStyle(
+                                          fontSize: 9,
+                                          color: Color(0xFF94A3B8))),
                                 );
                               }
                               return const SizedBox.shrink();
@@ -1887,8 +2296,12 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       borderData: FlBorderData(show: false),
                       lineBarsData: [
                         LineChartBarData(
-                          spots: List.generate(_adminAttendanceTrend.length, (i) {
-                            final p = (_adminAttendanceTrend[i]['percentage'] as num?)?.toDouble() ?? 0.0;
+                          spots:
+                              List.generate(_adminAttendanceTrend.length, (i) {
+                            final p =
+                                (_adminAttendanceTrend[i]['percentage'] as num?)
+                                        ?.toDouble() ??
+                                    0.0;
                             return FlSpot(i.toDouble(), p);
                           }),
                           isCurved: true,
@@ -1897,7 +2310,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                           barWidth: 2.5,
                           isStrokeCapRound: true,
                           dotData: const FlDotData(show: false),
-                          belowBarData: BarAreaData(show: true, color: const Color(0xFF0F766E).withValues(alpha: 0.12)),
+                          belowBarData: BarAreaData(
+                              show: true,
+                              color: const Color(0xFF0F766E)
+                                  .withValues(alpha: 0.12)),
                         ),
                       ],
                     ),
@@ -1921,19 +2337,25 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       color: const Color(0xFF6366F1).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.military_tech_rounded, color: Color(0xFF6366F1), size: 18),
+                    child: const Icon(Icons.military_tech_rounded,
+                        color: Color(0xFF6366F1), size: 18),
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
                       'Class-Wise Examination Pass Rates & Performance (AD-R06)',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A)),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.table_view_rounded, size: 20, color: Color(0xFF6366F1)),
+                    icon: const Icon(Icons.table_view_rounded,
+                        size: 20, color: Color(0xFF6366F1)),
                     tooltip: 'Export Exam Results Excel (AD-R06)',
-                    onPressed: () => SchoolExportService.exportAdminExamResultsExcel(
+                    onPressed: () =>
+                        SchoolExportService.exportAdminExamResultsExcel(
                       context: context,
                       classResults: _adminClassPassRates,
                     ),
@@ -1945,39 +2367,65 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 Container(
                   padding: const EdgeInsets.all(16),
                   alignment: Alignment.center,
-                  child: const Text('No exam evaluation records available', style: TextStyle(color: Color(0xFF94A3B8))),
+                  child: const Text('No exam evaluation records available',
+                      style: TextStyle(color: Color(0xFF94A3B8))),
                 )
               else
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(const Color(0xFF6366F1).withValues(alpha: 0.08)),
+                    headingRowColor: WidgetStateProperty.all(
+                        const Color(0xFF6366F1).withValues(alpha: 0.08)),
                     dataRowMinHeight: 44,
                     dataRowMaxHeight: 46,
                     columns: const [
-                      DataColumn(label: Text('Class', style: TextStyle(fontWeight: FontWeight.w700))),
-                      DataColumn(label: Text('Evaluated', style: TextStyle(fontWeight: FontWeight.w700))),
-                      DataColumn(label: Text('Passed', style: TextStyle(fontWeight: FontWeight.w700))),
-                      DataColumn(label: Text('Pass Rate', style: TextStyle(fontWeight: FontWeight.w700))),
-                      DataColumn(label: Text('Avg Score', style: TextStyle(fontWeight: FontWeight.w700))),
+                      DataColumn(
+                          label: Text('Class',
+                              style: TextStyle(fontWeight: FontWeight.w700))),
+                      DataColumn(
+                          label: Text('Evaluated',
+                              style: TextStyle(fontWeight: FontWeight.w700))),
+                      DataColumn(
+                          label: Text('Passed',
+                              style: TextStyle(fontWeight: FontWeight.w700))),
+                      DataColumn(
+                          label: Text('Pass Rate',
+                              style: TextStyle(fontWeight: FontWeight.w700))),
+                      DataColumn(
+                          label: Text('Avg Score',
+                              style: TextStyle(fontWeight: FontWeight.w700))),
                     ],
                     rows: _adminClassPassRates.map((c) {
                       final name = c['class_name']?.toString() ?? '';
                       final eval = c['evaluated'] ?? 0;
                       final pass = c['passed'] ?? 0;
                       final rate = (c['pass_rate'] as num?)?.toDouble() ?? 0.0;
-                      final avg = (c['average_score'] as num?)?.toDouble() ?? 0.0;
+                      final avg =
+                          (c['average_score'] as num?)?.toDouble() ?? 0.0;
                       return DataRow(cells: [
-                        DataCell(Text(name, style: const TextStyle(fontWeight: FontWeight.w600))),
+                        DataCell(Text(name,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600))),
                         DataCell(Text('$eval')),
-                        DataCell(Text('$pass', style: const TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.w600))),
+                        DataCell(Text('$pass',
+                            style: const TextStyle(
+                                color: Color(0xFF059669),
+                                fontWeight: FontWeight.w600))),
                         DataCell(Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: rate >= 75 ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+                            color: rate >= 75
+                                ? const Color(0xFFDCFCE7)
+                                : const Color(0xFFFEF3C7),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text('${rate.toStringAsFixed(1)}%', style: TextStyle(fontWeight: FontWeight.w700, color: rate >= 75 ? const Color(0xFF047857) : const Color(0xFFB45309))),
+                          child: Text('${rate.toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: rate >= 75
+                                      ? const Color(0xFF047857)
+                                      : const Color(0xFFB45309))),
                         )),
                         DataCell(Text('${avg.toStringAsFixed(1)}%')),
                       ]);
@@ -2002,27 +2450,35 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.pie_chart_rounded, color: Color(0xFFD97706), size: 18),
+                    child: const Icon(Icons.pie_chart_rounded,
+                        color: Color(0xFFD97706), size: 18),
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
                       'Fee Head Collections (AD-R04) & Admissions Funnel (AD-R05)',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A)),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.table_view_rounded, size: 20, color: Color(0xFFD97706)),
+                    icon: const Icon(Icons.table_view_rounded,
+                        size: 20, color: Color(0xFFD97706)),
                     tooltip: 'Export Fee Heads Excel (AD-R04)',
-                    onPressed: () => SchoolExportService.exportAdminFeeHeadWiseExcel(
+                    onPressed: () =>
+                        SchoolExportService.exportAdminFeeHeadWiseExcel(
                       context: context,
                       feeHeads: _adminFeeHeads,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.filter_alt_rounded, size: 20, color: Color(0xFF2563EB)),
+                    icon: const Icon(Icons.filter_alt_rounded,
+                        size: 20, color: Color(0xFF2563EB)),
                     tooltip: 'Export Admission Funnel Excel (AD-R05)',
-                    onPressed: () => SchoolExportService.exportAdminAdmissionFunnelExcel(
+                    onPressed: () =>
+                        SchoolExportService.exportAdminAdmissionFunnelExcel(
                       context: context,
                       funnelStages: _adminAdmissionFunnel,
                     ),
@@ -2033,17 +2489,25 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
               if (_adminFeeTrend.isNotEmpty) ...[
                 Text(
                   'Active Fiscal Session Monthly Collection (${_adminFeeTrend.length} months):',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF334155)),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _adminFeeTrend.where((m) => ((m['collected'] as num?)?.toDouble() ?? 0) > 0).take(4).map((m) {
+                  children: _adminFeeTrend
+                      .where((m) =>
+                          ((m['collected'] as num?)?.toDouble() ?? 0) > 0)
+                      .take(4)
+                      .map((m) {
                     final month = m['month']?.toString() ?? '';
                     final col = (m['collected'] as num?)?.toDouble() ?? 0.0;
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: const Color(0xFFECFDF5),
                         borderRadius: BorderRadius.circular(8),
@@ -2051,7 +2515,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       ),
                       child: Text(
                         '$month: ₹${(col / 1000).toStringAsFixed(1)}k collected',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF047857)),
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF047857)),
                       ),
                     );
                   }).toList(),
@@ -2059,7 +2526,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 const SizedBox(height: 12),
               ],
               if (_adminFeeHeads.isNotEmpty) ...[
-                const Text('Top Fee Heads by Collected Revenue:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155))),
+                const Text('Top Fee Heads by Collected Revenue:',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF334155))),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -2069,7 +2540,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     final amt = (h['amount'] as num?)?.toDouble() ?? 0.0;
                     final pct = (h['share_pct'] as num?)?.toDouble() ?? 0.0;
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(8),
@@ -2077,7 +2549,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       ),
                       child: Text(
                         '$head: ₹${(amt / 1000).toStringAsFixed(1)}k ($pct%)',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1E293B)),
                       ),
                     );
                   }).toList(),
@@ -2087,7 +2562,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 const SizedBox(height: 14),
                 const Divider(),
                 const SizedBox(height: 10),
-                const Text('Admission Conversion Progression:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155))),
+                const Text('Admission Conversion Progression:',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF334155))),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -2097,7 +2576,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     final count = s['count'] ?? 0;
                     final rate = (s['rate'] as num?)?.toDouble() ?? 0.0;
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(8),
@@ -2105,7 +2585,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       ),
                       child: Text(
                         '$stage: $count (${rate.toStringAsFixed(0)}%)',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1D4ED8)),
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1D4ED8)),
                       ),
                     );
                   }).toList(),
@@ -2134,25 +2617,36 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Fee Collection Filters (Admin)', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                const Text('Fee Collection Filters (Admin)',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                 const SizedBox(height: 12),
-                _dropdownField('Month', _feeMonth, _monthOptions, (v) => setState(() => _feeMonth = v!)),
+                _dropdownField('Month', _feeMonth, _monthOptions,
+                    (v) => setState(() => _feeMonth = v!)),
                 const SizedBox(height: 12),
-                _dropdownField('Class', _feeClass, _classes, (v) => setState(() => _feeClass = v!)),
+                _dropdownField('Class', _feeClass, _classes,
+                    (v) => setState(() => _feeClass = v!)),
                 const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _feeLoading ? null : _generateFeeReport,
                     icon: _feeLoading
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.analytics_outlined, size: 18),
-                    label: Text(_feeLoading ? 'Generating...' : 'Generate Fee Register'),
+                    label: Text(_feeLoading
+                        ? 'Generating...'
+                        : 'Generate Fee Register'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ),
@@ -2163,9 +2657,13 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _miniStat('Total Collected', '₹${_feeCollected.toStringAsFixed(0)}', Colors.green)),
+                Expanded(
+                    child: _miniStat('Total Collected',
+                        '₹${_feeCollected.toStringAsFixed(0)}', Colors.green)),
                 const SizedBox(width: 12),
-                Expanded(child: _miniStat('Outstanding Dues', '₹${_feePending.toStringAsFixed(0)}', Colors.orange)),
+                Expanded(
+                    child: _miniStat('Outstanding Dues',
+                        '₹${_feePending.toStringAsFixed(0)}', Colors.orange)),
               ],
             ),
             const SizedBox(height: 16),
@@ -2178,7 +2676,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     children: [
                       const Text(
                         'Fee Ledger & Pending Defaulters',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A)),
                       ),
                       IconButton(
                         icon: const Icon(Icons.download, color: _primary),
@@ -2191,42 +2692,64 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: DataTable(
-                  headingRowColor: WidgetStateProperty.all(_primary.withValues(alpha: 0.08)),
-                  columns: const [
-                    DataColumn(label: Text('Receipt #', style: TextStyle(fontWeight: FontWeight.w700))),
-                    DataColumn(label: Text('Student', style: TextStyle(fontWeight: FontWeight.w700))),
-                    DataColumn(label: Text('Fee Head', style: TextStyle(fontWeight: FontWeight.w700))),
-                    DataColumn(label: Text('Amount', style: TextStyle(fontWeight: FontWeight.w700))),
-                    DataColumn(label: Text('Paid', style: TextStyle(fontWeight: FontWeight.w700))),
-                    DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.w700))),
-                  ],
-                  rows: _feeRows.map((r) => DataRow(cells: [
-                    DataCell(Text(r['receipt_no'] ?? '')),
-                    DataCell(Text(r['student'] ?? '')),
-                    DataCell(Text(r['head'] ?? '')),
-                    DataCell(Text('₹${(r['amount'] as double).toStringAsFixed(0)}')),
-                    DataCell(Text('₹${(r['paid'] as double).toStringAsFixed(0)}')),
-                    DataCell(Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: r['status'] == 'paid' ? const Color(0xFFDCFCE7) : const Color(0xFFFEF9C3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        r['status'] ?? '',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: r['status'] == 'paid' ? const Color(0xFF15803D) : const Color(0xFFB45309),
-                        ),
-                      ),
-                    )),
-                  ])).toList(),
-                ),
+                      headingRowColor: WidgetStateProperty.all(
+                          _primary.withValues(alpha: 0.08)),
+                      columns: const [
+                        DataColumn(
+                            label: Text('Receipt #',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Student',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Fee Head',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Amount',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Paid',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        DataColumn(
+                            label: Text('Status',
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                      ],
+                      rows: _feeRows
+                          .map((r) => DataRow(cells: [
+                                DataCell(Text(r['receipt_no'] ?? '')),
+                                DataCell(Text(r['student'] ?? '')),
+                                DataCell(Text(r['head'] ?? '')),
+                                DataCell(Text(
+                                    '₹${(r['amount'] as double).toStringAsFixed(0)}')),
+                                DataCell(Text(
+                                    '₹${(r['paid'] as double).toStringAsFixed(0)}')),
+                                DataCell(Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: r['status'] == 'paid'
+                                        ? const Color(0xFFDCFCE7)
+                                        : const Color(0xFFFEF9C3),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    r['status'] ?? '',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: r['status'] == 'paid'
+                                          ? const Color(0xFF15803D)
+                                          : const Color(0xFFB45309),
+                                    ),
+                                  ),
+                                )),
+                              ]))
+                          .toList(),
+                    ),
+                  ),
+                ],
               ),
-              ],
             ),
-          ),
           ] else if (!_feeLoading) ...[
             const SizedBox(height: 20),
             _buildEmptyState('No fee transactions found for this selection.'),
@@ -2259,13 +2782,17 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         color: _gold.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.military_tech, color: Color(0xFFB45309), size: 18),
+                      child: const Icon(Icons.military_tech,
+                          color: Color(0xFFB45309), size: 18),
                     ),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
                         'Class Merit & Examination Filter',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A)),
                       ),
                     ),
                   ],
@@ -2294,12 +2821,15 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: isSelected ? Colors.white : Colors.transparent,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: isSelected
                                   ? [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.08),
+                                        color: Colors.black
+                                            .withValues(alpha: 0.08),
                                         blurRadius: 6,
                                         offset: const Offset(0, 2),
                                       ),
@@ -2310,17 +2840,25 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  exam == 'Half Yearly' ? Icons.calendar_today_outlined : Icons.emoji_events,
+                                  exam == 'Half Yearly'
+                                      ? Icons.calendar_today_outlined
+                                      : Icons.emoji_events,
                                   size: 16,
-                                  color: isSelected ? _primary : const Color(0xFF64748B),
+                                  color: isSelected
+                                      ? _primary
+                                      : const Color(0xFF64748B),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   exam,
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                    color: isSelected ? _primary : const Color(0xFF64748B),
+                                    fontWeight: isSelected
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: isSelected
+                                        ? _primary
+                                        : const Color(0xFF64748B),
                                   ),
                                 ),
                               ],
@@ -2374,15 +2912,22 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   child: ElevatedButton.icon(
                     onPressed: _marksLoading ? null : _generateMarksReport,
                     icon: _marksLoading
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.leaderboard_outlined, size: 18),
-                    label: Text(_marksLoading ? 'Evaluating Standings...' : 'Evaluate & Rank Class Standings'),
+                    label: Text(_marksLoading
+                        ? 'Evaluating Standings...'
+                        : 'Evaluate & Rank Class Standings'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ),
@@ -2402,18 +2947,48 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             // Top Performance Metrics Grid
             Row(
               children: [
-                Expanded(child: _buildMetricTile('Class Average', '${_marksAvg.toStringAsFixed(1)}%', Icons.show_chart, const Color(0xFF3B82F6))),
+                Expanded(
+                    child: _buildMetricTile(
+                        'Class Average',
+                        '${_marksAvg.toStringAsFixed(1)}%',
+                        Icons.show_chart,
+                        const Color(0xFF3B82F6))),
                 const SizedBox(width: 6),
-                Expanded(child: _buildMetricTile('Highest', '${_marksHighest.toStringAsFixed(1)}%', Icons.arrow_upward, const Color(0xFF10B981))),
+                Expanded(
+                    child: _buildMetricTile(
+                        'Highest',
+                        '${_marksHighest.toStringAsFixed(1)}%',
+                        Icons.arrow_upward,
+                        const Color(0xFF10B981))),
                 const SizedBox(width: 6),
-                Expanded(child: _buildMetricTile('Lowest', '${_marksLowest.toStringAsFixed(1)}%', Icons.arrow_downward, const Color(0xFFEA580C))),
+                Expanded(
+                    child: _buildMetricTile(
+                        'Lowest',
+                        '${_marksLowest.toStringAsFixed(1)}%',
+                        Icons.arrow_downward,
+                        const Color(0xFFEA580C))),
                 const SizedBox(width: 6),
-                Expanded(child: _buildMetricTile('Passed', '$_passCount / ${_marksRows.length}', Icons.check_circle_outline, const Color(0xFF0F766E))),
+                Expanded(
+                    child: _buildMetricTile(
+                        'Passed',
+                        '$_passCount / ${_marksRows.length}',
+                        Icons.check_circle_outline,
+                        const Color(0xFF0F766E))),
                 const SizedBox(width: 6),
-                Expanded(child: _buildMetricTile('Needs Support', '$_failCount', Icons.flag_outlined, _failCount > 0 ? Colors.red : Colors.green)),
+                Expanded(
+                    child: _buildMetricTile(
+                        'Needs Support',
+                        '$_failCount',
+                        Icons.flag_outlined,
+                        _failCount > 0 ? Colors.red : Colors.green)),
               ],
             ),
             const SizedBox(height: 18),
+
+            if (_canViewWeakStudentInsights) ...[
+              _buildWeakStudentsInsightPanel(),
+              const SizedBox(height: 18),
+            ],
 
             // Top 3 Podium Showcase
             if (_marksRows.length >= 3) ...[
@@ -2432,19 +3007,29 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('CBSE Grade Distribution (T-R04)', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-                          Text('Student count across 9-point evaluation bands', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                          Text('CBSE Grade Distribution (T-R04)',
+                              style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A))),
+                          Text('Student count across 9-point evaluation bands',
+                              style: TextStyle(
+                                  fontSize: 10.5, color: Color(0xFF64748B))),
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: const Color(0xFFEFF6FF),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           '${_marksRows.length} Students Evaluated',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8)),
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1D4ED8)),
                         ),
                       ),
                     ],
@@ -2454,7 +3039,16 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     height: 170,
                     child: Builder(
                       builder: (ctx) {
-                        const grades = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D', 'E'];
+                        const grades = [
+                          'A1',
+                          'A2',
+                          'B1',
+                          'B2',
+                          'C1',
+                          'C2',
+                          'D',
+                          'E'
+                        ];
                         final counts = <String, int>{};
                         for (final g in grades) counts[g] = 0;
                         for (final r in _marksRows) {
@@ -2463,7 +3057,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         }
                         int maxC = 0;
                         for (final c in counts.values) if (c > maxC) maxC = c;
-                        final maxY = maxC > 0 ? (maxC * 1.3).ceilToDouble() : 10.0;
+                        final maxY =
+                            maxC > 0 ? (maxC * 1.3).ceilToDouble() : 10.0;
 
                         return BarChart(
                           BarChartData(
@@ -2471,19 +3066,28 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             gridData: FlGridData(
                               show: true,
                               drawVerticalLine: false,
-                              getDrawingHorizontalLine: (v) => FlLine(color: const Color(0xFFE2E8F0), strokeWidth: 1),
+                              getDrawingHorizontalLine: (v) => FlLine(
+                                  color: const Color(0xFFE2E8F0),
+                                  strokeWidth: 1),
                             ),
                             borderData: FlBorderData(show: false),
                             titlesData: FlTitlesData(
-                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              topTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false)),
+                              rightTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false)),
                               leftTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   reservedSize: 24,
                                   getTitlesWidget: (v, m) {
-                                    if (v == 0 || v == (maxY / 2).round() || v == maxY) {
-                                      return Text('${v.toInt()}', style: const TextStyle(fontSize: 8.5, color: Color(0xFF64748B)));
+                                    if (v == 0 ||
+                                        v == (maxY / 2).round() ||
+                                        v == maxY) {
+                                      return Text('${v.toInt()}',
+                                          style: const TextStyle(
+                                              fontSize: 8.5,
+                                              color: Color(0xFF64748B)));
                                     }
                                     return const SizedBox();
                                   },
@@ -2496,7 +3100,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                   getTitlesWidget: (v, m) {
                                     final idx = v.toInt();
                                     if (idx >= 0 && idx < grades.length) {
-                                      return Text(grades[idx], style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)));
+                                      return Text(grades[idx],
+                                          style: const TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF0F172A)));
                                     }
                                     return const SizedBox();
                                   },
@@ -2511,7 +3119,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                     toY: (counts[e.value] ?? 0).toDouble(),
                                     color: const Color(0xFF0F766E),
                                     width: 16,
-                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                    borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(4)),
                                   ),
                                 ],
                               );
@@ -2538,52 +3147,75 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         children: [
                           Text(
                             'Class Merit Register — $_examType',
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF0F172A)),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                                color: Color(0xFF0F172A)),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             'Rank-ordered student performance for $_marksClass (${_marksSubject.startsWith('All') ? 'Overall All Subjects' : _marksSubject})',
-                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            style: const TextStyle(
+                                fontSize: 11, color: Color(0xFF64748B)),
                           ),
                         ],
                       ),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F766E),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          elevation: 0,
+                      if (!_isTeacher)
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F766E),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                            elevation: 0,
+                          ),
+                          icon: const Icon(Icons.file_download_outlined,
+                              size: 16),
+                          label: const Text('Generate Class Marksheet',
+                              style: TextStyle(
+                                  fontSize: 11.5, fontWeight: FontWeight.w700)),
+                          onPressed: () {
+                            SchoolExportService.exportGradebookExcel(
+                              context: context,
+                              className: _marksClass,
+                              examType: _examType,
+                              teacherName: _teacherDisplayName,
+                              students: _marksRows,
+                              classAverage: _marksAvg,
+                            );
+                          },
                         ),
-                        icon: const Icon(Icons.file_download_outlined, size: 16),
-                        label: const Text('Export Excel (T-R04)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
-                        onPressed: () {
-                          SchoolExportService.exportGradebookExcel(
-                            context: context,
-                            className: _marksClass,
-                            examType: _examType,
-                            teacherName: _teacherDisplayName,
-                            students: _marksRows,
-                            classAverage: _marksAvg,
-                          );
-                        },
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(_primary.withValues(alpha: 0.08)),
+                      headingRowColor: WidgetStateProperty.all(
+                          _primary.withValues(alpha: 0.08)),
                       dataRowMinHeight: 52,
                       dataRowMaxHeight: 56,
                       columns: const [
-                        DataColumn(label: Text('Rank', style: TextStyle(fontWeight: FontWeight.w800))),
-                        DataColumn(label: Text('Student', style: TextStyle(fontWeight: FontWeight.w800))),
-                        DataColumn(label: Text('Total Marks', style: TextStyle(fontWeight: FontWeight.w800))),
-                        DataColumn(label: Text('Percentage', style: TextStyle(fontWeight: FontWeight.w800))),
-                        DataColumn(label: Text('CBSE Grade', style: TextStyle(fontWeight: FontWeight.w800))),
-                        DataColumn(label: Text('Verdict', style: TextStyle(fontWeight: FontWeight.w800))),
+                        DataColumn(
+                            label: Text('Rank',
+                                style: TextStyle(fontWeight: FontWeight.w800))),
+                        DataColumn(
+                            label: Text('Student',
+                                style: TextStyle(fontWeight: FontWeight.w800))),
+                        DataColumn(
+                            label: Text('Total Marks',
+                                style: TextStyle(fontWeight: FontWeight.w800))),
+                        DataColumn(
+                            label: Text('Percentage',
+                                style: TextStyle(fontWeight: FontWeight.w800))),
+                        DataColumn(
+                            label: Text('CBSE Grade',
+                                style: TextStyle(fontWeight: FontWeight.w800))),
+                        DataColumn(
+                            label: Text('Verdict',
+                                style: TextStyle(fontWeight: FontWeight.w800))),
                       ],
                       rows: _marksRows.map((r) {
                         final rank = (r['rank'] as int?) ?? 1;
@@ -2601,27 +3233,42 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                   children: [
                                     CircleAvatar(
                                       radius: 14,
-                                      backgroundColor: _primary.withValues(alpha: 0.12),
+                                      backgroundColor:
+                                          _primary.withValues(alpha: 0.12),
                                       child: Text(
-                                        (r['student']?.toString().isNotEmpty ?? false)
-                                            ? r['student'].toString().substring(0, 1).toUpperCase()
+                                        (r['student']?.toString().isNotEmpty ??
+                                                false)
+                                            ? r['student']
+                                                .toString()
+                                                .substring(0, 1)
+                                                .toUpperCase()
                                             : 'S',
-                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _primary),
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            color: _primary),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Text(
                                           r['student'] ?? '',
-                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13),
                                         ),
-                                        if ((r['roll_number']?.toString() ?? '').isNotEmpty)
+                                        if ((r['roll_number']?.toString() ?? '')
+                                            .isNotEmpty)
                                           Text(
                                             'Roll #${r['roll_number']} · Tap for scorecard',
-                                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                            style: const TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.grey),
                                           ),
                                       ],
                                     ),
@@ -2631,7 +3278,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             ),
                             DataCell(Text(
                               '${marks.toStringAsFixed(0)} / ${maxM.toStringAsFixed(0)}',
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 13),
                             )),
                             DataCell(
                               Row(
@@ -2644,7 +3292,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                       style: TextStyle(
                                         fontWeight: FontWeight.w800,
                                         fontSize: 12,
-                                        color: pct >= 75 ? const Color(0xFF047857) : (pct >= 33 ? const Color(0xFF0F766E) : Colors.red),
+                                        color: pct >= 75
+                                            ? const Color(0xFF047857)
+                                            : (pct >= 33
+                                                ? const Color(0xFF0F766E)
+                                                : Colors.red),
                                       ),
                                     ),
                                   ),
@@ -2656,9 +3308,15 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                       child: LinearProgressIndicator(
                                         value: (pct / 100).clamp(0.0, 1.0),
                                         minHeight: 5,
-                                        backgroundColor: const Color(0xFFE2E8F0),
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          pct >= 75 ? const Color(0xFF10B981) : (pct >= 33 ? const Color(0xFF14B8A6) : Colors.red),
+                                        backgroundColor:
+                                            const Color(0xFFE2E8F0),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          pct >= 75
+                                              ? const Color(0xFF10B981)
+                                              : (pct >= 33
+                                                  ? const Color(0xFF14B8A6)
+                                                  : Colors.red),
                                         ),
                                       ),
                                     ),
@@ -2668,9 +3326,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             ),
                             DataCell(
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: _gradeColor(r['grade'] ?? 'D').withValues(alpha: 0.12),
+                                  color: _gradeColor(r['grade'] ?? 'D')
+                                      .withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -2685,9 +3345,12 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                             ),
                             DataCell(
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: isPassed ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                                  color: isPassed
+                                      ? const Color(0xFFDCFCE7)
+                                      : const Color(0xFFFEE2E2),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -2695,7 +3358,9 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w800,
-                                    color: isPassed ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                                    color: isPassed
+                                        ? const Color(0xFF15803D)
+                                        : const Color(0xFFB91C1C),
                                   ),
                                 ),
                               ),
@@ -2710,8 +3375,264 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             ),
           ] else if (!_marksLoading) ...[
             const SizedBox(height: 20),
-            _buildEmptyState('No examination marks found for $_examType in $_marksClass. Tap Evaluate & Rank.'),
+            _buildEmptyState(
+                'No examination marks found for $_examType in $_marksClass. Tap Evaluate & Rank.'),
           ],
+        ],
+      ),
+    );
+  }
+
+  bool get _canViewWeakStudentInsights {
+    if (!_isTeacher) return true;
+    return _classTeacherClassNames.contains(_marksClass);
+  }
+
+  Widget _buildWeakStudentsInsightPanel() {
+    final students = _marksRows
+        .where((row) => ((row['pct'] as num?)?.toDouble() ?? 0) < 50)
+        .toList()
+      ..sort((a, b) => ((a['pct'] as num?)?.toDouble() ?? 0)
+          .compareTo((b['pct'] as num?)?.toDouble() ?? 0));
+    final critical = students
+        .where((row) => ((row['pct'] as num?)?.toDouble() ?? 0) < 33)
+        .length;
+    final watchlist = students.length - critical;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFBEB), Color(0xFFFFF7ED), Color(0xFFFFFFFF)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person_search_rounded,
+                    color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Student Support Radar',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF78350F))),
+                    SizedBox(height: 2),
+                    Text('Identify learners needing timely academic support',
+                        style: TextStyle(
+                            fontSize: 11.5, color: Color(0xFF92400E))),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFFCD34D)),
+                ),
+                child: Text(
+                  '${students.length} flagged',
+                  style: const TextStyle(
+                      color: Color(0xFF92400E),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSupportMetric(
+                  label: 'Critical',
+                  value: '$critical',
+                  note: 'Below 33%',
+                  color: const Color(0xFFDC2626),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildSupportMetric(
+                  label: 'Watchlist',
+                  value: '$watchlist',
+                  note: '33% – 49%',
+                  color: const Color(0xFFD97706),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildSupportMetric(
+                  label: 'Class mean',
+                  value: '${_marksAvg.toStringAsFixed(0)}%',
+                  note: _marksSubject.startsWith('All')
+                      ? 'Overall'
+                      : _marksSubject,
+                  color: _primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (students.isEmpty)
+            const _PositiveSupportState()
+          else ...[
+            const Text('Priority intervention list',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF78350F),
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            for (final student in students.take(5))
+              _buildWeakStudentRow(student),
+            if (students.length > 5)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                    '+ ${students.length - 5} more learners on the watchlist',
+                    style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFF92400E),
+                        fontWeight: FontWeight.w600)),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSupportMetric({
+    required String label,
+    required String value,
+    required String note,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+          const SizedBox(height: 3),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w900, color: color)),
+          Text(note,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeakStudentRow(Map<String, dynamic> student) {
+    final percentage = (student['pct'] as num?)?.toDouble() ?? 0;
+    final critical = percentage < 33;
+    final color = critical ? const Color(0xFFDC2626) : const Color(0xFFD97706);
+    final subjectDetails = student['subjects'] as List? ?? const [];
+    final weakSubjects = subjectDetails
+        .where((item) {
+          final mark = Map<String, dynamic>.from(item as Map);
+          final obtained = (mark['marks_obtained'] as num?)?.toDouble() ?? 0;
+          final total = (mark['total_marks'] as num?)?.toDouble() ?? 100;
+          return total > 0 && (obtained / total) * 100 < 33;
+        })
+        .map((item) =>
+            Map<String, dynamic>.from(item as Map)['subject']?.toString() ?? '')
+        .where((subject) => subject.isNotEmpty)
+        .take(2)
+        .join(', ');
+    final focus = weakSubjects.isNotEmpty
+        ? 'Focus: $weakSubjects'
+        : _marksSubject.startsWith('All')
+            ? 'Review subject-level marks'
+            : 'Focus: $_marksSubject';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: color.withValues(alpha: 0.12),
+            child: Text(
+              (student['student']?.toString().isNotEmpty ?? false)
+                  ? student['student'].toString().substring(0, 1).toUpperCase()
+                  : 'S',
+              style: TextStyle(color: color, fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(student['student']?.toString() ?? 'Student',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A))),
+                const SizedBox(height: 1),
+                Text(focus,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 10.5, color: Color(0xFF64748B))),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('${percentage.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                      color: color, fontSize: 13, fontWeight: FontWeight.w900)),
+              Text(critical ? 'URGENT' : 'WATCH',
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800)),
+            ],
+          ),
         ],
       ),
     );
@@ -2752,7 +3673,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 ),
               ],
             ),
-            child: const Icon(Icons.emoji_events, color: Colors.white, size: 26),
+            child:
+                const Icon(Icons.emoji_events, color: Colors.white, size: 26),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -2763,27 +3685,42 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   children: [
                     const Text(
                       'CLASS TOPPER SPOTLIGHT',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFB45309), letterSpacing: 0.5),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFB45309),
+                          letterSpacing: 0.5),
                     ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1.5),
                       decoration: BoxDecoration(
                         color: const Color(0xFFB45309),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text('RANK #1', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900)),
+                      child: const Text('RANK #1',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _classTopper ?? 'Class Topper',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1E293B)),
                 ),
                 Text(
                   'Secured Outstanding ${_classTopperPct.toStringAsFixed(1)}% in $_examType ($marksCountLabel)',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF78350F)),
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF78350F)),
                 ),
               ],
             ),
@@ -2793,9 +3730,12 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     );
   }
 
-  String get marksCountLabel => _marksSubject.startsWith('All') ? 'Aggregate All Subjects' : _marksSubject;
+  String get marksCountLabel => _marksSubject.startsWith('All')
+      ? 'Aggregate All Subjects'
+      : _marksSubject;
 
-  Widget _buildMetricTile(String label, String value, IconData icon, Color color) {
+  Widget _buildMetricTile(
+      String label, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -2817,13 +3757,15 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           Text(
             value,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color),
+            style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w900, color: color),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.grey),
+            style: const TextStyle(
+                fontSize: 9, fontWeight: FontWeight.w600, color: Colors.grey),
           ),
         ],
       ),
@@ -2858,7 +3800,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
               SizedBox(width: 8),
               Text(
                 'Class Podium · Top 3 Honor Roll',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0F172A)),
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: Color(0xFF0F172A)),
               ),
             ],
           ),
@@ -2986,7 +3931,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFFF59E0B)),
         ),
-        child: const Text('🥇 #1', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFB45309), fontSize: 12)),
+        child: const Text('🥇 #1',
+            style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: Color(0xFFB45309),
+                fontSize: 12)),
       );
     } else if (rank == 2) {
       return Container(
@@ -2996,7 +3945,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFF94A3B8)),
         ),
-        child: const Text('🥈 #2', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF475569), fontSize: 12)),
+        child: const Text('🥈 #2',
+            style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF475569),
+                fontSize: 12)),
       );
     } else if (rank == 3) {
       return Container(
@@ -3006,7 +3959,11 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFFFB923C)),
         ),
-        child: const Text('🥉 #3', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF9A3412), fontSize: 12)),
+        child: const Text('🥉 #3',
+            style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF9A3412),
+                fontSize: 12)),
       );
     } else {
       return Container(
@@ -3017,7 +3974,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
         ),
         child: Text(
           '#$rank',
-          style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF64748B), fontSize: 12),
+          style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF64748B),
+              fontSize: 12),
         ),
       );
     }
@@ -3058,9 +4018,15 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                     backgroundColor: _primary.withValues(alpha: 0.15),
                     child: Text(
                       (student['student']?.toString().isNotEmpty ?? false)
-                          ? student['student'].toString().substring(0, 1).toUpperCase()
+                          ? student['student']
+                              .toString()
+                              .substring(0, 1)
+                              .toUpperCase()
                           : 'S',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: _primary),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          color: _primary),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -3070,11 +4036,13 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       children: [
                         Text(
                           student['student'] ?? 'Student Scorecard',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w800),
                         ),
                         Text(
                           'Class $_marksClass · ${_examType} Examination',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          style:
+                              const TextStyle(fontSize: 12, color: Colors.grey),
                         ),
                       ],
                     ),
@@ -3085,7 +4053,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 10),
-              const Text('Subject-wise Performance Breakdown', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const Text('Subject-wise Performance Breakdown',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
               const SizedBox(height: 10),
               if (subjects.isNotEmpty)
                 ...subjects.map((s) {
@@ -3100,10 +4069,15 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(s['subject'] ?? 'Subject', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                            Text(s['subject'] ?? 'Subject',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 13)),
                             Text(
                               '${obt.toStringAsFixed(0)} / ${maxM.toStringAsFixed(0)} (${(pct * 100).toStringAsFixed(0)}%) · Grade ${s['grade'] ?? 'A1'}',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: _primary),
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                  color: _primary),
                             ),
                           ],
                         ),
@@ -3159,23 +4133,32 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Homework & Syllabus Filters', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                const Text('Homework & Syllabus Filters',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                 const SizedBox(height: 12),
-                _dropdownField('Class', _hwClass, _classes, (v) => setState(() => _hwClass = v!)),
+                _dropdownField('Class', _hwClass, _classes,
+                    (v) => setState(() => _hwClass = v!)),
                 const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _hwLoading ? null : _generateHwReport,
                     icon: _hwLoading
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.analytics_outlined, size: 18),
-                    label: Text(_hwLoading ? 'Generating...' : 'Fetch Homework Report'),
+                    label: Text(
+                        _hwLoading ? 'Generating...' : 'Fetch Homework Report'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ),
@@ -3194,26 +4177,32 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   child: ListTile(
                     leading: const CircleAvatar(
                       backgroundColor: Color(0xFFF0FDF4),
-                      child: Icon(Icons.assignment_turned_in, color: Color(0xFF0F766E), size: 20),
+                      child: Icon(Icons.assignment_turned_in,
+                          color: Color(0xFF0F766E), size: 20),
                     ),
-                    title: Text(r['title'] ?? 'Homework', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('Subject: ${r['subject']} • Due: ${r['due_date']} • By ${r['teacher']}'),
+                    title: Text(r['title'] ?? 'Homework',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(
+                        'Subject: ${r['subject']} • Due: ${r['due_date']} • By ${r['teacher']}'),
                     trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         r['status'] ?? 'pending',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
                 )),
           ] else if (!_hwLoading) ...[
             const SizedBox(height: 20),
-            _buildEmptyState('No homework assignments logged. Tap Fetch Homework Report.'),
+            _buildEmptyState(
+                'No homework assignments logged. Tap Fetch Homework Report.'),
           ],
         ],
       ),
@@ -3249,14 +4238,21 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   child: ElevatedButton.icon(
                     onPressed: _udiseLoading ? null : _loadUdiseCompliance,
                     icon: _udiseLoading
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.file_download, size: 18),
-                    label: Text(_udiseLoading ? 'Compiling UDISE+ Data...' : 'Compile 38-Field UDISE+ Report'),
+                    label: Text(_udiseLoading
+                        ? 'Compiling UDISE+ Data...'
+                        : 'Compile 38-Field UDISE+ Report'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ),
@@ -3279,7 +4275,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   Expanded(
                     child: Text(
                       'STATUS: VERIFY WITH CLIENT — Compiled from standard 38-field MoE UDISE+ compliance baseline.',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF92400E)),
                     ),
                   ),
                 ],
@@ -3292,15 +4291,19 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('UDISE+ Standard Compliance Fields', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                      const Text('UDISE+ Standard Compliance Fields',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 13)),
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.table_view_rounded, color: _primary),
+                            icon: const Icon(Icons.table_view_rounded,
+                                color: _primary),
                             tooltip: 'Export 38-Field UDISE+ Excel (AD-R10)',
                             onPressed: () {
                               if (_udiseData != null) {
-                                SchoolExportService.exportAdminUdise38FieldExcel(
+                                SchoolExportService
+                                    .exportAdminUdise38FieldExcel(
                                   context: context,
                                   udiseData: _udiseData!,
                                 );
@@ -3318,28 +4321,34 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                   ),
                   const SizedBox(height: 10),
                   ..._udiseData!.entries.map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            e.key.replaceAll('_', ' ').toUpperCase(),
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
-                          ),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                e.key.replaceAll('_', ' ').toUpperCase(),
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF475569)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                '${e.value}',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A)),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            '${e.value}',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )),
+                      )),
                 ],
               ),
             ),
@@ -3358,7 +4367,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.2),
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.2),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF0F172A).withValues(alpha: 0.04),
@@ -3384,13 +4394,16 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
         children: [
           const Icon(Icons.inbox, size: 44, color: Color(0xFF94A3B8)),
           const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
         ],
       ),
     );
   }
 
-  Widget _dateTile(String label, DateTime date, void Function(DateTime) onPicked) {
+  Widget _dateTile(
+      String label, DateTime date, void Function(DateTime) onPicked) {
     return InkWell(
       onTap: () async {
         final picked = await showDatePicker(
@@ -3416,8 +4429,14 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500)),
-                Text(_formatDate(date), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.w500)),
+                Text(_formatDate(date),
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w700)),
               ],
             ),
           ],
@@ -3426,21 +4445,37 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     );
   }
 
-  Widget _dropdownField(String label, String value, List<String> items, void Function(String?) onChanged) {
-    final validValue = items.contains(value) ? value : (items.isNotEmpty ? items.first : null);
+  Widget _dropdownField(String label, String value, List<String> items,
+      void Function(String?) onChanged) {
+    final validValue =
+        items.contains(value) ? value : (items.isNotEmpty ? items.first : null);
     return DropdownButtonFormField<String>(
       initialValue: validValue,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+        labelStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF64748B)),
         filled: true,
         fillColor: const Color(0xFFF8FAFC),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         isDense: true,
       ),
-      items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+      items: items
+          .map((i) => DropdownMenuItem(
+              value: i,
+              child: Text(i,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))))
+          .toList(),
       onChanged: onChanged,
     );
   }
@@ -3458,10 +4493,16 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
           Text(
             value,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: color),
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w900, color: color),
           ),
           const SizedBox(height: 2),
-          Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600)),
+          Text(label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );
