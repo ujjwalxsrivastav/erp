@@ -44,6 +44,7 @@ class SchoolPermissionService {
     'circulars',
     'homework',
     'timetable',
+    'leave',
   ];
 
   // ==========================================
@@ -533,6 +534,7 @@ class SchoolPermissionService {
         if (feature == 'attendance' || feature == 'marks') return 'edit';
         if (feature == 'homework') return 'edit';
         if (feature == 'timetable') return 'edit';
+        if (feature == 'leave') return 'view';
         if (feature == 'circulars' || feature == 'library' || feature == 'timetable') return 'view';
         return 'none';
 
@@ -540,6 +542,7 @@ class SchoolPermissionService {
         if (feature == 'attendance' || feature == 'marks') return 'edit';
         if (feature == 'homework') return 'edit';
         if (feature == 'timetable') return 'edit';
+        if (feature == 'leave') return 'approve';
         if (feature == 'discipline') return 'edit';
         if (feature == 'fees' || feature == 'hostel' || feature == 'circulars' || feature == 'library') return 'view';
         return 'none';
@@ -567,12 +570,14 @@ class SchoolPermissionService {
       case 'parent':
         if (feature == 'attendance' || feature == 'marks' || feature == 'fees' || feature == 'transport' || feature == 'infirmary' || feature == 'circulars' || feature == 'homework') return 'view';
         if (feature == 'timetable') return 'view';
+        if (feature == 'leave') return 'edit';
         return 'none';
 
       case 'student':
         if (feature == 'attendance' || feature == 'marks' || feature == 'fees' || feature == 'library' || feature == 'circulars') return 'view';
         if (feature == 'homework') return 'edit';
         if (feature == 'timetable') return 'view';
+        if (feature == 'leave') return 'edit';
         return 'none';
 
       default:

@@ -8199,6 +8199,18 @@ class SchoolService {
     'Emergency Leave',
   ];
 
+  /// Read published school holidays from the calendar table only.
+  Future<List<Map<String, dynamic>>> getHolidays() async {
+    final username = await AuthService().getCurrentUsername() ?? '';
+    if (username.isEmpty) throw Exception('Sign in to view school holidays.');
+    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    if (!{'student', 'sstudent', 'parent', 'sparent', 'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'}.contains(role)) throw Exception('This role cannot view school holidays.');
+    final response = await _supabase.from('school_academic_calendar')
+        .select('id,title,description,start_date,end_date,category,target_audience')
+        .ilike('category', 'holiday').order('start_date', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
   int _leaveDayCount(String startDate, String endDate) {
     try {
       final start = DateTime.parse(startDate);
@@ -8301,9 +8313,20 @@ class SchoolService {
     String? appliedBy,
     String? appliedByRole,
   }) async {
-    final username = (studentUsername != null && studentUsername.isNotEmpty)
-        ? studentUsername
-        : studentId;
+    final current = await AuthService().getCurrentUsername() ?? '';
+    if (current.isEmpty) throw Exception('Sign in to apply for leave.');
+    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    await permissions.enforce(feature: 'leave', requiredPermission: 'edit', username: current);
+    final username = (studentUsername != null && studentUsername.isNotEmpty) ? studentUsername : studentId;
+    if (role == 'student' || role == 'sstudent') {
+      if (username != current) throw Exception('Students can only apply for their own leave.');
+    } else if (role == 'parent' || role == 'sparent') {
+      final link = await _supabase.from('parent_student_links').select('student_username')
+          .eq('parent_username', current).eq('student_username', username).maybeSingle();
+      if (link == null) throw Exception('This student is not linked to your account.');
+    } else {
+      throw Exception('Only a student or linked parent can submit a student leave request.');
+    }
     final classTeacher = await getClassTeacherForClass(
       classId: classId,
       className: className,
@@ -8327,8 +8350,8 @@ class SchoolService {
       if (documentUrl != null && documentUrl.isNotEmpty)
         'document_url': documentUrl,
       'status': 'pending',
-      'applied_by': appliedBy ?? username,
-      'applied_by_role': appliedByRole ?? 'student',
+      'applied_by': current,
+      'applied_by_role': role,
     };
 
     if (!_missingTables.contains('school_student_leaves')) {
@@ -8405,6 +8428,20 @@ class SchoolService {
     String? classId,
     String? status,
   }) async {
+    final current = await AuthService().getCurrentUsername() ?? '';
+    if (current.isEmpty) throw Exception('Sign in to view leave requests.');
+    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    if (role == 'student' || role == 'sstudent') {
+      if (studentId != null && studentId != current) throw Exception('Students can only view their own leave requests.');
+      studentId = current;
+    } else if (role == 'parent' || role == 'sparent') {
+      if (studentId == null || studentId.isEmpty) throw Exception('Choose a linked child to view leave requests.');
+      final link = await _supabase.from('parent_student_links').select('student_username')
+          .eq('parent_username', current).eq('student_username', studentId).maybeSingle();
+      if (link == null) throw Exception('This student is not linked to your account.');
+    } else if (!{'admin', 'sadmin', 'principal', 'superadmin', 'teacher', 'steacher', 'class_teacher'}.contains(role)) {
+      throw Exception('This role cannot view student leave requests.');
+    }
     final merged = _mergeLeaveLists(
       await _fetchTableLeaves(),
       await _getLegacyStudentLeaves(),
@@ -8414,7 +8451,7 @@ class SchoolService {
     final classNeedle = (classId ?? '').trim();
     final statusNeedle = (status ?? '').trim().toLowerCase();
 
-    return merged.where((leave) {
+    final filtered = merged.where((leave) {
       if (student.isNotEmpty) {
         final username =
             (leave['student_username']?.toString() ?? '').toLowerCase();
@@ -8431,6 +8468,25 @@ class SchoolService {
       }
       return true;
     }).toList();
+    if (role == 'teacher' || role == 'steacher' || role == 'class_teacher') {
+      final classes = await getTeacherAllAssignedClasses(current);
+      final ids = classes.map((c) => (c['class_id'] ?? c['id'] ?? '').toString()).where((v) => v.isNotEmpty).toSet();
+      final names = classes.map((c) => (c['class_name'] ?? c['name'] ?? '').toString().toLowerCase()).where((v) => v.isNotEmpty).toSet();
+      return filtered.where((leave) => (ids.contains(leave['class_id']?.toString()) || names.contains((leave['class_name']?.toString() ?? '').toLowerCase())) && leave['status']?.toString() == 'approved').toList();
+    }
+    return filtered;
+  }
+
+  Future<List<Map<String, dynamic>>> getLeavesForParent({required String parentUsername, String? studentUsername}) async {
+    final current = await AuthService().getCurrentUsername() ?? '';
+    if (current != parentUsername) throw Exception('Parents can only view leave applications for their own account.');
+    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    if (role != 'parent' && role != 'sparent') throw Exception('Parent role required.');
+    if (studentUsername == null || studentUsername.isEmpty) return [];
+    final link = await _supabase.from('parent_student_links').select('student_username')
+        .eq('parent_username', current).eq('student_username', studentUsername).maybeSingle();
+    if (link == null) throw Exception('This student is not linked to your account.');
+    return getStudentLeaves(studentId: studentUsername);
   }
 
   /// Rows from the dedicated leave table; empty when the setup script has not
@@ -8547,15 +8603,15 @@ class SchoolService {
   /// of (matched by class teacher, class id, or class name).
   Future<List<Map<String, dynamic>>> getLeaveRequestsForClassTeacher(
       String teacherUsername) async {
+    final current = await AuthService().getCurrentUsername() ?? '';
+    if (current.isEmpty || current != teacherUsername) throw Exception('You can only view your own class leave queue.');
+    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    if (!{'teacher', 'steacher', 'class_teacher'}.contains(role)) throw Exception('Only class teachers can access this queue.');
     if (teacherUsername.isEmpty) return [];
     final teacher = teacherUsername.trim().toLowerCase();
 
-    final merged = _mergeLeaveLists(
-      await _fetchTableLeaves(),
-      await _getLegacyStudentLeaves(),
-    );
-
     final classes = await getClassTeacherClasses(teacherUsername);
+    if (classes.isEmpty) return [];
     final teacherClassIds = <String>{};
     final teacherClassKeys = <String>{};
     for (final c in classes) {
@@ -8570,6 +8626,20 @@ class SchoolService {
         teacherClassKeys.add('$name $section');
       }
     }
+
+    final tableRows = <Map<String, dynamic>>[];
+    if (!_missingTables.contains('school_student_leaves')) {
+      for (final classId in teacherClassIds) {
+        try {
+          final response = await _supabase.from('school_student_leaves')
+              .select().eq('class_id', classId).order('created_at', ascending: false);
+          tableRows.addAll(List<Map<String, dynamic>>.from(response).map(_normaliseLeaveRow));
+        } catch (e) {
+          if (_isTableMissingError(e)) _missingTables.add('school_student_leaves');
+        }
+      }
+    }
+    final merged = _mergeLeaveLists(tableRows, await _getLegacyStudentLeaves());
 
     return merged.where((leave) {
       final assigned =
@@ -8672,6 +8742,14 @@ class SchoolService {
     String? reviewerName,
     String? remarks,
   }) async {
+    final current = await AuthService().getCurrentUsername() ?? '';
+    if (current.isEmpty || current != reviewedBy) throw Exception('Reviewer must match the signed-in user.');
+    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    if (!{'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'}.contains(role)) throw Exception('This role cannot review student leave.');
+    if (!{'admin', 'sadmin', 'principal', 'superadmin'}.contains(role)) {
+      final ownQueue = await getLeaveRequestsForClassTeacher(current);
+      if (!ownQueue.any((leave) => leave['id']?.toString() == leaveId)) throw Exception('This leave request is outside your assigned classes.');
+    }
     final normalised =
         status.toLowerCase() == 'approved' ? 'approved' : 'rejected';
     final now = DateTime.now().toIso8601String();

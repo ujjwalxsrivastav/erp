@@ -10,7 +10,8 @@ import '../../../services/school_service.dart';
 /// applications for their own classes and approves or rejects them with
 /// remarks. Approving a leave marks the covered days `excused` in attendance.
 class StudentLeaveScreen extends StatefulWidget {
-  const StudentLeaveScreen({super.key});
+  const StudentLeaveScreen({super.key, this.approvalsOnly = false});
+  final bool approvalsOnly;
 
   @override
   State<StudentLeaveScreen> createState() => _StudentLeaveScreenState();
@@ -31,9 +32,15 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
 
   bool _isLoading = true;
   bool _isStudent = false;
+  bool _isParent = false;
+  bool _canReview = false;
+  bool _isAdmin = false;
   String _username = '';
   Map<String, dynamic>? _profile;
+  List<Map<String, dynamic>> _parentChildren = [];
+  Map<String, dynamic>? _selectedChild;
   List<Map<String, dynamic>> _leaves = [];
+  List<Map<String, dynamic>> _holidays = [];
   List<String> _teacherClasses = [];
 
   /// Every known class identity (id, "cls-10a", "class10", "Class 10-A")
@@ -44,7 +51,7 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _init();
   }
 
@@ -61,8 +68,27 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
     if (!mounted) return;
     setState(() {
       _username = username;
-      _isStudent = role == 'student';
+      _isStudent = role == 'student' || role == 'sstudent';
+      _isParent = role == 'parent' || role == 'sparent';
+      _canReview = widget.approvalsOnly &&
+          {
+            'teacher',
+            'steacher',
+            'class_teacher',
+            'admin',
+            'sadmin',
+            'principal',
+            'superadmin'
+          }.contains(role);
+      _isAdmin = {'admin', 'sadmin', 'principal', 'superadmin'}.contains(role);
     });
+
+    if (_isParent && !widget.approvalsOnly) {
+      _parentChildren = await _schoolService.getParentChildren(username);
+      _selectedChild = _parentChildren.isEmpty ? null : _parentChildren.first;
+      _profile = _selectedChild;
+      if (mounted) setState(() {});
+    }
 
     await _loadClassNames();
 
@@ -70,7 +96,7 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
       final profile = await _schoolService.getSchoolStudentProfile(username);
       if (!mounted) return;
       setState(() => _profile = profile);
-    } else {
+    } else if (_canReview) {
       final classes = await _schoolService.getClassTeacherClasses(username);
       if (!mounted) return;
       setState(() {
@@ -82,6 +108,12 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
     }
 
     await _loadLeaves();
+    try {
+      final holidays = await _schoolService.getHolidays();
+      if (mounted) setState(() => _holidays = holidays);
+    } catch (_) {
+      if (mounted) setState(() => _holidays = []);
+    }
   }
 
   Future<void> _loadClassNames() async {
@@ -106,9 +138,19 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
   Future<void> _loadLeaves() async {
     setState(() => _isLoading = true);
 
-    final leaves = _isStudent
-        ? await _schoolService.getStudentLeaves(studentId: _username)
-        : await _schoolService.getLeaveRequestsForClassTeacher(_username);
+    final selectedStudent =
+        _isParent ? (_selectedChild?['username']?.toString() ?? '') : _username;
+    final leaves = (_isStudent || _isParent)
+        ? (selectedStudent.isEmpty
+            ? <Map<String, dynamic>>[]
+            : _isParent
+                ? await _schoolService.getLeavesForParent(
+                    parentUsername: _username, studentUsername: selectedStudent)
+                : await _schoolService.getStudentLeaves(
+                    studentId: selectedStudent))
+        : _canReview && !_isAdmin && _teacherClasses.isNotEmpty
+            ? await _schoolService.getLeaveRequestsForClassTeacher(_username)
+            : await _schoolService.getStudentLeaves();
 
     if (!mounted) return;
     setState(() {
@@ -197,11 +239,11 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                         ),
                       ),
                       items: SchoolService.studentLeaveTypes
-                          .map((t) =>
-                              DropdownMenuItem(value: t, child: Text(t)))
+                          .map(
+                              (t) => DropdownMenuItem(value: t, child: Text(t)))
                           .toList(),
-                      onChanged: (v) => setSheetState(
-                          () => leaveType = v ?? leaveType),
+                      onChanged: (v) =>
+                          setSheetState(() => leaveType = v ?? leaveType),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -216,8 +258,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                                 initialDate: startDate,
                                 firstDate: DateTime.now()
                                     .subtract(const Duration(days: 7)),
-                                lastDate:
-                                    DateTime.now().add(const Duration(days: 120)),
+                                lastDate: DateTime.now()
+                                    .add(const Duration(days: 120)),
                               );
                               if (picked != null) {
                                 setSheetState(() {
@@ -238,11 +280,12 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                             onTap: () async {
                               final picked = await showDatePicker(
                                 context: ctx,
-                                initialDate:
-                                    endDate.isBefore(startDate) ? startDate : endDate,
+                                initialDate: endDate.isBefore(startDate)
+                                    ? startDate
+                                    : endDate,
                                 firstDate: startDate,
-                                lastDate:
-                                    DateTime.now().add(const Duration(days: 120)),
+                                lastDate: DateTime.now()
+                                    .add(const Duration(days: 120)),
                               );
                               if (picked != null) {
                                 setSheetState(() => endDate = picked);
@@ -278,7 +321,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                       controller: documentCtrl,
                       decoration: InputDecoration(
                         labelText: 'Supporting document (optional)',
-                        hintText: 'e.g. Medical certificate submitted to class teacher',
+                        hintText:
+                            'e.g. Medical certificate submitted to class teacher',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -296,7 +340,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                                 if (reason.isEmpty) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     const SnackBar(
-                                      content: Text('Please enter a reason for the leave.'),
+                                      content: Text(
+                                          'Please enter a reason for the leave.'),
                                       backgroundColor: _red,
                                       behavior: SnackBarBehavior.floating,
                                     ),
@@ -387,6 +432,9 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
     final profile = _profile;
     final classId = profile?['class_id']?.toString() ?? '';
     final className = profile?['class_name']?.toString();
+    final targetUsername =
+        _isParent ? (_selectedChild?['username']?.toString() ?? '') : _username;
+    if (targetUsername.isEmpty) return false;
 
     try {
       await _schoolService.applyStudentLeave(
@@ -398,16 +446,17 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
         leaveType: leaveType,
         reason: reason,
         documentUrl: document.isEmpty ? null : document,
-        studentUsername: _username,
+        studentUsername: targetUsername,
         className: className,
         appliedBy: _username,
-        appliedByRole: 'student',
+        appliedByRole: _isParent ? 'parent' : 'student',
       );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Could not submit the leave application. Please try again.'),
+            content: Text(
+                'Could not submit the leave application. Please try again.'),
             backgroundColor: _red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -452,7 +501,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
               const SizedBox(width: 8),
               Text(
                 approve ? 'Approve Leave' : 'Reject Leave',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                style:
+                    const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -461,7 +511,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _dialogDetail('Student', leave['student_name']?.toString() ?? '-'),
+                _dialogDetail(
+                    'Student', leave['student_name']?.toString() ?? '-'),
                 _dialogDetail(
                   'Class',
                   _classLabel(leave),
@@ -470,7 +521,7 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                 _dialogDetail(
                   'Dates',
                   '${_formatDate(leave['start_date']?.toString() ?? '')} → '
-                  '${_formatDate(leave['end_date']?.toString() ?? '')}',
+                      '${_formatDate(leave['end_date']?.toString() ?? '')}',
                 ),
                 _dialogDetail(
                   'Reason',
@@ -483,9 +534,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                   controller: remarksCtrl,
                   maxLines: 2,
                   decoration: InputDecoration(
-                    labelText: approve
-                        ? 'Remarks (optional)'
-                        : 'Reason for rejection',
+                    labelText:
+                        approve ? 'Remarks (optional)' : 'Reason for rejection',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -515,7 +565,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                       if (!approve && remarks.isEmpty) {
                         ScaffoldMessenger.of(ctx).showSnackBar(
                           const SnackBar(
-                            content: Text('Please state why the leave is rejected.'),
+                            content:
+                                Text('Please state why the leave is rejected.'),
                             backgroundColor: _red,
                             behavior: SnackBarBehavior.floating,
                           ),
@@ -622,14 +673,45 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
           ),
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(86),
+          preferredSize: Size.fromHeight(_isParent ? 132 : 86),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_isParent)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: DropdownButtonFormField<Map<String, dynamic>>(
+                    initialValue: _selectedChild,
+                    dropdownColor: Colors.white,
+                    decoration: const InputDecoration(
+                      labelText: 'Child',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _parentChildren
+                        .map((child) => DropdownMenuItem(
+                              value: child,
+                              child: Text(child['name']?.toString() ??
+                                  child['username']?.toString() ??
+                                  'Student'),
+                            ))
+                        .toList(),
+                    onChanged: (child) {
+                      setState(() {
+                        _selectedChild = child;
+                        _profile = child;
+                      });
+                      _loadLeaves();
+                    },
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Text(
-                  _isStudent
+                  (_isStudent || _isParent)
                       ? 'Apply for leave and track your class teacher’s decision'
                       : _teacherClasses.isEmpty
                           ? 'Review leave applications from your class students'
@@ -682,6 +764,7 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                             ? 'History (${_reviewed.length})'
                             : 'Reviewed (${_reviewed.length})',
                       ),
+                      Tab(text: 'Holidays (${_holidays.length})'),
                     ],
                   ),
                 ),
@@ -690,18 +773,19 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
           ),
         ),
       ),
-      floatingActionButton: _isStudent
-          ? FloatingActionButton.extended(
-              onPressed: _showApplyLeaveSheet,
-              backgroundColor: _rose,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text(
-                'Apply for Leave',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            )
-          : null,
+      floatingActionButton:
+          (_isStudent || _isParent) && (_isStudent || _selectedChild != null)
+              ? FloatingActionButton.extended(
+                  onPressed: _showApplyLeaveSheet,
+                  backgroundColor: _rose,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add),
+                  label: const Text(
+                    'Apply for Leave',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                )
+              : null,
       body: _isLoading
           ? _buildLoadingSkeleton()
           : TabBarView(
@@ -709,6 +793,7 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
               children: [
                 _buildList(_pending, isPending: true),
                 _buildList(_reviewed, isPending: false),
+                HolidayList(holidays: _holidays),
               ],
             ),
     );
@@ -729,7 +814,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
     );
   }
 
-  Widget _buildList(List<Map<String, dynamic>> items, {required bool isPending}) {
+  Widget _buildList(List<Map<String, dynamic>> items,
+      {required bool isPending}) {
     if (items.isEmpty) {
       final isTeacherWithoutClass = !_isStudent && _teacherClasses.isEmpty;
       return ListView(
@@ -841,7 +927,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             decoration: BoxDecoration(
               color: statusColor.withValues(alpha: 0.07),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(17)),
             ),
             child: Row(
               children: [
@@ -853,7 +940,10 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    leave['type']?.toString().toLowerCase().contains('medical') ==
+                    leave['type']
+                                ?.toString()
+                                .toLowerCase()
+                                .contains('medical') ==
                             true
                         ? Icons.medical_services_outlined
                         : Icons.event_busy_outlined,
@@ -897,7 +987,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.date_range_outlined, size: 15, color: _muted),
+                    const Icon(Icons.date_range_outlined,
+                        size: 15, color: _muted),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -916,7 +1007,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                 const SizedBox(height: 8),
                 Text(
                   leave['reason']?.toString() ?? '-',
-                  style: const TextStyle(fontSize: 12.5, color: _muted, height: 1.35),
+                  style: const TextStyle(
+                      fontSize: 12.5, color: _muted, height: 1.35),
                 ),
                 if ((leave['document_url']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -965,13 +1057,14 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                     ),
                   ),
                 ],
-                if (!_isStudent && isPending) ...[
+                if (_canReview && isPending) ...[
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => _showReviewDialog(leave, approve: false),
+                          onPressed: () =>
+                              _showReviewDialog(leave, approve: false),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: _red,
                             side: const BorderSide(color: _red),
@@ -984,7 +1077,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                       const SizedBox(width: 10),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () => _showReviewDialog(leave, approve: true),
+                          onPressed: () =>
+                              _showReviewDialog(leave, approve: true),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _green,
                             foregroundColor: Colors.white,
@@ -1006,25 +1100,7 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
   }
 
   Widget _statusChip(String status, Color color) {
-    final label = status.isEmpty
-        ? 'Pending'
-        : '${status[0].toUpperCase()}${status.substring(1)}';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.30)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
-      ),
-    );
+    return LeaveStatusChip(status: status, color: color);
   }
 
   Color _statusColor(String status) {
@@ -1073,12 +1149,73 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
     try {
       final dt = DateTime.parse(value);
       const months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]} ${dt.year}';
     } catch (_) {
       return value;
     }
+  }
+}
+
+class HolidayList extends StatelessWidget {
+  const HolidayList({super.key, required this.holidays});
+  final List<Map<String, dynamic>> holidays;
+
+  @override
+  Widget build(BuildContext context) {
+    if (holidays.isEmpty) {
+      return const Center(child: Text('No school holidays published yet.'));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: holidays.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final holiday = holidays[index];
+        return Card(
+          child: ListTile(
+            leading:
+                const Icon(Icons.event_available, color: Color(0xFFBE123C)),
+            title: Text(holiday['title']?.toString() ?? 'School holiday'),
+            subtitle: Text(
+                '${holiday['start_date'] ?? ''}${holiday['end_date'] == null || holiday['end_date'] == holiday['start_date'] ? '' : ' – ${holiday['end_date']}'}'),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class LeaveStatusChip extends StatelessWidget {
+  const LeaveStatusChip({super.key, required this.status, required this.color});
+  final String status;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = status.isEmpty
+        ? 'Pending'
+        : '${status[0].toUpperCase()}${status.substring(1)}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.30)),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: color)),
+    );
   }
 }

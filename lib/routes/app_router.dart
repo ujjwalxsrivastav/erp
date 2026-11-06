@@ -260,7 +260,8 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/timetable-admin': {'admin', 'sadmin', 'principal', 'superadmin'},
   '/school/timetable-teacher': {'teacher', 'steacher', 'class_teacher'},
   '/school/timetable-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/leave-approvals': _schoolStaffRoles,
+  '/school/leave-student': {'student', 'sstudent', 'parent', 'sparent'},
+  '/school/leave-approvals': {'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'},
   '/school/discipline-staff': _schoolStaffRoles,
   '/school/discipline-notices': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/ai-tools-faculty': _schoolStaffRoles,
@@ -554,6 +555,10 @@ final router = GoRouter(
       builder: (context, state) => const StudentLeaveScreen(),
     ),
     GoRoute(
+      path: '/school/leave-student',
+      builder: (context, state) => const StudentLeaveScreen(),
+    ),
+    GoRoute(
       path: '/school/attendance',
       builder: (context, state) => const SchoolAttendanceScreen(),
     ),
@@ -637,7 +642,7 @@ final router = GoRouter(
         builder: (context, state) => const StudentTimetableScreen()),
     GoRoute(
         path: '/school/leave-approvals',
-        builder: (context, state) => const StudentLeaveScreen()),
+        builder: (context, state) => const StudentLeaveScreen(approvalsOnly: true)),
     GoRoute(
         path: '/school/discipline-staff',
         builder: (context, state) => const SchoolDisciplineScreen()),
