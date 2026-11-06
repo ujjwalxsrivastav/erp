@@ -302,5 +302,74 @@ VALUES
     ('2026-2027', 'Term 2', 'Annual PTM & Final Result Declaration', 'Declaration of annual promotion results and distribution of CBSE HPC report cards.', 'PTM', '2027-03-20', '2027-03-20', '08:30 AM', '02:00 PM', false, false, 'parents', ARRAY['All']::TEXT[], 'Classrooms', '#EC4899', 'sadmin1')
 ON CONFLICT DO NOTHING;
 
+-- 15. Student wallet balance column fix
+ALTER TABLE IF EXISTS public.school_students ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(10,2) DEFAULT 0.00;
+
+-- 16. School AI Architecture (SP11: Remarks, Question Papers, Feedback, Usage Log)
+CREATE TABLE IF NOT EXISTS public.school_ai_remarks (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    student_username TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    exam_id TEXT NOT NULL,
+    class_id TEXT NOT NULL,
+    draft_remark TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft_pending_approval' CHECK (status IN ('draft_pending_approval', 'approved', 'rejected', 'edited')),
+    approved_by TEXT,
+    approved_at TIMESTAMPTZ,
+    teacher_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.school_ai_question_papers (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    title TEXT NOT NULL,
+    class_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    total_marks INTEGER NOT NULL DEFAULT 50,
+    difficulty_mix JSONB DEFAULT '{"easy": 40, "medium": 40, "hard": 20}'::jsonb,
+    sections JSONB DEFAULT '[]'::jsonb,
+    status TEXT NOT NULL DEFAULT 'draft_pending_approval' CHECK (status IN ('draft_pending_approval', 'approved', 'archived')),
+    created_by TEXT NOT NULL,
+    approved_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.school_ai_feedback (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    assignment_id TEXT NOT NULL,
+    student_username TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    draft_feedback TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft_pending_approval' CHECK (status IN ('draft_pending_approval', 'approved', 'edited')),
+    created_by TEXT NOT NULL,
+    approved_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.school_ai_usage_log (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    user_username TEXT NOT NULL,
+    user_role TEXT NOT NULL,
+    feature TEXT NOT NULL CHECK (feature IN ('remarks', 'question_paper', 'feedback', 'rag_chat')),
+    prompt_snippet TEXT,
+    tokens_used INTEGER DEFAULT 0,
+    model_used TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.school_ai_remarks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.school_ai_question_papers DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.school_ai_feedback DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.school_ai_usage_log DISABLE ROW LEVEL SECURITY;
+
+GRANT ALL ON public.school_ai_remarks TO anon, authenticated, service_role;
+GRANT ALL ON public.school_ai_question_papers TO anon, authenticated, service_role;
+GRANT ALL ON public.school_ai_feedback TO anon, authenticated, service_role;
+GRANT ALL ON public.school_ai_usage_log TO anon, authenticated, service_role;
+
 SELECT 'School ERP runtime tables successfully created and verified!' AS status;
 

@@ -61,20 +61,29 @@ CREATE TABLE IF NOT EXISTS school_ai_usage_log (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- RLS POLICIES
+-- RLS POLICIES & GRANTS
 ALTER TABLE school_ai_remarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE school_ai_question_papers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE school_ai_feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE school_ai_usage_log ENABLE ROW LEVEL SECURITY;
 
+GRANT ALL ON public.school_ai_remarks TO anon, authenticated, service_role;
+GRANT ALL ON public.school_ai_question_papers TO anon, authenticated, service_role;
+GRANT ALL ON public.school_ai_feedback TO anon, authenticated, service_role;
+GRANT ALL ON public.school_ai_usage_log TO anon, authenticated, service_role;
+
+DROP POLICY IF EXISTS "Multi-school isolation ai_remarks" ON school_ai_remarks;
 CREATE POLICY "Multi-school isolation ai_remarks" ON school_ai_remarks
     FOR ALL USING (institute_id = CURRENT_SETTING('app.current_institute_id', true) OR CURRENT_SETTING('app.current_institute_id', true) IS NULL);
 
+DROP POLICY IF EXISTS "Multi-school isolation ai_papers" ON school_ai_question_papers;
 CREATE POLICY "Multi-school isolation ai_papers" ON school_ai_question_papers
     FOR ALL USING (institute_id = CURRENT_SETTING('app.current_institute_id', true) OR CURRENT_SETTING('app.current_institute_id', true) IS NULL);
 
+DROP POLICY IF EXISTS "Multi-school isolation ai_feedback" ON school_ai_feedback;
 CREATE POLICY "Multi-school isolation ai_feedback" ON school_ai_feedback
     FOR ALL USING (institute_id = CURRENT_SETTING('app.current_institute_id', true) OR CURRENT_SETTING('app.current_institute_id', true) IS NULL);
 
+DROP POLICY IF EXISTS "Multi-school isolation ai_usage" ON school_ai_usage_log;
 CREATE POLICY "Multi-school isolation ai_usage" ON school_ai_usage_log
     FOR ALL USING (institute_id = CURRENT_SETTING('app.current_institute_id', true) OR CURRENT_SETTING('app.current_institute_id', true) IS NULL);
