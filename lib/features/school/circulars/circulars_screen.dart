@@ -16,7 +16,15 @@ class _CircularsScreenState extends State<CircularsScreen> {
   String? _userRole;
   bool _isLoading = true;
   String? _errorMessage;
-  final List<String> _categories = ['All', 'General', 'Academic', 'Exam', 'Fee', 'Events', 'Holiday'];
+  final List<String> _categories = [
+    'All',
+    'General',
+    'Academic',
+    'Exam',
+    'Fee',
+    'Events',
+    'Holiday'
+  ];
 
   List<Map<String, dynamic>> _circulars = [];
 
@@ -45,7 +53,8 @@ class _CircularsScreenState extends State<CircularsScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Unable to load notices. Please check your network and tap retry.';
+          _errorMessage =
+              'Unable to load notices. Please check your network and tap retry.';
         });
       }
     }
@@ -53,9 +62,11 @@ class _CircularsScreenState extends State<CircularsScreen> {
 
   List<Map<String, dynamic>> get _filtered {
     if (_selectedCategory == 'All') return _circulars;
-    return _circulars.where((c) =>
-      (c['category']?.toString().toLowerCase() ?? '') == _selectedCategory.toLowerCase()
-    ).toList();
+    return _circulars
+        .where((c) =>
+            (c['category']?.toString().toLowerCase() ?? '') ==
+            _selectedCategory.toLowerCase())
+        .toList();
   }
 
   void _showCreateDialog() {
@@ -68,32 +79,48 @@ class _CircularsScreenState extends State<CircularsScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Publish New Circular', style: TextStyle(fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Publish New Circular',
+              style: TextStyle(fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Title', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text('Title',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: titleCtrl,
                   decoration: InputDecoration(
                     hintText: 'e.g. Annual Sports Day 2026',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text('Category', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text('Category',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   initialValue: category,
                   decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
                   ),
-                  items: ['General', 'Academic', 'Exam', 'Fee', 'Events', 'Holiday']
+                  items: [
+                    'General',
+                    'Academic',
+                    'Exam',
+                    'Fee',
+                    'Events',
+                    'Holiday'
+                  ]
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
                   onChanged: (v) {
@@ -101,13 +128,17 @@ class _CircularsScreenState extends State<CircularsScreen> {
                   },
                 ),
                 const SizedBox(height: 12),
-                const Text('Target Audience', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text('Target Audience',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   initialValue: audience,
                   decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
                   ),
                   items: ['All', 'Students', 'Parents', 'Teachers']
                       .map((a) => DropdownMenuItem(value: a, child: Text(a)))
@@ -117,14 +148,17 @@ class _CircularsScreenState extends State<CircularsScreen> {
                   },
                 ),
                 const SizedBox(height: 12),
-                const Text('Content / Details', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const Text('Content / Details',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: contentCtrl,
                   maxLines: 4,
                   decoration: InputDecoration(
                     hintText: 'Write circular description...',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ],
@@ -138,17 +172,20 @@ class _CircularsScreenState extends State<CircularsScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF8B5CF6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () async {
-                if (titleCtrl.text.trim().isEmpty || contentCtrl.text.trim().isEmpty) return;
+                if (titleCtrl.text.trim().isEmpty ||
+                    contentCtrl.text.trim().isEmpty) return;
                 Navigator.pop(ctx);
                 final newCirc = {
                   'title': titleCtrl.text.trim(),
                   'content': contentCtrl.text.trim(),
                   'category': category,
                   'target_audience': audience,
-                  'published_at': DateTime.now().toIso8601String().substring(0, 10),
+                  'published_at':
+                      DateTime.now().toIso8601String().substring(0, 10),
                   'author': 'School Admin',
                 };
                 await _schoolService.createCircular(newCirc);
@@ -162,7 +199,9 @@ class _CircularsScreenState extends State<CircularsScreen> {
                   );
                 }
               },
-              child: const Text('Publish', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text('Publish',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -172,7 +211,15 @@ class _CircularsScreenState extends State<CircularsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canPublish = _userRole == 'admin' || _userRole == 'teacher';
+    const publisherRoles = {
+      'admin',
+      'sadmin',
+      'principal',
+      'superadmin',
+      'teacher',
+      'steacher'
+    };
+    final canPublish = publisherRoles.contains(_userRole?.toLowerCase());
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -200,7 +247,8 @@ class _CircularsScreenState extends State<CircularsScreen> {
               foregroundColor: Colors.white,
               elevation: 4,
               icon: const Icon(Icons.add),
-              label: const Text('New Notice', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text('New Notice',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             )
           : null,
       body: Column(
@@ -210,7 +258,11 @@ class _CircularsScreenState extends State<CircularsScreen> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFF581C87), Color(0xFF6D28D9), Color(0xFF7C3AED)],
+                colors: [
+                  Color(0xFF581C87),
+                  Color(0xFF6D28D9),
+                  Color(0xFF7C3AED)
+                ],
               ),
             ),
             child: SingleChildScrollView(
@@ -224,9 +276,12 @@ class _CircularsScreenState extends State<CircularsScreen> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.18),
+                        color: isSelected
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: isSelected
                             ? [
@@ -241,7 +296,9 @@ class _CircularsScreenState extends State<CircularsScreen> {
                       child: Text(
                         cat,
                         style: TextStyle(
-                          color: isSelected ? const Color(0xFF6D28D9) : Colors.white,
+                          color: isSelected
+                              ? const Color(0xFF6D28D9)
+                              : Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
                         ),
@@ -267,7 +324,8 @@ class _CircularsScreenState extends State<CircularsScreen> {
                               itemCount: _filtered.length,
                               itemBuilder: (context, index) {
                                 final c = _filtered[index];
-                                final cat = c['category']?.toString() ?? 'General';
+                                final cat =
+                                    c['category']?.toString() ?? 'General';
                                 Color catColor = const Color(0xFF7C3AED);
                                 IconData catIcon = Icons.notifications_outlined;
                                 if (cat.contains('Exam')) {
@@ -284,8 +342,10 @@ class _CircularsScreenState extends State<CircularsScreen> {
                                   catIcon = Icons.celebration_outlined;
                                 }
 
-                                final publishedAt = c['published_at']?.toString() ?? '';
-                                final audience = c['target_audience']?.toString() ?? 'All';
+                                final publishedAt =
+                                    c['published_at']?.toString() ?? '';
+                                final audience =
+                                    c['target_audience']?.toString() ?? 'All';
 
                                 return Container(
                                   margin: const EdgeInsets.only(bottom: 12),
@@ -293,30 +353,37 @@ class _CircularsScreenState extends State<CircularsScreen> {
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(
+                                        color: const Color(0xFFE2E8F0)),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.04),
+                                        color: Colors.black
+                                            .withValues(alpha: 0.04),
                                         blurRadius: 10,
                                         offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 10, vertical: 4),
                                             decoration: BoxDecoration(
-                                              color: catColor.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(12),
+                                              color: catColor.withValues(
+                                                  alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                             ),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                Icon(catIcon, size: 14, color: catColor),
+                                                Icon(catIcon,
+                                                    size: 14, color: catColor),
                                                 const SizedBox(width: 6),
                                                 Text(
                                                   cat,
@@ -331,10 +398,12 @@ class _CircularsScreenState extends State<CircularsScreen> {
                                           ),
                                           const Spacer(),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 3),
                                             decoration: BoxDecoration(
                                               color: const Color(0xFFF1F5F9),
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                             child: Text(
                                               'Audience: $audience',
@@ -356,7 +425,9 @@ class _CircularsScreenState extends State<CircularsScreen> {
                                           color: Color(0xFF0F172A),
                                         ),
                                       ),
-                                      if ((c['content'] ?? '').toString().isNotEmpty) ...[
+                                      if ((c['content'] ?? '')
+                                          .toString()
+                                          .isNotEmpty) ...[
                                         const SizedBox(height: 6),
                                         Text(
                                           c['content'] ?? '',
@@ -370,11 +441,17 @@ class _CircularsScreenState extends State<CircularsScreen> {
                                       const SizedBox(height: 12),
                                       Row(
                                         children: [
-                                          const Icon(Icons.schedule, size: 14, color: Color(0xFF94A3B8)),
+                                          const Icon(Icons.schedule,
+                                              size: 14,
+                                              color: Color(0xFF94A3B8)),
                                           const SizedBox(width: 4),
                                           Text(
-                                            publishedAt.length >= 10 ? publishedAt.substring(0, 10) : 'Recent',
-                                            style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                                            publishedAt.length >= 10
+                                                ? publishedAt.substring(0, 10)
+                                                : 'Recent',
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF94A3B8)),
                                           ),
                                         ],
                                       ),
@@ -418,12 +495,16 @@ class _CircularsScreenState extends State<CircularsScreen> {
                 color: Colors.red.shade50,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+              child: Icon(Icons.error_outline,
+                  size: 48, color: Colors.red.shade400),
             ),
             const SizedBox(height: 16),
             const Text(
               'Failed to Load Notices',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A)),
             ),
             const SizedBox(height: 8),
             Text(
@@ -437,12 +518,15 @@ class _CircularsScreenState extends State<CircularsScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF7C3AED),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
               ),
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w600)),
+              label: const Text('Try Again',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -463,12 +547,16 @@ class _CircularsScreenState extends State<CircularsScreen> {
                 color: const Color(0xFFF1F5F9),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.campaign_outlined, size: 48, color: Color(0xFF94A3B8)),
+              child: const Icon(Icons.campaign_outlined,
+                  size: 48, color: Color(0xFF94A3B8)),
             ),
             const SizedBox(height: 16),
             Text(
               'No $_selectedCategory Circulars Found',
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+              style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A)),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -483,12 +571,15 @@ class _CircularsScreenState extends State<CircularsScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7C3AED),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
                 icon: const Icon(Icons.add, size: 18),
-                label: const Text('Publish First Notice', style: TextStyle(fontWeight: FontWeight.w600)),
+                label: const Text('Publish First Notice',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
               ),
             ],
           ],

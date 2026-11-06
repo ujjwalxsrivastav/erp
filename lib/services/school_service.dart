@@ -6345,24 +6345,15 @@ class SchoolService {
   }
 
   Future<bool> createCircular(Map<String, dynamic> data) async {
-    final entry = {
-      'id': 'circ-${DateTime.now().millisecondsSinceEpoch}',
-      'published_at': DateTime.now().toIso8601String().substring(0, 10),
-      ...data,
-    };
-    _circularsStore.insert(0, entry);
-
-    try {
-      await _supabase.from('school_circulars').insert(data);
-    } catch (_) {}
+    await permissions.enforce(feature: 'circulars', requiredPermission: 'edit');
+    await _supabase.from('school_circulars').insert(data);
     return true;
   }
 
   Future<bool> deleteCircular(String id) async {
-    _circularsStore.removeWhere((c) => c['id'] == id);
-    try {
-      await _supabase.from('school_circulars').delete().eq('id', id);
-    } catch (_) {}
+    await permissions.enforce(
+        feature: 'circulars', requiredPermission: 'approve');
+    await _supabase.from('school_circulars').delete().eq('id', id);
     return true;
   }
 
