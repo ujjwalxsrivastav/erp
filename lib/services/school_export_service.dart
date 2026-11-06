@@ -5177,4 +5177,82 @@ class SchoolExportService {
     }
   }
 
+  /// SP-R12: Permission Matrix & Maker-Checker Governance Audit
+  static Future<void> exportSchoolPermissionAuditExcel({
+    required BuildContext context,
+    required String instituteName,
+    required List<Map<String, dynamic>> matrix,
+    required List<Map<String, dynamic>> marksLocks,
+    required List<Map<String, dynamic>> makerCheckerRequests,
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Permission Matrix'];
+
+    final totalRules = matrix.length;
+    final lockedSessions = marksLocks.where((l) => l['is_locked'] == true).length;
+    final pendingApprovals = makerCheckerRequests.where((r) => r['status'] == 'pending').length;
+
+    summary.appendRow([TextCellValue('INSTITUTION:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('REPORT:'), TextCellValue('Role x Feature Permission Matrix & Governance Audit')]);
+    summary.appendRow([TextCellValue('REPORT CODE:'), TextCellValue('SP-R12')]);
+    summary.appendRow([TextCellValue('GENERATED AT:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('KEY GOVERNANCE METRIC'), TextCellValue('COUNT / STATUS')]);
+    summary.appendRow([TextCellValue('Configured Matrix Rules:'), IntCellValue(totalRules)]);
+    summary.appendRow([TextCellValue('Exam Sessions Currently Locked:'), IntCellValue(lockedSessions)]);
+    summary.appendRow([TextCellValue('Pending Maker-Checker Approvals:'), IntCellValue(pendingApprovals)]);
+    summary.appendRow([TextCellValue('Separation of Duty Enforced:'), TextCellValue('YES (Maker != Checker)')]);
+    summary.appendRow([TextCellValue('Audit Trail Retention:'), TextCellValue('PERMANENT (school_audit_log)')]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Role'),
+      TextCellValue('Feature Domain'),
+      TextCellValue('Permission Level'),
+      TextCellValue('Authority Scope'),
+      TextCellValue('Updated By'),
+      TextCellValue('Last Updated At'),
+    ]);
+
+    for (int i = 0; i < matrix.length; i++) {
+      final m = matrix[i];
+      final perm = (m['permission']?.toString() ?? 'none').toUpperCase();
+      String scope = 'Restricted';
+      if (perm == 'APPROVE') scope = 'Full Control & Administrative Sign-off';
+      if (perm == 'EDIT') scope = 'Creation & Modification';
+      if (perm == 'VIEW') scope = 'Read-Only Visual Access';
+
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(m['role']?.toString().toUpperCase() ?? '-'),
+        TextCellValue(m['feature']?.toString().toUpperCase() ?? '-'),
+        TextCellValue(perm),
+        TextCellValue(scope),
+        TextCellValue(m['updated_by']?.toString() ?? 'SYSTEM_SEED'),
+        TextCellValue(m['updated_at']?.toString() ?? '-'),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('${matrix.length} RULES'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('AUDITED'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R12_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }

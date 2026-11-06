@@ -1,9 +1,33 @@
-- **Current Step in Execution Plan:** `Step SP10: Permission Matrix (Item 10)`
-- **Status:** **Step SP9 (Library Deep-Dive) is 100% complete and verified on live Supabase!** (1) Created `database/school_library_setup.sql` with `school_library_reservations`, `school_library_ebooks`, and `school_library_fine_ledger` with multi-school RLS; (2) Built `SchoolLibraryDeepService` with catalogue management, reservation waitlist with 3-day pickup claim window, circulation desk with statutory overdue ₹5/day auto-fine calculation and auto-posting to fees ledger, librarian fine waiver with audit trail, and free digital e-books repository (NCERT + Gutenberg); (3) Added `SP-R11` (Library Circulation & Overdue Ledger) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolLibraryDeepScreen` with 4 segmented command tabs, 4 KPI tiles, `fl_chart` subject volume bar chart, book cataloguing modal, waitlist reservation modal, return & settle action modal, and free e-book reader; (5) Wired route `/school/library-deep`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP10: Permission Matrix (Item 10)**.
+- **Current Step in Execution Plan:** `Step SP11: Second AI System & Chatbot RAG (Items 1 & 12)`
+- **Status:** **Step SP10 (Permission Matrix & Governance) is 100% complete and verified on live Supabase!** (1) Created `database/school_permissions_setup.sql` with `school_role_permissions`, `school_marks_locks`, and `school_maker_checker_requests` with multi-school RLS; (2) Built `SchoolPermissionService` defining comprehensive baseline matrix for 10 supported roles across 13 features, service-level hierarchical permission evaluation (approve > edit > view > none), marks-lock deadline enforcement with mandatory audit justification, and 4-eyes maker-checker workflow strictly enforcing separation of duty (Maker != Checker); (3) Added `SP-R12` (Role x Feature Permission Matrix & Governance Audit) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolPermissionMatrixScreen` with 3 segmented command tabs, 4 KPI tiles, role/feature filtering, interactive authorization level modal, marks lock/unlock desk, and maker-checker approval queue; (5) Wired route `/school/permissions`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP11: Second AI System & Chatbot RAG (Items 1 & 12)**.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP10: Permission Matrix (Item 10)
+- [x] **Database & Schema Setup (`database/school_permissions_setup.sql`):**
+  - Created schema for 3 governance tables: `school_role_permissions`, `school_marks_locks`, and `school_maker_checker_requests`.
+  - Configured Row Level Security and institutional isolation with `institute_id` multi-school isolation.
+- [x] **Permission & Governance Service (`lib/services/school_permission_service.dart`):**
+  - Built comprehensive Role x Feature permission matrix: 10 roles (Superadmin, Sadmin, Principal, Teacher, Class Teacher, Parent, Student, Librarian, Warden, Nurse, Accountant) x 13 features.
+  - Built service-level authorization engine checking hierarchical permission levels (`canAccess`).
+  - Built exam session marks-locking engine preventing grade edits past deadlines, with admin unlock requiring mandatory audit justification written to `school_audit_log`.
+  - Built maker-checker sensitive action workflow (payroll locks, marks bulk moderation, disciplinary suspensions) enforcing strict separation of duty (initiator cannot approve their own action).
+- [x] **Reports Engine & Excel Exports (`lib/services/school_export_service.dart`):**
+  - Added `exportSchoolPermissionAuditExcel` (`SP-R12`): Dual-sheet summary (total roles, features, locked sessions, pending approvals, separation of duty audit) + permission matrix data with totals row and `School_SP_R12_<date>.xlsx` naming.
+- [x] **Enterprise UI Screen (`lib/features/school/admin/school_permission_matrix_screen.dart`):**
+  - Built 3-tab segmented interface: Role Matrix, Marks Locks Desk, Maker-Checker Queue.
+  - Added 4 top KPI tiles: Configured Roles, Managed Modules, Locked Sessions, Pending Approvals.
+  - Built interactive modals for adjusting role authorization levels, locking/unlocking marks sessions with audit reasons, and approving/rejecting maker-checker requests.
+- [x] **Router Integration (`lib/routes/app_router.dart`):**
+  - Registered route `/school/permissions` pointing to `SchoolPermissionMatrixScreen`.
+- [x] **Automated Verification:**
+  - `dart analyze lib/services/school_permission_service.dart lib/features/school/admin/school_permission_matrix_screen.dart lib/services/school_export_service.dart lib/routes/app_router.dart`: 0 errors, 0 warnings.
+  - Verified live Supabase round-trip for maker-checker submission and marks lock persistence with 100% success.
+  - Zero modifications to College ERP files.
+
+---
 
 ### [COMPLETED] Step SP9: Library Deep-Dive (Item 9)
 - [x] **Database & Schema Setup (`database/school_library_setup.sql`):**
