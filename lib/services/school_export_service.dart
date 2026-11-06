@@ -4584,4 +4584,98 @@ class SchoolExportService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SUPER ENTERPRISE REPORT: SP-R06 (Alumni Engagement & Giving Register)
+  // ---------------------------------------------------------------------------
+
+  /// SP-R06: Alumni Engagement & Community Network Register
+  static Future<void> exportSchoolAlumniEngagementExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> alumniList,
+    required List<Map<String, dynamic>> donationInterests,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    final totalAlumni = alumniList.length;
+    final totalMentors = alumniList.where((a) => a['willing_to_mentor'] == true).length;
+    final higherEdCount = alumniList.where((a) => (a['current_status'] ?? '').toString().contains('Higher Education')).length;
+    final employedCount = alumniList.where((a) => (a['current_status'] ?? '').toString().contains('Employed')).length;
+    final entrepreneurCount = alumniList.where((a) => (a['current_status'] ?? '').toString().contains('Entrepreneur')).length;
+    final civilServicesCount = alumniList.where((a) => (a['current_status'] ?? '').toString().contains('Civil Services')).length;
+
+    double totalPledges = 0.0;
+    for (final d in donationInterests) {
+      totalPledges += (d['pledge_amount_estimate'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    summary.appendRow([TextCellValue('INSTITUTION:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('REPORT:'), TextCellValue('Alumni Community Network & Institutional Engagement')]);
+    summary.appendRow([TextCellValue('REPORT CODE:'), TextCellValue('SP-R06')]);
+    summary.appendRow([TextCellValue('GENERATED AT:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('KEY METRIC'), TextCellValue('VALUE')]);
+    summary.appendRow([TextCellValue('Total Registered Alumni:'), IntCellValue(totalAlumni)]);
+    summary.appendRow([TextCellValue('Active Mentors Available:'), IntCellValue(totalMentors)]);
+    summary.appendRow([TextCellValue('In Higher Education / Research:'), IntCellValue(higherEdCount)]);
+    summary.appendRow([TextCellValue('Employed in Industry:'), IntCellValue(employedCount)]);
+    summary.appendRow([TextCellValue('Entrepreneurs / Founders:'), IntCellValue(entrepreneurCount)]);
+    summary.appendRow([TextCellValue('In Civil Services / Judiciary:'), IntCellValue(civilServicesCount)]);
+    summary.appendRow([TextCellValue('Total Expressed Pledges (Est):'), DoubleCellValue(totalPledges)]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Alumni Name'),
+      TextCellValue('Passing Year'),
+      TextCellValue('Batch'),
+      TextCellValue('Current Status'),
+      TextCellValue('Organization / College'),
+      TextCellValue('Designation / Degree'),
+      TextCellValue('City'),
+      TextCellValue('Mentorship Opt-in'),
+      TextCellValue('Verification Status'),
+    ]);
+
+    for (int i = 0; i < alumniList.length; i++) {
+      final a = alumniList[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(a['full_name']?.toString() ?? '-'),
+        IntCellValue((a['passing_year'] as num?)?.toInt() ?? 2020),
+        TextCellValue(a['batch_name']?.toString() ?? '-'),
+        TextCellValue(a['current_status']?.toString() ?? 'Employed'),
+        TextCellValue(a['organization_college']?.toString() ?? '-'),
+        TextCellValue(a['designation_degree']?.toString() ?? '-'),
+        TextCellValue(a['city']?.toString() ?? '-'),
+        TextCellValue(a['willing_to_mentor'] == true ? 'YES (Active Mentor)' : 'NO'),
+        TextCellValue(a['is_verified'] == true ? 'VERIFIED' : 'PENDING'),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('$totalAlumni Registered'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('$totalMentors Mentors'),
+      TextCellValue('RECONCILED'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R06_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }

@@ -33,6 +33,7 @@
 
 ## 2. Step Verification & Checkpoint History
 
+- **CHECKPOINT: Step SP4 complete** — Alumni module with `database/school_alumni_setup.sql`, `SchoolAlumniService`, `SchoolAlumniScreen` with 3 segmented tabs, report SP-R06, and live Supabase verification (events, RSVPs, circulars with 'Alumni' audience, cause pledges) — 2026-11-06 07:45 IST
 - **CHECKPOINT: Step SP3 complete** — Hostel, Infirmary, and Cafeteria suite with 11 tables (`database/school_hostel_infirmary_cafeteria_setup.sql`), `SchoolLivingService`, `SchoolLivingScreen` with 3 segmented command tabs, reports SP-R03, SP-R04, SP-R05, and live Supabase verification — 2026-11-06 07:38 IST
 - **CHECKPOINT: Step SP2 complete** — School Payroll module with `school_payroll_setup.sql`, `SchoolPayrollService`, statutory deductions (PF 12%, ESI 0.75%, PT 200), `SchoolPayrollScreen`, `SchoolMyPayslipsScreen`, reports SP-R01, SP-R02, and live Supabase verification (commit `8e2b142`) — 2026-11-06 07:29 IST
 

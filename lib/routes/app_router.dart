@@ -115,6 +115,7 @@ import '../features/school/academics/school_lesson_plan_screen.dart';
 import '../features/school/payroll/school_payroll_screen.dart';
 import '../features/school/payroll/school_my_payslips_screen.dart';
 import '../features/school/living/school_living_screen.dart';
+import '../features/school/alumni/school_alumni_screen.dart';
 import '../services/auth_service.dart';
 
 final router = GoRouter(
@@ -347,6 +348,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/living',
       builder: (context, state) => const SchoolLivingScreen(),
+    ),
+    GoRoute(
+      path: '/school/alumni',
+      builder: (context, state) => const SchoolAlumniScreen(),
     ),
 
     // ===== SCHOOL - PARENT =====

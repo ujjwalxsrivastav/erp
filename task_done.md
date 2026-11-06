@@ -1,9 +1,34 @@
-- **Current Step in Execution Plan:** `Step SP4: Alumni (Item 4)`
-- **Status:** **Step SP3 (Hostel, Infirmary & Cafeteria Suite) is 100% complete and verified on live Supabase!** (1) Created `database/school_hostel_infirmary_cafeteria_setup.sql` with 11 tables and multi-school RLS; (2) Built `SchoolLivingService` handling hostel occupancy, gate passes, health records with parent alerts, medicine inventory, weekly cafeteria menus, and RFID/wallet orders; (3) Integrated `SchoolService` living methods for parent portal; (4) Added `SP-R03` (Hostel Occupancy), `SP-R04` (Infirmary Visits), and `SP-R05` (Cafeteria Sales) dual-sheet Excel exports in `SchoolExportService`; (5) Built comprehensive UI screen `SchoolLivingScreen` with 3 segmented command tabs, 12 KPI tiles, `fl_chart` occupancy distribution, and log visit modal; (6) Wired route `/school/living`; (7) Live Supabase test passed with 100% success; (8) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP4: Alumni (Item 4)**.
+- **Current Step in Execution Plan:** `Step SP5: Inventory / Assets (Item 5)`
+- **Status:** **Step SP4 (Alumni) is 100% complete and verified on live Supabase!** (1) Created `database/school_alumni_setup.sql` with `school_alumni_profiles`, `school_alumni_events`, `school_alumni_rsvps`, and `school_alumni_donation_interests` with multi-school RLS; (2) Built `SchoolAlumniService` with directory management, event coordination, RSVP tracking, transparent cause pledge expressions (strictly NO monetary collection per owner direction), and alumni circular broadcasts; (3) Added `SP-R06` (Alumni Engagement & Community Network Register) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolAlumniScreen` with 3 segmented command tabs, 4 KPI tiles, `fl_chart` graduation year representation bar chart, RSVP confirmation modal, cause pledge interest modal, and broadcast modal; (5) Wired route `/school/alumni`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP5: Inventory / Assets (Item 5)**.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP4: Alumni (Item 4)
+- [x] **Database & Schema Setup (`database/school_alumni_setup.sql`):**
+  - Created schema for 4 alumni tables: `school_alumni_profiles`, `school_alumni_events`, `school_alumni_rsvps`, and `school_alumni_donation_interests`.
+  - Configured Row Level Security and institutional isolation with `institute_id` multi-school isolation.
+- [x] **Alumni Service (`lib/services/school_alumni_service.dart`):**
+  - Built comprehensive alumni directory: profiles search by batch/organization/degree, alumni registration, and student mentorship opt-in network.
+  - Built events & reunions management: in-person, hybrid, and webinar meets with batch eligibility and RSVP attendee counting.
+  - Built institutional causes & giving expressions: interest expressions for scholarships, STEM labs, and campus infrastructure (zero money flow, strictly interest form per owner rules).
+  - Built alumni broadcast engine extending circulars audience to `'Alumni'` with audit logging.
+- [x] **Reports Engine & Excel Exports (`lib/services/school_export_service.dart`):**
+  - Added `exportSchoolAlumniEngagementExcel` (`SP-R06`): Dual-sheet summary (career status split, mentor counts, pledge totals) + alumni roster data with totals row and `School_SP_R06_<date>.xlsx` naming.
+- [x] **Enterprise UI Screen (`lib/features/school/alumni/school_alumni_screen.dart`):**
+  - Built 3-tab segmented interface: Alumni Directory, Events & Reunions, Institutional Causes.
+  - Added 4 top KPI tiles: Alumni Strength, Active Mentors, Upcoming Meets, Expressed Causes.
+  - Integrated `fl_chart` BarChart visualization for graduation year representation across batches 2018–2023.
+  - Built interactive modals for registering alumni, hosting meets, submitting RSVPs, expressing cause pledges, and broadcasting notices.
+- [x] **Router Integration (`lib/routes/app_router.dart`):**
+  - Registered route `/school/alumni` pointing to `SchoolAlumniScreen`.
+- [x] **Automated Verification:**
+  - `dart analyze lib/services/school_alumni_service.dart lib/features/school/alumni/school_alumni_screen.dart lib/services/school_export_service.dart lib/routes/app_router.dart`: 0 errors, 0 warnings.
+  - Verified live Supabase round-trip for alumni event, RSVP, circular with audience `Alumni`, and cause pledge interest with 100% success.
+  - Zero modifications to College ERP files.
+
+---
 
 ### [COMPLETED] Step SP3: Hostel / Infirmary / Cafeteria Suite (Item 3)
 - [x] **Database & Schema Setup (`database/school_hostel_infirmary_cafeteria_setup.sql`):**
