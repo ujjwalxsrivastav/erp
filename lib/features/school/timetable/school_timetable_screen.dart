@@ -14,10 +14,10 @@ class SchoolTimetableScreen extends StatefulWidget {
 }
 
 class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final SchoolService _service = SchoolService();
   final AuthService _authService = AuthService();
-  late TabController _tabController;
+  TabController? _tabController;
 
   // Role & student context
   bool _isStudent = false;
@@ -79,9 +79,6 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
   @override
   void initState() {
     super.initState();
-    // Default 3 tabs for admin/teacher; will re-sync to 1 if student
-    _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(_handleTabSelection);
 
     final todayWeekday = DateFormat('EEEE').format(DateTime.now());
     if (_days.contains(todayWeekday)) {
@@ -95,9 +92,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
   }
 
   void _handleTabSelection() {
-    if (_tabController.indexIsChanging) {
-      if (_tabController.index == 1) _loadSubstitutionData();
-      if (_tabController.index == 2) _loadSyllabusData();
+    final controller = _tabController;
+    if (controller != null && controller.indexIsChanging) {
+      if (controller.index == 1) _loadSubstitutionData();
+      if (controller.index == 2) _loadSyllabusData();
     }
   }
 
@@ -128,11 +126,16 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
     // Synchronize tab controller length based on role
     final requiredLength = isStudent ? 1 : (isTeacher ? 2 : 3);
-    if (_tabController.length != requiredLength) {
-      _tabController.removeListener(_handleTabSelection);
-      _tabController.dispose();
+    if (_tabController == null || _tabController!.length != requiredLength) {
+      final oldController = _tabController;
+      oldController?.removeListener(_handleTabSelection);
       _tabController = TabController(length: requiredLength, vsync: this);
-      _tabController.addListener(_handleTabSelection);
+      _tabController!.addListener(_handleTabSelection);
+      if (oldController != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          oldController.dispose();
+        });
+      }
     }
 
     setState(() {
@@ -299,8 +302,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
   @override
   void dispose() {
-    _tabController.removeListener(_handleTabSelection);
-    _tabController.dispose();
+    _tabController?.removeListener(_handleTabSelection);
+    _tabController?.dispose();
+    _tabController = null;
     super.dispose();
   }
 
@@ -2006,7 +2010,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (!_isRoleLoaded) {
+    if (!_isRoleLoaded || (!_isStudent && _tabController == null)) {
       return Scaffold(
         backgroundColor: _bg,
         appBar: AppBar(
@@ -2105,6 +2109,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: TabBar(
+                    key: ValueKey('timetable_tabbar_${_tabController?.length}_${_isTeacher ? "t" : "a"}'),
                     controller: _tabController,
                     indicator: BoxDecoration(
                       color: Colors.white,
@@ -2139,6 +2144,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
       body: _isStudent
           ? _buildTimetableTab()
           : TabBarView(
+              key: ValueKey('timetable_tabbarview_${_tabController?.length}_${_isTeacher ? "t" : "a"}'),
               controller: _tabController,
               children: _isTeacher
                   ? [_buildTimetableTab(), _buildSubstitutionTab()]

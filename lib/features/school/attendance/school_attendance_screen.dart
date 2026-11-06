@@ -1563,7 +1563,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                               for (int i = 0; i < sortedDates.length; i++) ...[
                                 () {
                                   final d = sortedDates[i];
-                                  final data = _monthlySummary[d]!;
+                                  final data = _monthlySummary[d] ?? const <String, dynamic>{};
                                   final pres = data['present'] as int? ?? 0;
                                   final tot = data['total'] as int? ?? 0;
                                   final rate =
@@ -1689,7 +1689,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                   ),
                   const Divider(height: 1, color: Color(0xFFE2E8F0)),
                   ...sortedDates.map((d) {
-                    final data = _monthlySummary[d]!;
+                    final data = _monthlySummary[d] ?? const <String, dynamic>{};
                     final pres = data['present'] as int? ?? 0;
                     final abs = data['absent'] as int? ?? 0;
                     final tot = data['total'] as int? ?? 0;
