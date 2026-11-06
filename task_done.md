@@ -1,9 +1,37 @@
-- **Current Step in Execution Plan:** `Step SP12: Reports Catalogue, Final QA, Build & Handoff`
-- **Status:** **Step SP11 (Second AI System & Chatbot RAG) is 100% complete and verified on live APIs!** (1) Created `database/school_ai_setup.sql` with `school_ai_remarks`, `school_ai_question_papers`, `school_ai_feedback`, and `school_ai_usage_log` with multi-school RLS; (2) Built `SchoolAiService` integrating Groq (`openai/gpt-oss-120b`) with failover to Gemini (`gemini-3.8-flash`) and deterministic offline protection, daily per-user quota controls (25 calls/day), mandatory `[AI draft — teacher approval pending]` tagging, and cross-module RAG knowledge desk covering payroll, hostel, infirmary, cafeteria, alumni, library, and discipline; (3) Added `SP-R13` (Chatbot Usage & Quota Audit) and `SP-R15` (AI Features Adoption & Faculty Approval Audit) dual-sheet Excel exports in `SchoolExportService`; (4) Built enterprise UI screen `SchoolAiAssistantScreen` with 4 segmented command tabs, 4 KPI tiles, remarks generator & approval desk, question paper blueprint generator & preview modal, homework feedback drafter, and interactive RAG chatbot; (5) Wired route `/school/ai-tools`; (6) Live LLM round-trip passed with status 200 on Groq `openai/gpt-oss-120b` and persistence verified on live Supabase; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP12: Reports Catalogue, Final QA, Build & Handoff**.
+- **Current Step in Execution Plan:** `SP0 to SP12: 100% Complete & Verified`
+- **Status:** **ALL 12 ITEMS (SP0 to SP12) OF THE SUPER ENTERPRISE DEEP-DIVE ARE FULLY COMPLETED, VERIFIED, AND RELEASE-READY!**
+  1. **SP0 (Baseline & Audit):** Live `users` table audited (77 users, 76 with `s`-prefix), statutory defaults established (PF 12%, ESI 0.75%, library fine ₹5/day, depreciation 10%).
+  2. **SP1 (Deploy Pipeline Fix):** `.github/workflows/deploy.yml` hardened with fail-fast `flutter analyze` and `--dart-define`. `- .env` removed from `pubspec.yaml` assets. Local release build validated.
+  3. **SP2 (School Payroll):** 4 tables (`school_audit_log`, `school_salary_structures`, `school_payroll_runs`, `school_payslips`), statutory deductions (PF 12%, ESI 0.75%, PT ₹200, LOP), disbursement and month-locking. Reports `SP-R01` (Line chart) and `SP-R02` (Register table). Screen `/school/payroll`.
+  4. **SP3 (Hostel / Infirmary / Cafeteria Suite):** 11 tables with multi-school RLS (`database/school_hostel_infirmary_cafeteria_setup.sql`), room allocations, gate passes with parent alerts, health clinic records, weekly menus, RFID wallet orders. Reports `SP-R03`, `SP-R04`, `SP-R05`. Screen `/school/living`.
+  5. **SP4 (Alumni):** 4 tables (`school_alumni_profiles`, `school_alumni_events`, `school_alumni_rsvps`, `school_alumni_donation_interests`), mentorship network, reunions, giving interest forms (strictly zero money flow). Report `SP-R06`. Screen `/school/alumni`.
+  6. **SP5 (Inventory / Assets):** 4 tables (`school_inventory_items`, `school_inventory_issues`, `school_inventory_maintenance`, `school_inventory_audits`), 10% straight-line depreciation, equipment loans, servicing logs, annual physical audits. Report `SP-R07`. Screen `/school/inventory`.
+  7. **SP6 (Activities):** 5 tables (`school_activity_events`, `school_clubs`, `school_club_memberships`, `school_sports_teams`, `school_activity_participations`), accredited certificate serials (`CERT-ACT-YYYY-XXXX`). Report `SP-R08`. Screen `/school/activities`.
+  8. **SP7 (Discipline):** 4 tables (`school_discipline_incidents`, `school_discipline_inquiries`, `school_discipline_actions`, `school_discipline_parent_notices`), severity grading, role-gated suspensions (Principal/Sadmin only), parent notices with read receipts. Report `SP-R09`. Screen `/school/discipline`.
+  9. **SP8 (Multi-School Superadmin):** 3 tables (`school_institutes`, `school_institute_settings`, `school_institute_billing`), campus switcher, tenant isolation gate (tested with 0 cross-tenant leaks). Report `SP-R10`. Screen `/school/multi-admin`.
+  10. **SP9 (Library Deep-Dive):** 3 tables (`school_library_reservations`, `school_library_ebooks`, `school_library_fine_ledger`), waitlist reservations with 3-day pickup claim windows, statutory ₹5/day overdue auto-fine auto-posted to fees ledger, librarian fine waiver with audit trail, free NCERT and Gutenberg digital e-books. Report `SP-R11`. Screen `/school/library-deep`.
+  11. **SP10 (Permission Matrix):** 3 tables (`school_role_permissions`, `school_marks_locks`, `school_maker_checker_requests`), 10 roles x 13 features matrix, marks-lock deadline enforcement, maker-checker separation of duty. Report `SP-R12`. Screen `/school/permissions`.
+  12. **SP11 (Second AI System & Chatbot RAG):** 4 tables (`school_ai_remarks`, `school_ai_question_papers`, `school_ai_feedback`, `school_ai_usage_log`), primary Groq `openai/gpt-oss-120b` (status 200) with Gemini `gemini-3.8-flash` failover and offline fallback, 25 calls/day quota controls, mandatory `[AI draft — teacher approval pending]` tagging, and cross-module RAG knowledge assistant. Reports `SP-R13` and `SP-R15`. Screen `/school/ai-tools`.
+  13. **SP12 (Reports Catalogue, QA & Build):** All 15 dual-sheet Excel reports (`SP-R01` to `SP-R15`) with `fl_chart` graph pairings, zero college ERP files touched, static analysis 0 errors/0 warnings, web release build passing.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP12: Reports Catalogue, Final QA, Build & Handoff (All Items)
+- [x] **Complete 15-Report Engine (`lib/services/school_export_service.dart`):**
+  - All 15 reports (`SP-R01` to `SP-R15`) implemented adhering to the dual-sheet Excel standard (`Summary` + `Data` with totals row, formatted currency, dates, and percentages, naming `School_<CODE>_<YYYYMMDD>.xlsx`).
+  - Added `exportSchoolDeployHealthExcel` (`SP-R14`) tracking pipeline telemetry, build durations, and success rates.
+- [x] **College Regression Shield:**
+  - Verified with `git diff --stat origin/main -- lib/features/college/`: 0 files modified, 0 lines changed.
+- [x] **Static Analysis Clean:**
+  - `dart analyze lib/features/school/ lib/services/ lib/routes/`: 0 errors, 0 warnings across all files.
+- [x] **Web Release Build Verification:**
+  - `flutter build web --release --base-href /erp/`: exit code 0.
+- [x] **Git Checkpoint & Push:**
+  - All steps SP0 through SP12 committed with formatted commit messages and pushed to `origin/main`.
+
+---
 
 ### [COMPLETED] Step SP11: Second AI System & Chatbot RAG (Items 1 & 12)
 - [x] **Database & Schema Setup (`database/school_ai_setup.sql`):**
