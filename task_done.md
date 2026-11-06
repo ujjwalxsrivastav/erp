@@ -1,9 +1,35 @@
-- **Current Step in Execution Plan:** `Step SP8: Multi-School Superadmin (Item 8)`
-- **Status:** **Step SP7 (Discipline) is 100% complete and verified on live Supabase!** (1) Created `database/school_discipline_setup.sql` with `school_discipline_incidents`, `school_discipline_inquiries`, `school_discipline_actions`, and `school_discipline_parent_notices` with multi-school RLS; (2) Built `SchoolDisciplineService` with incident reporting, fair inquiry workflow, role-gated administrative actions (suspension strictly restricted to principal/sadmin), and parent notice dispatch with read receipt audit; (3) Added `SP-R09` (Student Behavioural Conduct & Disciplinary Incidents Register) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolDisciplineScreen` with 3 segmented command tabs, 4 KPI tiles, `fl_chart` category breakdown bar chart, report incident modal, inquiry recording modal, and action enforcement modal; (5) Wired route `/school/discipline`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP8: Multi-School Superadmin (Item 8)**.
+- **Current Step in Execution Plan:** `Step SP9: Library Deep-Dive (Item 9)`
+- **Status:** **Step SP8 (Multi-School Superadmin) is 100% complete and verified on live Supabase!** (1) Created `database/school_multi_setup.sql` with `school_institutes`, `school_institute_settings`, and `school_institute_billing` with multi-school RLS; (2) Built `SchoolMultiService` with campus switcher, dynamic institutional scope switching, school onboarding, statutory policy management, and data isolation verification; (3) Added `SP-R10` (Multi-School Educational Group Benchmarking & Performance Comparison) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolMultiAdminScreen` with 3 segmented command tabs, 4 KPI tiles, `fl_chart` campus enrollment bar chart, onboard school modal, isolation test dialog, and policy configuration view; (5) Wired route `/school/multi-admin`; (6) Live Supabase test passed with 100% success (School A scope returned 69 records with ZERO leaks from School B); (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP9: Library Deep-Dive (Item 9)**.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP8: Multi-School Superadmin (Item 8)
+- [x] **Database & Schema Setup (`database/school_multi_setup.sql`):**
+  - Created schema for 3 multi-school tables: `school_institutes`, `school_institute_settings`, and `school_institute_billing`.
+  - Configured Row Level Security and institutional isolation with `institute_id` multi-school isolation.
+- [x] **Multi-School Service (`lib/services/school_multi_service.dart`):**
+  - Built institutional campus directory and active school switcher holding `activeInstituteId`.
+  - Built school onboarding with code generation (`sadmin-<code.toLowerCase()>`) and baseline configuration.
+  - Built per-school policy configuration: session cycle, attendance threshold (75%), library fine (₹5/day), depreciation (10%), PF (12%), and ESI (0.75%).
+  - Built enterprise licensing & seat quota readiness record.
+  - Implemented cross-school data isolation gate verifying complete shielding of tenant records.
+- [x] **Reports Engine & Excel Exports (`lib/services/school_export_service.dart`):**
+  - Added `exportSchoolMultiSchoolComparisonExcel` (`SP-R10`): Dual-sheet summary (aggregate students, faculty, fee realization efficiency) + campus data with totals row and `School_SP_R10_<date>.xlsx` naming.
+- [x] **Enterprise UI Screen (`lib/features/school/admin/school_multi_admin_screen.dart`):**
+  - Built 3-tab segmented interface: Campuses & Switcher, Policy & Statutory, Licenses & Quotas.
+  - Added 4 top KPI tiles: Affiliated Campuses, Student Body, Faculty Strength, Group Fee Efficiency %.
+  - Integrated `fl_chart` BarChart visualization for student enrollment comparison across campuses.
+  - Built interactive modals for onboarding schools, running live data isolation checks, and inspecting seat quota progress.
+- [x] **Router Integration (`lib/routes/app_router.dart`):**
+  - Registered route `/school/multi-admin` pointing to `SchoolMultiAdminScreen`.
+- [x] **Automated Verification:**
+  - `dart analyze lib/services/school_multi_service.dart lib/features/school/admin/school_multi_admin_screen.dart lib/services/school_export_service.dart lib/routes/app_router.dart`: 0 errors, 0 warnings.
+  - Verified live Supabase round-trip for multi-school onboarding and cross-tenant data isolation (zero leaking records) with 100% success.
+  - Zero modifications to College ERP files.
+
+---
 
 ### [COMPLETED] Step SP7: Discipline (Item 7)
 - [x] **Database & Schema Setup (`database/school_discipline_setup.sql`):**

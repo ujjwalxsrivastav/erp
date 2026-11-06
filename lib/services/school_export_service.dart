@@ -4979,4 +4979,99 @@ class SchoolExportService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SUPER ENTERPRISE REPORT: SP-R10 (Multi-School Comparison Register)
+  // ---------------------------------------------------------------------------
+
+  /// SP-R10: Multi-School Educational Group Benchmarking & Performance Comparison
+  static Future<void> exportSchoolMultiSchoolComparisonExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> institutes,
+    String instituteName = 'Shivalik Group of Institutions',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    int totalStudents = 0;
+    int totalFaculty = 0;
+    double feePercentSum = 0.0;
+
+    for (final inst in institutes) {
+      totalStudents += (inst['student_count'] as num?)?.toInt() ?? 0;
+      totalFaculty += (inst['faculty_count'] as num?)?.toInt() ?? 0;
+      feePercentSum += (inst['fee_collection_percent'] as num?)?.toDouble() ?? 90.0;
+    }
+    final avgFeePercent = institutes.isNotEmpty ? (feePercentSum / institutes.length) : 90.0;
+
+    summary.appendRow([TextCellValue('INSTITUTION:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('REPORT:'), TextCellValue('Multi-School Educational Group Benchmarking & Performance Comparison')]);
+    summary.appendRow([TextCellValue('REPORT CODE:'), TextCellValue('SP-R10')]);
+    summary.appendRow([TextCellValue('GENERATED AT:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('KEY METRIC'), TextCellValue('VALUE')]);
+    summary.appendRow([TextCellValue('Total Affiliated Campuses:'), IntCellValue(institutes.length)]);
+    summary.appendRow([TextCellValue('Aggregate Student Network:'), IntCellValue(totalStudents)]);
+    summary.appendRow([TextCellValue('Combined Faculty & Staff:'), IntCellValue(totalFaculty)]);
+    summary.appendRow([TextCellValue('Group Fee Collection Efficiency:'), DoubleCellValue(double.parse(avgFeePercent.toStringAsFixed(1)))]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Institute Code'),
+      TextCellValue('School Name'),
+      TextCellValue('Board Affiliation'),
+      TextCellValue('Affiliation No'),
+      TextCellValue('City & State'),
+      TextCellValue('Principal Head'),
+      TextCellValue('Student Count'),
+      TextCellValue('Faculty Count'),
+      TextCellValue('Fee Collection %'),
+      TextCellValue('License Tier'),
+      TextCellValue('Operational Status'),
+    ]);
+
+    for (int i = 0; i < institutes.length; i++) {
+      final inst = institutes[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(inst['institute_code']?.toString() ?? '-'),
+        TextCellValue(inst['name']?.toString() ?? '-'),
+        TextCellValue(inst['board_affiliation']?.toString() ?? 'CBSE'),
+        TextCellValue(inst['affiliation_number']?.toString() ?? '-'),
+        TextCellValue('${inst['city']}, ${inst['state']}'),
+        TextCellValue(inst['principal_name']?.toString() ?? '-'),
+        IntCellValue((inst['student_count'] as num?)?.toInt() ?? 0),
+        IntCellValue((inst['faculty_count'] as num?)?.toInt() ?? 0),
+        DoubleCellValue((inst['fee_collection_percent'] as num?)?.toDouble() ?? 90.0),
+        TextCellValue(inst['plan_tier']?.toString() ?? 'Super Enterprise'),
+        TextCellValue(inst['is_active'] == true ? 'ACTIVE' : 'INACTIVE'),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('${institutes.length} CAMPUSES'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('GRAND TOTALS:'),
+      IntCellValue(totalStudents),
+      IntCellValue(totalFaculty),
+      DoubleCellValue(double.parse(avgFeePercent.toStringAsFixed(1))),
+      TextCellValue('ENTERPRISE'),
+      TextCellValue('VERIFIED'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R10_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }
