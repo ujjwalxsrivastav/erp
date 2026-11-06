@@ -69,6 +69,45 @@ class SchoolService {
   }
 
   static final Set<String> _missingTables = <String>{};
+  static const String _demoQuizId = '00000000-0000-4000-8000-000000000001';
+  final Map<String, List<Map<String, dynamic>>> _demoQuizAttempts = {};
+
+  static const Map<String, dynamic> _demoPracticeQuiz = {
+    'id': _demoQuizId,
+    'subject': 'Science',
+    'title': 'Science Basics: Demo Practice Quiz',
+    'duration_minutes': 5,
+    'total_questions': 5,
+    'weightage_percent': 0,
+    'is_demo': true,
+    'questions': [
+      {
+        'question': 'Which part of a plant absorbs water from the soil?',
+        'options': ['Leaf', 'Root', 'Flower', 'Stem'],
+        'correct_index': 1,
+      },
+      {
+        'question': 'What is the main source of energy for Earth?',
+        'options': ['The Moon', 'The Sun', 'Wind', 'Coal'],
+        'correct_index': 1,
+      },
+      {
+        'question': 'Water changes into vapour during which process?',
+        'options': ['Freezing', 'Melting', 'Evaporation', 'Condensation'],
+        'correct_index': 2,
+      },
+      {
+        'question': 'Which organ pumps blood around the human body?',
+        'options': ['Lungs', 'Brain', 'Heart', 'Stomach'],
+        'correct_index': 2,
+      },
+      {
+        'question': 'Which material is attracted to a magnet?',
+        'options': ['Wood', 'Plastic', 'Iron', 'Glass'],
+        'correct_index': 2,
+      },
+    ],
+  };
   static bool isTableMissing(String table) => _missingTables.contains(table);
   static void markTableMissing(String table) => _missingTables.add(table);
   static bool _isTableMissingError(dynamic e) {
@@ -1759,8 +1798,8 @@ class SchoolService {
         }).toList();
 
         if (upcoming.isNotEmpty) {
-          upcoming.sort((a, b) =>
-              (a['date']?.toString() ?? '').compareTo(b['date']?.toString() ?? ''));
+          upcoming.sort((a, b) => (a['date']?.toString() ?? '')
+              .compareTo(b['date']?.toString() ?? ''));
           final p = upcoming.first;
           final examDate =
               DateTime.tryParse(p['date']?.toString() ?? '') ?? DateTime.now();
@@ -1971,8 +2010,7 @@ class SchoolService {
   }
 
   // ===== CLASSES & SUBJECTS =====
-  Future<List<Map<String, dynamic>>> getSchoolClasses(
-      [String? instituteId]) {
+  Future<List<Map<String, dynamic>>> getSchoolClasses([String? instituteId]) {
     return _cachedCall(
       'school_classes:${instituteId ?? 'all'}',
       () => _loadSchoolClasses(instituteId),
@@ -2447,7 +2485,8 @@ class SchoolService {
         'class_name.eq."${quote(className.trim())}"',
     };
     try {
-      var query = _supabase.from('school_timetable').select().or(terms.join(','));
+      var query =
+          _supabase.from('school_timetable').select().or(terms.join(','));
       if (day != null && day.isNotEmpty) query = query.eq('day', day);
       final response = await query.order('period').timeout(netTimeout);
       final rows = List<Map<String, dynamic>>.from(response);
@@ -2461,7 +2500,8 @@ class SchoolService {
     // is case-insensitive and copes with legacy class-id formats.
     try {
       var fallbackQuery = _supabase.from('school_timetable').select();
-      if (day != null && day.isNotEmpty) fallbackQuery = fallbackQuery.eq('day', day);
+      if (day != null && day.isNotEmpty)
+        fallbackQuery = fallbackQuery.eq('day', day);
       final response = await fallbackQuery.order('period').timeout(netTimeout);
       final rows = List<Map<String, dynamic>>.from(response);
       final matches = rows.where((row) => _classMatches(row, aliases)).toList();
@@ -2697,7 +2737,10 @@ class SchoolService {
         feature: 'timetable', requiredPermission: 'edit', username: username);
     final role =
         (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
-    if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
+    if (role != 'admin' &&
+        role != 'sadmin' &&
+        role != 'principal' &&
+        role != 'superadmin') {
       throw Exception('Only school administrators can edit timetable periods.');
     }
     // Live clash detection before saving
@@ -2733,6 +2776,8 @@ class SchoolService {
           .eq('id', id)
           .select()
           .single();
+      invalidateCache('timetable:');
+      invalidateCache('my_timetable:');
       return Map<String, dynamic>.from(response);
     } else {
       final response = await _supabase
@@ -2740,6 +2785,8 @@ class SchoolService {
           .insert(payload)
           .select()
           .single();
+      invalidateCache('timetable:');
+      invalidateCache('my_timetable:');
       return Map<String, dynamic>.from(response);
     }
   }
@@ -2750,12 +2797,17 @@ class SchoolService {
         feature: 'timetable', requiredPermission: 'edit', username: username);
     final role =
         (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
-    if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
+    if (role != 'admin' &&
+        role != 'sadmin' &&
+        role != 'principal' &&
+        role != 'superadmin') {
       throw Exception(
           'Only school administrators can delete timetable periods.');
     }
     try {
       await _supabase.from('school_timetable').delete().eq('id', id);
+      invalidateCache('timetable:');
+      invalidateCache('my_timetable:');
       return true;
     } catch (_) {
       return false;
@@ -3578,8 +3630,8 @@ class SchoolService {
       'class_att_pct:$classId|${className ?? ''}|${now.year}-${now.month}',
       () async {
         final first = DateTime(now.year, now.month, 1);
-        final last = DateTime(
-            now.year, now.month, _daysInMonth(now.year, now.month));
+        final last =
+            DateTime(now.year, now.month, _daysInMonth(now.year, now.month));
         final rows = await getAttendanceReport(
           classId: classId,
           className: className,
@@ -3601,8 +3653,8 @@ class SchoolService {
             if (status == 'present' || status == 'late') entry[0] += 1;
           }
         }
-        return counts.map((key, value) => MapEntry(
-            key, value[1] == 0 ? 0.0 : (value[0] / value[1]) * 100));
+        return counts.map((key, value) =>
+            MapEntry(key, value[1] == 0 ? 0.0 : (value[0] / value[1]) * 100));
       },
       ttl: const Duration(minutes: 2),
     );
@@ -3648,8 +3700,8 @@ class SchoolService {
       }).toList();
 
       if (upcoming.isNotEmpty) {
-        upcoming.sort((a, b) =>
-            (a['date']?.toString() ?? '').compareTo(b['date']?.toString() ?? ''));
+        upcoming.sort((a, b) => (a['date']?.toString() ?? '')
+            .compareTo(b['date']?.toString() ?? ''));
         final p = upcoming.first;
         final examDate =
             DateTime.tryParse(p['date']?.toString() ?? '') ?? DateTime.now();
@@ -4066,7 +4118,8 @@ class SchoolService {
     try {
       await _supabase
           .from('school_homework')
-          .update({'status': status}).eq('id', homeworkId)
+          .update({'status': status})
+          .eq('id', homeworkId)
           .timeout(netTimeout);
       invalidateCache('homework:');
       return true;
@@ -4151,8 +4204,9 @@ class SchoolService {
       if (studentUsername != null && studentUsername.isNotEmpty) {
         query = query.eq('student_username', studentUsername);
       }
-      final response =
-          await query.order('submitted_at', ascending: false).timeout(netTimeout);
+      final response = await query
+          .order('submitted_at', ascending: false)
+          .timeout(netTimeout);
       return List<Map<String, dynamic>>.from(response);
     } catch (_) {
       rethrow;
@@ -4228,7 +4282,8 @@ class SchoolService {
           username: currentUsername);
 
       if (targetStudent != currentUsername) {
-        throw Exception('Only the signed-in student can submit their homework.');
+        throw Exception(
+            'Only the signed-in student can submit their homework.');
       }
       if (normalizedRole != 'student') {
         throw Exception('Only a student account can submit homework.');
@@ -4391,6 +4446,136 @@ class SchoolService {
       rethrow;
     }
     return counts;
+  }
+
+  /// Homework a teacher has given — feeds the submission tracker in the
+  /// Reports hub. Older rows may not carry `teacher_username`, so the
+  /// teacher's allotted classes are used as the fallback scope.
+  Future<List<Map<String, dynamic>>> getTeacherHomeworkAssignments(
+      String teacherUsername) async {
+    if (teacherUsername.trim().isEmpty) return [];
+    try {
+      final assigned = await getTeacherAllAssignedClasses(teacherUsername);
+      final classKeys = <String>{};
+      for (final c in assigned) {
+        for (final key in ['id', 'class_id', 'name', 'class_name']) {
+          final value = c[key]?.toString() ?? '';
+          if (value.isNotEmpty) classKeys.add(value);
+        }
+      }
+
+      final rows = List<Map<String, dynamic>>.from(await _supabase
+          .from('school_homework')
+          .select()
+          .order('due_date', ascending: false)
+          .timeout(netTimeout));
+
+      final lower = teacherUsername.toLowerCase();
+      return rows.where((hw) {
+        final owner = (hw['teacher_username']?.toString() ?? '').toLowerCase();
+        if (owner.isNotEmpty) return owner == lower;
+        final classId = hw['class_id']?.toString() ?? '';
+        final className = hw['class_name']?.toString() ?? '';
+        return classKeys.contains(classId) || classKeys.contains(className);
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Who submitted one homework and who did not: every student on the class
+  /// roster with their submission row (if any) joined in.
+  Future<Map<String, dynamic>> getHomeworkSubmissionOverview(
+      String homeworkId) async {
+    if (homeworkId.trim().isEmpty) {
+      throw ArgumentError('A homework id is required.');
+    }
+
+    final hw = await _supabase
+        .from('school_homework')
+        .select()
+        .eq('id', homeworkId)
+        .maybeSingle();
+    if (hw == null) throw Exception('Homework was not found.');
+
+    final submissions = await getHomeworkSubmissions(homeworkId: homeworkId);
+    final byStudent = <String, Map<String, dynamic>>{};
+    for (final s in submissions) {
+      final key = (s['student_username'] ?? '').toString().toLowerCase();
+      if (key.isNotEmpty) byStudent[key] = s;
+    }
+
+    var students = <Map<String, dynamic>>[];
+    final classId = hw['class_id']?.toString() ?? '';
+    if (classId.isNotEmpty) {
+      students = await getStudentsByClass(classId);
+    }
+    if (students.isEmpty) {
+      final className = hw['class_name']?.toString() ?? '';
+      if (className.isNotEmpty) {
+        try {
+          final res = await _supabase
+              .from('school_students')
+              .select()
+              .eq('class_name', className)
+              .timeout(netTimeout);
+          students = List<Map<String, dynamic>>.from(res);
+        } catch (_) {}
+      }
+    }
+
+    final rows = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    for (final st in students) {
+      final username = (st['username'] ?? '').toString();
+      final key = username.toLowerCase();
+      if (key.isEmpty || !seen.add(key)) continue;
+      final sub = byStudent[key];
+      rows.add({
+        'username': username,
+        'name': st['name']?.toString() ?? username,
+        'roll_number': st['roll_number']?.toString() ?? '',
+        'submitted': sub != null,
+        'status': sub?['status']?.toString() ?? 'not_submitted',
+        'submitted_at': sub?['submitted_at'],
+        'note': sub?['note'],
+        'attachment_url': sub?['attachment_url'],
+        'teacher_feedback': sub?['teacher_feedback'],
+      });
+    }
+
+    // A submission from a student no longer on the roster still shows up.
+    for (final s in submissions) {
+      final key = (s['student_username'] ?? '').toString().toLowerCase();
+      if (key.isEmpty || !seen.add(key)) continue;
+      rows.add({
+        'username': s['student_username']?.toString() ?? '',
+        'name': s['student_name']?.toString() ?? key,
+        'roll_number': '',
+        'submitted': true,
+        'status': s['status']?.toString() ?? 'submitted',
+        'submitted_at': s['submitted_at'],
+        'note': s['note'],
+        'attachment_url': s['attachment_url'],
+        'teacher_feedback': s['teacher_feedback'],
+      });
+    }
+
+    rows.sort((a, b) {
+      final ra = int.tryParse(a['roll_number'].toString()) ?? 9999;
+      final rb = int.tryParse(b['roll_number'].toString()) ?? 9999;
+      if (ra != rb) return ra.compareTo(rb);
+      return a['name'].toString().compareTo(b['name'].toString());
+    });
+
+    final submitted = rows.where((r) => r['submitted'] == true).length;
+    return {
+      'homework': Map<String, dynamic>.from(hw),
+      'students': rows,
+      'total': rows.length,
+      'submitted': submitted,
+      'pending': rows.length - submitted,
+    };
   }
 
   // ===== MARKS & REPORT CARDS =====
@@ -4705,6 +4890,49 @@ class SchoolService {
     return fallback;
   }
 
+  /// Every assessment that exists — published sessions first (Half Yearly,
+  /// Final, …) followed by any custom name a teacher typed at marks entry
+  /// (e.g. 'Class Test 1'). Students pick from this list so class-test marks
+  /// are reachable, not just the main examinations.
+  Future<List<String>> getAvailableExamTypes({String? studentId}) {
+    final key = 'exam_types:${(studentId ?? '').trim()}';
+    return _cachedCall(
+      key,
+      () => _loadAvailableExamTypes(studentId),
+      ttl: const Duration(minutes: 2),
+    );
+  }
+
+  Future<List<String>> _loadAvailableExamTypes(String? studentId) async {
+    final names = <String>[];
+    final seen = <String>{};
+    void add(String? raw) {
+      final name = (raw ?? '').trim();
+      if (name.isEmpty || !seen.add(name.toLowerCase())) return;
+      names.add(name);
+    }
+
+    for (final session in await getExamSessions()) {
+      add(session);
+    }
+
+    // Anything teachers have actually entered marks for — includes class tests
+    // and any other one-off assessment that never became a report-card session.
+    try {
+      var query = _supabase.from('school_marks').select('exam_type');
+      final key = (studentId ?? '').trim();
+      if (key.isNotEmpty) {
+        query = query.eq('student_id', key);
+      }
+      final rows =
+          List<Map<String, dynamic>>.from(await query.timeout(netTimeout));
+      for (final row in rows) {
+        add(row['exam_type']?.toString());
+      }
+    } catch (_) {}
+    return names;
+  }
+
   /// Per-subject analytics for one exam session: strongest / weakest subject,
   /// grade spread, pass count and a per-subject breakdown for charting.
   Map<String, dynamic> buildReportAnalytics(List<Map<String, dynamic>> marks) {
@@ -4841,13 +5069,14 @@ class SchoolService {
       return false;
     }
     try {
+      // school_co_scholastic has no `term` column — exam_type already scopes the
+      // row, and writing an unknown column fails the whole upsert.
       final rows = areas
           .map((a) => {
                 'student_id': studentId,
                 'exam_type': examType,
                 'area': a['area'],
                 'grade': a['grade'],
-                'term': examType,
               })
           .toList();
       await _supabase
@@ -4876,30 +5105,25 @@ class SchoolService {
       final actor = await AuthService().getCurrentUsername() ?? '';
       final role =
           (await permissions.getLiveUserRole(actor) ?? '').toLowerCase().trim();
+      final normalizedRole = role == 'steacher'
+          ? 'teacher'
+          : role == 'sadmin'
+              ? 'admin'
+              : role;
+      final isAdmin =
+          {'admin', 'principal', 'superadmin'}.contains(normalizedRole);
       if ({'teacher', 'steacher', 'class_teacher'}.contains(role)) {
-        final allowed = await getMarksForAllottedSubjects(
-          teacherUsername: actor,
-        );
+        final classTeacherClasses = await getClassTeacherClasses(actor);
         for (final row in marksList) {
-          final subject =
-              (row['subject'] ?? '').toString().trim().toLowerCase();
           final classId = (row['class_id'] ?? '').toString().trim();
           final className = (row['class_name'] ?? '').toString().trim();
-          final permitted = allowed.any((assignment) {
-            final assignedClassId =
-                (assignment['class_id'] ?? '').toString().trim();
-            final assignedClassName =
-                (assignment['class_name'] ?? '').toString().trim();
-            final assignedSubject =
-                (assignment['subject'] ?? '').toString().trim().toLowerCase();
-            return assignedSubject == subject &&
-                (assignedClassId == classId ||
-                    (assignedClassName.isNotEmpty &&
-                        assignedClassName == className));
+          final permitted = classTeacherClasses.any((schoolClass) {
+            return schoolClass['id']?.toString() == classId ||
+                schoolClass['name']?.toString() == className;
           });
           if (!permitted) {
             lastMarksError =
-                'You are not assigned to enter marks for $subject in $className.';
+                'Only the class teacher can enter marks for $className.';
             return false;
           }
         }
@@ -4912,7 +5136,8 @@ class SchoolService {
         final subject = raw['subject']?.toString() ?? '';
         final classId = raw['class_id']?.toString() ?? '';
         final lockKey = '$examType|$classId|$subject';
-        if (checkedLocks.add(lockKey) &&
+        if (!isAdmin &&
+            checkedLocks.add(lockKey) &&
             await permissions.isMarksLocked(
               examId: examType,
               classId: classId,
@@ -4946,6 +5171,9 @@ class SchoolService {
           'exam_type': examType,
           'marks_obtained': obtained.toDouble(),
           'total_marks': total.toDouble(),
+          if (raw['theory_marks'] != null) 'theory_marks': raw['theory_marks'],
+          if (raw['internal_marks'] != null)
+            'internal_marks': raw['internal_marks'],
           'grade': raw['grade'] ?? calculateCbseGrade(pct)['grade'],
           if (raw['remarks'] != null) 'remarks': raw['remarks'],
         };
@@ -4957,9 +5185,9 @@ class SchoolService {
         return false;
       }
 
-      void cacheSavedRows() {
+      void cacheSavedRows(List<Map<String, dynamic>> saved) {
         final groups = <String, List<Map<String, dynamic>>>{};
-        for (final row in rows) {
+        for (final row in saved) {
           final key =
               '${row['class_id']}_${row['subject']}_${row['exam_type']}';
           (groups[key] ??= <Map<String, dynamic>>[]).add(row);
@@ -4969,22 +5197,40 @@ class SchoolService {
         }
         // Report card / dashboard read the cached marks list.
         invalidateCache('student_marks:');
+        // New exam names (class tests) must appear in every picker at once.
+        invalidateCache('exam_types:');
       }
 
-      // Preferred path: one upsert keyed on (student, subject, exam) — requires
-      // the unique index created by database/03_report_card_seed.sql.
-      try {
-        await _supabase
-            .from('school_marks')
-            .upsert(rows, onConflict: 'student_id,subject,exam_type');
-        cacheSavedRows();
-        return true;
-      } catch (_) {}
+      // Preferred path: one upsert keyed on (student, subject, exam). Rows may
+      // carry optional columns (theory_marks / internal_marks / class_id) that
+      // an older database has not been migrated for yet — those are stripped and
+      // the write retried instead of failing with "column does not exist".
+      var effectiveRows = rows;
+      for (var attempt = 0; attempt < 5; attempt++) {
+        try {
+          await _supabase.from('school_marks').upsert(effectiveRows,
+              onConflict: 'student_id,subject,exam_type');
+          cacheSavedRows(effectiveRows);
+          return true;
+        } catch (e) {
+          final missing = missingSchemaColumn(e);
+          if (missing == null ||
+              !effectiveRows.first.containsKey(missing) ||
+              missing == 'student_id' ||
+              missing == 'subject' ||
+              missing == 'exam_type') {
+            break;
+          }
+          effectiveRows = [
+            for (final row in effectiveRows) {...row}..remove(missing),
+          ];
+        }
+      }
 
       // Fallback (unique index not created yet): update existing row per key,
       // otherwise insert — still avoids duplicates.
       try {
-        for (final row in rows) {
+        for (final row in effectiveRows) {
           final existing = await _supabase
               .from('school_marks')
               .select('id')
@@ -5003,7 +5249,7 @@ class SchoolService {
             await _supabase.from('school_marks').insert(row);
           }
         }
-        cacheSavedRows();
+        cacheSavedRows(effectiveRows);
         return true;
       } catch (e) {
         lastMarksError = 'Could not save marks: $e';
@@ -5017,6 +5263,54 @@ class SchoolService {
 
   /// Reason the last [saveMarks] call failed (null when it succeeded).
   String? lastMarksError;
+
+  static final RegExp _missingColumnPattern = RegExp(
+    "(?:Could not find the '([a-zA-Z0-9_]+)' column"
+    '|column "([a-zA-Z0-9_]+)" of relation "[a-zA-Z0-9_]+" does not exist'
+    '|column "([a-zA-Z0-9_]+)" does not exist)',
+    caseSensitive: false,
+  );
+
+  /// Extracts the column name from a PostgREST / Postgres "missing column"
+  /// error so a write can drop that optional column and be retried. Returns
+  /// null when the failure is something else.
+  static String? missingSchemaColumn(Object? error) {
+    if (error == null) return null;
+    final match = _missingColumnPattern.firstMatch(error.toString());
+    if (match == null) return null;
+    final name = match.group(1) ?? match.group(2) ?? match.group(3);
+    return (name == null || name.isEmpty) ? null : name;
+  }
+
+  /// A class teacher's final handoff. It locks the exact class, assessment and
+  /// subject; administrators may still correct the record through [saveMarks].
+  Future<bool> submitClassTeacherMarks({
+    required String examId,
+    required String classId,
+    required String subject,
+  }) async {
+    final actor = await AuthService().getCurrentUsername() ?? '';
+    final assigned = await getClassTeacherClasses(actor);
+    if (!assigned.any((c) =>
+        c['id']?.toString() == classId || c['name']?.toString() == classId)) {
+      lastMarksError =
+          'Only the assigned class teacher can submit these marks.';
+      return false;
+    }
+    try {
+      await permissions.setMarksLock(
+        examId: examId,
+        classId: classId,
+        subject: subject,
+        isLocked: true,
+        actorUsername: actor,
+      );
+      return true;
+    } catch (e) {
+      lastMarksError = 'Could not submit marks: $e';
+      return false;
+    }
+  }
 
   Future<List<Map<String, dynamic>>> getMarksReport({
     required String classId,
@@ -5599,7 +5893,8 @@ class SchoolService {
     if (await isFeeMonthPaid(studentUsername, monthName)) {
       invalidateCache('fee');
       invalidateCache('receipts:');
-      throw Exception('$monthName is already paid — the ledger has been refreshed.');
+      throw Exception(
+          '$monthName is already paid — the ledger has been refreshed.');
     }
 
     final receiptNo =
@@ -5652,8 +5947,7 @@ class SchoolService {
   }
 
   /// Quick summary of fee metrics for a student
-  Future<Map<String, dynamic>> getStudentFeeSummary(
-      String studentUsername,
+  Future<Map<String, dynamic>> getStudentFeeSummary(String studentUsername,
       {List<Map<String, dynamic>>? scheduleOverride}) async {
     // Reuse an already-fetched schedule when the caller has one — otherwise
     // this used to re-run the schedule engine (heads + payments) a second time.
@@ -6098,8 +6392,7 @@ class SchoolService {
           .from('school_fee_payments')
           .select()
           .eq('student_id', studentId)
-          .inFilter('status', ['pending', 'partial'])
-          .timeout(netTimeout);
+          .inFilter('status', ['pending', 'partial']).timeout(netTimeout);
       demands = List<Map<String, dynamic>>.from(resp);
     } catch (_) {
       throw Exception(
@@ -6210,8 +6503,7 @@ class SchoolService {
   /// empty or missing (SQL file not run yet), falls back to deriving receipts
   /// from the demand ledger's `receipt_no` values so the Receipts section
   /// still works.
-  Future<List<Map<String, dynamic>>> getStudentReceipts(
-      String studentId) {
+  Future<List<Map<String, dynamic>>> getStudentReceipts(String studentId) {
     return _cachedCall(
       'receipts:$studentId',
       () => _loadStudentReceipts(studentId),
@@ -6236,7 +6528,8 @@ class SchoolService {
     try {
       final resp = await _supabase
           .from('school_fee_payments')
-          .select('student_id,head,amount,paid_amount,receipt_no,payment_mode,due_date,created_at')
+          .select(
+              'student_id,head,amount,paid_amount,receipt_no,payment_mode,due_date,created_at')
           .eq('student_id', studentId)
           .timeout(netTimeout);
       final ledger = List<Map<String, dynamic>>.from(resp);
@@ -6309,7 +6602,8 @@ class SchoolService {
           .select()
           .eq('student_id', studentId)
           .eq('head', head.trim())
-          .inFilter('status', ['pending', 'partial']).limit(1)
+          .inFilter('status', ['pending', 'partial'])
+          .limit(1)
           .timeout(netTimeout);
       final rows = List<Map<String, dynamic>>.from(existing);
 
@@ -6350,8 +6644,7 @@ class SchoolService {
     }
   }
 
-  Future<Map<String, dynamic>> getDefaultersWithAgeing(
-      {String? classId}) {
+  Future<Map<String, dynamic>> getDefaultersWithAgeing({String? classId}) {
     return _cachedCall(
       'defaulters:${classId ?? 'all'}',
       () => _loadDefaultersWithAgeing(classId: classId),
@@ -6578,8 +6871,9 @@ class SchoolService {
         .toList());
     audiences.addAll(classes);
     query = query.inFilter('target_audience', audiences.toList());
-    return List<Map<String, dynamic>>.from(
-        await query.order('published_at', ascending: false).timeout(netTimeout));
+    return List<Map<String, dynamic>>.from(await query
+        .order('published_at', ascending: false)
+        .timeout(netTimeout));
   }
 
   Future<bool> createCircular(Map<String, dynamic> data) async {
@@ -10754,14 +11048,27 @@ class SchoolService {
             .select()
             .eq('class_id', classId)
             .order('created_at', ascending: false);
-        return List<Map<String, dynamic>>.from(response as List);
+        final quizzes = List<Map<String, dynamic>>.from(response as List);
+        if (quizzes.isNotEmpty) return quizzes;
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_quizzes');
         }
       }
     }
-    return [];
+    // Keep practice available even before a teacher publishes a class quiz.
+    // Demo attempts are clearly marked and never affect examination marks.
+    return [
+      {
+        ..._demoPracticeQuiz,
+        'class_id': classId,
+        'class_name': classId,
+        'questions': List<Map<String, dynamic>>.from(
+          (_demoPracticeQuiz['questions'] as List)
+              .map((item) => Map<String, dynamic>.from(item as Map)),
+        ),
+      },
+    ];
   }
 
   /// N4: Publish an online practice/assessment quiz
@@ -10812,6 +11119,48 @@ class SchoolService {
     String? quizTitle,
     String? subject,
   }) async {
+    if (quizId == _demoQuizId) {
+      final demoPayload = {
+        'quiz_id': quizId,
+        'student_id': studentUsername,
+        'student_name': studentName ?? studentUsername,
+        'score': score,
+        'total': total,
+        'answers': answers,
+        'attempted_at': DateTime.now().toIso8601String(),
+      };
+      // When the companion seed SQL is installed this is a normal, durable
+      // scorecard row. Fall back to local history if the demo row/table is
+      // not installed yet.
+      if (!_missingTables.contains('school_quiz_attempts')) {
+        try {
+          await _supabase.from('school_quiz_attempts').insert(demoPayload);
+          return true;
+        } catch (e) {
+          if (_isTableMissingError(e)) {
+            _missingTables.add('school_quiz_attempts');
+          }
+        }
+      }
+      final attempts = _demoQuizAttempts.putIfAbsent(
+          studentUsername, () => <Map<String, dynamic>>[]);
+      attempts.insert(0, {
+        'id': 'demo-attempt-${DateTime.now().microsecondsSinceEpoch}',
+        'quiz_id': quizId,
+        'quiz_title': quizTitle ?? _demoPracticeQuiz['title'],
+        'subject': subject ?? _demoPracticeQuiz['subject'],
+        'student_id': studentUsername,
+        'student_name': studentName ?? studentUsername,
+        'score': score,
+        'total': total,
+        'percentage': total > 0 ? (score / total) * 100 : 0.0,
+        'answers': answers,
+        'attempted_at': demoPayload['attempted_at'],
+        'is_demo': true,
+      });
+      return true;
+    }
+
     final payload = {
       'quiz_id': quizId,
       'student_id': studentUsername,
@@ -10838,21 +11187,37 @@ class SchoolService {
   /// N4: Get past quiz attempts for a student
   Future<List<Map<String, dynamic>>> getStudentQuizAttempts(
       {required String studentUsername}) async {
+    final localAttempts = List<Map<String, dynamic>>.from(
+        _demoQuizAttempts[studentUsername] ?? const []);
     if (!_missingTables.contains('school_quiz_attempts')) {
       try {
         final response = await _supabase
             .from('school_quiz_attempts')
-            .select()
+            .select('*, school_quizzes(title,subject)')
             .eq('student_id', studentUsername)
             .order('attempted_at', ascending: false);
-        return List<Map<String, dynamic>>.from(response as List);
+        final remoteAttempts =
+            List<Map<String, dynamic>>.from(response as List).map((row) {
+          final quiz = row['school_quizzes'];
+          if (quiz is Map) {
+            return {
+              ...row,
+              'quiz_title': quiz['title'] ?? row['quiz_title'],
+              'subject': quiz['subject'] ?? row['subject'],
+            };
+          }
+          return row;
+        }).toList();
+        return [...localAttempts, ...remoteAttempts]..sort((a, b) =>
+            (b['attempted_at']?.toString() ?? '')
+                .compareTo(a['attempted_at']?.toString() ?? ''));
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_quiz_attempts');
         }
       }
     }
-    return [];
+    return localAttempts;
   }
 
   // ===== N6: STUDENT TARGET GOALS =====
@@ -11321,6 +11686,91 @@ class SchoolService {
       }
     }
     return [];
+  }
+
+  /// Subject-matched doubt inbox for faculty. A query explicitly assigned to
+  /// this teacher is always visible; otherwise unassigned doubts are shown
+  /// only when their subject is part of the teacher's current allotment.
+  Future<List<Map<String, dynamic>>> getTeacherStudentQueries({
+    required String teacherUsername,
+  }) async {
+    if (teacherUsername.trim().isEmpty ||
+        _missingTables.contains('school_student_queries')) {
+      return [];
+    }
+    try {
+      final subjects = <String>{};
+      try {
+        final rows = await _supabase
+            .from('school_teacher_classes')
+            .select('subject_name')
+            .eq('teacher_username', teacherUsername);
+        for (final row in List<Map<String, dynamic>>.from(rows)) {
+          final subject = row['subject_name']?.toString().trim().toLowerCase();
+          if (subject != null && subject.isNotEmpty) subjects.add(subject);
+        }
+      } catch (_) {}
+      try {
+        final rows = await _supabase
+            .from('school_timetable')
+            .select('subject')
+            .eq('teacher_username', teacherUsername);
+        for (final row in List<Map<String, dynamic>>.from(rows)) {
+          final subject = row['subject']?.toString().trim().toLowerCase();
+          if (subject != null && subject.isNotEmpty) subjects.add(subject);
+        }
+      } catch (_) {}
+
+      final response = await _supabase
+          .from('school_student_queries')
+          .select()
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response).where((query) {
+        final assigned = query['teacher_id']?.toString().trim().toLowerCase();
+        if (assigned == teacherUsername.trim().toLowerCase()) return true;
+        if (assigned != null && assigned.isNotEmpty) return false;
+        final subject = query['subject']?.toString().trim().toLowerCase() ?? '';
+        return subjects.contains(subject);
+      }).toList();
+    } catch (e) {
+      if (_isTableMissingError(e)) _missingTables.add('school_student_queries');
+      return [];
+    }
+  }
+
+  /// Resolves a student doubt and makes the reply available in the student's
+  /// existing “My Doubts & Replies” view.
+  Future<bool> replyToStudentQuery({
+    required String queryId,
+    required String teacherUsername,
+    required String teacherName,
+    required String reply,
+  }) async {
+    if (queryId.isEmpty ||
+        reply.trim().isEmpty ||
+        _missingTables.contains('school_student_queries')) {
+      return false;
+    }
+    try {
+      final allowedQueries = await getTeacherStudentQueries(
+        teacherUsername: teacherUsername,
+      );
+      final isAssigned = allowedQueries.any(
+        (query) => query['id']?.toString() == queryId,
+      );
+      if (!isAssigned) return false;
+      await _supabase.from('school_student_queries').update({
+        'teacher_id': teacherUsername,
+        'teacher_name': teacherName,
+        'reply': reply.trim(),
+        'status': 'replied',
+        'replied_at': DateTime.now().toIso8601String(),
+      }).eq('id', queryId);
+      return true;
+    } catch (e) {
+      if (_isTableMissingError(e)) _missingTables.add('school_student_queries');
+      return false;
+    }
   }
 
   // ===== STEP 11: CERTIFICATES, LIBRARY, AND REPORTING WORKFLOWS =====
@@ -11888,6 +12338,28 @@ class SchoolService {
 
   /// Fetch all active and scheduled exam sessions
   Future<List<Map<String, dynamic>>> getSchoolExamSessions() async {
+    try {
+      final response = await _supabase
+          .from('school_exam_management_sessions')
+          .select()
+          .eq('institute_id', 'SHIV-SCH')
+          .order('start_date', ascending: false);
+      final rows = List<Map<String, dynamic>>.from(response);
+      if (rows.isNotEmpty) {
+        return rows
+            .map((row) => {
+                  ...row,
+                  'start_date': row['start_date']?.toString() ?? '',
+                  'end_date': row['end_date']?.toString() ?? '',
+                  'total_papers': row['total_papers'] ?? 0,
+                  'classes_count': row['classes_count'] ?? 0,
+                })
+            .toList();
+      }
+    } catch (_) {
+      // A local fallback keeps existing installations usable until the setup
+      // migration has been applied.
+    }
     if (_examSessionsStore.isEmpty) {
       _examSessionsStore.addAll([
         {
@@ -11961,6 +12433,28 @@ class SchoolService {
     final id = session['id']?.toString() ??
         'sess-${DateTime.now().millisecondsSinceEpoch}';
     final payload = Map<String, dynamic>.from(session)..['id'] = id;
+    try {
+      final actor = await AuthService().getCurrentUsername();
+      await _supabase.from('school_exam_management_sessions').upsert({
+        'id': id,
+        'institute_id': 'SHIV-SCH',
+        'title': payload['title'],
+        'term': payload['term'],
+        'academic_year': payload['academic_year'],
+        'status': payload['status'] ?? 'Draft',
+        'start_date': payload['start_date'],
+        'end_date': payload['end_date'],
+        'passing_percentage': payload['passing_percentage'] ?? 33,
+        'instructions': payload['instructions'],
+        'is_published':
+            payload['is_published'] == true || payload['status'] == 'Published',
+        if (actor != null) 'created_by': actor,
+      });
+      invalidateCache('exam:');
+    } catch (_) {
+      // The in-memory fallback below is retained for deployments that have not
+      // yet run database/school_examination_management_setup.sql.
+    }
     final idx = _examSessionsStore.indexWhere((s) => s['id'] == id);
     if (idx >= 0) {
       _examSessionsStore[idx] = payload;
@@ -11986,6 +12480,12 @@ class SchoolService {
 
   /// Delete an exam session
   Future<bool> deleteExamSession(String sessionId) async {
+    try {
+      await _supabase
+          .from('school_exam_management_sessions')
+          .delete()
+          .eq('id', sessionId);
+    } catch (_) {}
     _examSessionsStore.removeWhere((s) => s['id'] == sessionId);
     _examDateSheetStore.removeWhere((p) => p['session_id'] == sessionId);
     return true;
@@ -11994,6 +12494,12 @@ class SchoolService {
   /// Update Exam Session status (Draft -> Scheduled -> Ongoing -> Evaluation -> Published)
   Future<bool> updateExamSessionStatus(
       String sessionId, String newStatus) async {
+    try {
+      await _supabase.from('school_exam_management_sessions').update({
+        'status': newStatus,
+        'is_published': newStatus == 'Published',
+      }).eq('id', sessionId);
+    } catch (_) {}
     final idx = _examSessionsStore.indexWhere((s) => s['id'] == sessionId);
     if (idx >= 0) {
       _examSessionsStore[idx]['status'] = newStatus;
@@ -12011,6 +12517,26 @@ class SchoolService {
     String? classId,
   }) async {
     final sid = sessionId ?? 'sess-midterm-2026';
+    try {
+      var query = _supabase
+          .from('school_exam_schedule_papers')
+          .select()
+          .eq('session_id', sid);
+      if (classId != null && classId.isNotEmpty && classId != '__all__') {
+        query = query.or('class_id.eq.$classId,class_name.eq.$classId');
+      }
+      final response = await query.order('exam_date');
+      final rows = List<Map<String, dynamic>>.from(response);
+      if (rows.isNotEmpty) {
+        return rows
+            .map((row) => {
+                  ...row,
+                  'date': row['exam_date']?.toString() ?? '',
+                  'day': row['day_name']?.toString() ?? '',
+                })
+            .toList();
+      }
+    } catch (_) {}
     if (_examDateSheetStore.isEmpty) {
       _examDateSheetStore.addAll([
         {
@@ -12146,6 +12672,28 @@ class SchoolService {
     final id = paper['id']?.toString() ??
         'paper-${DateTime.now().millisecondsSinceEpoch}';
     final payload = Map<String, dynamic>.from(paper)..['id'] = id;
+    try {
+      await _supabase.from('school_exam_schedule_papers').upsert({
+        'id': id,
+        'session_id': payload['session_id'],
+        'institute_id': 'SHIV-SCH',
+        'class_id': payload['class_id'],
+        'class_name': payload['class_name'],
+        'subject': payload['subject'],
+        'exam_date': payload['date'],
+        'day_name': payload['day'],
+        'start_time': payload['start_time'],
+        'end_time': payload['end_time'],
+        'duration': payload['duration'],
+        'max_theory': payload['max_theory'] ?? 80,
+        'max_practical': payload['max_practical'] ?? 20,
+        'pass_marks': payload['pass_marks'] ?? 33,
+        'hall_name': payload['hall_name'],
+        'room_no': payload['room_no'],
+        'invigilator': payload['invigilator'],
+        'status': payload['status'] ?? 'Scheduled',
+      });
+    } catch (_) {}
     final idx = _examDateSheetStore.indexWhere((p) => p['id'] == id);
     if (idx >= 0) {
       _examDateSheetStore[idx] = payload;
@@ -12157,6 +12705,12 @@ class SchoolService {
 
   /// Delete paper from Date Sheet
   Future<bool> deleteExamPaper(String paperId) async {
+    try {
+      await _supabase
+          .from('school_exam_schedule_papers')
+          .delete()
+          .eq('id', paperId);
+    } catch (_) {}
     _examDateSheetStore.removeWhere((p) => p['id'] == paperId);
     return true;
   }
@@ -12210,6 +12764,15 @@ class SchoolService {
 
   /// Exam Halls and Seating Arrangements
   Future<List<Map<String, dynamic>>> getExamRooms() async {
+    try {
+      final response = await _supabase
+          .from('school_exam_rooms')
+          .select()
+          .eq('institute_id', 'SHIV-SCH')
+          .order('room_name');
+      final rows = List<Map<String, dynamic>>.from(response);
+      if (rows.isNotEmpty) return rows;
+    } catch (_) {}
     if (_examRoomsStore.isEmpty) {
       _examRoomsStore.addAll([
         {
@@ -12271,6 +12834,13 @@ class SchoolService {
     final id = room['id']?.toString() ??
         'room-${DateTime.now().millisecondsSinceEpoch}';
     final payload = Map<String, dynamic>.from(room)..['id'] = id;
+    try {
+      await _supabase.from('school_exam_rooms').upsert({
+        ...payload,
+        'id': id,
+        'institute_id': 'SHIV-SCH',
+      });
+    } catch (_) {}
     final idx = _examRoomsStore.indexWhere((r) => r['id'] == id);
     if (idx >= 0) {
       _examRoomsStore[idx] = payload;
@@ -12283,6 +12853,65 @@ class SchoolService {
   /// Marks upload and evaluation progress for Exam Sessions
   Future<List<Map<String, dynamic>>> getExamEvaluationProgress(
       {String? sessionId}) async {
+    try {
+      final papers = await getExamDateSheet(sessionId: sessionId);
+      if (papers.isNotEmpty) {
+        final session = (await getSchoolExamSessions())
+            .cast<Map<String, dynamic>>()
+            .firstWhere(
+              (s) => s['id']?.toString() == sessionId,
+              orElse: () => <String, dynamic>{},
+            );
+        // Marks entry uses the human-readable examination name as exam_type.
+        final examId = session['title']?.toString() ?? sessionId ?? '';
+        final marks = List<Map<String, dynamic>>.from(
+            await _supabase.from('school_marks').select());
+        final students = List<Map<String, dynamic>>.from(await _supabase
+            .from('school_students')
+            .select('username, class_id, class_name'));
+        final progress = <Map<String, dynamic>>[];
+        for (final paper in papers) {
+          final classId = paper['class_id']?.toString() ?? '';
+          final className = paper['class_name']?.toString() ?? classId;
+          final subject = paper['subject']?.toString() ?? '';
+          final roster = students
+              .where((student) =>
+                  student['class_id']?.toString() == classId ||
+                  student['class_name']?.toString() == className)
+              .toList();
+          final entered = marks
+              .where((mark) =>
+                  mark['subject']?.toString() == subject &&
+                  (mark['class_id']?.toString() == classId ||
+                      mark['class_name']?.toString() == className) &&
+                  mark['exam_type']?.toString() == examId)
+              .toList();
+          final scores = entered
+              .map((m) => (m['marks_obtained'] as num?)?.toDouble() ?? 0)
+              .toList();
+          final total = roster.length;
+          final locked = await permissions.isMarksLocked(
+              examId: examId, classId: classId, subject: subject);
+          progress.add({
+            'exam_id': examId,
+            'class_id': classId,
+            'class_name': className,
+            'subject': subject,
+            'teacher_name': paper['invigilator']?.toString() ?? 'Unassigned',
+            'total_students': total,
+            'uploaded_marks': entered.length,
+            'is_locked': locked,
+            'status': locked
+                ? 'Evaluated & Locked'
+                : 'Evaluation in Progress (${total == 0 ? 0 : (entered.length / total * 100).round()}%)',
+            'avg_score': scores.isEmpty
+                ? 0.0
+                : scores.reduce((a, b) => a + b) / scores.length,
+          });
+        }
+        return progress;
+      }
+    } catch (_) {}
     return [
       {
         'class_name': 'Class 10-A',
@@ -12345,6 +12974,31 @@ class SchoolService {
         'avg_score': 88.4,
       },
     ];
+  }
+
+  /// Persist an administrator's per-class, per-subject marks lock.  The same
+  /// lock is enforced by [saveMarks], so a teacher cannot bypass this screen.
+  Future<bool> setExamMarksLock({
+    required String examId,
+    required String classId,
+    required String subject,
+    required bool isLocked,
+  }) async {
+    try {
+      await permissions.enforce(
+          feature: 'marks', requiredPermission: 'approve');
+      final actor = await AuthService().getCurrentUsername() ?? 'admin';
+      await permissions.setMarksLock(
+        examId: examId,
+        classId: classId,
+        subject: subject,
+        isLocked: isLocked,
+        actorUsername: actor,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ===========================================================================

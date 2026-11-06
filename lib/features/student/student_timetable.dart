@@ -164,7 +164,7 @@ class _StudentTimetableState extends State<StudentTimetable>
                     Text(
                       'Weekly class schedule',
                       style: AppTheme.bodyMedium.copyWith(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],
@@ -173,7 +173,7 @@ class _StudentTimetableState extends State<StudentTimetable>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.calendar_today, color: Colors.white),
@@ -193,7 +193,7 @@ class _StudentTimetableState extends State<StudentTimetable>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -224,13 +224,13 @@ class _StudentTimetableState extends State<StudentTimetable>
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppTheme.studentPrimary.withOpacity(0.1),
+                color: AppTheme.studentPrimary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.weekend,
                 size: 64,
-                color: AppTheme.studentPrimary.withOpacity(0.5),
+                color: AppTheme.studentPrimary.withValues(alpha: 0.5),
               ),
             ),
             const SizedBox(height: 24),
@@ -262,11 +262,19 @@ class _StudentTimetableState extends State<StudentTimetable>
   }
 
   Widget _buildClassCard(Map<String, dynamic> classData, int index) {
-    final subject = classData['subjects'] as Map<String, dynamic>?;
-    final teacher = classData['teacher_details'] as Map<String, dynamic>?;
-    final startTime = classData['start_time'] as String? ?? '';
-    final endTime = classData['end_time'] as String? ?? '';
-    final room = classData['room_number'] as String? ?? 'TBD';
+    final rawSubject = classData['subjects'];
+    final rawTeacher = classData['teacher_details'];
+    final subject = rawSubject is Map
+        ? Map<String, dynamic>.from(rawSubject)
+        : <String, dynamic>{};
+    final teacher = rawTeacher is Map
+        ? Map<String, dynamic>.from(rawTeacher)
+        : <String, dynamic>{};
+    final startTime = _shortTime(classData['start_time']);
+    final endTime = _shortTime(classData['end_time']);
+    final room = classData['room_number']?.toString().trim().isNotEmpty == true
+        ? classData['room_number'].toString()
+        : 'TBD';
     final slotColor = _getSlotColor(index);
 
     return GlassCard(
@@ -278,7 +286,7 @@ class _StudentTimetableState extends State<StudentTimetable>
             padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [slotColor, slotColor.withOpacity(0.7)],
+                colors: [slotColor, slotColor.withValues(alpha: 0.7)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
@@ -295,7 +303,7 @@ class _StudentTimetableState extends State<StudentTimetable>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  startTime.substring(0, 5),
+                  startTime,
                   style: AppTheme.bodyMedium.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -304,11 +312,11 @@ class _StudentTimetableState extends State<StudentTimetable>
                 Text(
                   'to',
                   style: AppTheme.caption.copyWith(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
                 Text(
-                  endTime.substring(0, 5),
+                  endTime,
                   style: AppTheme.bodyMedium.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -323,7 +331,9 @@ class _StudentTimetableState extends State<StudentTimetable>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  subject?['subject_name'] ?? 'Unknown Subject',
+                  subject['subject_name']?.toString() ??
+                      classData['subject']?.toString() ??
+                      'Unknown Subject',
                   style: AppTheme.h5.copyWith(color: AppTheme.dark),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -336,7 +346,9 @@ class _StudentTimetableState extends State<StudentTimetable>
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        teacher?['name'] ?? 'TBA',
+                        teacher['name']?.toString() ??
+                            classData['teacher_username']?.toString() ??
+                            'TBA',
                         style: AppTheme.bodySmall
                             .copyWith(color: AppTheme.mediumGray),
                         overflow: TextOverflow.ellipsis,
@@ -363,5 +375,11 @@ class _StudentTimetableState extends State<StudentTimetable>
         ],
       ),
     );
+  }
+
+  String _shortTime(dynamic value) {
+    final time = value?.toString().trim() ?? '';
+    if (time.isEmpty) return 'TBA';
+    return time.length > 5 ? time.substring(0, 5) : time;
   }
 }
