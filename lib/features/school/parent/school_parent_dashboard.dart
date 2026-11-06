@@ -6459,6 +6459,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 children: [
                   _buildDrawerSectionHeader('CORE & COMMUNICATION'),
                   _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard Home', () => Navigator.pop(context), isActive: true),
+                  _buildDrawerTile(Icons.event_note_rounded, 'Academic Calendar & Milestones', () {
+                    Navigator.pop(context);
+                    context.push('/school/calendar');
+                  }),
                   _buildDrawerTile(Icons.auto_awesome_rounded, 'Ask School AI Chatbot (SP11)', () {
                     Navigator.pop(context);
                     context.push('/school/ai-tools?tab=chatbot');

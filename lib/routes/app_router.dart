@@ -123,6 +123,7 @@ import '../features/school/admin/school_multi_admin_screen.dart';
 import '../features/school/library/school_library_deep_screen.dart';
 import '../features/school/admin/school_permission_matrix_screen.dart';
 import '../features/school/ai/school_ai_assistant_screen.dart';
+import '../features/school/calendar/school_academic_calendar_screen.dart';
 import '../services/auth_service.dart';
 
 final router = GoRouter(
@@ -402,6 +403,14 @@ final router = GoRouter(
     GoRoute(
       path: '/school/chatbot',
       builder: (context, state) => const SchoolAiAssistantScreen(initialTab: 3),
+    ),
+    GoRoute(
+      path: '/school/calendar',
+      builder: (context, state) => const SchoolAcademicCalendarScreen(),
+    ),
+    GoRoute(
+      path: '/school/academic-calendar',
+      builder: (context, state) => const SchoolAcademicCalendarScreen(),
     ),
 
     // ===== SCHOOL - PARENT =====

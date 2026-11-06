@@ -5612,4 +5612,101 @@ class SchoolExportService {
     }
   }
 
+  /// Dual-sheet Excel export for School Academic Calendar (Summary + Data)
+  static Future<void> exportSchoolAcademicCalendarExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> events,
+    String? academicYear,
+    String instituteName = 'School of Excellence',
+  }) async {
+    final year = academicYear ?? '2026-2027';
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    final totalEvents = events.length;
+    final holidays = events.where((e) => e['is_holiday'] == true || e['category'] == 'Holiday').length;
+    final exams = events.where((e) => e['category'] == 'Examination').length;
+    final ptms = events.where((e) => e['category'] == 'PTM').length;
+    final coCurricular = events.where((e) => e['category'] == 'Co-Curricular').length;
+    final academic = events.where((e) => e['category'] == 'Academic').length;
+    final adminEvents = events.where((e) => e['category'] == 'Administrative').length;
+
+    summary.appendRow([TextCellValue('INSTITUTION:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('DOCUMENT:'), TextCellValue('Official Academic Calendar & Session Milestones')]);
+    summary.appendRow([TextCellValue('ACADEMIC YEAR:'), TextCellValue(year)]);
+    summary.appendRow([TextCellValue('GENERATED AT:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('CALENDAR CATEGORY SUMMARY'), TextCellValue('COUNT')]);
+    summary.appendRow([TextCellValue('Total Scheduled Events & Milestones:'), IntCellValue(totalEvents)]);
+    summary.appendRow([TextCellValue('Official Holidays & Vacations:'), IntCellValue(holidays)]);
+    summary.appendRow([TextCellValue('Examinations & Assessment Windows:'), IntCellValue(exams)]);
+    summary.appendRow([TextCellValue('Parent-Teacher Meetings (PTMs):'), IntCellValue(ptms)]);
+    summary.appendRow([TextCellValue('Co-Curricular & Sports Events:'), IntCellValue(coCurricular)]);
+    summary.appendRow([TextCellValue('Academic Milestones & Orientations:'), IntCellValue(academic)]);
+    summary.appendRow([TextCellValue('Administrative & Faculty Planning:'), IntCellValue(adminEvents)]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Title'),
+      TextCellValue('Category'),
+      TextCellValue('Term'),
+      TextCellValue('Start Date'),
+      TextCellValue('End Date'),
+      TextCellValue('Timings'),
+      TextCellValue('Target Audience'),
+      TextCellValue('Applicable Classes'),
+      TextCellValue('Venue'),
+      TextCellValue('Is Holiday?'),
+      TextCellValue('Description'),
+    ]);
+
+    for (int i = 0; i < events.length; i++) {
+      final e = events[i];
+      final isHol = e['is_holiday'] == true || e['category'] == 'Holiday';
+      final timings = e['is_all_day'] == true ? 'All Day' : '${e['start_time'] ?? ''} - ${e['end_time'] ?? ''}'.trim();
+      final classes = (e['applicable_classes'] is List) 
+          ? (e['applicable_classes'] as List).join(', ') 
+          : (e['applicable_classes']?.toString() ?? 'All');
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(e['title']?.toString() ?? '-'),
+        TextCellValue(e['category']?.toString() ?? 'Academic'),
+        TextCellValue(e['term']?.toString() ?? 'Term 1'),
+        TextCellValue(e['start_date']?.toString() ?? '-'),
+        TextCellValue(e['end_date']?.toString() ?? '-'),
+        TextCellValue(timings.isEmpty ? 'All Day' : timings),
+        TextCellValue(e['target_audience']?.toString().toUpperCase() ?? 'ALL'),
+        TextCellValue(classes.isEmpty ? 'All' : classes),
+        TextCellValue(e['venue']?.toString() ?? 'Main Campus'),
+        TextCellValue(isHol ? 'YES' : 'NO'),
+        TextCellValue(e['description']?.toString() ?? ''),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('$totalEvents SCHEDULED MILESTONES'),
+      TextCellValue('$exams EXAMS • $holidays HOLIDAYS'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('AUDITED'),
+      TextCellValue(''),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_Academic_Calendar_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
 }

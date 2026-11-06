@@ -1742,6 +1742,10 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                 context.push('/school/ai-tools?tab=chatbot');
               }),
               _buildDrawerCategory('ACADEMIC SERVICES'),
+              _buildDrawerItem(Icons.event_note_rounded, 'Academic Calendar & Holidays', () {
+                if (isDrawer) Navigator.pop(context);
+                context.push('/school/calendar');
+              }),
               _buildDrawerItem(Icons.calendar_month_rounded, 'Timetable', () => context.go('/school/timetable')),
               _buildDrawerItem(Icons.assignment_rounded, 'Homework', () => context.go('/school/homework')),
               _buildDrawerItem(Icons.fact_check_rounded, 'Attendance', () => context.go('/school/attendance')),

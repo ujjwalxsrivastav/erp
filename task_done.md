@@ -30,6 +30,14 @@
       - Updated `database/school_runtime_fix_setup.sql` to include complete DDL definitions, indexes, RLS disable, and permissions for all 11 runtime tables (`school_student_leaves`, `school_notifications`, `school_student_goals`, `school_quizzes`, `school_quiz_attempts`, `school_student_queries`, `school_teacher_messages`, `school_parent_teacher_messages`, `school_parent_preferences`, `school_ptm_bookings`, `school_parent_grievances`).
       - Verified static analysis clean (`dart analyze lib/services/school_service.dart`: 0 errors, 0 warnings).
       - Zero modifications to College ERP files (`lib/features/college/`).
+  17. **Enterprise Academic Calendar & Milestones Module:**
+      - Added dedicated database schema in `database/school_academic_calendar_setup.sql` and unified setup in `database/school_runtime_fix_setup.sql` with full CBSE session 2026-2027 milestone seeds.
+      - Built `SchoolCalendarService` in `lib/services/school_calendar_service.dart` with table availability caching, circulars fallback, metrics calculation, and RFC 5545 iCalendar (`.ics`) feed generation for Google / Apple Calendar.
+      - Added dual-sheet Excel export `exportSchoolAcademicCalendarExcel` in `SchoolExportService` (Sheet 1: Summary with category counts; Sheet 2: Data with date ranges, audience, and classes).
+      - Built enterprise UI `SchoolAcademicCalendarScreen` (`lib/features/school/calendar/school_academic_calendar_screen.dart`) featuring 4 interactive views (Month Grid with dot badges & selected date drill-down, Agenda Timeline grouped by month, Term 1 vs Term 2 Milestones, Statutory Holiday Register), category/audience filters, metrics ribbon, and event creation modal.
+      - Registered routes `/school/calendar` and `/school/academic-calendar` in `lib/routes/app_router.dart`.
+      - Integrated calendar navigation across Admin Dashboard (Command Matrix, Quick Actions, Drawer), Teacher Dashboard (Drawer), Parent Dashboard (Drawer), and Student Dashboard (Drawer).
+      - Static analysis clean (0 errors across all modified/added files); 0 college files touched.
 
 ---
 

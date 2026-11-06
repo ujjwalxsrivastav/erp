@@ -5,6 +5,7 @@ import '../services/supabase_service.dart';
 import '../services/auth_service.dart';
 import 'school_payroll_service.dart';
 import 'school_living_service.dart';
+import 'school_calendar_service.dart';
 
 class SchoolService {
   static final SchoolService _instance = SchoolService._internal();
@@ -15,6 +16,7 @@ class SchoolService {
   SupabaseClient get supabase => _supabase;
   SchoolPayrollService get payroll => SchoolPayrollService();
   SchoolLivingService get living => SchoolLivingService();
+  SchoolCalendarService get calendar => SchoolCalendarService();
 
   static final Set<String> _missingTables = <String>{};
   static bool isTableMissing(String table) => _missingTables.contains(table);

@@ -3623,6 +3623,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 children: [
                   _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard', () => Navigator.pop(context)),
+                  _buildDrawerTile(Icons.event_note_rounded, 'Academic Calendar & Milestones', () {
+                    Navigator.pop(context);
+                    context.push('/school/calendar');
+                  }),
                   _buildDrawerTile(Icons.people_alt_rounded, 'My Students Roster', () {
                     Navigator.pop(context);
                     _loadStudents();

@@ -3134,6 +3134,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           accentColor: const Color(0xFF2563EB),
           modules: [
             _ModuleItem(
+              title: 'Academic Calendar & Milestones',
+              desc: 'Term milestones, examination schedules, statutory holidays, PTM windows & iCal sync',
+              icon: Icons.event_note_rounded,
+              route: '/school/calendar',
+              badge: '2026-27 Active',
+              badgeColor: const Color(0xFF0F766E),
+            ),
+            _ModuleItem(
               title: 'Lesson Plan & 5E Studio',
               desc: 'Constructivist 5E plans, Bloom\'s cognitive mapping, HOD scrutiny & syllabus pacing velocity',
               icon: Icons.menu_book_rounded,
@@ -3854,6 +3862,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                   ),
                   const SizedBox(height: 14),
+                  _buildQuickActionRow(
+                    icon: Icons.event_note_rounded,
+                    iconColor: const Color(0xFF0F766E),
+                    title: 'Academic Calendar & Milestones',
+                    subtitle: 'Inspect session schedule, exam cycles, statutory holidays & PTMs',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.push('/school/calendar');
+                    },
+                  ),
                   _buildQuickActionRow(
                     icon: Icons.auto_awesome_rounded,
                     iconColor: const Color(0xFF7C3AED),
@@ -5679,6 +5697,10 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     badgeCount: (_unifiedApprovals['total_count'] as int?) ?? 0,
                   ),
                   _buildDrawerCategory('ACADEMICS & CURRICULUM'),
+                  _buildDrawerItem(Icons.event_note_rounded, 'Academic Calendar & Milestones', () {
+                    Navigator.pop(context);
+                    context.go('/school/calendar');
+                  }),
                   _buildDrawerItem(Icons.menu_book_rounded, 'Lesson Plans & 5E Studio', () => context.go('/school/lesson-plans')),
                   _buildDrawerItem(Icons.fact_check_rounded, 'Examination & Hall Tickets', () => context.go('/school/examination')),
                   _buildDrawerItem(Icons.calendar_month_rounded, 'Timetable & Substitution', () => context.go('/school/timetable')),
