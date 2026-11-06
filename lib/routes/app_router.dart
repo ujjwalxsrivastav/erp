@@ -134,7 +134,7 @@ final router = GoRouter(
       if (!isLoggedIn) return '/login';
       final role = await authService.getCurrentUserRole();
       final instType = await authService.getCurrentInstituteType();
-      if (instType != 'school' || (role != 'admin' && role != 'sadmin')) {
+      if (instType != 'school' || (role != 'admin' && role != 'sadmin' && role != 'principal' && role != 'superadmin')) {
         if (role == 'teacher') return '/school/teacher-dashboard';
         if (role == 'student') return '/school/student-dashboard';
         if (role == 'parent') return '/school/parent-dashboard';

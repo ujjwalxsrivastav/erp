@@ -373,6 +373,7 @@ class _LoginScreenState extends State<LoginScreen>
           _buildCredentialRow('School Student', 'sstudent1', const Color(0xFFFF6B6B)),
           _buildCredentialRow('School Teacher', 'steacher1', const Color(0xFFFF8E53)),
           _buildCredentialRow('School Admin', 'sadmin1', const Color(0xFF9B59B6)),
+          _buildCredentialRow('School Admin (Alt)', 'sadmin01', const Color(0xFF8E44AD)),
           _buildCredentialRow('Parent', 'parent1', const Color(0xFF1ABC9C)),
         ],
       ),

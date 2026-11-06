@@ -152,7 +152,7 @@ class AdminService {
       try {
         await _supabase
             .from('users')
-            .update({'institution': 'school'}).eq('username', teacherId);
+            .update({'institute_type': 'school'}).eq('username', teacherId);
       } catch (_) {}
 
       return {'success': true, 'message': 'Teacher added successfully'};
