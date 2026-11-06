@@ -94,7 +94,13 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
 
   Future<void> _init() async {
     final role = await _authService.getCurrentUserRole() ?? 'student';
-    final username = await _authService.getCurrentUsername() ?? 'sstudent1';
+    final username = await _authService.getCurrentUsername();
+    if (username == null || username.isEmpty) {
+      if (mounted)
+        setState(() => _classesError =
+            'Your session could not be verified. Please sign in again.');
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _username = username;
@@ -110,7 +116,7 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         if (mounted && profile != null) {
           setState(() {
             _myName = profile['name']?.toString() ?? username;
-            _myClass = profile['class_name']?.toString() ?? 'Class 10';
+            _myClass = profile['class_name']?.toString() ?? '';
           });
         }
         await _loadMyAttendance();
@@ -124,7 +130,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
   Future<void> _loadMyAttendance() async {
     if (_username == null) return;
     try {
-      final records = await _schoolService.getStudentAttendanceRecords(_username!);
+      final records =
+          await _schoolService.getStudentAttendanceRecords(_username!);
       if (mounted) setState(() => _myRecords = records);
     } catch (_) {}
   }
@@ -137,7 +144,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
     try {
       final List<Map<String, dynamic>> classes;
       if (_isTeacher && !_isAdmin) {
-        classes = await _schoolService.getTeacherAllAssignedClasses(_username ?? '');
+        classes =
+            await _schoolService.getTeacherAllAssignedClasses(_username ?? '');
         if (classes.isEmpty) {
           if (!mounted) return;
           setState(() {
@@ -223,7 +231,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         _students = students;
         _attendanceMap = attMap;
         _remarksMap = remMap;
-        _isSubmitted = students.isNotEmpty && existing.length >= students.length;
+        _isSubmitted =
+            students.isNotEmpty && existing.length >= students.length;
         _loadingStudents = false;
       });
     } catch (e) {
@@ -366,7 +375,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
     if (_isSubmitted && !_forceEditMode) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Attendance is locked. Tap "Unlock & Edit" to make corrections.'),
+          content: Text(
+              'Attendance is locked. Tap "Unlock & Edit" to make corrections.'),
           backgroundColor: Color(0xFFF59E0B),
           behavior: SnackBarBehavior.floating,
         ),
@@ -391,7 +401,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 : (s['class_name']?.toString() ?? ''),
             'section': '',
             'student_id': sid,
-            'student_name': s['name']?.toString() ?? s['username']?.toString() ?? '',
+            'student_name':
+                s['name']?.toString() ?? s['username']?.toString() ?? '',
             'date': dateStr,
             'status': _attendanceMap[sid] ?? 'present',
             'marked_by': _username ?? 'teacher',
@@ -415,7 +426,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const Icon(Icons.check_circle_rounded,
+                  color: Colors.white, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -427,7 +439,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           ),
           backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       _monthlySummary = {};
@@ -441,10 +454,12 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Could not save attendance to the server. Please try again.'),
+          content: const Text(
+              'Could not save attendance to the server. Please try again.'),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     }
@@ -459,12 +474,16 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.note_alt_outlined, color: Color(0xFF0F172A), size: 20),
+            const Icon(Icons.note_alt_outlined,
+                color: Color(0xFF0F172A), size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Note for $studentName',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A)),
               ),
             ),
           ],
@@ -478,14 +497,20 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
             hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
             filled: true,
             fillColor: const Color(0xFFF8FAFC),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5)),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    const BorderSide(color: Color(0xFF0F172A), width: 1.5)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFF64748B))),
           ),
           ElevatedButton(
             onPressed: () {
@@ -501,7 +526,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF0F172A),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text('Save Note'),
           ),
@@ -511,11 +537,15 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
   }
 
   // Counts
-  int get _presentCount => _attendanceMap.values.where((s) => s == 'present').length;
-  int get _absentCount => _attendanceMap.values.where((s) => s == 'absent').length;
+  int get _presentCount =>
+      _attendanceMap.values.where((s) => s == 'present').length;
+  int get _absentCount =>
+      _attendanceMap.values.where((s) => s == 'absent').length;
   int get _lateCount => _attendanceMap.values.where((s) => s == 'late').length;
-  int get _leaveCount => _attendanceMap.values.where((s) => s == 'excused' || s == 'leave').length;
-  double get _presentPercent => _students.isEmpty ? 0.0 : (_presentCount / _students.length) * 100;
+  int get _leaveCount =>
+      _attendanceMap.values.where((s) => s == 'excused' || s == 'leave').length;
+  double get _presentPercent =>
+      _students.isEmpty ? 0.0 : (_presentCount / _students.length) * 100;
 
   List<Map<String, dynamic>> get _filteredStudents {
     final q = _searchQuery.trim().toLowerCase();
@@ -557,13 +587,17 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
             children: [
               const Text(
                 'Attendance Register',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A)),
               ),
               Text(
                 _selectedClass != null
                     ? '${_className(_selectedClass!)} • ${_formatDate(_selectedDate)}'
                     : 'CBSE Academic Year 2026-27',
-                style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                style:
+                    const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
               ),
             ],
           ),
@@ -578,8 +612,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 unselectedLabelColor: Color(0xFF64748B),
                 indicatorColor: Color(0xFF0F172A),
                 indicatorWeight: 3,
-                labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                labelStyle:
+                    TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                unselectedLabelStyle:
+                    TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                 tabs: [
                   Tab(text: 'Daily Register'),
                   Tab(text: 'Monthly Register'),
@@ -616,9 +652,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                       _buildDefaultersTab(),
                     ],
                   ),
-        bottomNavigationBar: (_isEditable && _students.isNotEmpty && !_loadingStudents)
-            ? _buildDailyRegisterBottomDock()
-            : null,
+        bottomNavigationBar:
+            (_isEditable && _students.isNotEmpty && !_loadingStudents)
+                ? _buildDailyRegisterBottomDock()
+                : null,
       ),
     );
   }
@@ -649,7 +686,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 children: [
                   Text(
                     '$_presentCount of ${_students.length} Present',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF0F172A)),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Color(0xFF0F172A)),
                   ),
                   const SizedBox(height: 2),
                   Row(
@@ -658,7 +698,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                         width: 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: _presentPercent >= 75 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                          color: _presentPercent >= 75
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFF59E0B),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -668,7 +710,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                         style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w500,
-                          color: _isSubmitted && !_forceEditMode ? const Color(0xFF64748B) : const Color(0xFFD97706),
+                          color: _isSubmitted && !_forceEditMode
+                              ? const Color(0xFF64748B)
+                              : const Color(0xFFD97706),
                         ),
                       ),
                     ],
@@ -683,11 +727,15 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF0F172A),
                   side: const BorderSide(color: Color(0xFFCBD5E1)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 icon: const Icon(Icons.lock_open_rounded, size: 16),
-                label: const Text('Unlock & Edit', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                label: const Text('Unlock & Edit',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
               )
             else
               ElevatedButton.icon(
@@ -696,24 +744,32 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                   backgroundColor: const Color(0xFF0F172A),
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: const Color(0xFF94A3B8),
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
                 icon: _saving
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
                       )
-                    : Icon(_forceEditMode ? Icons.check_circle_outline : Icons.cloud_upload_outlined, size: 18),
+                    : Icon(
+                        _forceEditMode
+                            ? Icons.check_circle_outline
+                            : Icons.cloud_upload_outlined,
+                        size: 18),
                 label: Text(
                   _saving
                       ? 'Submitting…'
                       : _forceEditMode
                           ? 'Update Register'
                           : 'Submit Register',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13.5),
                 ),
               ),
           ],
@@ -753,7 +809,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 Expanded(
                   flex: 5,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(12),
@@ -762,7 +819,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<Map<String, dynamic>>(
                         value: _selectedClass,
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 18, color: Color(0xFF64748B)),
                         isExpanded: true,
                         dropdownColor: Colors.white,
                         items: _classes.map((c) {
@@ -770,7 +828,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                             value: c,
                             child: Text(
                               _className(c),
-                              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                              style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F172A)),
                             ),
                           );
                         }).toList(),
@@ -794,7 +855,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
               Expanded(
                 flex: 6,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(12),
@@ -807,7 +869,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                         borderRadius: BorderRadius.circular(8),
                         child: const Padding(
                           padding: EdgeInsets.all(6),
-                          child: Icon(Icons.chevron_left_rounded, size: 20, color: Color(0xFF64748B)),
+                          child: Icon(Icons.chevron_left_rounded,
+                              size: 20, color: Color(0xFF64748B)),
                         ),
                       ),
                       Expanded(
@@ -816,11 +879,14 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFF0F172A)),
+                              const Icon(Icons.calendar_today_rounded,
+                                  size: 14, color: Color(0xFF0F172A)),
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
-                                  isToday ? 'Today' : _fmtShortDate(_selectedDate),
+                                  isToday
+                                      ? 'Today'
+                                      : _fmtShortDate(_selectedDate),
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 12.5,
@@ -841,7 +907,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                           child: Icon(
                             Icons.chevron_right_rounded,
                             size: 20,
-                            color: isToday ? const Color(0xFFCBD5E1) : const Color(0xFF64748B),
+                            color: isToday
+                                ? const Color(0xFFCBD5E1)
+                                : const Color(0xFF64748B),
                           ),
                         ),
                       ),
@@ -864,13 +932,17 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         children: [
           Row(
             children: [
-              _buildMiniKpiCard('Present', '$_presentCount', _statusColors['present']!, _statusBgColors['present']!),
+              _buildMiniKpiCard('Present', '$_presentCount',
+                  _statusColors['present']!, _statusBgColors['present']!),
               const SizedBox(width: 8),
-              _buildMiniKpiCard('Absent', '$_absentCount', _statusColors['absent']!, _statusBgColors['absent']!),
+              _buildMiniKpiCard('Absent', '$_absentCount',
+                  _statusColors['absent']!, _statusBgColors['absent']!),
               const SizedBox(width: 8),
-              _buildMiniKpiCard('Late', '$_lateCount', _statusColors['late']!, _statusBgColors['late']!),
+              _buildMiniKpiCard('Late', '$_lateCount', _statusColors['late']!,
+                  _statusBgColors['late']!),
               const SizedBox(width: 8),
-              _buildMiniKpiCard('Leave', '$_leaveCount', _statusColors['excused']!, _statusBgColors['excused']!),
+              _buildMiniKpiCard('Leave', '$_leaveCount',
+                  _statusColors['excused']!, _statusBgColors['excused']!),
             ],
           ),
           const SizedBox(height: 12),
@@ -878,10 +950,14 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
-              value: _students.isEmpty ? 0.0 : (_presentPercent / 100).clamp(0.0, 1.0),
+              value: _students.isEmpty
+                  ? 0.0
+                  : (_presentPercent / 100).clamp(0.0, 1.0),
               minHeight: 6,
               backgroundColor: const Color(0xFFE2E8F0),
-              color: _presentPercent >= 75 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+              color: _presentPercent >= 75
+                  ? const Color(0xFF10B981)
+                  : const Color(0xFFF59E0B),
             ),
           ),
         ],
@@ -902,12 +978,16 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           children: [
             Text(
               value,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color),
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w800, color: color),
             ),
             const SizedBox(height: 1),
             Text(
               label,
-              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.9)),
+              style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: color.withValues(alpha: 0.9)),
             ),
           ],
         ),
@@ -934,8 +1014,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
                 decoration: const InputDecoration(
                   hintText: 'Search by student name or roll…',
-                  hintStyle: TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
-                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+                  hintStyle:
+                      TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                  prefixIcon: Icon(Icons.search_rounded,
+                      size: 18, color: Color(0xFF94A3B8)),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 10),
                 ),
@@ -949,11 +1031,14 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
               style: TextButton.styleFrom(
                 backgroundColor: const Color(0xFFECFDF5),
                 foregroundColor: const Color(0xFF10B981),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
               icon: const Icon(Icons.done_all_rounded, size: 16),
-              label: const Text('All Present', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+              label: const Text('All Present',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
             ),
           ],
         ],
@@ -963,7 +1048,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
 
   Widget _buildStudentList() {
     if (_loadingStudents) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)));
+      return const Center(
+          child: CircularProgressIndicator(color: Color(0xFF0F172A)));
     }
     if (_studentsError != null) {
       return _buildErrorView(_studentsError!, _loadStudentsAndAttendance);
@@ -973,10 +1059,13 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline_rounded, size: 54, color: Colors.grey.shade300),
+            Icon(Icons.people_outline_rounded,
+                size: 54, color: Colors.grey.shade300),
             const SizedBox(height: 12),
             Text(
-              _selectedClass == null ? 'No class selected' : 'No students registered in this class',
+              _selectedClass == null
+                  ? 'No class selected'
+                  : 'No students registered in this class',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
             ),
           ],
@@ -987,7 +1076,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
     final list = _filteredStudents;
     if (list.isEmpty) {
       return const Center(
-        child: Text('No students match your search filter', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+        child: Text('No students match your search filter',
+            style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
       );
     }
 
@@ -1004,10 +1094,14 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
   }
 
   Widget _buildStudentCard(Map<String, dynamic> student, bool isLocked) {
-    final sid = student['username']?.toString() ?? student['id']?.toString() ?? '';
+    final sid =
+        student['username']?.toString() ?? student['id']?.toString() ?? '';
     final status = _attendanceMap[sid] ?? 'present';
-    final roll = student['roll_number']?.toString() ?? '${student['roll'] ?? (student['id'] ?? '')}';
-    final name = student['name']?.toString() ?? student['username']?.toString() ?? 'Student';
+    final roll = student['roll_number']?.toString() ??
+        '${student['roll'] ?? (student['id'] ?? '')}';
+    final name = student['name']?.toString() ??
+        student['username']?.toString() ??
+        'Student';
     final remark = _remarksMap[sid];
 
     final statusColor = _statusColors[status] ?? const Color(0xFF10B981);
@@ -1043,7 +1137,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
             child: Center(
               child: Text(
                 roll.isEmpty ? '•' : roll,
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: statusColor),
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: statusColor),
               ),
             ),
           ),
@@ -1056,26 +1153,34 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
                     Text(
                       sid,
-                      style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                      style: const TextStyle(
+                          fontSize: 11.5, color: Color(0xFF64748B)),
                     ),
                     if (remark != null && remark.isNotEmpty) ...[
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           remark,
-                          style: const TextStyle(fontSize: 10.5, fontStyle: FontStyle.italic, color: Color(0xFF475569)),
+                          style: const TextStyle(
+                              fontSize: 10.5,
+                              fontStyle: FontStyle.italic,
+                              color: Color(0xFF475569)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1091,9 +1196,13 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           if (_isEditable && !isLocked)
             IconButton(
               icon: Icon(
-                remark != null && remark.isNotEmpty ? Icons.note_rounded : Icons.note_add_outlined,
+                remark != null && remark.isNotEmpty
+                    ? Icons.note_rounded
+                    : Icons.note_add_outlined,
                 size: 18,
-                color: remark != null && remark.isNotEmpty ? const Color(0xFFD97706) : const Color(0xFF94A3B8),
+                color: remark != null && remark.isNotEmpty
+                    ? const Color(0xFFD97706)
+                    : const Color(0xFF94A3B8),
               ),
               tooltip: 'Add remark',
               onPressed: () => _showRemarkDialog(sid, name),
@@ -1104,13 +1213,15 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildSegmentItem(sid, 'present', 'P', _statusColors['present']!),
+                _buildSegmentItem(
+                    sid, 'present', 'P', _statusColors['present']!),
                 const SizedBox(width: 4),
                 _buildSegmentItem(sid, 'absent', 'A', _statusColors['absent']!),
                 const SizedBox(width: 4),
                 _buildSegmentItem(sid, 'late', 'L', _statusColors['late']!),
                 const SizedBox(width: 4),
-                _buildSegmentItem(sid, 'excused', 'E', _statusColors['excused']!),
+                _buildSegmentItem(
+                    sid, 'excused', 'E', _statusColors['excused']!),
               ],
             )
           else
@@ -1123,7 +1234,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
               ),
               child: Text(
                 status.toUpperCase(),
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor),
               ),
             ),
         ],
@@ -1131,7 +1245,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
     );
   }
 
-  Widget _buildSegmentItem(String studentId, String statusKey, String label, Color color) {
+  Widget _buildSegmentItem(
+      String studentId, String statusKey, String label, Color color) {
     final isSelected = _attendanceMap[studentId] == statusKey;
     return InkWell(
       onTap: () => setState(() => _attendanceMap[studentId] = statusKey),
@@ -1144,7 +1259,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         decoration: BoxDecoration(
           color: isSelected ? color : color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isSelected ? color : color.withValues(alpha: 0.2)),
+          border: Border.all(
+              color: isSelected ? color : color.withValues(alpha: 0.2)),
           boxShadow: isSelected
               ? [
                   BoxShadow(
@@ -1172,12 +1288,15 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
   // ──────────────────────────────────────────────
   Widget _buildMonthlyTab() {
     if (_selectedClass == null) {
-      return const Center(child: Text('No class selected', style: TextStyle(color: Color(0xFF64748B))));
+      return const Center(
+          child: Text('No class selected',
+              style: TextStyle(color: Color(0xFF64748B))));
     }
 
     final sortedDates = _monthlySummary.keys.toList()..sort();
     final studentList = _studentMonthly.values.toList()
-      ..sort((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''));
+      ..sort((a, b) =>
+          (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''));
 
     // Compute period totals
     int totalWorkingDays = sortedDates.length;
@@ -1213,23 +1332,32 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                     children: [
                       Text(
                         '${_monthLabel(_selectedDate.month)} ${_selectedDate.year}',
-                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A)),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '${_className(_selectedClass!)} • $totalWorkingDays Recorded Sessions',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF64748B)),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: periodPct >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                    color: periodPct >= 75
+                        ? const Color(0xFFECFDF5)
+                        : const Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: periodPct >= 75 ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA),
+                      color: periodPct >= 75
+                          ? const Color(0xFFA7F3D0)
+                          : const Color(0xFFFECACA),
                     ),
                   ),
                   child: Column(
@@ -1239,7 +1367,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: periodPct >= 75 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                          color: periodPct >= 75
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFEF4444),
                         ),
                       ),
                       Text(
@@ -1247,7 +1377,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                         style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w600,
-                          color: periodPct >= 75 ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                          color: periodPct >= 75
+                              ? const Color(0xFF047857)
+                              : const Color(0xFFB91C1C),
                         ),
                       ),
                     ],
@@ -1280,24 +1412,32 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                               color: const Color(0xFFEFF6FF),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.show_chart_rounded, size: 16, color: Color(0xFF2563EB)),
+                            child: const Icon(Icons.show_chart_rounded,
+                                size: 16, color: Color(0xFF2563EB)),
                           ),
                           const SizedBox(width: 8),
                           const Text(
                             'Monthly Attendance Trajectory',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                            style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A)),
                           ),
                         ],
                       ),
                       OutlinedButton.icon(
                         onPressed: _showExportModal,
-                        icon: const Icon(Icons.file_download_outlined, size: 13),
-                        label: const Text('Export Excel (T-R01)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                        icon:
+                            const Icon(Icons.file_download_outlined, size: 13),
+                        label: const Text('Export Excel (T-R01)',
+                            style: TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.w700)),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF107C41),
                           side: const BorderSide(color: Color(0xFFA7F3D0)),
                           backgroundColor: const Color(0xFFECFDF5),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                         ),
                       ),
                     ],
@@ -1313,7 +1453,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                     child: LineChart(
                       LineChartData(
                         minX: 0,
-                        maxX: (sortedDates.length - 1).toDouble().clamp(1.0, 31.0),
+                        maxX: (sortedDates.length - 1)
+                            .toDouble()
+                            .clamp(1.0, 31.0),
                         minY: 0,
                         maxY: 100,
                         gridData: FlGridData(
@@ -1333,7 +1475,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                               interval: 25,
                               getTitlesWidget: (val, meta) => Text(
                                 '${val.toInt()}%',
-                                style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8)),
+                                style: const TextStyle(
+                                    fontSize: 9.5, color: Color(0xFF94A3B8)),
                               ),
                             ),
                           ),
@@ -1341,33 +1484,43 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 22,
-                              interval: (sortedDates.length / 5).ceilToDouble().clamp(1.0, 10.0),
+                              interval: (sortedDates.length / 5)
+                                  .ceilToDouble()
+                                  .clamp(1.0, 10.0),
                               getTitlesWidget: (val, meta) {
                                 final idx = val.toInt();
-                                if (idx < 0 || idx >= sortedDates.length) return const SizedBox.shrink();
+                                if (idx < 0 || idx >= sortedDates.length)
+                                  return const SizedBox.shrink();
                                 final parts = sortedDates[idx].split('-');
                                 return Text(
-                                  parts.length >= 3 ? '${parts[1]}/${parts[2]}' : '',
-                                  style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8)),
+                                  parts.length >= 3
+                                      ? '${parts[1]}/${parts[2]}'
+                                      : '',
+                                  style: const TextStyle(
+                                      fontSize: 9, color: Color(0xFF94A3B8)),
                                 );
                               },
                             ),
                           ),
-                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
+                          topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
                         ),
                         borderData: FlBorderData(show: false),
                         extraLinesData: ExtraLinesData(
                           horizontalLines: [
                             HorizontalLine(
                               y: 75,
-                              color: const Color(0xFFEF4444).withValues(alpha: 0.7),
+                              color: const Color(0xFFEF4444)
+                                  .withValues(alpha: 0.7),
                               strokeWidth: 1.5,
                               dashArray: [4, 4],
                               label: HorizontalLineLabel(
                                 show: true,
                                 alignment: Alignment.topRight,
-                                padding: const EdgeInsets.only(right: 6, bottom: 2),
+                                padding:
+                                    const EdgeInsets.only(right: 6, bottom: 2),
                                 style: const TextStyle(
                                   color: Color(0xFFEF4444),
                                   fontSize: 9,
@@ -1387,7 +1540,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                                   final data = _monthlySummary[d]!;
                                   final pres = data['present'] as int? ?? 0;
                                   final tot = data['total'] as int? ?? 0;
-                                  final rate = tot == 0 ? 0.0 : (pres / tot) * 100;
+                                  final rate =
+                                      tot == 0 ? 0.0 : (pres / tot) * 100;
                                   return FlSpot(i.toDouble(), rate);
                                 }(),
                               ],
@@ -1403,7 +1557,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                                 final isLow = spot.y < 75.0;
                                 return FlDotCirclePainter(
                                   radius: 3,
-                                  color: isLow ? const Color(0xFFEF4444) : const Color(0xFF2563EB),
+                                  color: isLow
+                                      ? const Color(0xFFEF4444)
+                                      : const Color(0xFF2563EB),
                                   strokeWidth: 1.5,
                                   strokeColor: Colors.white,
                                 );
@@ -1411,7 +1567,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                             ),
                             belowBarData: BarAreaData(
                               show: true,
-                              color: const Color(0xFF2563EB).withValues(alpha: 0.08),
+                              color: const Color(0xFF2563EB)
+                                  .withValues(alpha: 0.08),
                             ),
                           ),
                         ],
@@ -1426,11 +1583,17 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           // Day-by-Day Register Table
           const Text(
             'Daily Register Breakdown',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A)),
           ),
           const SizedBox(height: 8),
           if (_loadingMonthly)
-            const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+            const Center(
+                child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator()))
           else if (sortedDates.isEmpty)
             Container(
               padding: const EdgeInsets.all(24),
@@ -1440,7 +1603,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: const Center(
-                child: Text('No attendance records logged for this month yet.', style: TextStyle(color: Color(0xFF64748B))),
+                child: Text('No attendance records logged for this month yet.',
+                    style: TextStyle(color: Color(0xFF64748B))),
               ),
             )
           else ...[
@@ -1453,17 +1617,47 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
               child: Column(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                     decoration: const BoxDecoration(
                       color: Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
+                      borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12)),
                     ),
                     child: const Row(
                       children: [
-                        Expanded(flex: 3, child: Text('Date', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)))),
-                        Expanded(flex: 2, child: Center(child: Text('Present', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF10B981))))),
-                        Expanded(flex: 2, child: Center(child: Text('Absent', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFFEF4444))))),
-                        Expanded(flex: 2, child: Center(child: Text('Rate %', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))))),
+                        Expanded(
+                            flex: 3,
+                            child: Text('Date',
+                                style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF475569)))),
+                        Expanded(
+                            flex: 2,
+                            child: Center(
+                                child: Text('Present',
+                                    style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF10B981))))),
+                        Expanded(
+                            flex: 2,
+                            child: Center(
+                                child: Text('Absent',
+                                    style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFFEF4444))))),
+                        Expanded(
+                            flex: 2,
+                            child: Center(
+                                child: Text('Rate %',
+                                    style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A))))),
                       ],
                     ),
                   ),
@@ -1475,26 +1669,39 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                     final tot = data['total'] as int? ?? 0;
                     final rate = tot == 0 ? 0.0 : (pres / tot) * 100;
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 9),
                       child: Row(
                         children: [
                           Expanded(
                             flex: 3,
                             child: Text(
-                              _fmtShortDate(DateTime.tryParse(d) ?? DateTime.now()),
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                              _fmtShortDate(
+                                  DateTime.tryParse(d) ?? DateTime.now()),
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0F172A)),
                             ),
                           ),
                           Expanded(
                             flex: 2,
                             child: Center(
-                              child: Text('$pres', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF10B981))),
+                              child: Text('$pres',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF10B981))),
                             ),
                           ),
                           Expanded(
                             flex: 2,
                             child: Center(
-                              child: Text('$abs', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFEF4444))),
+                              child: Text('$abs',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFEF4444))),
                             ),
                           ),
                           Expanded(
@@ -1505,7 +1712,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
-                                  color: rate >= 75 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                  color: rate >= 75
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFEF4444),
                                 ),
                               ),
                             ),
@@ -1523,7 +1732,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           // Student cumulative ranking
           const Text(
             'Student-wise Cumulative Breakdown',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A)),
           ),
           const SizedBox(height: 8),
           ...studentList.map((s) {
@@ -1550,23 +1762,32 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                       children: [
                         Text(
                           s['name']?.toString() ?? 'Student',
-                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                          style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A)),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '$pres Present • $abs Absent • $late Late • $excused Excused',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          style: const TextStyle(
+                              fontSize: 11, color: Color(0xFF64748B)),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: pct >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                      color: pct >= 75
+                          ? const Color(0xFFECFDF5)
+                          : const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: pct >= 75 ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA),
+                        color: pct >= 75
+                            ? const Color(0xFFA7F3D0)
+                            : const Color(0xFFFECACA),
                       ),
                     ),
                     child: Text(
@@ -1574,7 +1795,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w800,
-                        color: pct >= 75 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        color: pct >= 75
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFEF4444),
                       ),
                     ),
                   ),
@@ -1612,7 +1835,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.shield_outlined, color: Color(0xFFD97706), size: 22),
+              const Icon(Icons.shield_outlined,
+                  color: Color(0xFFD97706), size: 22),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1620,12 +1844,16 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                   children: [
                     const Text(
                       'CBSE Rule 13 — 75% Mandatory Attendance',
-                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF92400E)),
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF92400E)),
                     ),
                     const SizedBox(height: 3),
                     const Text(
                       'Students with cumulative attendance below 75% are ineligible for board/annual examinations unless condoned on medical grounds.',
-                      style: TextStyle(fontSize: 11.5, color: Color(0xFFB45309)),
+                      style:
+                          TextStyle(fontSize: 11.5, color: Color(0xFFB45309)),
                     ),
                   ],
                 ),
@@ -1640,7 +1868,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           children: [
             Text(
               'Identified Defaulters (${defaulters.length})',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A)),
             ),
             if (defaulters.isNotEmpty)
               OutlinedButton.icon(
@@ -1648,11 +1879,15 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF0F172A),
                   side: const BorderSide(color: Color(0xFFCBD5E1)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 icon: const Icon(Icons.print_outlined, size: 14),
-                label: const Text('Export Audit', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                label: const Text('Export Audit',
+                    style:
+                        TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
               ),
           ],
         ),
@@ -1668,17 +1903,22 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
             ),
             child: Column(
               children: [
-                const Icon(Icons.verified_rounded, size: 48, color: Color(0xFF10B981)),
+                const Icon(Icons.verified_rounded,
+                    size: 48, color: Color(0xFF10B981)),
                 const SizedBox(height: 10),
                 const Text(
                   '100% CBSE Compliant!',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'All students in ${_className(_selectedClass ?? {})} currently meet or exceed the 75% minimum threshold.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  style:
+                      const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                 ),
               ],
             ),
@@ -1710,7 +1950,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                       border: Border.all(color: const Color(0xFFFECACA)),
                     ),
                     child: const Center(
-                      child: Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 20),
+                      child: Icon(Icons.warning_amber_rounded,
+                          color: Color(0xFFEF4444), size: 20),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1720,23 +1961,31 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                       children: [
                         Text(
                           s['name']?.toString() ?? 'Student',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A)),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '$pres Attended / $tot Working Days • $abs Absent',
-                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: Color(0xFF64748B)),
                         ),
                         if (needed > 0)
                           Text(
                             'Needs $needed more consecutive days to reach 75%',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFDC2626)),
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFDC2626)),
                           ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(8),
@@ -1744,7 +1993,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                     ),
                     child: Text(
                       '${pct.toStringAsFixed(1)}%',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFDC2626)),
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFDC2626)),
                     ),
                   ),
                 ],
@@ -1769,9 +2021,14 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
     final present = monthRecords.where((r) => r['status'] == 'present').length;
     final absent = monthRecords.where((r) => r['status'] == 'absent').length;
     final late = monthRecords.where((r) => r['status'] == 'late').length;
-    final leave = monthRecords.where((r) => r['status'] == 'excused' || r['status'] == 'leave').length;
-    final counted = monthRecords.where((r) => r['status'] != 'excused' && r['status'] != 'leave').toList();
-    final pct = counted.isEmpty ? 0.0 : ((present + late) / counted.length) * 100;
+    final leave = monthRecords
+        .where((r) => r['status'] == 'excused' || r['status'] == 'leave')
+        .length;
+    final counted = monthRecords
+        .where((r) => r['status'] != 'excused' && r['status'] != 'leave')
+        .toList();
+    final hasRecords = counted.isNotEmpty;
+    final pct = hasRecords ? ((present + late) / counted.length) * 100 : 0.0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -1785,10 +2042,15 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           children: [
             const Text(
               'My Attendance Record',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A)),
             ),
             Text(
-              _myName.isNotEmpty ? '$_myName • $_myClass' : 'CBSE Session 2026-27',
+              _myName.isNotEmpty
+                  ? '$_myName • $_myClass'
+                  : 'CBSE Session 2026-27',
               style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
             ),
           ],
@@ -1838,35 +2100,51 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                         children: [
                           Text(
                             '${_monthLabel(_selectedDate.month)} ${_selectedDate.year}',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF64748B)),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${pct.toStringAsFixed(1)}%',
+                            hasRecords ? '${pct.toStringAsFixed(1)}%' : '—',
                             style: TextStyle(
                               fontSize: 36,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -1,
-                              color: pct >= 75 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                              color: !hasRecords
+                                  ? const Color(0xFF64748B)
+                                  : pct >= 75
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFEF4444),
                             ),
                           ),
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: pct >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                          color: pct >= 75
+                              ? const Color(0xFFECFDF5)
+                              : const Color(0xFFFEF2F2),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: pct >= 75 ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA),
+                            color: pct >= 75
+                                ? const Color(0xFFA7F3D0)
+                                : const Color(0xFFFECACA),
                           ),
                         ),
                         child: Column(
                           children: [
                             Icon(
-                              pct >= 75 ? Icons.verified_user_rounded : Icons.warning_amber_rounded,
+                              pct >= 75
+                                  ? Icons.verified_user_rounded
+                                  : Icons.warning_amber_rounded,
                               size: 20,
-                              color: pct >= 75 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                              color: pct >= 75
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFFEF4444),
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -1874,7 +2152,9 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: pct >= 75 ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                                color: pct >= 75
+                                    ? const Color(0xFF047857)
+                                    : const Color(0xFFB91C1C),
                               ),
                             ),
                           ],
@@ -1889,16 +2169,26 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                       value: (pct / 100).clamp(0.0, 1.0),
                       minHeight: 8,
                       backgroundColor: const Color(0xFFF1F5F9),
-                      color: pct >= 75 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                      color: pct >= 75
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFEF4444),
                     ),
                   ),
                   const SizedBox(height: 8),
                   const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('0%', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
-                      Text('CBSE Target: 75%', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
-                      Text('100%', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+                      Text('0%',
+                          style: TextStyle(
+                              fontSize: 10, color: Color(0xFF94A3B8))),
+                      Text('CBSE Target: 75%',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF64748B))),
+                      Text('100%',
+                          style: TextStyle(
+                              fontSize: 10, color: Color(0xFF94A3B8))),
                     ],
                   ),
                 ],
@@ -1913,19 +2203,26 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 IconButton(
                   onPressed: () {
                     setState(() {
-                      _selectedDate = DateTime(_selectedDate.year, _selectedDate.month - 1, 1);
+                      _selectedDate = DateTime(
+                          _selectedDate.year, _selectedDate.month - 1, 1);
                     });
                   },
                   icon: const Icon(Icons.chevron_left_rounded),
                 ),
                 Text(
                   '${_monthLabel(_selectedDate.month)} ${_selectedDate.year}',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF0F172A)),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: Color(0xFF0F172A)),
                 ),
                 IconButton(
                   onPressed: () {
-                    final next = DateTime(_selectedDate.year, _selectedDate.month + 1, 1);
-                    if (next.isBefore(DateTime.now()) || (next.year == DateTime.now().year && next.month == DateTime.now().month)) {
+                    final next = DateTime(
+                        _selectedDate.year, _selectedDate.month + 1, 1);
+                    if (next.isBefore(DateTime.now()) ||
+                        (next.year == DateTime.now().year &&
+                            next.month == DateTime.now().month)) {
                       setState(() {
                         _selectedDate = next;
                       });
@@ -1940,13 +2237,17 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
             // Stat Chips Row
             Row(
               children: [
-                _myStatChip('Present', present, _statusColors['present']!, _statusBgColors['present']!),
+                _myStatChip('Present', present, _statusColors['present']!,
+                    _statusBgColors['present']!),
                 const SizedBox(width: 8),
-                _myStatChip('Absent', absent, _statusColors['absent']!, _statusBgColors['absent']!),
+                _myStatChip('Absent', absent, _statusColors['absent']!,
+                    _statusBgColors['absent']!),
                 const SizedBox(width: 8),
-                _myStatChip('Late', late, _statusColors['late']!, _statusBgColors['late']!),
+                _myStatChip('Late', late, _statusColors['late']!,
+                    _statusBgColors['late']!),
                 const SizedBox(width: 8),
-                _myStatChip('Leave', leave, _statusColors['excused']!, _statusBgColors['excused']!),
+                _myStatChip('Leave', leave, _statusColors['excused']!,
+                    _statusBgColors['excused']!),
               ],
             ),
             const SizedBox(height: 16),
@@ -1958,7 +2259,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
             // Day-by-day activity log
             const Text(
               'Activity Log',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A)),
             ),
             const SizedBox(height: 8),
 
@@ -1972,9 +2276,12 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 ),
                 child: const Column(
                   children: [
-                    Icon(Icons.event_busy_outlined, size: 48, color: Color(0xFFCBD5E1)),
+                    Icon(Icons.event_busy_outlined,
+                        size: 48, color: Color(0xFFCBD5E1)),
                     SizedBox(height: 10),
-                    Text('No attendance records logged for this month yet.', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+                    Text('No attendance records logged for this month yet.',
+                        style:
+                            TextStyle(color: Color(0xFF64748B), fontSize: 13)),
                   ],
                 ),
               )
@@ -1985,11 +2292,22 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 final bg = _statusBgColors[status] ?? const Color(0xFFF1F5F9);
                 final icon = _statusIcons[status] ?? Icons.help_outline;
                 DateTime? d = DateTime.tryParse(r['date'].toString());
-                final weekday = d != null ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.weekday - 1] : '';
+                final weekday = d != null
+                    ? [
+                        'Mon',
+                        'Tue',
+                        'Wed',
+                        'Thu',
+                        'Fri',
+                        'Sat',
+                        'Sun'
+                      ][d.weekday - 1]
+                    : '';
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -2007,7 +2325,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                         child: Center(
                           child: Text(
                             d != null ? '${d.day}' : '-',
-                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: color),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                                color: color),
                           ),
                         ),
                       ),
@@ -2017,19 +2338,29 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              d != null ? '$weekday, ${_monthLabel(d.month)} ${d.day}, ${d.year}' : '-',
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, color: Color(0xFF0F172A)),
+                              d != null
+                                  ? '$weekday, ${_monthLabel(d.month)} ${d.day}, ${d.year}'
+                                  : '-',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13.5,
+                                  color: Color(0xFF0F172A)),
                             ),
-                            if (r['notes'] != null && r['notes'].toString().isNotEmpty)
+                            if (r['notes'] != null &&
+                                r['notes'].toString().isNotEmpty)
                               Text(
                                 r['notes'].toString(),
-                                style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Color(0xFF64748B)),
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                    color: Color(0xFF64748B)),
                               ),
                           ],
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: bg,
                           borderRadius: BorderRadius.circular(20),
@@ -2041,7 +2372,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                             const SizedBox(width: 4),
                             Text(
                               status.toUpperCase(),
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: color),
                             ),
                           ],
                         ),
@@ -2057,8 +2391,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
   }
 
   Widget _buildStudentMonthCalendar(List<Map<String, dynamic>> records) {
-    final daysInMonth = DateUtils.getDaysInMonth(_selectedDate.year, _selectedDate.month);
-    final firstDayWeekday = DateTime(_selectedDate.year, _selectedDate.month, 1).weekday; // 1 = Mon, 7 = Sun
+    final daysInMonth =
+        DateUtils.getDaysInMonth(_selectedDate.year, _selectedDate.month);
+    final firstDayWeekday = DateTime(_selectedDate.year, _selectedDate.month, 1)
+        .weekday; // 1 = Mon, 7 = Sun
 
     final recordByDay = <int, String>{};
     for (final r in records) {
@@ -2082,7 +2418,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         children: [
           const Text(
             'Monthly Attendance Heatmap',
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A)),
           ),
           const SizedBox(height: 12),
           // Weekday header
@@ -2094,7 +2433,10 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                 child: Center(
                   child: Text(
                     w,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF94A3B8)),
                   ),
                 ),
               );
@@ -2139,7 +2481,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
                     '$dayNum',
                     style: TextStyle(
                       fontSize: 11.5,
-                      fontWeight: status != null ? FontWeight.w800 : FontWeight.w500,
+                      fontWeight:
+                          status != null ? FontWeight.w800 : FontWeight.w500,
                       color: textColor,
                     ),
                   ),
@@ -2165,12 +2508,16 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
           children: [
             Text(
               '$count',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: color),
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w800, color: color),
             ),
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.9)),
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: color.withValues(alpha: 0.9)),
             ),
           ],
         ),
@@ -2182,7 +2529,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
   // EXPORT MODAL
   // ──────────────────────────────────────────────
   void _showExportModal() {
-    final className = _selectedClass != null ? _className(_selectedClass!) : 'Class 10';
+    final className =
+        _selectedClass != null ? _className(_selectedClass!) : 'Class 10';
     final from = DateTime(_selectedDate.year, _selectedDate.month, 1);
     final to = DateTime(_selectedDate.year, _selectedDate.month + 1, 0);
 
@@ -2196,18 +2544,23 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         'absent': data['absent'] ?? 0,
         'late': data['late'] ?? 0,
         'total': data['total'] ?? 0,
-        'rate': data['total'] == 0 ? 0.0 : ((data['present'] as int) / (data['total'] as int)) * 100,
+        'rate': data['total'] == 0
+            ? 0.0
+            : ((data['present'] as int) / (data['total'] as int)) * 100,
       });
     });
 
     final overallPct = rows.isEmpty
         ? 0.0
-        : rows.fold<double>(0.0, (acc, r) => acc + ((r['rate'] as num?)?.toDouble() ?? 0.0)) / rows.length;
+        : rows.fold<double>(0.0,
+                (acc, r) => acc + ((r['rate'] as num?)?.toDouble() ?? 0.0)) /
+            rows.length;
 
     SchoolExportService.showExportOptionsModal(
       context: context,
       title: 'Export Attendance Register',
-      subtitle: '$className • ${_monthLabel(_selectedDate.month)} ${_selectedDate.year}',
+      subtitle:
+          '$className • ${_monthLabel(_selectedDate.month)} ${_selectedDate.year}',
       onExportPdf: () => SchoolExportService.exportAttendancePdf(
         context: context,
         className: className,
@@ -2225,14 +2578,16 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         attendanceRows: rows,
       ),
       onExportExcel: () async {
-        final trendRows = rows.map((r) => {
-          'date': r['date'],
-          'day': '',
-          'present': r['present'],
-          'total': r['total'],
-          'percent': r['rate'],
-          'is_marked': (r['total'] as int? ?? 0) > 0,
-        }).toList();
+        final trendRows = rows
+            .map((r) => {
+                  'date': r['date'],
+                  'day': '',
+                  'present': r['present'],
+                  'total': r['total'],
+                  'percent': r['rate'],
+                  'is_marked': (r['total'] as int? ?? 0) > 0,
+                })
+            .toList();
         await SchoolExportService.exportAttendanceTrendExcel(
           context: context,
           className: className,
@@ -2268,7 +2623,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)),
+            const Icon(Icons.error_outline_rounded,
+                size: 48, color: Color(0xFFDC2626)),
             const SizedBox(height: 12),
             Text(
               message,
@@ -2283,7 +2639,8 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0F172A),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
             ),
           ],
@@ -2293,21 +2650,43 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
   }
 
   String _className(Map<String, dynamic> c) =>
-      c['name']?.toString() ?? c['class_name']?.toString() ?? c['id']?.toString() ?? '';
+      c['name']?.toString() ??
+      c['class_name']?.toString() ??
+      c['id']?.toString() ??
+      '';
 
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')} ${_monthLabel(d.month)} ${d.year}';
 
-  String _fmtShortDate(DateTime d) =>
-      '${d.day} ${_monthShort(d.month)}';
+  String _fmtShortDate(DateTime d) => '${d.day} ${_monthShort(d.month)}';
 
   String _monthLabel(int m) => const [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December'
       ][m - 1];
 
   String _monthShort(int m) => const [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
       ][m - 1];
 }
