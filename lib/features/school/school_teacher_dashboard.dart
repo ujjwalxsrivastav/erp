@@ -243,22 +243,43 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         classId: _selectedClassFilter == 'all' ? null : _selectedClassFilter,
       );
 
-      // Enrich with fast real-time attendance rate for current visible cohort
-      final enriched = <Map<String, dynamic>>[];
-      for (final s in rawStudents) {
-        final sid = s['id']?.toString() ?? s['username']?.toString() ?? '';
-        final cid = s['class_id']?.toString() ?? '';
-        double att = 0.0;
-        try {
-          att = await _schoolService.getStudentAttendancePercent(sid);
-        } catch (_) {}
+      // Attendance for the whole visible cohort comes from one read per class
+      // instead of one query per student. Attendance rows are keyed by the
+      // student *username*, so that is the identifier looked up first.
+      final attendanceByStudent = <String, double>{};
+      final targetClasses = _selectedClassFilter == 'all'
+          ? _assignedClasses
+          : _assignedClasses
+              .where((c) =>
+                  (c['class_id']?.toString() ?? c['id']?.toString() ?? '') ==
+                  _selectedClassFilter)
+              .toList();
+      try {
+        final maps = await Future.wait(targetClasses.map((c) {
+          final classId = (c['class_id'] ?? c['id'] ?? '').toString();
+          if (classId.isEmpty) return Future.value(<String, double>{});
+          return _schoolService
+              .getClassAttendancePercents(
+                classId: classId,
+                className: c['name']?.toString(),
+              )
+              .catchError((_) => <String, double>{});
+        }));
+        for (final map in maps) {
+          attendanceByStudent.addAll(map);
+        }
+      } catch (_) {}
 
-        enriched.add({
+      final enriched = rawStudents.map((s) {
+        final username = s['username']?.toString() ?? '';
+        final id = s['id']?.toString() ?? '';
+        return <String, dynamic>{
           ...s,
-          'attendance_pct': att,
-          'resolved_class_id': cid,
-        });
-      }
+          'attendance_pct':
+              attendanceByStudent[username] ?? attendanceByStudent[id] ?? 0.0,
+          'resolved_class_id': s['class_id']?.toString() ?? '',
+        };
+      }).toList();
 
       if (mounted) {
         setState(() {
@@ -1629,7 +1650,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   Widget _buildStudentCard(Map<String, dynamic> s) {
     final name = (s['name'] ?? s['student_name'] ?? 'Student').toString();
     final roll = (s['roll_number'] ?? s['roll_no'] ?? '-').toString();
-    final adm = (s['admission_no'] ?? s['id'] ?? '-').toString();
+    final adm =
+        (s['admission_no'] ?? s['username'] ?? s['id'] ?? '-').toString();
     final className = (s['class_name'] ?? s['class_id'] ?? 'Class').toString();
     final attPct = (s['attendance_pct'] as num?)?.toDouble() ?? 0.0;
     final isAtRisk = attPct > 0 && attPct < 75.0;
@@ -3776,7 +3798,11 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
     });
 
     try {
-      final sId = widget.student['id']?.toString() ?? widget.student['username']?.toString() ?? '';
+      // Attendance, homework submissions and leave requests are all keyed by
+      // the student username; the row id would silently match nothing.
+      final sId = widget.student['username']?.toString() ??
+          widget.student['id']?.toString() ??
+          '';
       final cId = widget.student['class_id']?.toString() ?? '';
       final res = await widget.schoolService.getStudent360Profile(studentId: sId, classId: cId);
       final notes = await widget.schoolService.getStudentBehaviourNotes(sId);
@@ -3801,7 +3827,11 @@ class _Student360ProfileSheetState extends State<_Student360ProfileSheet> with S
   Widget build(BuildContext context) {
     final name = (widget.student['name'] ?? widget.student['student_name'] ?? 'Student').toString();
     final roll = (widget.student['roll_number'] ?? widget.student['roll_no'] ?? '-').toString();
-    final adm = (widget.student['admission_no'] ?? widget.student['id'] ?? '-').toString();
+    final adm = (widget.student['admission_no'] ??
+            widget.student['username'] ??
+            widget.student['id'] ??
+            '-')
+        .toString();
     final cls = (widget.student['class_name'] ?? widget.student['class_id'] ?? 'Class').toString();
 
     return Column(

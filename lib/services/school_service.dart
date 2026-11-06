@@ -219,6 +219,18 @@ class SchoolService {
           .maybeSingle();
       if (resp != null) student = resp;
     } catch (_) {}
+    if (student.isEmpty && studentId.isNotEmpty) {
+      // The `or` filter breaks on values containing commas or dots; a plain
+      // username lookup keeps the card useful either way.
+      try {
+        final resp = await _supabase
+            .from('school_students')
+            .select()
+            .eq('username', studentId)
+            .maybeSingle();
+        if (resp != null) student = resp;
+      } catch (_) {}
+    }
 
     // Attendance Rate (Real query)
     final attPct = await getStudentAttendancePercent(studentId);
@@ -250,30 +262,29 @@ class SchoolService {
     final marksPct = totalMax > 0 ? (totalObt / totalMax) * 100 : 0.0;
     final cbseGrade = SchoolService.calculateCbseGrade(marksPct);
 
-    // Homework Completion (Real query)
+    // Homework completion — one read of this student's submissions instead of
+    // one query per homework, which kept the 360° card waiting on N round trips.
     final hwList = await getHomework(classId: classId);
-    int hwSubmitted = 0;
-    int hwPending = 0;
-    final studentHwStatus = <Map<String, dynamic>>[];
-
-    for (final hw in hwList) {
-      final hwId = hw['id']?.toString() ?? '';
-      bool isSub = false;
-      try {
-        final subs = await getHomeworkSubmissions(homeworkId: hwId);
-        isSub = subs.any((s) =>
-            s['student_id']?.toString() == studentId ||
-            s['student_username']?.toString() == studentId);
-      } catch (_) {}
-
-      if (isSub) {
-        hwSubmitted++;
-        studentHwStatus.add({...hw, 'submission_status': 'submitted'});
-      } else {
-        hwPending++;
-        studentHwStatus.add({...hw, 'submission_status': 'pending'});
+    final submittedHomeworkIds = <String>{};
+    try {
+      final subs = await getHomeworkSubmissions(studentUsername: studentId);
+      for (final sub in subs) {
+        final hwId = sub['homework_id']?.toString() ?? '';
+        if (hwId.isNotEmpty) submittedHomeworkIds.add(hwId);
       }
-    }
+    } catch (_) {}
+    final studentHwStatus = hwList.map((hw) {
+      final submitted =
+          submittedHomeworkIds.contains(hw['id']?.toString() ?? '');
+      return {
+        ...hw,
+        'submission_status': submitted ? 'submitted' : 'pending',
+      };
+    }).toList();
+    final hwSubmitted = studentHwStatus
+        .where((h) => h['submission_status'] == 'submitted')
+        .length;
+    final hwPending = studentHwStatus.length - hwSubmitted;
 
     // Leaves (Real query)
     final leaves = await getStudentLeaves(studentId: studentId);
@@ -3516,6 +3527,50 @@ class SchoolService {
     return 0;
   }
 
+  /// Attendance percentage for every student of one class for the current
+  /// month, computed from a single read instead of one query per student.
+  /// Keys include both the row `id` and the `username`, so a caller can look up
+  /// whichever identifier it holds.
+  Future<Map<String, double>> getClassAttendancePercents({
+    required String classId,
+    String? className,
+    DateTime? month,
+  }) {
+    final now = month ?? DateTime.now();
+    return _cachedCall(
+      'class_att_pct:$classId|${className ?? ''}|${now.year}-${now.month}',
+      () async {
+        final first = DateTime(now.year, now.month, 1);
+        final last = DateTime(
+            now.year, now.month, _daysInMonth(now.year, now.month));
+        final rows = await getAttendanceReport(
+          classId: classId,
+          className: className,
+          from: first,
+          to: last,
+        );
+        final counts = <String, List<int>>{};
+        for (final row in rows) {
+          final status = row['status']?.toString().toLowerCase() ?? '';
+          // Excused leave is not an absence; late attendance still counts.
+          if (status == 'excused' || status == 'leave') continue;
+          final keys = <String>[
+            row['student_id']?.toString() ?? '',
+            row['student_username']?.toString() ?? '',
+          ].where((k) => k.isNotEmpty);
+          for (final key in keys) {
+            final entry = counts.putIfAbsent(key, () => [0, 0]);
+            entry[1] += 1;
+            if (status == 'present' || status == 'late') entry[0] += 1;
+          }
+        }
+        return counts.map((key, value) => MapEntry(
+            key, value[1] == 0 ? 0.0 : (value[0] / value[1]) * 100));
+      },
+      ttl: const Duration(minutes: 2),
+    );
+  }
+
   /// A student's own attendance records (backend truth, newest first).
   Future<List<Map<String, dynamic>>> getStudentAttendanceRecords(
       String studentId) async {
@@ -5423,6 +5478,61 @@ class SchoolService {
   }
 
   /// Record payment for a specific academic month (or multiple months)
+  /// True when the ledger already holds a settled payment for [monthName]
+  /// (e.g. `April 2026`). Used to refuse a second payment for the same month.
+  Future<bool> isFeeMonthPaid(String studentUsername, String monthName) async {
+    final needle = monthName.trim().toLowerCase().split(' ').first;
+    if (needle.isEmpty) return false;
+    try {
+      final resp = await _supabase
+          .from('school_fee_payments')
+          .select('id, head, status')
+          .eq('student_id', studentUsername)
+          .timeout(netTimeout);
+      return List<Map<String, dynamic>>.from(resp).any((p) {
+        final head = (p['head'] ?? '').toString().toLowerCase();
+        final status = (p['status'] ?? '').toString().toLowerCase();
+        final settled = status == 'paid' || status == 'settled';
+        return settled && head.contains(needle);
+      });
+    } catch (_) {
+      // If the ledger cannot be verified, let the caller's own validation
+      // decide rather than silently blocking a legitimate payment.
+      return false;
+    }
+  }
+
+  /// Pay several months in one action. Already-settled months are skipped so a
+  /// stale screen can never charge the same month twice.
+  Future<List<String>> payFeeMonths({
+    required String studentUsername,
+    required List<Map<String, dynamic>> months,
+    required String paymentMode,
+    String? classId,
+    String? note,
+  }) async {
+    final receipts = <String>[];
+    for (final month in months) {
+      if (month['is_paid'] == true) continue;
+      final monthName = month['month_name']?.toString() ?? '';
+      if (monthName.isEmpty) continue;
+      receipts.add(await payMonthlyFee(
+        studentUsername: studentUsername,
+        monthName: monthName,
+        baseAmount: (month['base_amount'] as num?)?.toDouble() ?? 0.0,
+        lateFee: (month['late_fee'] as num?)?.toDouble() ?? 0.0,
+        paymentMode: paymentMode,
+        classId: classId,
+        note: note,
+      ));
+    }
+    if (receipts.isEmpty) {
+      throw Exception(
+          'The selected months are already paid. The ledger has been refreshed.');
+    }
+    return receipts;
+  }
+
   Future<String> payMonthlyFee({
     required String studentUsername,
     required String monthName,
@@ -5432,6 +5542,14 @@ class SchoolService {
     String? classId,
     String? note,
   }) async {
+    // Guard against a double payment: the same academic month may be settled
+    // only once, even if the screen was looking at stale data.
+    if (await isFeeMonthPaid(studentUsername, monthName)) {
+      invalidateCache('fee');
+      invalidateCache('receipts:');
+      throw Exception('$monthName is already paid — the ledger has been refreshed.');
+    }
+
     final receiptNo =
         'RCP-2026-${(DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0')}';
     final totalAmount = baseAmount + lateFee;
@@ -5474,6 +5592,10 @@ class SchoolService {
       await _supabase.from('school_fee_receipts').insert(receiptRow);
     } catch (_) {}
 
+    // The screen reloads right after paying — drop the stale cached ledger so
+    // the settled month shows as paid immediately.
+    invalidateCache('fee');
+    invalidateCache('receipts:');
     return receiptNo;
   }
 

@@ -36,6 +36,9 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
   Map<String, dynamic> _studentFeeSummary = {};
   List<Map<String, dynamic>> _receipts = [];
 
+  // Months ticked for a combined payment.
+  final Set<String> _selectedMonths = {};
+
   // Admin state
   List<Map<String, dynamic>> _allStudentSummaries = [];
   Map<String, dynamic> _defaulterData = {};
@@ -238,6 +241,53 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
         _errorMessage = 'Could not switch child fee records: $e';
       });
     }
+  }
+
+  // ── Combined payment selection ──
+
+  List<Map<String, dynamic>> get _unpaidMonths => _monthlySchedule
+      .where((m) => m['is_paid'] != true)
+      .toList(growable: false);
+
+  List<Map<String, dynamic>> get _selectedMonthRows => _unpaidMonths
+      .where((m) => _selectedMonths.contains(m['month_name']?.toString() ?? ''))
+      .toList(growable: false);
+
+  double get _selectedMonthsTotal => _selectedMonthRows.fold<double>(
+      0.0, (sum, m) => sum + ((m['total_amount'] as num?)?.toDouble() ?? 0.0));
+
+  bool get _allUnpaidSelected =>
+      _unpaidMonths.isNotEmpty &&
+      _selectedMonthRows.length == _unpaidMonths.length;
+
+  void _toggleMonth(String monthName, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedMonths.add(monthName);
+      } else {
+        _selectedMonths.remove(monthName);
+      }
+    });
+  }
+
+  void _toggleAllUnpaid() {
+    setState(() {
+      if (_allUnpaidSelected) {
+        _selectedMonths.clear();
+      } else {
+        _selectedMonths
+          ..clear()
+          ..addAll(_unpaidMonths
+              .map((m) => m['month_name']?.toString() ?? '')
+              .where((n) => n.isNotEmpty));
+      }
+    });
+  }
+
+  void _showBulkPaymentDialog() {
+    final months = _selectedMonthRows;
+    if (months.isEmpty) return;
+    _showPaymentDialog(multipleMonths: months);
   }
 
   // Filtered students for Admin
@@ -492,21 +542,35 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
     }
   }
 
-  void _showPaymentDialog({Map<String, dynamic>? singleMonth, String? targetStudentUsername, String? targetStudentName}) {
+  void _showPaymentDialog({
+    Map<String, dynamic>? singleMonth,
+    List<Map<String, dynamic>>? multipleMonths,
+    String? targetStudentUsername,
+    String? targetStudentName,
+  }) {
     final studentUname = targetStudentUsername ?? _studentUsername;
     final studentDisplay = targetStudentName ?? _studentName;
 
-    final isSingleMonth = singleMonth != null;
-    final monthName = singleMonth?['month_name']?.toString() ?? 'Composite Fee Demand';
-    final double baseAmt = isSingleMonth
-        ? ((singleMonth['base_amount'] as num?)?.toDouble() ?? _monthlyBaseFee)
-        : _studentTotalPending;
-    final double lateFee = isSingleMonth
-        ? ((singleMonth['late_fee'] as num?)?.toDouble() ?? 0.0)
-        : _studentTotalLateFees;
-    final double totalPayable = isSingleMonth
-        ? ((singleMonth['total_amount'] as num?)?.toDouble() ?? (baseAmt + lateFee))
-        : _studentTotalPending;
+    final months = multipleMonths ??
+        (singleMonth != null
+            ? <Map<String, dynamic>>[singleMonth]
+            : const <Map<String, dynamic>>[]);
+    final isMultiMonth = months.length > 1;
+    final monthName = months.isEmpty
+        ? 'Composite Fee Demand'
+        : months
+            .map((m) => m['month_name']?.toString() ?? '')
+            .where((n) => n.isNotEmpty)
+            .join(', ');
+
+    double sumOf(String field) => months.fold<double>(
+        0.0, (sum, m) => sum + ((m[field] as num?)?.toDouble() ?? 0.0));
+    final double baseAmt = months.isEmpty ? _monthlyBaseFee : sumOf('base_amount');
+    final double lateFee =
+        months.isEmpty ? _studentTotalLateFees : sumOf('late_fee');
+    final double totalPayable = months.isEmpty
+        ? _studentTotalPending
+        : (sumOf('total_amount') > 0 ? sumOf('total_amount') : baseAmt + lateFee);
 
     String paymentMode = 'UPI / Online';
     final notesCtrl = TextEditingController();
@@ -541,7 +605,37 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
                     children: [
                       Text('Paying for: $studentDisplay ($studentUname)', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
                       const SizedBox(height: 4),
-                      Text('Cycle: $monthName', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                      Text(
+                        isMultiMonth
+                            ? 'Cycle: ${months.length} months selected'
+                            : 'Cycle: $monthName',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      ),
+                      if (isMultiMonth) ...[
+                        const SizedBox(height: 8),
+                        ...months.map((m) => Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '• ${m['month_name']}',
+                                    style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: Color(0xFF475569)),
+                                  ),
+                                  Text(
+                                    '₹${((m['total_amount'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF0F172A)),
+                                  ),
+                                ],
+                              ),
+                            )),
+                      ],
                       if (lateFee > 0)
                         Padding(
                           padding: const EdgeInsets.only(top: 6),
@@ -629,16 +723,33 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
               onPressed: () async {
                 Navigator.pop(ctx);
                 try {
-                  final receiptNo = await _schoolService.payMonthlyFee(
-                    studentUsername: studentUname,
-                    monthName: monthName,
-                    baseAmount: baseAmt,
-                    lateFee: lateFee,
-                    paymentMode: paymentMode,
-                    classId: _studentClassId,
-                    note: notesCtrl.text.trim(),
-                  );
+                  final String receiptNo;
+                  if (months.length > 1) {
+                    final receipts = await _schoolService.payFeeMonths(
+                      studentUsername: studentUname,
+                      months: months,
+                      paymentMode: paymentMode,
+                      classId: _studentClassId,
+                      note: notesCtrl.text.trim(),
+                    );
+                    receiptNo = receipts.length == 1
+                        ? receipts.first
+                        : '${receipts.first} (+${receipts.length - 1} more)';
+                  } else {
+                    receiptNo = await _schoolService.payMonthlyFee(
+                      studentUsername: studentUname,
+                      monthName: months.isEmpty
+                          ? monthName
+                          : months.first['month_name']?.toString() ?? monthName,
+                      baseAmount: baseAmt,
+                      lateFee: lateFee,
+                      paymentMode: paymentMode,
+                      classId: _studentClassId,
+                      note: notesCtrl.text.trim(),
+                    );
+                  }
 
+                  _selectedMonths.clear();
                   await _loadFeeData();
                   if (mounted) {
                     _showReceiptSuccessDialog(
@@ -646,16 +757,22 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
                       studentName: studentDisplay,
                       amount: totalPayable,
                       mode: paymentMode,
-                      monthName: monthName,
+                      monthName: isMultiMonth
+                          ? '${months.length} months (${months.take(2).map((m) => m['month_name']).join(', ')}${months.length > 2 ? ' +${months.length - 2} more' : ''})'
+                          : monthName,
                       lateFee: lateFee,
                     );
                   }
                 } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Payment failed: $e'), backgroundColor: const Color(0xFFDC2626)),
-                    );
-                  }
+                  if (!mounted) return;
+                  // A duplicate payment is rejected above — reload the ledger so
+                  // the already-settled month shows as paid instead of staying
+                  // payable on screen.
+                  await _loadFeeData();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Payment failed: $e'), backgroundColor: const Color(0xFFDC2626)),
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -744,10 +861,17 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: const TextStyle(color: Color(0xFF64748B), fontSize: 12.5)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A))),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
+            ),
+          ),
         ],
       ),
     );
@@ -1822,12 +1946,92 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
               ),
             ],
           ),
+          if (_unpaidMonths.isNotEmpty) ...[
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _toggleAllUnpaid,
+                  icon: Icon(
+                    _allUnpaidSelected
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
+                    size: 18,
+                  ),
+                  label: Text(
+                    _allUnpaidSelected ? 'Clear selection' : 'Select all unpaid',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F172A),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${_selectedMonthRows.length} selected',
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
 
           // 12 Monthly Cards
           ..._monthlySchedule.map((m) {
             return _buildMonthFeeCard(m);
           }),
+
+          // Combined payment bar — appears once at least one month is ticked
+          if (_selectedMonthRows.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_selectedMonthRows.length} month${_selectedMonthRows.length > 1 ? "s" : ""} selected',
+                          style: const TextStyle(
+                              fontSize: 11.5, color: Color(0xFFCBD5E1)),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '₹${_selectedMonthsTotal.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _showBulkPaymentDialog,
+                    icon: const Icon(Icons.payment_rounded, size: 16),
+                    label: const Text('Pay Selected',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           const SizedBox(height: 80),
         ],
       ),
@@ -1922,7 +2126,23 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
               : 'Due by 5th ${monthName.split(" ").first} • ${heads.length} Itemized Heads',
           style: TextStyle(fontSize: 11.5, color: isPaid ? const Color(0xFF059669) : const Color(0xFF64748B)),
         ),
-        trailing: Text('₹${total.toStringAsFixed(0)}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFF0F172A))),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('₹${total.toStringAsFixed(0)}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFF0F172A))),
+            // Paid months can never be selected again — only unpaid ones can.
+            if (!isPaid) ...[
+              const SizedBox(width: 2),
+              Checkbox(
+                value: _selectedMonths.contains(monthName),
+                onChanged: (v) => _toggleMonth(monthName, v ?? false),
+                activeColor: const Color(0xFF059669),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ],
+          ],
+        ),
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
