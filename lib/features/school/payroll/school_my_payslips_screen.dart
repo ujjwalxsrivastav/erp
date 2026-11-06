@@ -40,7 +40,11 @@ class _SchoolMyPayslipsScreenState extends State<SchoolMyPayslipsScreen> {
     });
 
     try {
-      final username = await AuthService().getCurrentUsername() ?? 'steacher1';
+      final username = await AuthService().getCurrentUsername();
+      if (username == null || username.isEmpty) {
+        throw StateError(
+            'Your session could not be verified. Please sign in again.');
+      }
       final slips = await _payrollService.getMyPayslips(username);
       if (mounted) {
         setState(() {
@@ -65,7 +69,8 @@ class _SchoolMyPayslipsScreenState extends State<SchoolMyPayslipsScreen> {
       appBar: AppBar(
         title: const Text(
           'My Salary Slips & Remuneration',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white),
+          style: TextStyle(
+              fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white),
         ),
         backgroundColor: _primary,
         elevation: 0,
@@ -86,9 +91,12 @@ class _SchoolMyPayslipsScreenState extends State<SchoolMyPayslipsScreen> {
                     children: [
                       const Icon(Icons.error_outline, size: 40, color: _danger),
                       const SizedBox(height: 12),
-                      Text(_errorMessage!, style: const TextStyle(color: _muted)),
+                      Text(_errorMessage!,
+                          style: const TextStyle(color: _muted)),
                       const SizedBox(height: 12),
-                      ElevatedButton(onPressed: _loadMyPayslips, child: const Text('Retry')),
+                      ElevatedButton(
+                          onPressed: _loadMyPayslips,
+                          child: const Text('Retry')),
                     ],
                   ),
                 )
@@ -99,7 +107,8 @@ class _SchoolMyPayslipsScreenState extends State<SchoolMyPayslipsScreen> {
                       child: ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: _myPayslips.length,
-                        itemBuilder: (ctx, idx) => _buildPayslipCard(_myPayslips[idx]),
+                        itemBuilder: (ctx, idx) =>
+                            _buildPayslipCard(_myPayslips[idx]),
                       ),
                     ),
     );
@@ -140,7 +149,9 @@ class _SchoolMyPayslipsScreenState extends State<SchoolMyPayslipsScreen> {
         ),
         title: Row(
           children: [
-            Text('Disbursement: $month', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: _ink)),
+            Text('Disbursement: $month',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 14, color: _ink)),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -148,40 +159,61 @@ class _SchoolMyPayslipsScreenState extends State<SchoolMyPayslipsScreen> {
                 color: statusColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: Text(status.toUpperCase(), style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: statusColor)),
+              child: Text(status.toUpperCase(),
+                  style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor)),
             ),
           ],
         ),
-        subtitle: Text('Net Credited: ₹${net.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w800, color: _emerald, fontSize: 13)),
+        subtitle: Text('Net Credited: ₹${net.toStringAsFixed(0)}',
+            style: const TextStyle(
+                fontWeight: FontWeight.w800, color: _emerald, fontSize: 13)),
         childrenPadding: const EdgeInsets.all(16),
         children: [
           const Divider(height: 1),
           const SizedBox(height: 12),
           _buildItemRow('Basic Pay', '₹${basic.toStringAsFixed(0)}'),
-          _buildItemRow('Gross Earnings', '₹${gross.toStringAsFixed(0)}', isBold: true),
+          _buildItemRow('Gross Earnings', '₹${gross.toStringAsFixed(0)}',
+              isBold: true),
           _buildItemRow('Provident Fund (12%)', '₹${pf.toStringAsFixed(0)}'),
           _buildItemRow('ESI Deduction (0.75%)', '₹${esi.toStringAsFixed(0)}'),
           _buildItemRow('Professional Tax', '₹${pt.toStringAsFixed(0)}'),
-          if (lop > 0) _buildItemRow('Loss of Pay (LOP)', '₹${lop.toStringAsFixed(0)}', color: _danger),
-          _buildItemRow('Total Deductions', '₹${totalDed.toStringAsFixed(0)}', isBold: true, color: _danger),
+          if (lop > 0)
+            _buildItemRow('Loss of Pay (LOP)', '₹${lop.toStringAsFixed(0)}',
+                color: _danger),
+          _buildItemRow('Total Deductions', '₹${totalDed.toStringAsFixed(0)}',
+              isBold: true, color: _danger),
           const Divider(height: 16),
-          _buildItemRow('Take-Home Net Salary', '₹${net.toStringAsFixed(0)}', isBold: true, color: _emerald, fontSize: 15),
+          _buildItemRow('Take-Home Net Salary', '₹${net.toStringAsFixed(0)}',
+              isBold: true, color: _emerald, fontSize: 15),
           const SizedBox(height: 8),
           if (s['payment_reference'] != null)
-            Text('Bank Ref: ${s['payment_reference']}', style: const TextStyle(fontSize: 10.5, color: _muted)),
+            Text('Bank Ref: ${s['payment_reference']}',
+                style: const TextStyle(fontSize: 10.5, color: _muted)),
         ],
       ),
     );
   }
 
-  Widget _buildItemRow(String label, String value, {bool isBold = false, Color? color, double fontSize = 12.5}) {
+  Widget _buildItemRow(String label, String value,
+      {bool isBold = false, Color? color, double fontSize = 12.5}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: fontSize, fontWeight: isBold ? FontWeight.w700 : FontWeight.w500, color: isBold ? _ink : _muted)),
-          Text(value, style: TextStyle(fontSize: fontSize, fontWeight: isBold ? FontWeight.w800 : FontWeight.w600, color: color ?? (isBold ? _ink : _ink))),
+          Text(label,
+              style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+                  color: isBold ? _ink : _muted)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+                  color: color ?? (isBold ? _ink : _ink))),
         ],
       ),
     );
@@ -202,7 +234,9 @@ class _SchoolMyPayslipsScreenState extends State<SchoolMyPayslipsScreen> {
           children: [
             Icon(Icons.receipt_long_outlined, size: 48, color: _muted),
             SizedBox(height: 12),
-            Text('No Payslips Found', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
+            Text('No Payslips Found',
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
             SizedBox(height: 6),
             Text(
               'Your salary slips will be published here once administrative review and payroll runs are locked by the school office.',
