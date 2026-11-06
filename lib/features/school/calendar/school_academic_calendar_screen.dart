@@ -148,7 +148,7 @@ class _SchoolAcademicCalendarScreenState
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -315,9 +315,9 @@ class _SchoolAcademicCalendarScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -367,7 +367,8 @@ class _SchoolAcademicCalendarScreenState
                 child: FilterChip(
                   label: Text(cat),
                   selected: isSelected,
-                  selectedColor: const Color(0xFF0F766E).withOpacity(0.15),
+                  selectedColor:
+                      const Color(0xFF0F766E).withValues(alpha: 0.15),
                   checkmarkColor: const Color(0xFF0F766E),
                   labelStyle: TextStyle(
                     fontSize: 11,
@@ -393,7 +394,8 @@ class _SchoolAcademicCalendarScreenState
                 child: ChoiceChip(
                   label: Text(aud.toUpperCase()),
                   selected: isSelected,
-                  selectedColor: const Color(0xFF3B82F6).withOpacity(0.15),
+                  selectedColor:
+                      const Color(0xFF3B82F6).withValues(alpha: 0.15),
                   labelStyle: TextStyle(
                     fontSize: 10,
                     fontWeight:
@@ -853,11 +855,12 @@ class _SchoolAcademicCalendarScreenState
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.08),
+              color: accentColor.withValues(alpha: 0.08),
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(12)),
               border: Border(
-                  bottom: BorderSide(color: accentColor.withOpacity(0.2))),
+                  bottom:
+                      BorderSide(color: accentColor.withValues(alpha: 0.2))),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1039,7 +1042,7 @@ class _SchoolAcademicCalendarScreenState
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -1063,7 +1066,7 @@ class _SchoolAcademicCalendarScreenState
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.12),
+                        color: color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
