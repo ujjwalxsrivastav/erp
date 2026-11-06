@@ -129,7 +129,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         if (mounted) {
           setState(() {
             _studentClassLabel = className;
-            if (classId != null && classId.isNotEmpty) _selectedClassId = classId;
+            if (classId != null && classId.isNotEmpty)
+              _selectedClassId = classId;
             _selectedClassLabel = className;
           });
         }
@@ -192,9 +193,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
       // Never offer the same class twice (guard against duplicate backend rows)
       final seen = <String>{};
-      _classes = _classes
-          .where((c) => seen.add(c['id']?.toString() ?? ''))
-          .toList();
+      _classes =
+          _classes.where((c) => seen.add(c['id']?.toString() ?? '')).toList();
 
       // Teachers currently look after Class 10 only; admins keep every class.
       if (_isTeacher) {
@@ -248,9 +248,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         .toList();
     if (match.isNotEmpty) {
       final c = match.first;
-      _selectedClassLabel = c['name']?.toString() ??
-          c['id']?.toString() ??
-          _selectedClassId;
+      _selectedClassLabel =
+          c['name']?.toString() ?? c['id']?.toString() ?? _selectedClassId;
     }
   }
 
@@ -286,7 +285,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     setState(() => _isLoadingSyllabus = true);
     try {
       final plans = await _service.getLessonPlans(classId: _selectedClassId);
-      final summary = await _service.getSyllabusCoverageReport(_selectedClassId);
+      final summary =
+          await _service.getSyllabusCoverageReport(_selectedClassId);
 
       if (mounted) {
         setState(() {
@@ -322,10 +322,11 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     final roomCtrl = TextEditingController(
         text: isEdit ? existingSlot['room'] ?? '' : 'Room 101');
 
-    String selectedDay = isEdit ? existingSlot['day'] ?? _selectedDay : _selectedDay;
+    String selectedDay =
+        isEdit ? existingSlot['day'] ?? _selectedDay : _selectedDay;
     String selectedTeacher = isEdit
-        ? existingSlot['teacher_username'] ?? 'steacher1'
-        : (_allTeachers.isNotEmpty ? _allTeachers.first : 'steacher1');
+        ? existingSlot['teacher_username']?.toString() ?? ''
+        : (_allTeachers.isNotEmpty ? _allTeachers.first : '');
 
     showModalBottomSheet(
       context: context,
@@ -362,7 +363,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 20, color: _muted),
+                          icon: const Icon(Icons.close_rounded,
+                              size: 20, color: _muted),
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
@@ -376,13 +378,18 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                             decoration: InputDecoration(
                               labelText: 'Day',
                               isDense: true,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
                             items: _days
-                                .map((d) => DropdownMenuItem(value: d, child: Text(d, style: const TextStyle(fontSize: 13))))
+                                .map((d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(d,
+                                        style: const TextStyle(fontSize: 13))))
                                 .toList(),
                             onChanged: (v) {
-                              if (v != null) setSheetState(() => selectedDay = v);
+                              if (v != null)
+                                setSheetState(() => selectedDay = v);
                             },
                           ),
                         ),
@@ -394,7 +401,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                             decoration: InputDecoration(
                               labelText: 'Period (1-8)',
                               isDense: true,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
                           ),
                         ),
@@ -410,7 +418,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               labelText: 'Start Time',
                               hintText: '08:00 AM',
                               isDense: true,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
                           ),
                         ),
@@ -422,7 +431,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               labelText: 'End Time',
                               hintText: '08:45 AM',
                               isDense: true,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
                           ),
                         ),
@@ -435,7 +445,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         labelText: 'Subject',
                         hintText: 'e.g. Mathematics',
                         isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -447,10 +458,14 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                             decoration: InputDecoration(
                               labelText: 'Teacher',
                               isDense: true,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
                             items: _allTeachers
-                                .map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13))))
+                                .map((t) => DropdownMenuItem(
+                                    value: t,
+                                    child: Text(t,
+                                        style: const TextStyle(fontSize: 13))))
                                 .toList(),
                             onChanged: (v) {
                               if (v != null) {
@@ -467,7 +482,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               labelText: 'Room',
                               hintText: 'Room 101',
                               isDense: true,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10)),
                             ),
                           ),
                         ),
@@ -481,7 +497,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _primary,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                         onPressed: () async {
                           final periodNum = int.tryParse(periodCtrl.text) ?? 1;
@@ -501,7 +518,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               Navigator.pop(ctx);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Timetable slot saved & published!'),
+                                  content:
+                                      Text('Timetable slot saved & published!'),
                                   backgroundColor: Color(0xFF059669),
                                 ),
                               );
@@ -510,7 +528,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                           } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
+                                content: Text(
+                                    'Error: ${e.toString().replaceAll('Exception: ', '')}'),
                                 backgroundColor: const Color(0xFFDC2626),
                                 duration: const Duration(seconds: 4),
                               ),
@@ -518,8 +537,11 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                           }
                         },
                         child: Text(
-                          isEdit ? 'Update Slot' : 'Publish Slot (Clash Checked)',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                          isEdit
+                              ? 'Update Slot'
+                              : 'Publish Slot (Clash Checked)',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14),
                         ),
                       ),
                     ),
@@ -550,8 +572,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
     if (!mounted) return;
 
-    String? chosenSubstitute = available.isNotEmpty ? available.first['username'] : null;
-    final notesCtrl = TextEditingController(text: 'Morning coverage assignment');
+    String? chosenSubstitute =
+        available.isNotEmpty ? available.first['username'] : null;
+    final notesCtrl =
+        TextEditingController(text: 'Morning coverage assignment');
 
     showDialog(
       context: context,
@@ -560,12 +584,17 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               title: const Row(
                 children: [
                   Icon(Icons.swap_horiz_rounded, color: _primary, size: 22),
                   SizedBox(width: 8),
-                  Text('Assign Substitute', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink)),
+                  Text('Assign Substitute',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: _ink)),
                 ],
               ),
               content: Column(
@@ -582,16 +611,30 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Period $period ($time) • $classId', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: _ink)),
+                        Text('Period $period ($time) • $classId',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: _ink)),
                         const SizedBox(height: 3),
-                        Text('Subject: $subject • Room: $room', style: const TextStyle(color: _muted, fontSize: 12)),
+                        Text('Subject: $subject • Room: $room',
+                            style:
+                                const TextStyle(color: _muted, fontSize: 12)),
                         const SizedBox(height: 3),
-                        Text('Absent Teacher: $origTeacher', style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12, fontWeight: FontWeight.w600)),
+                        Text('Absent Teacher: $origTeacher',
+                            style: const TextStyle(
+                                color: Color(0xFFDC2626),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
                   const SizedBox(height: 14),
-                  const Text('Select Recommended Substitute:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: _ink)),
+                  const Text('Select Recommended Substitute:',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: _ink)),
                   const SizedBox(height: 6),
                   if (available.isEmpty)
                     Container(
@@ -600,15 +643,19 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         color: const Color(0xFFFEF2F2),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text('No free teachers in this slot!', style: TextStyle(color: Color(0xFFDC2626), fontSize: 12)),
+                      child: const Text('No free teachers in this slot!',
+                          style: TextStyle(
+                              color: Color(0xFFDC2626), fontSize: 12)),
                     )
                   else
                     DropdownButtonFormField<String>(
                       initialValue: chosenSubstitute,
                       isDense: true,
                       decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
                       ),
                       items: available.map((s) {
                         final isOver = s['isOverloaded'] == true;
@@ -633,7 +680,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     decoration: InputDecoration(
                       labelText: 'Instructions / Notes',
                       isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ],
@@ -647,7 +695,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _primary,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: chosenSubstitute == null
                       ? null
@@ -669,7 +718,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               Navigator.pop(ctx);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Assigned $chosenSubstitute! Instant alert issued.'),
+                                  content: Text(
+                                      'Assigned $chosenSubstitute! Instant alert issued.'),
                                   backgroundColor: const Color(0xFF059669),
                                 ),
                               );
@@ -677,7 +727,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                             }
                           } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: $e'), backgroundColor: const Color(0xFFDC2626)),
+                              SnackBar(
+                                  content: Text('Error: $e'),
+                                  backgroundColor: const Color(0xFFDC2626)),
                             );
                           }
                         },
@@ -695,13 +747,16 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     final chapterCtrl = TextEditingController(text: 'Chapter 5');
     final topicCtrl = TextEditingController(text: 'Arithmetic Progressions');
     final dateCtrl = TextEditingController(
-        text: DateTime.now().add(const Duration(days: 3)).toIso8601String().split('T')[0]);
+        text: DateTime.now()
+            .add(const Duration(days: 3))
+            .toIso8601String()
+            .split('T')[0]);
     final objectiveCtrl = TextEditingController(
         text: 'Identify AP patterns and calculate nth terms using formula.');
     final resourcesCtrl = TextEditingController(
         text: 'NCERT Textbook, Digital Smart Board, GeoGebra Simulation');
     String selectedSubject = 'Mathematics';
-    String selectedTeacher = 'steacher1';
+    String selectedTeacher = _allTeachers.isNotEmpty ? _allTeachers.first : '';
 
     showModalBottomSheet(
       context: context,
@@ -727,8 +782,15 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Create Lesson Plan', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink)),
-                    IconButton(icon: const Icon(Icons.close_rounded, size: 20, color: _muted), onPressed: () => Navigator.pop(ctx)),
+                    const Text('Create Lesson Plan',
+                        style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: _ink)),
+                    IconButton(
+                        icon: const Icon(Icons.close_rounded,
+                            size: 20, color: _muted),
+                        onPressed: () => Navigator.pop(ctx)),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -740,7 +802,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         decoration: InputDecoration(
                           labelText: 'Chapter / Unit',
                           isDense: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ),
@@ -751,7 +814,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         decoration: InputDecoration(
                           labelText: 'Target Date',
                           isDense: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ),
@@ -763,7 +827,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   decoration: InputDecoration(
                     labelText: 'Topic Title',
                     isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -772,7 +837,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   maxLines: 2,
                   decoration: InputDecoration(
                     labelText: 'Pedagogical Learning Objectives',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -781,7 +847,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   decoration: InputDecoration(
                     labelText: 'Resources & Equipment',
                     isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -792,7 +859,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                     onPressed: () async {
                       try {
@@ -810,7 +878,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Lesson plan submitted & approved!'),
+                              content:
+                                  Text('Lesson plan submitted & approved!'),
                               backgroundColor: Color(0xFF059669),
                             ),
                           );
@@ -818,11 +887,14 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         }
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e'), backgroundColor: const Color(0xFFDC2626)),
+                          SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: const Color(0xFFDC2626)),
                         );
                       }
                     },
-                    child: const Text('Save Lesson Plan', style: TextStyle(fontWeight: FontWeight.w700)),
+                    child: const Text('Save Lesson Plan',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -849,16 +921,20 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)),
+              const Icon(Icons.error_outline_rounded,
+                  size: 48, color: Color(0xFFDC2626)),
               const SizedBox(height: 12),
-              Text(_timetableError!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: _muted)),
+              Text(_timetableError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: _muted)),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: _loadClassesAndTimetable,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primary,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 icon: const Icon(Icons.refresh_rounded, size: 16),
                 label: const Text('Retry'),
@@ -893,13 +969,15 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                       color: const Color(0xFFEEF2FF),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.school_rounded, color: _primary, size: 18),
+                    child: const Icon(Icons.school_rounded,
+                        color: _primary, size: 18),
                   ),
                   const SizedBox(width: 8),
                   if (_isStudent)
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: _bg,
                           borderRadius: BorderRadius.circular(8),
@@ -907,13 +985,17 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.lock_outline_rounded, color: _muted, size: 13),
+                            const Icon(Icons.lock_outline_rounded,
+                                color: _muted, size: 13),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 'Enrolled Section: $_studentClassLabel',
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: _ink, fontWeight: FontWeight.w600, fontSize: 12),
+                                style: const TextStyle(
+                                    color: _ink,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12),
                               ),
                             ),
                           ],
@@ -932,18 +1014,25 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _classes.any((c) =>
-                                    (c['id']?.toString() ?? '') == _selectedClassId)
+                                    (c['id']?.toString() ?? '') ==
+                                    _selectedClassId)
                                 ? _selectedClassId
                                 : null,
-                            hint: Text(_selectedClassLabel.isEmpty
-                                ? (_selectedClassId.isEmpty
-                                    ? 'Select class'
-                                    : _selectedClassId)
-                                : _selectedClassLabel,
-                                style: const TextStyle(fontSize: 13, color: _ink)),
+                            hint: Text(
+                                _selectedClassLabel.isEmpty
+                                    ? (_selectedClassId.isEmpty
+                                        ? 'Select class'
+                                        : _selectedClassId)
+                                    : _selectedClassLabel,
+                                style:
+                                    const TextStyle(fontSize: 13, color: _ink)),
                             dropdownColor: Colors.white,
-                            icon: const Icon(Icons.arrow_drop_down, color: _muted),
-                            style: const TextStyle(color: _ink, fontWeight: FontWeight.w600, fontSize: 13),
+                            icon: const Icon(Icons.arrow_drop_down,
+                                color: _muted),
+                            style: const TextStyle(
+                                color: _ink,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13),
                             isExpanded: true,
                             items: _classes.map((c) {
                               final name = c['name']?.toString() ??
@@ -951,7 +1040,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                                   'Unknown';
                               return DropdownMenuItem<String>(
                                 value: c['id']?.toString(),
-                                child: Text(name, overflow: TextOverflow.ellipsis),
+                                child:
+                                    Text(name, overflow: TextOverflow.ellipsis),
                               );
                             }).toList(),
                             onChanged: (v) {
@@ -967,20 +1057,25 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     ),
                   const SizedBox(width: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       '${_periods.length} Periods',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF475569)),
                     ),
                   ),
                   if (_canEdit) ...[
                     const SizedBox(width: 6),
                     IconButton(
-                      icon: const Icon(Icons.add_circle_outline_rounded, color: _primary),
+                      icon: const Icon(Icons.add_circle_outline_rounded,
+                          color: _primary),
                       tooltip: 'Add Period Slot',
                       onPressed: () => _showAddEditSlotDialog(),
                     ),
@@ -1002,7 +1097,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                       },
                       child: Container(
                         margin: const EdgeInsets.only(right: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: isSelected ? _primary : Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -1023,7 +1119,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                           day,
                           style: TextStyle(
                             color: isSelected ? Colors.white : _muted,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
                             fontSize: 12,
                           ),
                         ),
@@ -1043,17 +1140,22 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.calendar_month_outlined, size: 48, color: Colors.grey.shade300),
+                      Icon(Icons.calendar_month_outlined,
+                          size: 48, color: Colors.grey.shade300),
                       const SizedBox(height: 10),
                       Text('No classes scheduled for $_selectedDay',
-                          style: const TextStyle(fontSize: 13, color: _muted, fontWeight: FontWeight.w500)),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: _muted,
+                              fontWeight: FontWeight.w500)),
                       if (_canEdit) ...[
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _primary,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
                           ),
                           onPressed: () => _showAddEditSlotDialog(),
                           icon: const Icon(Icons.add_rounded, size: 16),
@@ -1070,7 +1172,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     final p = _periods[index];
                     final periodNum = p['period']?.toString() ?? '${index + 1}';
                     final subject = p['subject']?.toString() ?? 'Subject';
-                    final teacher = p['teacher_username']?.toString() ?? 'Teacher';
+                    final teacher =
+                        p['teacher_username']?.toString() ?? 'Teacher';
                     final room = p['room']?.toString() ?? 'Room';
                     final startTime = p['start_time']?.toString() ?? '';
                     final endTime = p['end_time']?.toString() ?? '';
@@ -1085,7 +1188,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         border: Border.all(color: _border),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+                            color:
+                                const Color(0xFF0F172A).withValues(alpha: 0.02),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -1127,18 +1231,22 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                                 const SizedBox(height: 3),
                                 Row(
                                   children: [
-                                    const Icon(Icons.person_outline_rounded, size: 13, color: _muted),
+                                    const Icon(Icons.person_outline_rounded,
+                                        size: 13, color: _muted),
                                     const SizedBox(width: 4),
                                     Text(
                                       teacher,
-                                      style: const TextStyle(fontSize: 11.5, color: _muted),
+                                      style: const TextStyle(
+                                          fontSize: 11.5, color: _muted),
                                     ),
                                     const SizedBox(width: 8),
-                                    const Icon(Icons.meeting_room_outlined, size: 13, color: _muted),
+                                    const Icon(Icons.meeting_room_outlined,
+                                        size: 13, color: _muted),
                                     const SizedBox(width: 3),
                                     Text(
                                       room,
-                                      style: const TextStyle(fontSize: 11.5, color: _muted),
+                                      style: const TextStyle(
+                                          fontSize: 11.5, color: _muted),
                                     ),
                                   ],
                                 ),
@@ -1149,14 +1257,17 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: _bg,
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(color: _border),
                                 ),
                                 child: Text(
-                                  startTime.isNotEmpty ? '$startTime - $endTime' : 'Regular',
+                                  startTime.isNotEmpty
+                                      ? '$startTime - $endTime'
+                                      : 'Regular',
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: _ink,
@@ -1169,19 +1280,25 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                                 Row(
                                   children: [
                                     InkWell(
-                                      onTap: () => _showAddEditSlotDialog(existingSlot: p),
-                                      child: const Icon(Icons.edit_outlined, size: 16, color: _muted),
+                                      onTap: () => _showAddEditSlotDialog(
+                                          existingSlot: p),
+                                      child: const Icon(Icons.edit_outlined,
+                                          size: 16, color: _muted),
                                     ),
                                     const SizedBox(width: 10),
                                     InkWell(
                                       onTap: () async {
                                         final id = p['id']?.toString();
                                         if (id != null) {
-                                          await _service.deleteTimetableEntry(id);
+                                          await _service
+                                              .deleteTimetableEntry(id);
                                           _reloadTimetable();
                                         }
                                       },
-                                      child: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFEF4444)),
+                                      child: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          size: 16,
+                                          color: Color(0xFFEF4444)),
                                     ),
                                   ],
                                 ),
@@ -1229,7 +1346,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                       color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.person_off_rounded, color: Color(0xFFDC2626), size: 18),
+                    child: const Icon(Icons.person_off_rounded,
+                        color: Color(0xFFDC2626), size: 18),
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
@@ -1237,8 +1355,12 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Daily Teacher Leave & Absence Roster',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
-                        Text('Tap absent teachers to calculate substitution slots',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _ink)),
+                        Text(
+                            'Tap absent teachers to calculate substitution slots',
                             style: TextStyle(fontSize: 11, color: _muted)),
                       ],
                     ),
@@ -1256,7 +1378,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     selected: isAbsent,
                     selectedColor: const Color(0xFFFEE2E2),
                     backgroundColor: Colors.white,
-                    side: BorderSide(color: isAbsent ? const Color(0xFFFCA5A5) : _border),
+                    side: BorderSide(
+                        color: isAbsent ? const Color(0xFFFCA5A5) : _border),
                     labelStyle: TextStyle(
                       color: isAbsent ? const Color(0xFF991B1B) : _ink,
                       fontWeight: isAbsent ? FontWeight.w700 : FontWeight.w500,
@@ -1286,12 +1409,15 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
           children: [
             const Text(
               'Uncovered Periods Today',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+              style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: _uncoveredPeriods.isEmpty ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                color: _uncoveredPeriods.isEmpty
+                    ? const Color(0xFFECFDF5)
+                    : const Color(0xFFFEF2F2),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
@@ -1299,7 +1425,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: _uncoveredPeriods.isEmpty ? const Color(0xFF065F46) : const Color(0xFF991B1B),
+                  color: _uncoveredPeriods.isEmpty
+                      ? const Color(0xFF065F46)
+                      : const Color(0xFF991B1B),
                 ),
               ),
             ),
@@ -1317,12 +1445,14 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
             ),
             child: const Row(
               children: [
-                Icon(Icons.check_circle_outline_rounded, color: Color(0xFF059669), size: 22),
+                Icon(Icons.check_circle_outline_rounded,
+                    color: Color(0xFF059669), size: 22),
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'All periods covered! No teacher absences or all substitutions assigned.',
-                    style: TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: _ink),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w500, fontSize: 12, color: _ink),
                   ),
                 ),
               ],
@@ -1343,7 +1473,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: isDone ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA)),
+                border: Border.all(
+                    color: isDone
+                        ? const Color(0xFFA7F3D0)
+                        : const Color(0xFFFECACA)),
               ),
               child: Row(
                 children: [
@@ -1351,7 +1484,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: isDone ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                      color: isDone
+                          ? const Color(0xFFECFDF5)
+                          : const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Center(
@@ -1359,7 +1494,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         'P$period',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          color: isDone ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                          color: isDone
+                              ? const Color(0xFF059669)
+                              : const Color(0xFFDC2626),
                         ),
                       ),
                     ),
@@ -1369,22 +1506,33 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('$subject • $classId', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: _ink)),
+                        Text('$subject • $classId',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: _ink)),
                         const SizedBox(height: 2),
-                        Text('Absent: $teacher • Room: $room', style: const TextStyle(fontSize: 11, color: _muted)),
+                        Text('Absent: $teacher • Room: $room',
+                            style:
+                                const TextStyle(fontSize: 11, color: _muted)),
                       ],
                     ),
                   ),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isDone ? const Color(0xFF059669) : _primary,
+                      backgroundColor:
+                          isDone ? const Color(0xFF059669) : _primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       minimumSize: const Size(60, 32),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: () => _showSubstituteAssignDialog(uncovered),
-                    child: Text(isDone ? 'Reassign' : 'Assign', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                    child: Text(isDone ? 'Reassign' : 'Assign',
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
@@ -1396,7 +1544,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         // Substitution Audit Logs
         const Text(
           'Recent Substitution Log',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+          style:
+              TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
         ),
         const SizedBox(height: 8),
 
@@ -1409,7 +1558,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
               border: Border.all(color: _border),
             ),
             child: const Center(
-              child: Text('No substitution logs recorded yet.', style: TextStyle(color: _muted, fontSize: 12)),
+              child: Text('No substitution logs recorded yet.',
+                  style: TextStyle(color: _muted, fontSize: 12)),
             ),
           )
         else
@@ -1424,26 +1574,38 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF059669), size: 18),
+                  const Icon(Icons.check_circle_outline_rounded,
+                      color: Color(0xFF059669), size: 18),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${log['substitute_teacher']} assigned for ${log['original_teacher']}',
-                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _ink)),
-                        Text('P${log['period']} • ${log['class_id']} • ${log['date']}',
-                            style: const TextStyle(fontSize: 11, color: _muted)),
+                        Text(
+                            '${log['substitute_teacher']} assigned for ${log['original_teacher']}',
+                            style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: _ink)),
+                        Text(
+                            'P${log['period']} • ${log['class_id']} • ${log['date']}',
+                            style:
+                                const TextStyle(fontSize: 11, color: _muted)),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Text('Logged', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+                    child: const Text('Logged',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF475569))),
                   ),
                 ],
               ),
@@ -1484,12 +1646,17 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Syllabus Coverage Progress',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink)),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _ink)),
                   Text('${coveragePct.toStringAsFixed(1)}%',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: isLagging ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                        color: isLagging
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF059669),
                       )),
                 ],
               ),
@@ -1500,7 +1667,9 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   value: (coveragePct / 100).clamp(0.0, 1.0),
                   minHeight: 8,
                   backgroundColor: const Color(0xFFF1F5F9),
-                  color: isLagging ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                  color: isLagging
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF059669),
                 ),
               ),
               const SizedBox(height: 10),
@@ -1513,12 +1682,17 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 16),
+                      const Icon(Icons.warning_amber_rounded,
+                          color: Color(0xFFDC2626), size: 16),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          summary['laggingAlert'] ?? 'Coverage is lagging behind schedule!',
-                          style: const TextStyle(color: Color(0xFF991B1B), fontSize: 11, fontWeight: FontWeight.w600),
+                          summary['laggingAlert'] ??
+                              'Coverage is lagging behind schedule!',
+                          style: const TextStyle(
+                              color: Color(0xFF991B1B),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
@@ -1540,7 +1714,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
           children: [
             const Text(
               'Curriculum Units & Lesson Plans',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+              style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
             ),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -1549,26 +1724,35 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF4338CA),
                     side: const BorderSide(color: Color(0xFFC7D2FE)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     minimumSize: const Size(60, 30),
                   ),
-                  onPressed: () => context.push('/school/lesson-plans?classId=$_selectedClassId'),
+                  onPressed: () => context
+                      .push('/school/lesson-plans?classId=$_selectedClassId'),
                   icon: const Icon(Icons.auto_stories_rounded, size: 14),
-                  label: const Text('Open 5E Studio', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                  label: const Text('Open 5E Studio',
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _primary,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     minimumSize: const Size(60, 30),
                   ),
                   onPressed: _showAddLessonPlanDialog,
                   icon: const Icon(Icons.add_rounded, size: 14),
-                  label: const Text('Add Plan', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                  label: const Text('Add Plan',
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -1585,7 +1769,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
               border: Border.all(color: _border),
             ),
             child: const Center(
-              child: Text('No lesson plans submitted yet.', style: TextStyle(color: _muted, fontSize: 12)),
+              child: Text('No lesson plans submitted yet.',
+                  style: TextStyle(color: _muted, fontSize: 12)),
             ),
           )
         else
@@ -1610,15 +1795,21 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                       Expanded(
                         child: Text(
                           '${plan['chapter']}: ${plan['topic']}',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: _ink),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: _ink),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
-                          color: isTaught ? const Color(0xFFECFDF5) : const Color(0xFFEEF2FF),
+                          color: isTaught
+                              ? const Color(0xFFECFDF5)
+                              : const Color(0xFFEEF2FF),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -1626,7 +1817,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: isTaught ? const Color(0xFF059669) : _primary,
+                            color:
+                                isTaught ? const Color(0xFF059669) : _primary,
                           ),
                         ),
                       ),
@@ -1641,7 +1833,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     const SizedBox(height: 6),
                     Text(
                       'Learning Objective: ${plan['objective']}',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF334155)),
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF334155)),
                     ),
                   ],
                   if (!isTaught) ...[
@@ -1652,8 +1845,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF059669),
                           side: const BorderSide(color: Color(0xFF059669)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           minimumSize: const Size(60, 26),
                         ),
                         onPressed: () async {
@@ -1661,7 +1856,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                           _loadSyllabusData();
                         },
                         icon: const Icon(Icons.check_rounded, size: 14),
-                        label: const Text('Mark as Taught', style: TextStyle(fontSize: 11)),
+                        label: const Text('Mark as Taught',
+                            style: TextStyle(fontSize: 11)),
                       ),
                     ),
                   ],
@@ -1685,7 +1881,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
-          title: const Text('Timetable & Routine', style: TextStyle(color: _ink, fontWeight: FontWeight.w700)),
+          title: const Text('Timetable & Routine',
+              style: TextStyle(color: _ink, fontWeight: FontWeight.w700)),
         ),
         body: const Center(child: CircularProgressIndicator(color: _primary)),
       );
@@ -1700,11 +1897,13 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
           children: [
             Text(
               _isStudent ? 'My Class Routine' : 'Timetable & Substitution Desk',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: _ink),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 16, color: _ink),
             ),
             const Text(
               'Shivalik International School • Session 2025-26',
-              style: TextStyle(fontSize: 11, color: _muted, fontWeight: FontWeight.w400),
+              style: TextStyle(
+                  fontSize: 11, color: _muted, fontWeight: FontWeight.w400),
             ),
           ],
         ),
@@ -1725,11 +1924,16 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                 style: TextButton.styleFrom(
                   backgroundColor: _primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-                label: const Text('Add Slot', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                icon: const Icon(Icons.add_rounded,
+                    size: 16, color: Colors.white),
+                label: const Text('Add Slot',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               ),
             ),
         ],
@@ -1761,8 +1965,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                     dividerColor: Colors.transparent,
                     labelColor: _ink,
                     unselectedLabelColor: _muted,
-                    labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                    unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                    labelStyle: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 12),
+                    unselectedLabelStyle: const TextStyle(
+                        fontWeight: FontWeight.w500, fontSize: 12),
                     tabs: const [
                       Tab(text: 'Routine Grid'),
                       Tab(text: 'Coverage'),
