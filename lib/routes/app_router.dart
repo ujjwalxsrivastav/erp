@@ -98,6 +98,7 @@ import '../features/school/homework/homework_list_screen.dart';
 import '../features/school/homework/add_homework_screen.dart';
 import '../features/school/leave/student_leave_screen.dart';
 import '../features/school/attendance/school_attendance_screen.dart';
+import '../features/school/attendance/student_attendance_screen.dart';
 import '../features/school/marks/marks_csv_upload_screen.dart';
 import '../features/school/marks/marks_entry_screen.dart';
 import '../features/school/marks/report_card_screen.dart';
@@ -576,7 +577,7 @@ final router = GoRouter(
         builder: (context, state) => const SchoolAttendanceScreen()),
     GoRoute(
         path: '/school/attendance-student',
-        builder: (context, state) => const SchoolAttendanceScreen()),
+        builder: (context, state) => const StudentAttendanceScreen()),
     GoRoute(
         path: '/school/marks-entry-teacher',
         builder: (context, state) => const MarksEntryScreen()),
