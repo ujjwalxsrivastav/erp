@@ -3611,7 +3611,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       color: _emeraldSoft,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text('AIS-140 GPS Active', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald)),
+                    child: const Text('Route Scheduled', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald)),
                   ),
                 ],
               ),

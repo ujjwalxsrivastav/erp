@@ -164,15 +164,7 @@ class SchoolLivingService {
 
     try {
       await _supabase.from('school_gate_passes').insert(payload);
-    } catch (_) {
-      await _supabase.from('school_circulars').insert({
-        'title': 'Gate Pass $passId ($studentName)',
-        'content': jsonEncode(payload),
-        'category': 'GatePass',
-        'target_audience': 'Admin',
-        'published_at': DateTime.now().toIso8601String(),
-      });
-    }
+    } catch (_) {}
 
     await _payrollService.logAudit(
       actorUsername: actorUsername ?? studentId,

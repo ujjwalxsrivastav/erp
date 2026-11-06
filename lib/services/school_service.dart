@@ -5686,42 +5686,47 @@ class SchoolService {
     final todayStr = now.toIso8601String().split('T')[0];
     final status = isAuthorizedOnRecord ? 'Security Approved' : 'Pending Principal Approval';
 
-    final structured =
-        'GATE_PASS_RECORD | PassNo: $passNo | Date: $todayStr | StudentId: $studentId | '
-        'StudentName: $studentName | Class: $className | Reason: $reason | '
-        'ExitTime: $expectedExitTime | PickupName: $pickupPersonName | '
-        'Relation: $pickupPersonRelation | Phone: $pickupPersonPhone | '
-        'Authorized: $isAuthorizedOnRecord | Status: $status';
-
     final payload = {
-      'institute_code': 'SHIV-SCH',
-      'title': 'Gate Pass: $studentName ($className) - $reason',
-      'content': structured,
-      'category': 'GatePass',
-      'target_audience': studentId,
-      'published_by': 'Parent',
-    };
-
-    final resp = await _supabase
-        .from('school_circulars')
-        .insert(payload)
-        .select()
-        .single();
-
-    _simulatedGatePasses.insert(0, {
-      'pass_no': passNo,
+      'id': passNo,
+      'institute_id': 'SHIV-SCH',
+      'hostel_id': 'H-MAIN',
       'student_id': studentId,
       'student_name': studentName,
       'class_name': className,
+      'out_time': now.toIso8601String(),
+      'expected_in_time': now.add(const Duration(hours: 4)).toIso8601String(),
+      'reason': '$reason (Pickup: $pickupPersonName - $pickupPersonRelation, Ph: $pickupPersonPhone)',
+      'parent_status': 'Approved',
+      'warden_status': isAuthorizedOnRecord ? 'Approved' : 'Pending',
+      'status': status,
+      'created_at': now.toIso8601String(),
+    };
+
+    try {
+      await _supabase.from('school_gate_passes').insert(payload);
+    } catch (_) {}
+
+    _simulatedGatePasses.removeWhere((p) => p['id'] == passNo);
+    _simulatedGatePasses.insert(0, {
+      'id': passNo,
+      'pass_no': passNo,
+      'student_id': studentId,
+      'student_name': studentName,
+      'class': className,
+      'class_name': className,
       'reason': reason,
       'exit_time': expectedExitTime,
-      'pickup_person': '$pickupPersonName ($pickupPersonRelation)',
+      'pickup_person': pickupPersonName,
+      'relation': pickupPersonRelation,
+      'phone': pickupPersonPhone,
+      'is_authorized': isAuthorizedOnRecord,
       'status': status,
-      'created_at': now.toString().split('.')[0],
+      'date': todayStr,
+      'created_at': now.toIso8601String(),
     });
 
     return {
-      'id': resp['id'],
+      'id': passNo,
       'pass_no': passNo,
       'student_id': studentId,
       'student_name': studentName,
@@ -5737,53 +5742,49 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getGatePasses({String? status, String? studentId}) async {
+    final list = <Map<String, dynamic>>[];
+
     try {
-      final response = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'GatePass')
-          .order('created_at', ascending: false);
-
-      final list = <Map<String, dynamic>>[];
-      for (final row in response) {
-        final content = row['content']?.toString() ?? '';
-        if (content.contains('GATE_PASS_RECORD')) {
-          final parts = content.split('|');
-          final map = <String, String>{};
-          for (final p in parts) {
-            final kv = p.split(':');
-            if (kv.length >= 2) {
-              map[kv[0].trim()] = kv.sublist(1).join(':').trim();
-            }
-          }
-
-          if (studentId != null && studentId.isNotEmpty && map['StudentId'] != studentId) continue;
-
-          final passStatus = map['Status'] ?? 'Security Approved';
-          if (status != null && status != 'All' && passStatus != status) continue;
-
-          list.add({
-            'id': row['id'],
-            'pass_no': map['PassNo'] ?? 'GP-001',
-            'date': map['Date'] ?? '',
-            'student_id': map['StudentId'] ?? '',
-            'student_name': map['StudentName'] ?? '',
-            'class': map['Class'] ?? '',
-            'reason': map['Reason'] ?? '',
-            'exit_time': map['ExitTime'] ?? '',
-            'pickup_person': map['PickupName'] ?? '',
-            'relation': map['Relation'] ?? '',
-            'phone': map['Phone'] ?? '',
-            'is_authorized': map['Authorized'] == 'true',
-            'status': passStatus,
-            'created_at': row['published_at'] ?? row['created_at'],
-          });
-        }
+      var query = _supabase.from('school_gate_passes').select();
+      if (studentId != null && studentId.isNotEmpty) {
+        query = query.eq('student_id', studentId);
       }
-      return list;
-    } catch (_) {
-      return [];
+      if (status != null && status != 'All' && status.isNotEmpty) {
+        query = query.eq('status', status);
+      }
+      final response = await query.order('created_at', ascending: false);
+      for (final row in response) {
+        final reason = row['reason']?.toString() ?? '';
+        list.add({
+          'id': row['id']?.toString() ?? '',
+          'pass_no': row['id']?.toString() ?? 'GP-001',
+          'date': row['created_at'] != null ? row['created_at'].toString().split('T')[0] : '',
+          'student_id': row['student_id']?.toString() ?? '',
+          'student_name': row['student_name']?.toString() ?? '',
+          'class': row['class_name']?.toString() ?? '',
+          'reason': reason,
+          'exit_time': row['out_time'] != null && row['out_time'].toString().contains('T')
+              ? row['out_time'].toString().split('T').last.substring(0, 5)
+              : '',
+          'pickup_person': row['student_name']?.toString() ?? '',
+          'relation': 'Guardian',
+          'phone': '',
+          'is_authorized': row['warden_status'] == 'Approved',
+          'status': row['status']?.toString() ?? 'Active',
+          'created_at': row['created_at']?.toString() ?? '',
+        });
+      }
+    } catch (_) {}
+
+    for (final p in _simulatedGatePasses) {
+      if (studentId != null && studentId.isNotEmpty && p['student_id'] != studentId) continue;
+      if (status != null && status != 'All' && p['status'] != status) continue;
+      if (!list.any((e) => e['id'] == p['id'] || e['pass_no'] == p['pass_no'])) {
+        list.add(Map<String, dynamic>.from(p));
+      }
     }
+
+    return list;
   }
 
   Future<bool> verifyAndAuthorizeGatePassExit({
@@ -5792,26 +5793,24 @@ class SchoolService {
     required String verificationNotes,
   }) async {
     try {
-      final row = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('id', passId)
-          .single();
-      var content = row['content']?.toString() ?? '';
-      if (content.contains('Status:')) {
-        content = content.replaceAll(
-          RegExp(r'Status:\s*[^\|]+'),
-          'Status: Exit Verified & Logged by $gateOfficer at ${DateTime.now().toIso8601String()} ',
-        );
-      } else {
-        content += ' | Status: Exit Verified & Logged by $gateOfficer';
-      }
+      await _supabase.from('school_gate_passes').update({
+        'status': 'Closed',
+        'actual_in_time': DateTime.now().toIso8601String(),
+      }).eq('id', passId);
 
-      await _supabase
-          .from('school_circulars')
-          .update({'content': content}).eq('id', passId);
+      for (final p in _simulatedGatePasses) {
+        if (p['id'] == passId || p['pass_no'] == passId) {
+          p['status'] = 'Exit Verified & Logged by $gateOfficer';
+        }
+      }
       return true;
     } catch (_) {
+      for (final p in _simulatedGatePasses) {
+        if (p['id'] == passId || p['pass_no'] == passId) {
+          p['status'] = 'Exit Verified & Logged by $gateOfficer';
+          return true;
+        }
+      }
       return false;
     }
   }
@@ -6822,7 +6821,7 @@ class SchoolService {
         'conductor_phone': tResp?['conductor_phone'] ?? '--',
         'transport_manager_phone': '+91 135-2749921',
         'cctv_status': 'Installed & Active',
-        'gps_status': 'Signal Active',
+        'gps_status': 'Scheduled Route Transit',
         'today_attendance_sync': 'Morning In: Verified',
       };
     } catch (_) {

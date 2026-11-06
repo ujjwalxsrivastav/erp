@@ -400,6 +400,48 @@ CREATE INDEX IF NOT EXISTS idx_school_teacher_classes_class ON public.school_tea
 ALTER TABLE IF EXISTS public.school_teacher_classes DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.school_teacher_classes TO anon, authenticated, service_role;
 
+-- ============================================================================
+-- 11. Living Suite: Gate Passes & Hostel Attendance (D3, D5, D6)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.school_gate_passes (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    hostel_id TEXT NOT NULL DEFAULT 'H-MAIN',
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    class_name TEXT NOT NULL,
+    out_time TIMESTAMPTZ NOT NULL,
+    expected_in_time TIMESTAMPTZ NOT NULL,
+    actual_in_time TIMESTAMPTZ,
+    reason TEXT NOT NULL,
+    parent_status TEXT NOT NULL DEFAULT 'Approved',
+    warden_status TEXT NOT NULL DEFAULT 'Approved',
+    parent_approved_at TIMESTAMPTZ,
+    warden_approved_at TIMESTAMPTZ,
+    status TEXT NOT NULL DEFAULT 'Active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+CREATE INDEX IF NOT EXISTS idx_school_gate_passes_student ON public.school_gate_passes (student_id);
+CREATE INDEX IF NOT EXISTS idx_school_gate_passes_status ON public.school_gate_passes (status);
+
+ALTER TABLE IF EXISTS public.school_gate_passes DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_gate_passes TO anon, authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS public.school_hostel_attendance (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    hostel_id TEXT NOT NULL,
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    room_number TEXT NOT NULL,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    status TEXT NOT NULL DEFAULT 'Present',
+    marked_by TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE IF EXISTS public.school_hostel_attendance DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_hostel_attendance TO anon, authenticated, service_role;
+
 SELECT 'School ERP runtime tables successfully created and verified!' AS status;
 
 

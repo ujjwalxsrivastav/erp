@@ -1256,7 +1256,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       child: _buildBentoStat(
                         title: 'Active Fleet',
                         value: '$fleet Buses',
-                        subtitle: 'All Telematics GPS Live',
+                        subtitle: 'Route Schedules Active',
                         icon: Icons.directions_bus_outlined,
                         color: const Color(0xFF3B82F6),
                         bgColor: const Color(0xFFEFF6FF),
