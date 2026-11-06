@@ -49,11 +49,16 @@ class _StudentHomeworkScreenState extends State<StudentHomeworkScreen> {
       final homework = await _school.getHomeworkForStudent(
         studentUsername: studentUsername,
       );
-      final rows = studentUsername.isEmpty
-          ? <Map<String, dynamic>>[]
-          : await _school.getHomeworkSubmissions(
-              studentUsername: studentUsername,
-            );
+      List<Map<String, dynamic>> rows = [];
+      if (studentUsername.isNotEmpty) {
+        try {
+          rows = await _school.getHomeworkSubmissions(
+            studentUsername: studentUsername,
+          );
+        } catch (_) {
+          // Keep the diary usable even if the submissions table is missing.
+        }
+      }
       if (!mounted) return;
       setState(() {
         _studentUsername = studentUsername;
@@ -113,11 +118,12 @@ class _StudentHomeworkScreenState extends State<StudentHomeworkScreen> {
         ],
       ),
     );
-    if (accepted != true || note.text.trim().isEmpty) {
+    if (accepted != true) {
       note.dispose();
       return;
     }
     bool ok;
+    String? error;
     try {
       ok = await _school.submitHomework(
         homeworkId: homework['id'].toString(),
@@ -126,15 +132,20 @@ class _StudentHomeworkScreenState extends State<StudentHomeworkScreen> {
         studentName: _profile?['name']?.toString(),
         note: note.text,
       );
-    } catch (_) {
+      error = _school.lastHomeworkError;
+    } catch (e) {
       ok = false;
+      error = e.toString();
     }
     note.dispose();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(
-              ok ? 'Submission recorded.' : 'Submission failed. Try again.')),
+        content: Text(ok
+            ? 'Submission recorded.'
+            : 'Submission failed: ${error ?? 'please try again.'}'),
+        backgroundColor: ok ? null : const Color(0xFFDC2626),
+      ),
     );
     if (ok) await _load();
   }

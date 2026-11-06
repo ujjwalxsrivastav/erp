@@ -67,7 +67,10 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     if (!mounted) return;
     setState(() {
       _role = role;
-      _isStudent = role == 'student' || role == 'parent';
+      _isStudent = role == 'student' ||
+          role == 'sstudent' ||
+          role == 'parent' ||
+          role == 'sparent';
     });
 
     // Students: resolve their own class from the backend (no class chooser).
@@ -142,8 +145,14 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
         section: f.section,
       );
       // Real submission records for THIS student from the backend
-      final subs = await _schoolService.getHomeworkSubmissions(
-          studentUsername: _username);
+      List<Map<String, dynamic>> subs = [];
+      try {
+        subs = await _schoolService.getHomeworkSubmissions(
+            studentUsername: _username);
+      } catch (_) {
+        // Do not blank the whole diary if the submissions table is missing;
+        // submission attempts will surface the real error separately.
+      }
       _mySubmissions = {
         for (final s in subs)
           if (s['homework_id'] != null) s['homework_id'].toString(): s,
@@ -388,14 +397,23 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       }
     }
 
-    final ok = await _schoolService.submitHomework(
-      homeworkId: id,
-      studentUsername: _username,
-      studentId: _myProfile?['id']?.toString(),
-      studentName: _myProfile?['name']?.toString(),
-      note: noteController.text,
-      attachmentUrl: attachmentUrl,
-    );
+    bool ok = false;
+    String? error;
+    try {
+      ok = await _schoolService.submitHomework(
+        homeworkId: id,
+        studentUsername: _username,
+        studentId: _myProfile?['id']?.toString(),
+        studentName: _myProfile?['name']?.toString(),
+        note: noteController.text,
+        attachmentUrl: attachmentUrl,
+      );
+      error = _schoolService.lastHomeworkError;
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      noteController.dispose();
+    }
 
     if (!mounted) return;
     if (ok) {
@@ -409,10 +427,11 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       await _loadHomework();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Could not save submission. Please check network connection and try again.'),
-          backgroundColor: Color(0xFFEF4444),
+        SnackBar(
+          content: Text(error == null || error.isEmpty
+              ? 'Could not save submission. Please check network connection and try again.'
+              : 'Submission failed: $error'),
+          backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
       );

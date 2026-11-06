@@ -20,6 +20,54 @@ class SchoolService {
   SchoolCalendarService get calendar => SchoolCalendarService();
   SchoolPermissionService get permissions => SchoolPermissionService();
 
+  // ── Lightweight in-memory request cache ─────────────────────────────────
+  // Screens (fee, dashboard, router) ask for the same data repeatedly —
+  // sometimes several times within one screen load. PostgREST round-trips are
+  // the slow part, so identical reads are coalesced and served from memory for
+  // a short TTL. Anything write-sensitive is explicitly invalidated below.
+  static const Duration netTimeout = Duration(seconds: 12);
+
+  final Map<String, _SchoolCacheEntry> _cache = {};
+  final Map<String, Future<Object?>> _inflight = {};
+
+  Future<T> _cachedCall<T>(
+    String key,
+    Future<T> Function() load, {
+    Duration ttl = const Duration(minutes: 3),
+  }) {
+    final entry = _cache[key];
+    if (entry != null && DateTime.now().difference(entry.at) < ttl) {
+      return Future.value(entry.value as T);
+    }
+    // Coalesce concurrent identical requests (e.g. schedule requested twice
+    // while the first one is still in flight).
+    final inFlight = _inflight[key];
+    if (inFlight != null) return inFlight.then((v) => v as T);
+
+    final future = load().then<Object?>((value) {
+      // Don't memoise "not found" / failed reads — a transient failure must
+      // not keep a screen blank for the whole TTL.
+      if (value != null) {
+        _cache[key] = _SchoolCacheEntry(value, DateTime.now());
+      }
+      return value;
+    });
+    _inflight[key] = future;
+    return future
+        .whenComplete(() => _inflight.remove(key))
+        .then((value) => value as T);
+  }
+
+  /// Drop cached responses. Call after any write that changes this data so the
+  /// next screen load sees fresh numbers.
+  void invalidateCache([String? keyPrefix]) {
+    if (keyPrefix == null) {
+      _cache.clear();
+    } else {
+      _cache.removeWhere((k, _) => k.startsWith(keyPrefix));
+    }
+  }
+
   static final Set<String> _missingTables = <String>{};
   static bool isTableMissing(String table) => _missingTables.contains(table);
   static void markTableMissing(String table) => _missingTables.add(table);
@@ -1876,13 +1924,22 @@ class SchoolService {
 
   // ===== CLASSES & SUBJECTS =====
   Future<List<Map<String, dynamic>>> getSchoolClasses(
+      [String? instituteId]) {
+    return _cachedCall(
+      'school_classes:${instituteId ?? 'all'}',
+      () => _loadSchoolClasses(instituteId),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadSchoolClasses(
       [String? instituteId]) async {
     try {
       var query = _supabase.from('school_classes').select();
       if (instituteId != null && instituteId.isNotEmpty) {
         query = query.eq('institute_id', instituteId);
       }
-      final response = await query.order('name');
+      final response = await query.order('name').timeout(netTimeout);
       return List<Map<String, dynamic>>.from(response);
     } catch (_) {
       return [];
@@ -2310,6 +2367,24 @@ class SchoolService {
     String? day,
     String? className,
     String? section,
+  }) {
+    return _cachedCall(
+      'timetable:$classId|${className ?? ''}|${section ?? ''}|${day ?? ''}',
+      () => _loadTimetableForClass(
+        classId,
+        day: day,
+        className: className,
+        section: section,
+      ),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadTimetableForClass(
+    String classId, {
+    String? day,
+    String? className,
+    String? section,
   }) async {
     final aliases =
         classAliases(classId: classId, className: className, section: section);
@@ -2323,14 +2398,52 @@ class SchoolService {
       if (className != null && className.trim().isNotEmpty)
         'class_name.eq."${quote(className.trim())}"',
     };
-    var query = _supabase.from('school_timetable').select().or(terms.join(','));
-    if (day != null && day.isNotEmpty) query = query.eq('day', day);
-    final response = await query.order('period');
-    return List<Map<String, dynamic>>.from(response);
+    try {
+      var query = _supabase.from('school_timetable').select().or(terms.join(','));
+      if (day != null && day.isNotEmpty) query = query.eq('day', day);
+      final response = await query.order('period').timeout(netTimeout);
+      final rows = List<Map<String, dynamic>>.from(response);
+      if (rows.isNotEmpty) return rows;
+    } catch (_) {
+      // Fall through to the tolerant reader below: a malformed `or` filter must
+      // not leave a student without a routine.
+    }
+
+    // Tolerant fallback — read the day and match class aliases in memory, which
+    // is case-insensitive and copes with legacy class-id formats.
+    try {
+      var fallbackQuery = _supabase.from('school_timetable').select();
+      if (day != null && day.isNotEmpty) fallbackQuery = fallbackQuery.eq('day', day);
+      final response = await fallbackQuery.order('period').timeout(netTimeout);
+      final rows = List<Map<String, dynamic>>.from(response);
+      final matches = rows.where((row) => _classMatches(row, aliases)).toList();
+      if (matches.isNotEmpty) return matches;
+      return rows
+          .where((row) => (row['class_id']?.toString() ?? '') == classId)
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Read a timetable only for the caller or a child linked to the caller.
   Future<List<Map<String, dynamic>>> getMyTimetable({
+    required String username,
+    String? studentUsername,
+    String? day,
+  }) {
+    return _cachedCall(
+      'my_timetable:$username|${studentUsername ?? ''}|${day ?? ''}',
+      () => _loadMyTimetable(
+        username: username,
+        studentUsername: studentUsername,
+        day: day,
+      ),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadMyTimetable({
     required String username,
     String? studentUsername,
     String? day,
@@ -2351,7 +2464,7 @@ class SchoolService {
           .select()
           .eq('teacher_username', username);
       if (day != null && day.isNotEmpty) query = query.eq('day', day);
-      final response = await query.order('period');
+      final response = await query.order('period').timeout(netTimeout);
       return List<Map<String, dynamic>>.from(response);
     }
     final isStudent = liveRole == 'student' || liveRole == 'sstudent';
@@ -2366,15 +2479,13 @@ class SchoolService {
           .select('student_username')
           .eq('parent_username', username)
           .eq('student_username', target)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(netTimeout);
       if (link == null)
         throw Exception('This student is not linked to your account.');
     }
-    final profile = await _supabase
-        .from('school_students')
-        .select()
-        .eq('username', target)
-        .maybeSingle();
+    // Reuse the cached student profile (same row every screen asks for).
+    final profile = await getSchoolStudentProfile(target);
     if (profile == null) return [];
     final classId = profile['class_id']?.toString() ?? '';
     final className = profile['class_name']?.toString();
@@ -3366,6 +3477,15 @@ class SchoolService {
 
   // ===== STUDENT ATTENDANCE & PERFORMANCE =====
   Future<double> getStudentAttendancePercent(String studentId,
+      {DateTime? month}) {
+    return _cachedCall(
+      'attendance_pct:$studentId:${month?.toIso8601String() ?? 'current'}',
+      () => _loadStudentAttendancePercent(studentId, month: month),
+      ttl: const Duration(minutes: 2),
+    );
+  }
+
+  Future<double> _loadStudentAttendancePercent(String studentId,
       {DateTime? month}) async {
     try {
       final now = month ?? DateTime.now();
@@ -3377,7 +3497,8 @@ class SchoolService {
           .select('status')
           .eq('student_id', studentId)
           .gte('date', firstDay)
-          .lte('date', lastDay);
+          .lte('date', lastDay)
+          .timeout(netTimeout);
       final records = List<Map<String, dynamic>>.from(response);
       if (records.isNotEmpty) {
         // Excused leave is not an absence; late attendance still counts.
@@ -3521,6 +3642,8 @@ class SchoolService {
           .from('school_attendance')
           .upsert(records, onConflict: 'student_id,date');
       _attendanceStore[key] = List<Map<String, dynamic>>.from(records);
+      invalidateCache('attendance_pct:');
+      invalidateCache('attendance_traj:');
       await _notifyAbsentAttendance(records);
       return true;
     } catch (_) {}
@@ -3554,6 +3677,8 @@ class SchoolService {
 
     if (saved > 0) {
       _attendanceStore[key] = List<Map<String, dynamic>>.from(records);
+      invalidateCache('attendance_pct:');
+      invalidateCache('attendance_traj:');
       await _notifyAbsentAttendance(records);
       return true;
     }
@@ -3684,6 +3809,19 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getHomework(
+      {String? classId, String? className, String? section}) {
+    return _cachedCall(
+      'homework:${classId ?? ''}|${className ?? ''}|${section ?? ''}',
+      () => _loadHomework(
+        classId: classId,
+        className: className,
+        section: section,
+      ),
+      ttl: const Duration(minutes: 2),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadHomework(
       {String? classId, String? className, String? section}) async {
     final filter = _homeworkClassFilter(classId, className, section);
     try {
@@ -3691,7 +3829,8 @@ class SchoolService {
       if (filter != null && filter.isNotEmpty) {
         query = query.or(filter);
       }
-      final response = await query.order('created_at', ascending: false);
+      final response =
+          await query.order('created_at', ascending: false).timeout(netTimeout);
       return List<Map<String, dynamic>>.from(response);
     } catch (_) {
       rethrow;
@@ -3809,6 +3948,7 @@ class SchoolService {
           } catch (_) {}
         }
       }
+      invalidateCache('homework:');
       return true;
     } catch (_) {
       return false;
@@ -3819,7 +3959,9 @@ class SchoolService {
     try {
       await _supabase
           .from('school_homework')
-          .update({'status': status}).eq('id', homeworkId);
+          .update({'status': status}).eq('id', homeworkId)
+          .timeout(netTimeout);
+      invalidateCache('homework:');
       return true;
     } catch (_) {}
     return false;
@@ -3841,16 +3983,32 @@ class SchoolService {
   /// Resolve a school student's profile (name, class, section) from the backend.
   Future<Map<String, dynamic>?> getSchoolStudentProfile(String username) async {
     if (username.isEmpty) return null;
-    try {
-      final response = await _supabase
-          .from('school_students')
-          .select()
-          .eq('username', username)
-          .maybeSingle();
-      return response == null ? null : Map<String, dynamic>.from(response);
-    } catch (_) {
-      return null;
-    }
+    return _cachedCall(
+      'student_profile:$username',
+      () async {
+        try {
+          final response = await _supabase
+              .from('school_students')
+              .select()
+              .eq('username', username)
+              .maybeSingle()
+              .timeout(netTimeout);
+          if (response != null) return Map<String, dynamic>.from(response);
+          // Older rows can differ in letter case — a student must still be able
+          // to read their own timetable and attendance.
+          final loose = await _supabase
+              .from('school_students')
+              .select()
+              .ilike('username', username)
+              .maybeSingle()
+              .timeout(netTimeout);
+          return loose == null ? null : Map<String, dynamic>.from(loose);
+        } catch (_) {
+          return null;
+        }
+      },
+      ttl: const Duration(minutes: 5),
+    );
   }
 
   /// Fetch homework submission records from the backend — optionally all
@@ -3859,11 +4017,25 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getHomeworkSubmissions({
     String? homeworkId,
     String? studentUsername,
-  }) async {
+  }) {
     if ((homeworkId == null || homeworkId.isEmpty) &&
         (studentUsername == null || studentUsername.isEmpty)) {
       throw ArgumentError('Scope submissions by homework or student.');
     }
+    return _cachedCall(
+      'homework_submissions:${homeworkId ?? ''}|${studentUsername ?? ''}',
+      () => _loadHomeworkSubmissions(
+        homeworkId: homeworkId,
+        studentUsername: studentUsername,
+      ),
+      ttl: const Duration(seconds: 60),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadHomeworkSubmissions({
+    String? homeworkId,
+    String? studentUsername,
+  }) async {
     try {
       var query = _supabase.from('school_homework_submissions').select();
       if (homeworkId != null && homeworkId.isNotEmpty) {
@@ -3872,7 +4044,8 @@ class SchoolService {
       if (studentUsername != null && studentUsername.isNotEmpty) {
         query = query.eq('student_username', studentUsername);
       }
-      final response = await query.order('submitted_at', ascending: false);
+      final response =
+          await query.order('submitted_at', ascending: false).timeout(netTimeout);
       return List<Map<String, dynamic>>.from(response);
     } catch (_) {
       rethrow;
@@ -3908,6 +4081,9 @@ class SchoolService {
     }
   }
 
+  /// Human-readable reason for the last failed [submitHomework] call.
+  String? lastHomeworkError;
+
   Future<bool> submitHomework({
     required String homeworkId,
     required String studentUsername,
@@ -3916,79 +4092,176 @@ class SchoolService {
     String? note,
     String? attachmentUrl,
   }) async {
-    final currentUsername = await AuthService().getCurrentUsername() ?? '';
-    final role = (await permissions.getLiveUserRole(currentUsername) ?? '')
-        .toLowerCase();
-    await permissions.enforce(
-        feature: 'homework',
-        requiredPermission: 'edit',
-        username: currentUsername);
-    if (currentUsername.isEmpty ||
-        studentUsername != currentUsername ||
-        (role != 'student' && role != 'sstudent')) {
-      throw Exception('Only the signed-in student can submit their homework.');
-    }
-    final profile = await _supabase
-        .from('school_students')
-        .select('class_id,class_name,section')
-        .eq('username', currentUsername)
-        .maybeSingle();
-    final assigned = await _supabase
-        .from('school_homework')
-        .select('id,class_id,class_name,section,teacher_username')
-        .eq('id', homeworkId)
-        .maybeSingle();
-    if (profile == null || assigned == null)
-      throw Exception('Student or homework record was not found.');
-    final classId = profile['class_id']?.toString() ?? '';
-    final className = profile['class_name']?.toString() ?? '';
-    final sameClass =
-        (classId.isNotEmpty && classId == assigned['class_id']?.toString()) ||
-            (className.isNotEmpty &&
-                className == assigned['class_name']?.toString() &&
-                (profile['section']?.toString() ?? '') ==
-                    (assigned['section']?.toString() ?? ''));
-    if (!sameClass)
-      throw Exception('This homework is not assigned to your class.');
-    final row = {
-      'homework_id': homeworkId,
-      'student_username': studentUsername,
-      if (studentId != null) 'student_id': studentId,
-      if (studentName != null) 'student_name': studentName,
-      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
-      if (attachmentUrl != null && attachmentUrl.trim().isNotEmpty)
-        'attachment_url': attachmentUrl.trim(),
-      'submitted_at': DateTime.now().toIso8601String(),
-      'updated_at': DateTime.now().toIso8601String(),
-      'status': 'submitted',
-    };
+    lastHomeworkError = null;
     try {
-      // Upsert on the (homework_id, student_username) unique pair
-      await _supabase
-          .from('school_homework_submissions')
-          .upsert(row, onConflict: 'homework_id,student_username');
-      final teacher = assigned['teacher_username']?.toString() ?? '';
-      if (teacher.isNotEmpty) {
+      final currentUsername =
+          (await AuthService().getCurrentUsername() ?? '').trim();
+      final targetStudent = studentUsername.trim().isEmpty
+          ? currentUsername
+          : studentUsername.trim();
+      if (currentUsername.isEmpty) {
+        throw Exception('Sign in to submit homework.');
+      }
+
+      final liveRole =
+          (await permissions.getLiveUserRole(currentUsername) ?? '')
+              .toLowerCase()
+              .trim();
+      final normalizedRole = liveRole.startsWith('s') &&
+              (liveRole == 'steacher' ||
+                  liveRole == 'sstudent' ||
+                  liveRole == 'sparent' ||
+                  liveRole == 'sadmin')
+          ? liveRole.substring(1)
+          : liveRole;
+
+      await permissions.enforce(
+          feature: 'homework',
+          requiredPermission: 'edit',
+          username: currentUsername);
+
+      if (targetStudent != currentUsername) {
+        throw Exception('Only the signed-in student can submit their homework.');
+      }
+      if (normalizedRole != 'student') {
+        throw Exception('Only a student account can submit homework.');
+      }
+
+      final profile = await getSchoolStudentProfile(currentUsername);
+      if (profile == null) {
+        throw Exception('Your student profile was not found in the backend.');
+      }
+
+      final assigned = await _supabase
+          .from('school_homework')
+          .select('id,class_id,class_name,section,teacher_username')
+          .eq('id', homeworkId)
+          .maybeSingle()
+          .timeout(netTimeout);
+      if (assigned == null) {
+        throw Exception('This homework assignment no longer exists.');
+      }
+
+      // Compare class identities tolerantly: 'Class 10' vs 'Class 10-A' and
+      // null vs empty section must not block a legitimate submission.
+      String baseClass(Object? value) => (value?.toString() ?? '')
+          .trim()
+          .toLowerCase()
+          .split('-')
+          .first
+          .replaceAll(RegExp(r'\s+'), ' ');
+      final studentClassId = profile['class_id']?.toString() ?? '';
+      final assignedClassId = assigned['class_id']?.toString() ?? '';
+      final studentClass = baseClass(profile['class_name']);
+      final assignedClass = baseClass(assigned['class_name']);
+      final sameClass =
+          (studentClassId.isNotEmpty && studentClassId == assignedClassId) ||
+              (studentClass.isNotEmpty && studentClass == assignedClass);
+      if (!sameClass) {
+        throw Exception('This homework is not assigned to your class.');
+      }
+
+      final payload = <String, dynamic>{
+        'homework_id': homeworkId,
+        'student_username': currentUsername,
+        if (studentId != null && studentId.trim().isNotEmpty)
+          'student_id': studentId.trim(),
+        if (studentName != null && studentName.trim().isNotEmpty)
+          'student_name': studentName.trim(),
+        'note': (note ?? '').trim().isEmpty
+            ? 'Submitted from the student portal'
+            : note!.trim(),
+        if (attachmentUrl != null && attachmentUrl.trim().isNotEmpty)
+          'attachment_url': attachmentUrl.trim(),
+        'submitted_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'status': 'submitted',
+      };
+
+      // 1) Preferred: atomic upsert on the unique pair.
+      var saved = false;
+      try {
+        await _supabase
+            .from('school_homework_submissions')
+            .upsert(payload, onConflict: 'homework_id,student_username')
+            .timeout(netTimeout);
+        saved = true;
+      } catch (e) {
+        print('Homework upsert failed, falling back: $e');
+      }
+
+      // 2) Fallback for databases where the unique constraint is missing:
+      //    update the existing row, otherwise insert a fresh one.
+      if (!saved) {
         try {
-          final saved = await _supabase
+          // `limit(1)` (not maybeSingle) so a legacy duplicate row cannot
+          // make the fallback throw before it can update anything.
+          final existing = List<Map<String, dynamic>>.from(await _supabase
               .from('school_homework_submissions')
               .select('id')
               .eq('homework_id', homeworkId)
-              .eq('student_username', studentUsername)
-              .single();
+              .eq('student_username', currentUsername)
+              .limit(1)
+              .timeout(netTimeout));
+          if (existing.isNotEmpty) {
+            await _supabase
+                .from('school_homework_submissions')
+                .update(payload)
+                .eq('id', existing.first['id'])
+                .timeout(netTimeout);
+          } else {
+            await _supabase
+                .from('school_homework_submissions')
+                .insert(payload)
+                .timeout(netTimeout);
+          }
+          saved = true;
+        } catch (e) {
+          lastHomeworkError = 'Could not save the submission: $e';
+          print('Homework save failed: $e');
+          return false;
+        }
+      }
+
+      // 3) Verify it actually landed before telling the student it worked.
+      try {
+        final check = await _supabase
+            .from('school_homework_submissions')
+            .select('id')
+            .eq('homework_id', homeworkId)
+            .eq('student_username', currentUsername)
+            .maybeSingle()
+            .timeout(netTimeout);
+        if (check == null) {
+          lastHomeworkError =
+              'The backend did not store the submission. Check the submissions table policy/columns.';
+          return false;
+        }
+      } catch (e) {
+        print('Homework verification read failed: $e');
+      }
+
+      // The cached submission list must not hide the new record.
+      invalidateCache('homework_submissions:');
+
+      final teacher = assigned['teacher_username']?.toString() ?? '';
+      if (teacher.isNotEmpty) {
+        try {
           await createNotification(
             userId: teacher,
             role: 'teacher',
             type: 'homework_submitted',
             title: 'Homework submission received',
-            body: '${studentName ?? studentUsername} submitted an assignment.',
+            body: '${studentName ?? currentUsername} submitted an assignment.',
             refType: 'school_homework_submissions',
-            refId: saved['id']?.toString(),
+            refId: homeworkId,
           );
         } catch (_) {}
       }
       return true;
-    } catch (_) {
+    } catch (e) {
+      lastHomeworkError = e.toString().replaceFirst('Exception: ', '');
+      print('Homework submission error: $e');
       return false;
     }
   }
@@ -4229,6 +4502,22 @@ class SchoolService {
     String studentId, {
     String? examType,
     String? studentName,
+  }) {
+    return _cachedCall(
+      'student_marks:$studentId|${examType ?? 'all'}|${studentName ?? ''}',
+      () => _loadStudentMarks(
+        studentId,
+        examType: examType,
+        studentName: studentName,
+      ),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadStudentMarks(
+    String studentId, {
+    String? examType,
+    String? studentName,
   }) async {
     // Scoped read enforcement: students view only their own records; parents only linked wards
     final currentUser = await AuthService().getCurrentUsername();
@@ -4249,8 +4538,6 @@ class SchoolService {
       }
     }
 
-    final keys = <String>{studentId};
-    if (studentName != null && studentName.isNotEmpty) keys.add(studentName);
     final rowsById = <String, Map<String, dynamic>>{};
 
     Future<void> fetch(String key, bool byName) async {
@@ -4263,7 +4550,8 @@ class SchoolService {
         if (examType != null && examType != 'All' && examType.isNotEmpty) {
           query = query.eq('exam_type', examType);
         }
-        for (final row in List<Map<String, dynamic>>.from(await query)) {
+        for (final row in List<Map<String, dynamic>>.from(
+            await query.timeout(netTimeout))) {
           final id = row['id']?.toString() ??
               '${row['student_id']}_${row['subject']}_${row['exam_type']}';
           rowsById[id] = row;
@@ -4271,9 +4559,11 @@ class SchoolService {
       } catch (_) {}
     }
 
-    for (final key in keys) {
-      await fetch(key, false);
+    final futures = <Future<void>>[fetch(studentId, false)];
+    if (studentName != null && studentName.isNotEmpty) {
+      futures.add(fetch(studentName, true));
     }
+    await Future.wait(futures);
 
     final rows = rowsById.values.toList()
       ..sort((a, b) => (a['subject']?.toString() ?? '')
@@ -4282,14 +4572,23 @@ class SchoolService {
   }
 
   /// Report card sessions (Half Yearly, Final, ...) in display order.
-  Future<List<String>> getExamSessions() async {
+  Future<List<String>> getExamSessions() {
+    return _cachedCall(
+      'exam_sessions',
+      _loadExamSessions,
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<List<String>> _loadExamSessions() async {
     const fallback = ['Half Yearly', 'Final'];
     try {
       final response = await _supabase
           .from('school_exam_sessions')
           .select('name, display_order')
           .eq('is_published', true)
-          .order('display_order');
+          .order('display_order')
+          .timeout(netTimeout);
       final names = List<Map<String, dynamic>>.from(response)
           .map((r) => r['name']?.toString() ?? '')
           .where((n) => n.isNotEmpty)
@@ -4561,6 +4860,8 @@ class SchoolService {
         for (final entry in groups.entries) {
           _marksStore[entry.key] = List<Map<String, dynamic>>.from(entry.value);
         }
+        // Report card / dashboard read the cached marks list.
+        invalidateCache('student_marks:');
       }
 
       // Preferred path: one upsert keyed on (student, subject, exam) — requires
@@ -4822,7 +5123,15 @@ class SchoolService {
   // ===== FEES & ACCOUNTS ARCHITECTURE =====
 
   /// Fetch all active & configured fee heads (Admin managed, reflected on student portal)
-  Future<List<Map<String, dynamic>>> getSchoolFeeHeads() async {
+  Future<List<Map<String, dynamic>>> getSchoolFeeHeads() {
+    return _cachedCall(
+      'fee_heads',
+      _loadSchoolFeeHeads,
+      ttl: const Duration(minutes: 10),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadSchoolFeeHeads() async {
     if (_customFeeHeadsStore.isNotEmpty) {
       return List<Map<String, dynamic>>.from(_customFeeHeadsStore);
     }
@@ -4832,7 +5141,8 @@ class SchoolService {
           .from('school_circulars')
           .select()
           .eq('category', 'FEE_HEAD_CONFIG')
-          .order('published_at', ascending: false);
+          .order('published_at', ascending: false)
+          .timeout(netTimeout);
       final rows = List<Map<String, dynamic>>.from(resp);
       if (rows.isNotEmpty) {
         final parsed = <Map<String, dynamic>>[];
@@ -4910,9 +5220,11 @@ class SchoolService {
       } else {
         await _supabase.from('school_circulars').insert(payload);
       }
+      invalidateCache('fee_');
       return true;
     } catch (e) {
       print('Cached fee head in memory: $e');
+      invalidateCache('fee_');
       return true;
     }
   }
@@ -4934,6 +5246,7 @@ class SchoolService {
             .eq('title', existing['title']?.toString() ?? '');
       } catch (_) {}
     }
+    invalidateCache('fee_');
     return true;
   }
 
@@ -4950,12 +5263,24 @@ class SchoolService {
         await saveSchoolFeeHead(h);
       }
     } catch (_) {}
+    invalidateCache('fee_');
   }
 
   /// 12-Month Academic Fee Schedule Engine (April to March)
   /// - Enforces statutory rule: If unpaid after 5th of that month, applies ₹100 Late Fee Fine
   /// - Attaches itemized fee heads breakdown
   Future<List<Map<String, dynamic>>> getMonthlyFeeSchedule(
+    String studentUsername, {
+    String? classId,
+  }) {
+    return _cachedCall(
+      'fee_schedule:$studentUsername',
+      () => _loadMonthlyFeeSchedule(studentUsername, classId: classId),
+      ttl: const Duration(seconds: 60),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadMonthlyFeeSchedule(
     String studentUsername, {
     String? classId,
   }) async {
@@ -4972,7 +5297,8 @@ class SchoolService {
       final resp = await _supabase
           .from('school_fee_payments')
           .select()
-          .eq('student_id', studentUsername);
+          .eq('student_id', studentUsername)
+          .timeout(netTimeout);
       existingPayments = List<Map<String, dynamic>>.from(resp);
     } catch (_) {
       if (_feePaymentsStore.isNotEmpty) {
@@ -5153,8 +5479,12 @@ class SchoolService {
 
   /// Quick summary of fee metrics for a student
   Future<Map<String, dynamic>> getStudentFeeSummary(
-      String studentUsername) async {
-    final schedule = await getMonthlyFeeSchedule(studentUsername);
+      String studentUsername,
+      {List<Map<String, dynamic>>? scheduleOverride}) async {
+    // Reuse an already-fetched schedule when the caller has one — otherwise
+    // this used to re-run the schedule engine (heads + payments) a second time.
+    final schedule =
+        scheduleOverride ?? await getMonthlyFeeSchedule(studentUsername);
     double totalAnnual = 0.0;
     double totalPaid = 0.0;
     double totalPending = 0.0;
@@ -5195,7 +5525,15 @@ class SchoolService {
   }
 
   // ===== ALL STUDENT FEE SUMMARIES (ADMIN) =====
-  Future<List<Map<String, dynamic>>> getAllStudentFeeSummaries() async {
+  Future<List<Map<String, dynamic>>> getAllStudentFeeSummaries() {
+    return _cachedCall(
+      'fee_summaries_all',
+      _loadAllStudentFeeSummaries,
+      ttl: const Duration(seconds: 60),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadAllStudentFeeSummaries() async {
     const pageSize = 500;
     final students = <Map<String, dynamic>>[];
     for (var offset = 0;; offset += pageSize) {
@@ -5231,29 +5569,36 @@ class SchoolService {
     );
     final double annualBaseFee = baseMonthlyAmount * 12;
 
-    // Fetch payments grouped by student
+    // Fetch payments grouped by student (paginated — the table can exceed the
+    // PostgREST 1000-row cap, which used to silently truncate totals).
     final feesByStudent = <String, Map<String, dynamic>>{};
     try {
-      final response = await _supabase
-          .from('school_fee_payments')
-          .select('student_id, amount, paid_amount, status');
-      final page = List<Map<String, dynamic>>.from(response);
-      for (final demand in page) {
-        final sid = (demand['student_id'] ?? '').toString();
-        if (sid.isEmpty) continue;
+      const paymentsPage = 1000;
+      for (var offset = 0;; offset += paymentsPage) {
+        final response = await _supabase
+            .from('school_fee_payments')
+            .select('student_id, amount, paid_amount, status')
+            .range(offset, offset + paymentsPage - 1)
+            .timeout(netTimeout);
+        final page = List<Map<String, dynamic>>.from(response);
+        for (final demand in page) {
+          final sid = (demand['student_id'] ?? '').toString();
+          if (sid.isEmpty) continue;
 
-        final amount = (demand['amount'] as num?)?.toDouble() ?? 0;
-        final paid = ((demand['paid_amount'] as num?)?.toDouble() ?? 0)
-            .clamp(0.0, amount)
-            .toDouble();
-        final totals = feesByStudent.putIfAbsent(
-          sid,
-          () => {'paid_amount': 0.0, 'paid_count': 0},
-        );
-        totals['paid_amount'] = (totals['paid_amount'] as double) + paid;
-        if (demand['status'] == 'paid' || paid >= baseMonthlyAmount - 0.01) {
-          totals['paid_count'] = (totals['paid_count'] as int) + 1;
+          final amount = (demand['amount'] as num?)?.toDouble() ?? 0;
+          final paid = ((demand['paid_amount'] as num?)?.toDouble() ?? 0)
+              .clamp(0.0, amount)
+              .toDouble();
+          final totals = feesByStudent.putIfAbsent(
+            sid,
+            () => {'paid_amount': 0.0, 'paid_count': 0},
+          );
+          totals['paid_amount'] = (totals['paid_amount'] as double) + paid;
+          if (demand['status'] == 'paid' || paid >= baseMonthlyAmount - 0.01) {
+            totals['paid_count'] = (totals['paid_count'] as int) + 1;
+          }
         }
+        if (page.length < paymentsPage) break;
       }
     } catch (_) {}
 
@@ -5579,7 +5924,8 @@ class SchoolService {
           .from('school_fee_payments')
           .select()
           .eq('student_id', studentId)
-          .inFilter('status', ['pending', 'partial']);
+          .inFilter('status', ['pending', 'partial'])
+          .timeout(netTimeout);
       demands = List<Map<String, dynamic>>.from(resp);
     } catch (_) {
       throw Exception(
@@ -5675,6 +6021,12 @@ class SchoolService {
       await _supabase.from('school_fee_receipts').insert(row);
     } catch (_) {}
 
+    // Any fee view loaded next must reflect the new paid/partial status.
+    invalidateCache('fee_');
+    invalidateCache('receipts:');
+    invalidateCache('student_fees:');
+    invalidateCache('defaulters:');
+
     return receiptNo;
   }
 
@@ -5685,13 +6037,23 @@ class SchoolService {
   /// from the demand ledger's `receipt_no` values so the Receipts section
   /// still works.
   Future<List<Map<String, dynamic>>> getStudentReceipts(
+      String studentId) {
+    return _cachedCall(
+      'receipts:$studentId',
+      () => _loadStudentReceipts(studentId),
+      ttl: const Duration(seconds: 30),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadStudentReceipts(
       String studentId) async {
     try {
       final resp = await _supabase
           .from('school_fee_receipts')
           .select()
           .eq('student_id', studentId)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .timeout(netTimeout);
       final rows = List<Map<String, dynamic>>.from(resp);
       if (rows.isNotEmpty) return rows;
     } catch (_) {}
@@ -5700,8 +6062,9 @@ class SchoolService {
     try {
       final resp = await _supabase
           .from('school_fee_payments')
-          .select()
-          .eq('student_id', studentId);
+          .select('student_id,head,amount,paid_amount,receipt_no,payment_mode,due_date,created_at')
+          .eq('student_id', studentId)
+          .timeout(netTimeout);
       final ledger = List<Map<String, dynamic>>.from(resp);
       final byReceipt = <String, Map<String, dynamic>>{};
       for (final f in ledger) {
@@ -5772,7 +6135,8 @@ class SchoolService {
           .select()
           .eq('student_id', studentId)
           .eq('head', head.trim())
-          .inFilter('status', ['pending', 'partial']).limit(1);
+          .inFilter('status', ['pending', 'partial']).limit(1)
+          .timeout(netTimeout);
       final rows = List<Map<String, dynamic>>.from(existing);
 
       if (rows.isNotEmpty) {
@@ -5785,6 +6149,9 @@ class SchoolService {
               : (paid > 0.01 ? 'partial' : 'pending'),
           if (dueDate != null && dueDate.isNotEmpty) 'due_date': dueDate,
         }).eq('id', row['id']?.toString() ?? '');
+        invalidateCache('fee_');
+        invalidateCache('student_fees:');
+        invalidateCache('defaulters:');
         return 'updated';
       }
 
@@ -5799,6 +6166,9 @@ class SchoolService {
         'status': 'pending',
         'created_at': DateTime.now().toIso8601String(),
       });
+      invalidateCache('fee_');
+      invalidateCache('student_fees:');
+      invalidateCache('defaulters:');
       return 'created';
     } catch (_) {
       throw Exception(
@@ -5807,16 +6177,25 @@ class SchoolService {
   }
 
   Future<Map<String, dynamic>> getDefaultersWithAgeing(
+      {String? classId}) {
+    return _cachedCall(
+      'defaulters:${classId ?? 'all'}',
+      () => _loadDefaultersWithAgeing(classId: classId),
+      ttl: const Duration(seconds: 60),
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadDefaultersWithAgeing(
       {String? classId}) async {
     try {
       var query = _supabase
           .from('school_fee_payments')
-          .select()
+          .select('student_id,amount,paid_amount,status,due_date,class_id')
           .eq('status', 'pending');
       if (classId != null && classId.isNotEmpty) {
         query = query.eq('class_id', classId);
       }
-      final response = await query;
+      final response = await query.timeout(netTimeout);
       final list = List<Map<String, dynamic>>.from(response);
 
       final now = DateTime.now();
@@ -5958,6 +6337,16 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getCirculars(
+      {String? category, String? studentUsername}) {
+    return _cachedCall(
+      'circulars:${category ?? 'all'}|${studentUsername ?? ''}',
+      () =>
+          _loadCirculars(category: category, studentUsername: studentUsername),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadCirculars(
       {String? category, String? studentUsername}) async {
     final username = await AuthService().getCurrentUsername() ?? '';
     if (username.isEmpty) throw Exception('Sign in to view school circulars.');
@@ -5992,12 +6381,14 @@ class SchoolService {
     final classes = await _circularClassScopes(username, role,
         studentUsername: studentUsername);
     if ({'admin', 'principal', 'superadmin'}.contains(role)) {
-      return List<Map<String, dynamic>>.from(
-          await query.order('published_at', ascending: false));
+      return List<Map<String, dynamic>>.from(await query
+          .order('published_at', ascending: false)
+          .timeout(netTimeout));
     }
     if (role == 'teacher' || role == 'class_teacher') {
-      return List<Map<String, dynamic>>.from(
-          await query.order('published_at', ascending: false));
+      return List<Map<String, dynamic>>.from(await query
+          .order('published_at', ascending: false)
+          .timeout(netTimeout));
     }
     final audiences = <String>{'all', 'All', role, '${role}s'};
     if (role == 'student') audiences.add('students');
@@ -6014,7 +6405,7 @@ class SchoolService {
     audiences.addAll(classes);
     query = query.inFilter('target_audience', audiences.toList());
     return List<Map<String, dynamic>>.from(
-        await query.order('published_at', ascending: false));
+        await query.order('published_at', ascending: false).timeout(netTimeout));
   }
 
   Future<bool> createCircular(Map<String, dynamic> data) async {
@@ -8345,6 +8736,17 @@ class SchoolService {
   Future<Map<String, dynamic>> getChildAttendanceTrajectory(
     String studentId, {
     int days = 30,
+  }) {
+    return _cachedCall(
+      'attendance_traj:$studentId:$days',
+      () => _loadChildAttendanceTrajectory(studentId, days: days),
+      ttl: const Duration(minutes: 2),
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadChildAttendanceTrajectory(
+    String studentId, {
+    int days = 30,
   }) async {
     try {
       final now = DateTime.now();
@@ -8357,7 +8759,8 @@ class SchoolService {
           .select()
           .eq('student_id', studentId)
           .gte('date', fromStr)
-          .order('date', ascending: true);
+          .order('date', ascending: true)
+          .timeout(netTimeout);
       final records = List<Map<String, dynamic>>.from(resp);
 
       int present = 0;
@@ -8428,13 +8831,22 @@ class SchoolService {
 
   /// PN12: Real Exam Countdown & Datesheet Banner
   Future<Map<String, dynamic>> getChildUpcomingExamCountdown(
-      {required String className}) async {
+      {required String className}) {
+    return _cachedCall(
+      'exam_countdown:$className',
+      () => _loadChildUpcomingExamCountdown(),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadChildUpcomingExamCountdown() async {
     try {
       final resp = await _supabase
           .from('school_exam_sessions')
           .select()
           .eq('is_published', true)
-          .order('display_order', ascending: true);
+          .order('display_order', ascending: true)
+          .timeout(netTimeout);
       final sessions = List<Map<String, dynamic>>.from(resp);
 
       if (sessions.isEmpty) {
@@ -10541,6 +10953,15 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getStudentNotifications(
+      String studentUsername) {
+    return _cachedCall(
+      'student_notifications:$studentUsername',
+      () => _loadStudentNotifications(studentUsername),
+      ttl: const Duration(seconds: 60),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadStudentNotifications(
       String studentUsername) async {
     final notifications = <Map<String, dynamic>>[];
     try {
@@ -10583,11 +11004,19 @@ class SchoolService {
         final classId = profile?['class_id']?.toString() ?? '';
         final className = profile?['class_name']?.toString() ?? '';
 
-        final hwList = await getHomework(
+        // These used to be awaited one after another (6 round-trips). They are
+        // independent, so start them together and read the results in order.
+        final hwFuture = getHomework(
             classId: classId.isNotEmpty ? classId : null,
             className: className.isNotEmpty ? className : null);
-        final mySubs =
-            await getHomeworkSubmissions(studentUsername: studentUsername);
+        final subsFuture =
+            getHomeworkSubmissions(studentUsername: studentUsername);
+        final feeFuture = getStudentFeeSummary(studentUsername);
+        final leavesFuture = getStudentLeaves(studentId: studentUsername);
+        final circularsFuture = getCirculars();
+
+        final hwList = await hwFuture;
+        final mySubs = await subsFuture;
         final subMap = {for (var s in mySubs) s['homework_id']?.toString(): s};
         int pendingHwCount = 0;
         for (final h in hwList) {
@@ -10609,8 +11038,10 @@ class SchoolService {
           });
         }
 
-        final feeSummary = await getStudentFeeSummary(studentUsername);
-        final due = (feeSummary['total_due'] as num?)?.toDouble() ?? 0.0;
+        final feeSummary = await feeFuture;
+        final due = (feeSummary['total_pending'] as num?)?.toDouble() ??
+            (feeSummary['total_due'] as num?)?.toDouble() ??
+            0.0;
         if (due > 0) {
           notifications.add({
             'id': 'notif-fee',
@@ -10625,7 +11056,7 @@ class SchoolService {
           });
         }
 
-        final leaves = await getStudentLeaves(studentId: studentUsername);
+        final leaves = await leavesFuture;
         if (leaves.isNotEmpty) {
           final latestLeave = leaves.first;
           final status =
@@ -10646,7 +11077,7 @@ class SchoolService {
           });
         }
 
-        final circulars = await getCirculars();
+        final circulars = await circularsFuture;
         for (final c in circulars.take(2)) {
           notifications.add({
             'id': 'notif-circ-' + (c['id']?.toString() ?? '0'),
@@ -11067,14 +11498,23 @@ class SchoolService {
   // ============================================================================
 
   /// N5: Fetch School Statutory & Institutional Settings
-  Future<Map<String, dynamic>> getSchoolSettings() async {
+  Future<Map<String, dynamic>> getSchoolSettings() {
+    return _cachedCall(
+      'school_settings',
+      _loadSchoolSettings,
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadSchoolSettings() async {
     try {
       final rows = await _supabase
           .from('school_circulars')
           .select()
           .eq('category', 'SystemSetting')
           .order('published_at', ascending: false)
-          .limit(1);
+          .limit(1)
+          .timeout(netTimeout);
       if ((rows as List).isNotEmpty) {
         final content = rows.first['content']?.toString() ?? '{}';
         final map = jsonDecode(content) as Map<String, dynamic>;
@@ -11114,6 +11554,7 @@ class SchoolService {
         details:
             'Affiliation: ${settings['affiliation_no']}, Session: ${settings['academic_session']}, RTE: ${settings['rte_quota_seats']}',
       );
+      invalidateCache('school_settings');
       return true;
     } catch (_) {
       return false;
@@ -11773,12 +12214,8 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getStudentMarksTrend(
       String username) async {
     try {
-      final resp = await _supabase
-          .from('school_marks')
-          .select()
-          .eq('student_id', username)
-          .order('created_at', ascending: true);
-      final records = List<Map<String, dynamic>>.from(resp);
+      // Reuse the shared, cached marks read (dashboard asks for marks 3×).
+      final records = await getStudentMarks(username);
 
       final examGroups = <String, List<Map<String, dynamic>>>{};
       for (final r in records) {
@@ -11819,15 +12256,19 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getStudentSubjectPerformance(
       String username) async {
     try {
-      final resp = await _supabase
-          .from('school_marks')
-          .select()
-          .eq('student_id', username)
-          .order('created_at', ascending: false);
-      final records = List<Map<String, dynamic>>.from(resp);
+      final records = await getStudentMarks(username);
       if (records.isEmpty) return [];
 
-      final latestExam = records.first['exam_type']?.toString() ?? '';
+      // Latest exam = the one whose rows were written most recently.
+      String latestExam = records.first['exam_type']?.toString() ?? '';
+      var latestStamp = records.first['created_at']?.toString() ?? '';
+      for (final r in records) {
+        final stamp = r['created_at']?.toString() ?? '';
+        if (stamp.compareTo(latestStamp) > 0) {
+          latestStamp = stamp;
+          latestExam = r['exam_type']?.toString() ?? '';
+        }
+      }
       final latestRecords = records
           .where((r) => (r['exam_type']?.toString() ?? '') == latestExam)
           .toList();
@@ -11860,10 +12301,13 @@ class SchoolService {
   Future<Map<String, dynamic>> getStudentHomeworkCompletion(
     String username, {
     String? classId,
+    String? className,
   }) async {
     try {
-      final hwList = await getHomework(classId: classId);
-      final mySubs = await getHomeworkSubmissions(studentUsername: username);
+      final hwFuture = getHomework(classId: classId, className: className);
+      final subsFuture = getHomeworkSubmissions(studentUsername: username);
+      final hwList = await hwFuture;
+      final mySubs = await subsFuture;
       final submittedMap = <String, Map<String, dynamic>>{};
       for (final s in mySubs) {
         final hwId = s['homework_id']?.toString() ?? '';
@@ -11986,4 +12430,11 @@ class SchoolService {
   int _daysInMonth(int year, int month) {
     return DateTime(year, month + 1, 0).day;
   }
+}
+
+/// One memoised backend response used by [SchoolService._cachedCall].
+class _SchoolCacheEntry {
+  final Object? value;
+  final DateTime at;
+  const _SchoolCacheEntry(this.value, this.at);
 }

@@ -86,22 +86,29 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
     });
 
     try {
-      final role = await _authService.getCurrentUserRole() ?? 'student';
-      final username = await _authService.getCurrentUsername() ?? 'sstudent1';
-      final heads = await _schoolService.getSchoolFeeHeads();
+      // Kick off every independent request together instead of awaiting them
+      // one by one (this screen used to make ~9 sequential round-trips).
+      final roleFuture = _authService.getCurrentUserRole();
+      final usernameFuture = _authService.getCurrentUsername();
+      final headsFuture = _schoolService.getSchoolFeeHeads();
+
+      final role = await roleFuture ?? 'student';
+      final username = await usernameFuture ?? 'sstudent1';
+      final heads = await headsFuture;
 
       if (role == 'admin' || role == 'sadmin') {
-        final allSummaries = await _schoolService.getAllStudentFeeSummaries();
-        final defaulters = await _schoolService.getDefaultersWithAgeing();
-        final allReceipts = await _schoolService.getStudentReceipts('sstudent1');
+        final results = await Future.wait([
+          _schoolService.getAllStudentFeeSummaries(),
+          _schoolService.getDefaultersWithAgeing(),
+        ]);
 
         if (!mounted) return;
         setState(() {
           _userRole = role;
           _feeHeads = heads;
-          _allStudentSummaries = allSummaries;
-          _defaulterData = defaulters;
-          _receipts = allReceipts;
+          _allStudentSummaries = results[0] as List<Map<String, dynamic>>;
+          _defaulterData = results[1] as Map<String, dynamic>;
+          _receipts = const [];
           _isLoading = false;
         });
         return;
@@ -146,10 +153,19 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
         }
       }
 
-      final profile = await _schoolService.getSchoolStudentProfile(targetUser);
-      final schedule = await _schoolService.getMonthlyFeeSchedule(targetUser);
-      final summary = await _schoolService.getStudentFeeSummary(targetUser);
-      final receipts = await _schoolService.getStudentReceipts(targetUser);
+      // profile / schedule / receipts are independent → fetch concurrently.
+      final profileFuture =
+          _schoolService.getSchoolStudentProfile(targetUser);
+      final scheduleFuture =
+          _schoolService.getMonthlyFeeSchedule(targetUser);
+      final receiptsFuture = _schoolService.getStudentReceipts(targetUser);
+
+      final profile = await profileFuture;
+      final schedule = await scheduleFuture;
+      // Reuse the schedule we just fetched instead of running it again.
+      final summary = await _schoolService
+          .getStudentFeeSummary(targetUser, scheduleOverride: schedule);
+      final receipts = await receiptsFuture;
 
       if (!mounted) return;
       setState(() {
@@ -189,10 +205,17 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
     });
 
     try {
-      final profile = await _schoolService.getSchoolStudentProfile(targetUser);
-      final schedule = await _schoolService.getMonthlyFeeSchedule(targetUser);
-      final summary = await _schoolService.getStudentFeeSummary(targetUser);
-      final receipts = await _schoolService.getStudentReceipts(targetUser);
+      final profileFuture =
+          _schoolService.getSchoolStudentProfile(targetUser);
+      final scheduleFuture =
+          _schoolService.getMonthlyFeeSchedule(targetUser);
+      final receiptsFuture = _schoolService.getStudentReceipts(targetUser);
+
+      final profile = await profileFuture;
+      final schedule = await scheduleFuture;
+      final summary = await _schoolService
+          .getStudentFeeSummary(targetUser, scheduleOverride: schedule);
+      final receipts = await receiptsFuture;
 
       if (!mounted) return;
       setState(() {
@@ -758,6 +781,35 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not generate PDF: $e'), backgroundColor: const Color(0xFFDC2626)),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadAllReceipts() async {
+    try {
+      final ledger = _monthlySchedule.map((m) {
+        return {
+          'head': m['month_name'],
+          'amount': m['total_amount'],
+          'paid_amount': m['paid_amount'],
+          'status': m['status'],
+          'due_date': m['due_date'],
+        };
+      }).toList();
+
+      await FeeReceiptPdf.shareAll(
+        studentName: _studentName,
+        className: _studentClass,
+        admissionNo: _admissionNo,
+        studentUsername: _studentUsername,
+        ledger: ledger,
+        receipts: _receipts,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not generate receipts PDF: $e'), backgroundColor: const Color(0xFFDC2626)),
         );
       }
     }
@@ -1971,30 +2023,55 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.description_outlined, color: Color(0xFF059669), size: 24),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.description_outlined, color: Color(0xFF059669), size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Payment Receipts & Statement', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0F172A))),
+                        Text('Download every receipt or the full 12-month academic statement', style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('Consolidated Annual Statement', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0F172A))),
-                    Text('Full 12-month academic receipt statement with official verification', style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
-                  ],
-                ),
-              ),
-              OutlinedButton(
-                onPressed: () => _downloadReceipt(),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF0F172A)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text('Export PDF', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _receipts.isEmpty ? null : _downloadAllReceipts,
+                      icon: const Icon(Icons.download_rounded, size: 16),
+                      label: Text(_receipts.isEmpty ? 'No Receipts Yet' : 'Download All Receipts (${_receipts.length})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F172A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: () => _downloadReceipt(),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF0F172A)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Statement PDF', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                  ),
+                ],
               ),
             ],
           ),

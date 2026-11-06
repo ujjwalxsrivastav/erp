@@ -29,6 +29,36 @@ class AuthService {
 
   AuthService._internal();
 
+  // ── In-memory session cache ─────────────────────────────────────────────
+  // SharedPreferences is backed by disk/IndexedDB. Every isLoggedIn() /
+  // getCurrentUserRole() / getCurrentUsername() used to re-read it (and
+  // isLoggedIn() was called again from each getter). The router calls these on
+  // every navigation, so we verify the signature once per app run and serve
+  // the rest from memory.
+  static bool _sessionVerified = false;
+  static String? _cachedUsername;
+  static String? _cachedRole;
+  static String? _cachedInstituteType;
+  // Live role read from the `users` table. Every permission check used to
+  // re-query it, which added one round-trip to almost every screen load.
+  static final Map<String, String> _liveRoleCache = {};
+  static final Map<String, Future<String?>> _liveRoleInflight = {};
+
+  void _cacheSession(String username, String role, String instituteType) {
+    _sessionVerified = true;
+    _cachedUsername = username;
+    _cachedRole = role;
+    _cachedInstituteType = instituteType;
+  }
+
+  void _clearSessionCache() {
+    _sessionVerified = false;
+    _cachedUsername = null;
+    _cachedRole = null;
+    _cachedInstituteType = null;
+    _liveRoleCache.clear();
+  }
+
   /// Resolves the landing dashboard from the verified account role and
   /// institute type. Keep login, splash restore, and route-guard fallbacks in
   /// sync so legacy school roles cannot be sent to a college or admin portal.
@@ -409,6 +439,9 @@ class AuthService {
       await prefs.setInt(_keySessionTimestamp, timestamp);
       await prefs.setString(_keySessionSignature, signature);
 
+      // Serve subsequent role/username/institute lookups from memory.
+      _cacheSession(username, role, instituteType);
+
       // Update role guard with current user
       roleGuard.setCurrentUser(username, role);
 
@@ -421,6 +454,9 @@ class AuthService {
 
   /// Check if user is logged in (with signature verification)
   Future<bool> isLoggedIn() async {
+    // Fast path: already verified this app run — no disk/IndexedDB round-trip.
+    if (_sessionVerified) return true;
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final isLoggedIn = prefs.getBool(_keyIsLoggedIn) ?? false;
@@ -453,6 +489,11 @@ class AuthService {
         return false;
       }
 
+      _cacheSession(
+        username,
+        role,
+        prefs.getString(_keyInstituteType) ?? 'college',
+      );
       return true;
     } catch (e) {
       _secureLog('Error checking login status');
@@ -463,8 +504,10 @@ class AuthService {
   /// Get current user's role (from local session cache)
   Future<String?> getCurrentUserRole() async {
     try {
+      if (_sessionVerified) return _cachedRole;
       final isValid = await isLoggedIn();
       if (!isValid) return null;
+      if (_sessionVerified) return _cachedRole;
 
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(_keyRole);
@@ -476,34 +519,59 @@ class AuthService {
 
   /// Get verified user role directly from live `users` database table
   Future<String?> getLiveUserRole([String? username]) async {
-    try {
-      final uname = username ?? await getCurrentUsername();
-      if (uname == null || uname.isEmpty) return null;
+    final uname = username ?? await getCurrentUsername();
+    if (uname == null || uname.isEmpty) return null;
 
+    final cached = _liveRoleCache[uname];
+    if (cached != null) return cached;
+
+    final inflight = _liveRoleInflight[uname];
+    if (inflight != null) return inflight;
+
+    final future = _fetchLiveUserRole(uname);
+    _liveRoleInflight[uname] = future;
+    try {
+      return await future;
+    } finally {
+      _liveRoleInflight.remove(uname);
+    }
+  }
+
+  Future<String?> _fetchLiveUserRole(String uname) async {
+    try {
       final response = await _supabase
           .from('users')
           .select('role')
           .eq('username', uname)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 8));
 
       if (response != null && response['role'] != null) {
         final role = response['role'].toString().trim().toLowerCase();
+        _liveRoleCache[uname] = role;
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_keyRole, role);
+        if (_sessionVerified) _cachedRole = role;
         return role;
       }
     } catch (e) {
       _secureLog('Error fetching live user role: $e');
     }
     // Fallback to cached session if database query fails
-    return await getCurrentUserRole();
+    final fallback = await getCurrentUserRole();
+    if (fallback != null && fallback.isNotEmpty) {
+      _liveRoleCache[uname] = fallback;
+    }
+    return fallback;
   }
 
   /// Get current username
   Future<String?> getCurrentUsername() async {
     try {
+      if (_sessionVerified) return _cachedUsername;
       final isValid = await isLoggedIn();
       if (!isValid) return null;
+      if (_sessionVerified) return _cachedUsername;
 
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(_keyUsername);
@@ -516,6 +584,7 @@ class AuthService {
   /// Get current institute type
   Future<String?> getCurrentInstituteType() async {
     try {
+      if (_sessionVerified) return _cachedInstituteType ?? 'college';
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(_keyInstituteType) ?? 'college';
     } catch (e) {
@@ -525,6 +594,8 @@ class AuthService {
 
   /// Logout user and clear session
   Future<void> logout() async {
+    // Drop the in-memory session immediately, even if prefs cleanup fails.
+    _clearSessionCache();
     try {
       final username = roleGuard.currentUsername;
 

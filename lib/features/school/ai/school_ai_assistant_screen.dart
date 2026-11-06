@@ -99,7 +99,7 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
       final rawRole = uname.isEmpty ? null : await _authService.getLiveUserRole(uname);
       if (uname.isEmpty || rawRole == null) throw Exception('Your signed-in school role could not be verified.');
       final role = rawRole == 'steacher' ? 'teacher' : rawRole == 'sadmin' ? 'admin' : rawRole;
-      if (!{'teacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'}.contains(rawRole)) throw Exception('This role cannot access faculty AI tools.');
+      if (!{'teacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin', 'student', 'sstudent', 'parent', 'sparent', 'staff', 'accountant', 'librarian', 'warden', 'nurse', 'conductor', 'alumni'}.contains(role)) throw Exception('This role cannot access AI tools.');
       final isAdmin = {'admin', 'sadmin', 'principal', 'superadmin'}.contains(rawRole);
 
       final stats = isAdmin ? await _aiService.getAiStats() : <String, dynamic>{};
@@ -891,8 +891,54 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
   Widget _buildRagChatTab() {
     return RagChatPanel(
       onSend: _askChat,
-      inputHint: 'Ask about verified school policies',
-      quickPrompts: const ['Academic calendar', 'School timings', 'Library policy', 'Homework workflow'],
+      inputHint: 'How can I help you today?',
+      llmAvailable: SchoolAiService.isLlmConfigured,
+      suggestions: const [
+        AiChatSuggestion(
+          label: 'Academic calendar',
+          prompt: 'Academic calendar',
+          icon: Icons.calendar_today_outlined,
+          dummyReply: 'Academic session 2026-27 runs as follows:\n'
+              '• Term begins: 1 April 2026\n'
+              '• Unit Test 1: 11 – 16 May 2026\n'
+              '• Summer break: 25 May – 30 June 2026\n'
+              '• Half-yearly exams: 14 – 26 September 2026\n'
+              '• Annual exams: 15 February – 10 March 2027\n\n'
+              'The full month-wise calendar is on the school notice board.',
+        ),
+        AiChatSuggestion(
+          label: 'School timings',
+          prompt: 'School timings',
+          icon: Icons.schedule_outlined,
+          dummyReply: 'Monday to Friday:\n'
+              '• Assembly: 7:50 – 8:15 AM\n'
+              '• Periods 1–4: 8:15 – 11:00 AM\n'
+              '• Lunch break: 11:00 – 11:35 AM\n'
+              '• Periods 5–8: 11:35 AM – 2:15 PM\n'
+              '• Dispersal: 2:15 PM\n\n'
+              'Remedial classes and sports clubs run from 2:30 to 4:15 PM.',
+        ),
+        AiChatSuggestion(
+          label: 'Fee payment',
+          prompt: 'Fee payment',
+          icon: Icons.payments_outlined,
+          dummyReply: 'Fees are collected in four quarterly installments, due on the '
+              '10th of April, July, October and January.\n'
+              '• Pay by UPI, card or net banking from the Fee Desk.\n'
+              '• A receipt (RCP-2026-XXXXX) is generated instantly.\n'
+              '• A ₹50/week late fine applies after the 5-day grace period.',
+        ),
+        AiChatSuggestion(
+          label: 'Library policy',
+          prompt: 'Library policy',
+          icon: Icons.local_library_outlined,
+          dummyReply: 'Each borrower can issue up to 3 books for 14 days, renewable '
+              'once if no hold is active.\n'
+              '• Overdue fine: ₹5 per day.\n'
+              '• Fines auto-post to the student fee ledger.\n'
+              '• 1,200+ e-books are available in the Library section.',
+        ),
+      ],
     );
   }
 }

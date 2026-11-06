@@ -35,8 +35,24 @@ class SchoolAiService {
     return '';
   }
 
+  /// True when at least one LLM provider key is present in the environment.
+  static bool get isLlmConfigured =>
+      groqApiKey.isNotEmpty || geminiApiKey.isNotEmpty;
+
   static const int maxDailyCallsPerUser = 25;
   static final Map<String, int> _dailyUsageCount = {};
+  static final Set<String> _quotaSynced = {};
+
+  /// One shared client keeps the TCP/TLS connection alive between messages;
+  /// a fresh `http.post` call pays the handshake cost every time.
+  static final http.Client _http = http.Client();
+
+  /// Chat replies are short conversational answers, so the small fast model
+  /// (and a tight token budget) keeps the first response around a second.
+  /// Long-form drafting features still use the larger model.
+  static (String, int) _modelFor(String feature) => feature == 'rag_chat'
+      ? ('llama-3.1-8b-instant', 500)
+      : ('llama-3.3-70b-versatile', 1200);
 
   // ==========================================
   // 1. LLM CALLER WITH GROQ -> GEMINI -> INSTITUTIONAL RAG
@@ -55,15 +71,20 @@ class SchoolAiService {
     final quotaKey = '${username}_$today';
     int currentUsage = _dailyUsageCount[quotaKey] ?? 0;
 
-    try {
-      final res = await _supabase
-          .from('school_ai_usage_log')
-          .select('id')
-          .eq('user_username', username)
-          .gte('created_at', '${today}T00:00:00');
-      final dbCount = List.from(res).length;
-      if (dbCount > currentUsage) currentUsage = dbCount;
-    } catch (_) {}
+    // The database is only consulted once per user per day; afterwards the
+    // in-memory counter is authoritative, which removes a network round trip
+    // from every message in the conversation.
+    if (_quotaSynced.add(quotaKey)) {
+      try {
+        final res = await _supabase
+            .from('school_ai_usage_log')
+            .select('id')
+            .eq('user_username', username)
+            .gte('created_at', '${today}T00:00:00');
+        final dbCount = List.from(res).length;
+        if (dbCount > currentUsage) currentUsage = dbCount;
+      } catch (_) {}
+    }
 
     if (currentUsage >= maxDailyCallsPerUser) {
       throw SchoolAiException(
@@ -75,11 +96,12 @@ class SchoolAiService {
     String modelUsed = 'institutional-rag';
 
     // 2. Try Groq first via HTTP client
+    final (groqModel, maxTokens) = _modelFor(feature);
     if (groqApiKey.isNotEmpty) {
       try {
         final uri =
             Uri.parse('https://api.groq.com/openai/v1/chat/completions');
-        final response = await http
+        final response = await _http
             .post(
               uri,
               headers: {
@@ -87,23 +109,23 @@ class SchoolAiService {
                 'Content-Type': 'application/json',
               },
               body: jsonEncode({
-                'model': 'llama-3.3-70b-versatile',
+                'model': groqModel,
                 'messages': [
                   {'role': 'system', 'content': systemPrompt},
                   {'role': 'user', 'content': userPrompt},
                 ],
                 'temperature': 0.6,
-                'max_tokens': 1200,
+                'max_tokens': maxTokens,
               }),
             )
-            .timeout(const Duration(seconds: 12));
+            .timeout(const Duration(seconds: 8));
 
         if (response.statusCode == 200) {
           final parsed = jsonDecode(response.body) as Map<String, dynamic>;
           final choices = parsed['choices'] as List?;
           if (choices != null && choices.isNotEmpty) {
             result = choices[0]['message']['content']?.toString() ?? '';
-            modelUsed = 'groq/llama-3.3-70b-versatile';
+            modelUsed = 'groq/$groqModel';
           }
         }
       } catch (_) {}
@@ -113,8 +135,8 @@ class SchoolAiService {
     if (result.trim().isEmpty && geminiApiKey.isNotEmpty) {
       try {
         final uri = Uri.parse(
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$geminiApiKey');
-        final response = await http
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$geminiApiKey');
+        final response = await _http
             .post(
               uri,
               headers: {'Content-Type': 'application/json'},
@@ -128,11 +150,11 @@ class SchoolAiService {
                 ],
                 'generationConfig': {
                   'temperature': 0.6,
-                  'maxOutputTokens': 1200,
+                  'maxOutputTokens': maxTokens,
                 }
               }),
             )
-            .timeout(const Duration(seconds: 12));
+            .timeout(const Duration(seconds: 8));
 
         if (response.statusCode == 200) {
           final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -141,7 +163,7 @@ class SchoolAiService {
             final parts = candidates[0]['content']['parts'] as List?;
             if (parts != null && parts.isNotEmpty) {
               result = parts[0]['text']?.toString() ?? '';
-              modelUsed = 'gemini-1.5-flash';
+              modelUsed = 'gemini-2.5-flash';
             }
           }
         }

@@ -93,21 +93,47 @@ class _SchoolAttendanceScreenState extends State<SchoolAttendanceScreen> {
   }
 
   Future<void> _init() async {
-    final role = await _authService.getCurrentUserRole() ?? 'student';
-    final username = await _authService.getCurrentUsername();
-    if (username == null || username.isEmpty) {
+    final rawRole =
+        (await _authService.getCurrentUserRole() ?? 'student').toLowerCase().trim();
+    // School accounts may carry prefixed roles (`sstudent`, `sparent`, …).
+    final role = rawRole.startsWith('s') &&
+            (rawRole == 'sstudent' ||
+                rawRole == 'sparent' ||
+                rawRole == 'steacher' ||
+                rawRole == 'sadmin')
+        ? rawRole.substring(1)
+        : rawRole;
+    final signedInUsername = await _authService.getCurrentUsername();
+    if (signedInUsername == null || signedInUsername.isEmpty) {
       if (mounted)
         setState(() => _classesError =
             'Your session could not be verified. Please sign in again.');
       return;
     }
+
+    final isParent = role == 'parent';
+    final isStudent = role == 'student';
+
+    // Parents read the attendance of their linked child, never their own.
+    var username = signedInUsername;
+    if (isParent) {
+      try {
+        final children = await _schoolService.getParentChildren(signedInUsername);
+        if (children.isNotEmpty) {
+          username = children.first['username']?.toString() ?? signedInUsername;
+        }
+      } catch (_) {}
+    }
+
     if (!mounted) return;
     setState(() {
       _username = username;
-      _isStudent = role == 'student' || role == 'parent';
-      _isTeacher = role == 'teacher' || role == 'steacher';
-      _isAdmin = role == 'admin' || role == 'sadmin';
-      _isEditable = _isTeacher || _isAdmin;
+      _isStudent = isStudent || isParent;
+      _isTeacher = role == 'teacher' || role == 'class_teacher';
+      _isAdmin =
+          role == 'admin' || role == 'principal' || role == 'superadmin';
+      // Attendance is only editable by staff.
+      _isEditable = !_isStudent && (_isTeacher || _isAdmin);
     });
 
     if (_isStudent) {

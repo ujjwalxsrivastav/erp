@@ -101,7 +101,23 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     }
   }
 
+  /// Anyone may fail to load their own routine (no class assigned, network
+  /// hiccup, …). Without a guard the whole screen would sit on the spinner
+  /// forever, so failures surface as a message with a retry.
   Future<void> _init() async {
+    try {
+      await _loadRoleAndTimetable();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isRoleLoaded = true;
+        _isLoadingTimetable = false;
+        _timetableError = 'Could not load your timetable: $error';
+      });
+    }
+  }
+
+  Future<void> _loadRoleAndTimetable() async {
     final role = await _authService.getCurrentUserRole();
     if (!mounted) return;
 
@@ -148,7 +164,17 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
           });
         }
       }
-      _loadTimetableOnly();
+      if (_selectedClassId.isEmpty && _studentClassLabel.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _isLoadingTimetable = false;
+            _timetableError = 'Your class is not assigned yet. '
+                'Please contact the school office.';
+          });
+        }
+        return;
+      }
+      await _loadTimetableOnly();
       return;
     }
 
@@ -985,7 +1011,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                   style: const TextStyle(fontSize: 13, color: _muted)),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: _loadClassesAndTimetable,
+                onPressed: _reloadTimetable,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primary,
                   foregroundColor: Colors.white,

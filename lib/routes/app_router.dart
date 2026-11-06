@@ -154,7 +154,14 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/teacher-dashboard': _schoolStaffRoles,
   '/school/marks-entry': _schoolStaffRoles,
   '/school/marks/csv': _schoolStaffRoles,
-  '/school/attendance': _schoolStaffRoles,
+  // Students and parents open the same screen in a read-only self view.
+  '/school/attendance': {
+    ..._schoolStaffRoles,
+    'student',
+    'sstudent',
+    'parent',
+    'sparent',
+  },
   '/school/homework/add': _schoolStaffRoles,
   '/school/lesson-plans': _schoolStaffRoles,
   '/school/examination': _schoolStaffRoles,
@@ -171,6 +178,8 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
 
   // Shared / Multi-role (views adapt based on role)
   '/school/ai-tools': _allSchoolRoles,
+  '/school/ai-tools-faculty': _allSchoolRoles,
+  '/school/ai-student': _allSchoolRoles,
   '/school/chatbot': _allSchoolRoles,
   '/school/homework': _allSchoolRoles,
   '/school/leave': _allSchoolRoles,
@@ -508,6 +517,25 @@ final router = GoRouter(
         }
         return SchoolAiAssistantScreen(initialTab: initialTab);
       },
+    ),
+    GoRoute(
+      path: '/school/ai-tools-faculty',
+      builder: (context, state) {
+        final tabParam = state.uri.queryParameters['tab'];
+        int initialTab = 0;
+        if (tabParam == 'chatbot' || tabParam == '3') {
+          initialTab = 3;
+        } else if (tabParam == 'questions' || tabParam == '1') {
+          initialTab = 1;
+        } else if (tabParam == 'feedback' || tabParam == '2') {
+          initialTab = 2;
+        }
+        return SchoolAiAssistantScreen(initialTab: initialTab);
+      },
+    ),
+    GoRoute(
+      path: '/school/ai-student',
+      builder: (context, state) => const SchoolAiAssistantScreen(initialTab: 3),
     ),
     GoRoute(
       path: '/school/chatbot',

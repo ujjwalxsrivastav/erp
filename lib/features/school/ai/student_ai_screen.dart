@@ -57,8 +57,46 @@ class _StudentAiScreenState extends State<StudentAiScreen> {
             child: _username == null || _liveRole == null
                 ? Center(child: Text(_error ?? 'Verifying your account…'))
                 : RagChatPanel(
-                    inputHint: 'Ask about school information or your records',
-                    quickPrompts: const ['School timings', 'Academic calendar', 'My attendance', 'My homework'],
+                    inputHint: 'How can I help you today?',
+                    llmAvailable: SchoolAiService.isLlmConfigured,
+                    suggestions: const [
+                      AiChatSuggestion(
+                        label: 'School timings',
+                        prompt: 'School timings',
+                        icon: Icons.schedule_outlined,
+                        dummyReply: 'School runs Monday to Friday:\n'
+                            '• Assembly: 7:50 – 8:15 AM\n'
+                            '• Classes: 8:15 AM – 2:15 PM\n'
+                            '• Lunch break: 11:00 – 11:35 AM\n\n'
+                            'Clubs and remedial classes run after 2:30 PM.',
+                      ),
+                      AiChatSuggestion(
+                        label: 'Academic calendar',
+                        prompt: 'Academic calendar',
+                        icon: Icons.calendar_today_outlined,
+                        dummyReply: 'Key dates for this session:\n'
+                            '• Unit Test 1: 11 – 16 May 2026\n'
+                            '• Summer break: 25 May – 30 June 2026\n'
+                            '• Half-yearly exams: 14 – 26 September 2026\n'
+                            '• Annual exams: 15 February – 10 March 2027',
+                      ),
+                      AiChatSuggestion(
+                        label: 'My attendance',
+                        prompt: 'My attendance',
+                        icon: Icons.fact_check_outlined,
+                        dummyReply: 'Your attendance this term is 92% (demo data). Open '
+                            'the Attendance tab for the subject-wise breakdown and '
+                            'leave records.',
+                      ),
+                      AiChatSuggestion(
+                        label: 'My homework',
+                        prompt: 'My homework',
+                        icon: Icons.menu_book_outlined,
+                        dummyReply: 'You have 3 pending homework items (demo data). Open '
+                            'the Homework tab to see the questions, attachments and '
+                            'due dates.',
+                      ),
+                    ],
                     onSend: (question) => _ai.askRagAssistant(question: question, userRole: _liveRole == 'sstudent' ? 'student' : _liveRole!, username: _username!),
                   ),
           ),

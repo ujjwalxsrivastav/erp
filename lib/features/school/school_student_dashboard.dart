@@ -90,9 +90,13 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
 
     final username = await _authService.getCurrentUsername() ?? '';
 
+    // Start both reads together — settings and identity are independent.
+    final settingsFuture = _schoolService.getSchoolSettings();
+    final profileFuture = _schoolService.getSchoolStudentProfile(username);
+
     // 1. Dynamic institutional settings
     try {
-      final settings = await _schoolService.getSchoolSettings();
+      final settings = await settingsFuture;
       if (mounted) {
         setState(() {
           _schoolName = settings['school_name']?.toString() ?? 'Shivalik International School';
@@ -107,7 +111,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
     // 2. Identity from backend
     Map<String, dynamic>? profile;
     try {
-      profile = await _schoolService.getSchoolStudentProfile(username);
+      profile = await profileFuture;
     } catch (_) {}
 
     if (mounted) {
@@ -146,7 +150,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
       final trajectoryFuture = _schoolService.getStudentAttendanceTrajectory(username, days: 30);
       final marksTrendFuture = _schoolService.getStudentMarksTrend(username);
       final subjectPerfFuture = _schoolService.getStudentSubjectPerformance(username);
-      final hwCompletionFuture = _schoolService.getStudentHomeworkCompletion(username, classId: classId.isNotEmpty ? classId : null);
+      final hwCompletionFuture = _schoolService.getStudentHomeworkCompletion(username, classId: classId.isNotEmpty ? classId : null, className: className.isNotEmpty ? className : null);
       final goalsFuture = _schoolService.getStudentGoals(username);
       final leavesFuture = _schoolService.getStudentLeaves(studentId: username);
       final transportFuture = _schoolService.getStudentTransport(username);

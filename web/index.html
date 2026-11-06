@@ -19,11 +19,12 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
-  
-  <!-- Cache Control - Force fresh content -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
+
+  <!--
+    No no-cache meta tags here on purpose: they forced the whole ~6 MB Flutter
+    bundle to re-download on every visit. Static assets are content-hashed, so
+    normal browser caching is safe and much faster.
+  -->
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
