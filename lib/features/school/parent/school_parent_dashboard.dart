@@ -95,7 +95,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
         _parentName = username;
       }
 
-      final kids = await _schoolService.getParentChildren(username ?? _parentName);
+      final kids =
+          await _schoolService.getParentChildren(username ?? _parentName);
       _children = kids;
 
       if (_children.isNotEmpty) {
@@ -103,12 +104,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       }
 
       final circs = await _schoolService.getCirculars();
-      _circulars = circs.take(4).map((c) => {
-        'title': c['title']?.toString() ?? 'Notice',
-        'date': c['published_at']?.toString() ?? 'Recent',
-        'category': c['category']?.toString() ?? 'General',
-        'content': c['content']?.toString() ?? '',
-      }).toList();
+      _circulars = circs
+          .take(4)
+          .map((c) => {
+                'title': c['title']?.toString() ?? 'Notice',
+                'date': c['published_at']?.toString() ?? 'Recent',
+                'category': c['category']?.toString() ?? 'General',
+                'content': c['content']?.toString() ?? '',
+              })
+          .toList();
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -124,7 +128,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   }
 
   Future<void> _loadSelectedChildDetails(Map<String, dynamic> child) async {
-    final studentId = child['username']?.toString() ?? child['id']?.toString() ?? '';
+    final studentId =
+        child['username']?.toString() ?? child['id']?.toString() ?? '';
     final classId = child['class_id']?.toString() ?? '';
 
     final metrics = await _schoolService.getChildDashboardMetrics(
@@ -132,15 +137,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       classId: classId,
     );
     final att = await _schoolService.getParentChildAttendanceSummary(studentId);
-    final sch = await _schoolService.getParentChildScholasticReport(studentId: studentId, classId: classId);
+    final sch = await _schoolService.getParentChildScholasticReport(
+        studentId: studentId, classId: classId);
     final trans = await _schoolService.getParentChildTransportStatus(studentId);
     final ledger = await _schoolService.getParentChildFeeLedger(studentId);
-    final timetable = await _schoolService.getParentChildTodayTimetable(classId);
-    final infirmary = await _schoolService.getParentChildInfirmaryRecord(studentId);
-    final cafeteria = await _schoolService.getParentChildCafeteriaStatus(studentId);
+    final timetable =
+        await _schoolService.getParentChildTodayTimetable(classId);
+    final infirmary =
+        await _schoolService.getParentChildInfirmaryRecord(studentId);
+    final cafeteria =
+        await _schoolService.getParentChildCafeteriaStatus(studentId);
     final teachers = await _schoolService.getParentTeachersDirectory(classId);
     final leaves = await _schoolService.getStudentLeaves(studentId: studentId);
-    final ptms = await _schoolService.getPtmBookings(parentUsername: _parentName);
+    final ptms =
+        await _schoolService.getPtmBookings(parentUsername: _parentName);
     final gatePasses = await _schoolService.getGatePasses(studentId: studentId);
 
     final className = child['class_name']?.toString() ?? '';
@@ -151,8 +161,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       studentId: studentId,
       classId: classId,
     );
-    final attTraj = await _schoolService.getChildAttendanceTrajectory(studentId);
-    final examCd = await _schoolService.getChildUpcomingExamCountdown(className: className);
+    final attTraj =
+        await _schoolService.getChildAttendanceTrajectory(studentId);
+    final examCd = await _schoolService.getChildUpcomingExamCountdown(
+        className: className);
     final alerts = await _schoolService.getParentLiveAlerts(
       parentUsername: _parentName,
       studentId: studentId,
@@ -212,91 +224,123 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               : _children.isEmpty
                   ? _buildNoChildrenLinkedState()
                   : RefreshIndicator(
-                  color: _primary,
-                  onRefresh: _loadInitialData,
-                  child: CustomScrollView(
-                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                    slivers: [
-                      // 1. Sibling Switcher Bar
-                      if (_children.length > 1)
-                        SliverToBoxAdapter(child: _buildSiblingSwitcherBar()),
+                      color: _primary,
+                      onRefresh: _loadInitialData,
+                      child: CustomScrollView(
+                        physics: const BouncingScrollPhysics(
+                            parent: AlwaysScrollableScrollPhysics()),
+                        slivers: [
+                          // 1. Sibling Switcher Bar
+                          if (_children.length > 1)
+                            SliverToBoxAdapter(
+                                child: _buildSiblingSwitcherBar()),
 
-                      // 2. Active Child Identity Hero Badge
-                      SliverToBoxAdapter(child: _buildChildHeroBadge()),
+                          // 2. Active Child Identity Hero Badge
+                          SliverToBoxAdapter(child: _buildChildHeroBadge()),
 
-                      // 3. Morning Transport & Gate Live Status
-                      SliverToBoxAdapter(child: _buildSafetyPulseCard()),
+                          // 3. Morning Transport & Gate Live Status
+                          SliverToBoxAdapter(child: _buildSafetyPulseCard()),
 
-                      // 4. Sticky Segmented TabBar
-                      SliverPersistentHeader(
-                        pinned: true,
-                        delegate: _SliverTabHeaderDelegate(
-                          child: Container(
-                            color: _bg,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: _surface,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: _border),
-                              ),
-                              child: TabBar(
-                                controller: _tabController,
-                                isScrollable: true,
-                                tabAlignment: TabAlignment.start,
-                                labelColor: _primary,
-                                unselectedLabelColor: _muted,
-                                indicatorColor: _primary,
-                                indicatorWeight: 3,
-                                labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                                tabs: const [
-                                  Tab(icon: Icon(Icons.dashboard_rounded, size: 16), text: '1. Overview & Schedule'),
-                                  Tab(icon: Icon(Icons.school_rounded, size: 16), text: '2. CBSE Academics & HPC'),
-                                  Tab(icon: Icon(Icons.how_to_reg_rounded, size: 16), text: '3. Attendance & Leaves'),
-                                  Tab(icon: Icon(Icons.directions_bus_rounded, size: 16), text: '4. Bus Fleet & Gate Pass'),
-                                  Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 16), text: '5. Fee Ledger & Pay'),
-                                  Tab(icon: Icon(Icons.people_alt_rounded, size: 16), text: '6. Teachers & PTM'),
-                                  Tab(icon: Icon(Icons.health_and_safety_rounded, size: 16), text: '7. Health & Cafeteria'),
-                                ],
+                          // 4. Sticky Segmented TabBar
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _SliverTabHeaderDelegate(
+                              child: Container(
+                                color: _bg,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: _surface,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: _border),
+                                  ),
+                                  child: TabBar(
+                                    controller: _tabController,
+                                    isScrollable: true,
+                                    tabAlignment: TabAlignment.start,
+                                    labelColor: _primary,
+                                    unselectedLabelColor: _muted,
+                                    indicatorColor: _primary,
+                                    indicatorWeight: 3,
+                                    labelStyle: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13),
+                                    unselectedLabelStyle: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 13),
+                                    tabs: const [
+                                      Tab(
+                                          icon: Icon(Icons.dashboard_rounded,
+                                              size: 16),
+                                          text: '1. Overview & Schedule'),
+                                      Tab(
+                                          icon: Icon(Icons.school_rounded,
+                                              size: 16),
+                                          text: '2. CBSE Academics & HPC'),
+                                      Tab(
+                                          icon: Icon(Icons.how_to_reg_rounded,
+                                              size: 16),
+                                          text: '3. Attendance & Leaves'),
+                                      Tab(
+                                          icon: Icon(
+                                              Icons.directions_bus_rounded,
+                                              size: 16),
+                                          text: '4. Bus Fleet & Gate Pass'),
+                                      Tab(
+                                          icon: Icon(
+                                              Icons
+                                                  .account_balance_wallet_rounded,
+                                              size: 16),
+                                          text: '5. Fee Ledger & Pay'),
+                                      Tab(
+                                          icon: Icon(Icons.people_alt_rounded,
+                                              size: 16),
+                                          text: '6. Teachers & PTM'),
+                                      Tab(
+                                          icon: Icon(
+                                              Icons.health_and_safety_rounded,
+                                              size: 16),
+                                          text: '7. Health & Cafeteria'),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
 
-                      // 5. Active Tab Content
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-                        sliver: SliverToBoxAdapter(
-                          child: AnimatedBuilder(
-                            animation: _tabController,
-                            builder: (ctx, _) {
-                              switch (_tabController.index) {
-                                case 0:
-                                  return _buildOverviewTab();
-                                case 1:
-                                  return _buildAcademicsTab();
-                                case 2:
-                                  return _buildAttendanceTab();
-                                case 3:
-                                  return _buildTransportTab();
-                                case 4:
-                                  return _buildFeeLedgerTab();
-                                case 5:
-                                  return _buildTeachersTab();
-                                case 6:
-                                  return _buildHealthAndCafeteriaTab();
-                                default:
-                                  return _buildOverviewTab();
-                              }
-                            },
+                          // 5. Active Tab Content
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+                            sliver: SliverToBoxAdapter(
+                              child: AnimatedBuilder(
+                                animation: _tabController,
+                                builder: (ctx, _) {
+                                  switch (_tabController.index) {
+                                    case 0:
+                                      return _buildOverviewTab();
+                                    case 1:
+                                      return _buildAcademicsTab();
+                                    case 2:
+                                      return _buildAttendanceTab();
+                                    case 3:
+                                      return _buildTransportTab();
+                                    case 4:
+                                      return _buildFeeLedgerTab();
+                                    case 5:
+                                      return _buildTeachersTab();
+                                    case 6:
+                                      return _buildHealthAndCafeteriaTab();
+                                    default:
+                                      return _buildOverviewTab();
+                                  }
+                                },
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
     );
   }
 
@@ -330,7 +374,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               children: [
                 Text(
                   'Welcome, $_parentName',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700, color: _ink),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -360,7 +405,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               SizedBox(width: 4),
               Text(
                 'CBSE Affiliated',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _ink),
+                style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w700, color: _ink),
               ),
             ],
           ),
@@ -430,7 +476,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               borderRadius: BorderRadius.circular(12),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                 decoration: BoxDecoration(
                   color: isSelected ? _primary : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
@@ -457,7 +504,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
                           color: isSelected ? Colors.white : _ink,
                         ),
                       ),
@@ -482,13 +530,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     final className = child?['class_name']?.toString() ?? 'Class 10';
     final section = child?['section']?.toString() ?? 'A';
     final rollNo = child?['roll_no']?.toString() ?? '01';
-    final admissionNo = child?['admission_number']?.toString() ?? (child?['roll_number']?.toString() ?? '--');
+    final admissionNo = child?['admission_number']?.toString() ??
+        (child?['roll_number']?.toString() ?? '--');
     final house = child?['house']?.toString() ?? 'Tagore House (Red)';
-    final classTeacher = child?['class_teacher']?.toString() ?? 'Assigned Faculty';
+    final classTeacher =
+        child?['class_teacher']?.toString() ?? 'Assigned Faculty';
     final bloodGroup = child?['blood_group']?.toString() ?? 'B+';
 
     final isTagore = house.toLowerCase().contains('tagore');
-    final houseColor = isTagore ? const Color(0xFFDC2626) : const Color(0xFF2563EB);
+    final houseColor =
+        isTagore ? const Color(0xFFDC2626) : const Color(0xFF2563EB);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -549,11 +600,13 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: houseColor.withValues(alpha: 0.10),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: houseColor.withValues(alpha: 0.30)),
+                            border: Border.all(
+                                color: houseColor.withValues(alpha: 0.30)),
                           ),
                           child: Text(
                             house,
@@ -569,7 +622,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     const SizedBox(height: 3),
                     Text(
                       '$className-$section • Roll No: $rollNo • Adm: $admissionNo',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _muted),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _muted),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -590,13 +646,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             children: [
               _buildIdentityChip(
                 icon: Icons.check_circle_rounded,
-                label: _attendanceData['today_status']?.toString() ?? 'Not Marked Yet',
+                label: _attendanceData['today_status']?.toString() ??
+                    'Not Marked Yet',
                 color: _emerald,
                 bgColor: _emeraldSoft,
               ),
               _buildIdentityChip(
                 icon: Icons.directions_bus_rounded,
-                label: (_transportData['assigned'] == true) ? (_transportData['route_name']?.toString() ?? 'School Bus') : 'Self Commute',
+                label: (_transportData['assigned'] == true)
+                    ? (_transportData['route_name']?.toString() ?? 'School Bus')
+                    : 'Self Commute',
                 color: _blue,
                 bgColor: _blueSoft,
               ),
@@ -608,7 +667,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               ),
               _buildIdentityChip(
                 icon: Icons.credit_card_rounded,
-                label: 'Canteen Wallet: ₹${((_cafeteriaData['wallet_balance'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(0)}',
+                label:
+                    'Canteen Wallet: ₹${((_cafeteriaData['wallet_balance'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(0)}',
                 color: _amber,
                 bgColor: _amberSoft,
               ),
@@ -639,7 +699,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           const SizedBox(width: 5),
           Text(
             label,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w700, color: color),
           ),
         ],
       ),
@@ -657,8 +718,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     }
     final busNo = trans['bus_number']?.toString() ?? 'Assigned Bus';
     final pickup = trans['pickup_actual']?.toString() ?? 'Scheduled';
-    final campusDrop = trans['campus_drop_actual']?.toString() ?? 'Recorded at Gate';
-    final dropEta = trans['afternoon_drop_estimated']?.toString() ?? 'Afternoon';
+    final campusDrop =
+        trans['campus_drop_actual']?.toString() ?? 'Recorded at Gate';
+    final dropEta =
+        trans['afternoon_drop_estimated']?.toString() ?? 'Afternoon';
     final driverName = trans['driver_name']?.toString() ?? 'Assigned Driver';
     final driverPhone = trans['driver_phone']?.toString() ?? 'Transport Desk';
     final conductorName = trans['conductor_name']?.toString() ?? 'Conductor';
@@ -688,7 +751,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               const SizedBox(width: 8),
               const Text(
                 'Live Transit & Campus Safety Protocol',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink),
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: _ink),
               ),
               const Spacer(),
               Container(
@@ -701,7 +765,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   children: [
                     Icon(Icons.fiber_manual_record, size: 8, color: _emerald),
                     SizedBox(width: 4),
-                    Text('Zero Discrepancy', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald)),
+                    Text('Zero Discrepancy',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: _emerald)),
                   ],
                 ),
               ),
@@ -746,26 +814,35 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: _ink,
                   side: const BorderSide(color: _border),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   minimumSize: const Size(60, 30),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () => _showContactStaffModal(driverName, driverPhone, conductorName, conductorPhone),
+                onPressed: () => _showContactStaffModal(
+                    driverName, driverPhone, conductorName, conductorPhone),
                 icon: const Icon(Icons.call_rounded, size: 13, color: _primary),
-                label: const Text('Call Staff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                label: const Text('Call Staff',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   minimumSize: const Size(60, 30),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: _showRequestGatePassModal,
                 icon: const Icon(Icons.badge_rounded, size: 13),
-                label: const Text('Issue Gate Pass', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                label: const Text('Issue Gate Pass',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
@@ -788,7 +865,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           Row(
             children: [
               Icon(
-                isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                isDone
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
                 size: 13,
                 color: isDone ? _emerald : _muted,
               ),
@@ -804,8 +883,13 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             ],
           ),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _ink)),
-          Text(detail, style: const TextStyle(fontSize: 9, color: _muted), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600, color: _ink)),
+          Text(detail,
+              style: const TextStyle(fontSize: 9, color: _muted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
         ],
       ),
     );
@@ -817,13 +901,18 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showAttendanceDrillDownModal() {
     final att = _attendanceData;
-    final attPct = (_attendanceTrajectory['overall_pct'] as num?)?.toDouble() ?? 0.0;
+    final attPct =
+        (_attendanceTrajectory['overall_pct'] as num?)?.toDouble() ?? 0.0;
     final isRisk = _attendanceTrajectory['is_cbse_warning_active'] == true;
-    final workingDays = (_attendanceTrajectory['days_evaluated'] as num?)?.toInt() ?? 0;
-    final present = (_attendanceTrajectory['days_present'] as num?)?.toInt() ?? 0;
+    final workingDays =
+        (_attendanceTrajectory['days_evaluated'] as num?)?.toInt() ?? 0;
+    final present =
+        (_attendanceTrajectory['days_present'] as num?)?.toInt() ?? 0;
     final absent = (_attendanceTrajectory['days_absent'] as num?)?.toInt() ?? 0;
-    final lateCount = (_attendanceTrajectory['days_late'] as num?)?.toInt() ?? 0;
-    final excused = (_attendanceTrajectory['days_excused'] as num?)?.toInt() ?? 0;
+    final lateCount =
+        (_attendanceTrajectory['days_late'] as num?)?.toInt() ?? 0;
+    final excused =
+        (_attendanceTrajectory['days_excused'] as num?)?.toInt() ?? 0;
 
     showModalBottomSheet(
       context: context,
@@ -853,7 +942,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      isRisk ? Icons.warning_amber_rounded : Icons.verified_user_rounded,
+                      isRisk
+                          ? Icons.warning_amber_rounded
+                          : Icons.verified_user_rounded,
                       color: isRisk ? _rose : _emerald,
                       size: 20,
                     ),
@@ -865,7 +956,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       children: [
                         const Text(
                           'Attendance Detail & 30-Day Trajectory',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: _ink),
                         ),
                         Text(
                           'Student: ${_currentChild?['name'] ?? "Student"} (${_currentChild?['class_name'] ?? ""})',
@@ -899,39 +993,62 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('TODAY\'S STATUS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted)),
+                            const Text('TODAY\'S STATUS',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: _muted)),
                             const SizedBox(height: 3),
                             Text(
-                              att['today_status']?.toString() ?? 'Not Marked Yet',
+                              att['today_status']?.toString() ??
+                                  'Not Marked Yet',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w800,
-                                color: (att['today_status']?.toString().contains('Present') ?? false) ? _emerald : _ink,
+                                color: (att['today_status']
+                                            ?.toString()
+                                            .contains('Present') ??
+                                        false)
+                                    ? _emerald
+                                    : _ink,
                               ),
                             ),
                           ],
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: isRisk ? _roseSoft : _emeraldSoft,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             '${attPct.toStringAsFixed(1)}% OVERALL',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: isRisk ? _rose : _emerald),
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: isRisk ? _rose : _emerald),
                           ),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text('30-DAY ATTENDANCE TRAJECTORY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+                  const Text('30-DAY ATTENDANCE TRAJECTORY',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF94A3B8),
+                          letterSpacing: 0.6)),
                   const SizedBox(height: 4),
                   const Row(
                     children: [
                       Icon(Icons.remove, color: Color(0xFFDC2626), size: 14),
-                      Text(' Red Dashed Line: 75.0% CBSE Statutory Limit', style: TextStyle(fontSize: 10.5, color: Color(0xFFDC2626), fontWeight: FontWeight.w600)),
+                      Text(' Red Dashed Line: 75.0% CBSE Statutory Limit',
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.w600)),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -947,13 +1064,21 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: _buildMiniStat('Working Days', '$workingDays', _ink, const Color(0xFFF1F5F9))),
+                      Expanded(
+                          child: _buildMiniStat('Working Days', '$workingDays',
+                              _ink, const Color(0xFFF1F5F9))),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildMiniStat('Present', '$present', _emerald, _emeraldSoft)),
+                      Expanded(
+                          child: _buildMiniStat(
+                              'Present', '$present', _emerald, _emeraldSoft)),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildMiniStat('Absent', '$absent', _rose, _roseSoft)),
+                      Expanded(
+                          child: _buildMiniStat(
+                              'Absent', '$absent', _rose, _roseSoft)),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildMiniStat('Late / Excused', '${lateCount + excused}', _amber, _amberSoft)),
+                      Expanded(
+                          child: _buildMiniStat('Late / Excused',
+                              '${lateCount + excused}', _amber, _amberSoft)),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -968,7 +1093,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       elevation: 0,
                     ),
                   ),
@@ -982,12 +1108,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   }
 
   Widget _buildAttendanceTrajectoryChart() {
-    final points = (_attendanceTrajectory['daily_points'] as List<dynamic>?) ?? [];
+    final points =
+        (_attendanceTrajectory['daily_points'] as List<dynamic>?) ?? [];
     if (points.isEmpty) {
       return Container(
         height: 130,
         alignment: Alignment.center,
-        child: const Text('No attendance records logged in the past 30 days', style: TextStyle(color: _muted, fontSize: 12)),
+        child: const Text('No attendance records logged in the past 30 days',
+            style: TextStyle(color: _muted, fontSize: 12)),
       );
     }
 
@@ -1009,7 +1137,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             horizontalInterval: 25,
             getDrawingHorizontalLine: (v) {
               if (v == 75) {
-                return const FlLine(color: Color(0xFFDC2626), strokeWidth: 1.5, dashArray: [4, 4]);
+                return const FlLine(
+                    color: Color(0xFFDC2626),
+                    strokeWidth: 1.5,
+                    dashArray: [4, 4]);
               }
               return const FlLine(color: Color(0xFFE2E8F0), strokeWidth: 0.8);
             },
@@ -1020,7 +1151,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 showTitles: true,
                 reservedSize: 30,
                 interval: 25,
-                getTitlesWidget: (v, m) => Text('${v.toInt()}%', style: const TextStyle(fontSize: 8.5, color: _muted)),
+                getTitlesWidget: (v, m) => Text('${v.toInt()}%',
+                    style: const TextStyle(fontSize: 8.5, color: _muted)),
               ),
             ),
             bottomTitles: AxisTitles(
@@ -1033,14 +1165,18 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   if (idx >= 0 && idx < points.length) {
                     final d = points[idx]['date']?.toString() ?? '';
                     final parts = d.split('-');
-                    return Text(parts.length >= 3 ? '${parts[1]}/${parts[2]}' : '', style: const TextStyle(fontSize: 8, color: _muted));
+                    return Text(
+                        parts.length >= 3 ? '${parts[1]}/${parts[2]}' : '',
+                        style: const TextStyle(fontSize: 8, color: _muted));
                   }
                   return const SizedBox.shrink();
                 },
               ),
             ),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
           borderData: FlBorderData(show: false),
           lineBarsData: [
@@ -1052,7 +1188,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               barWidth: 2.2,
               dotData: FlDotData(
                 show: points.length < 15,
-                getDotPainter: (s, p, b, i) => FlDotCirclePainter(radius: 2.5, color: _emerald, strokeWidth: 1, strokeColor: Colors.white),
+                getDotPainter: (s, p, b, i) => FlDotCirclePainter(
+                    radius: 2.5,
+                    color: _emerald,
+                    strokeWidth: 1,
+                    strokeColor: Colors.white),
               ),
               belowBarData: BarAreaData(
                 show: true,
@@ -1066,12 +1206,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((spot) {
                   final idx = spot.spotIndex;
-                  final pt = (idx >= 0 && idx < points.length) ? points[idx] : null;
+                  final pt =
+                      (idx >= 0 && idx < points.length) ? points[idx] : null;
                   final date = pt?['date'] ?? '';
                   final status = pt?['status'] ?? '';
                   return LineTooltipItem(
                     '$date\nStatus: ${status.toString().toUpperCase()}',
-                    const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold),
                   );
                 }).toList();
               },
@@ -1091,9 +1235,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       ),
       child: Column(
         children: [
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: color)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w900, color: color)),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 10, color: _muted, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10, color: _muted, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center),
         ],
       ),
     );
@@ -1129,16 +1278,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: _amberSoft, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.account_balance_wallet_rounded, color: _amber, size: 20),
+                    decoration: BoxDecoration(
+                        color: _amberSoft,
+                        borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.account_balance_wallet_rounded,
+                        color: _amber, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Fee Ledger & Statutory Schedule', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                        Text('Student: ${_currentChild?['name'] ?? "Student"} • Due by 5th of every month', style: const TextStyle(fontSize: 12, color: _muted)),
+                        const Text('Fee Ledger & Statutory Schedule',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: _ink)),
+                        Text(
+                            'Student: ${_currentChild?['name'] ?? "Student"} • Due by 5th of every month',
+                            style:
+                                const TextStyle(fontSize: 12, color: _muted)),
                       ],
                     ),
                   ),
@@ -1159,13 +1318,24 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: _border)),
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _border)),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('TOTAL SESSION DUES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted)),
+                              const Text('TOTAL SESSION DUES',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: _muted)),
                               const SizedBox(height: 4),
-                              Text('₹${totalAnnual.toInt()}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _ink)),
+                              Text('₹${totalAnnual.toInt()}',
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: _ink)),
                             ],
                           ),
                         ),
@@ -1174,13 +1344,23 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(color: _emeraldSoft, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(
+                              color: _emeraldSoft,
+                              borderRadius: BorderRadius.circular(12)),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('PAID & RECONCILED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald)),
+                              const Text('PAID & RECONCILED',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: _emerald)),
                               const SizedBox(height: 4),
-                              Text('₹${totalPaid.toInt()}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _emerald)),
+                              Text('₹${totalPaid.toInt()}',
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: _emerald)),
                             ],
                           ),
                         ),
@@ -1189,13 +1369,28 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(color: pendingAmount > 0 ? _amberSoft : _emeraldSoft, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(
+                              color:
+                                  pendingAmount > 0 ? _amberSoft : _emeraldSoft,
+                              borderRadius: BorderRadius.circular(12)),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(pendingAmount > 0 ? 'PENDING' : 'CLEARED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: pendingAmount > 0 ? _amber : _emerald)),
+                              Text(pendingAmount > 0 ? 'PENDING' : 'CLEARED',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: pendingAmount > 0
+                                          ? _amber
+                                          : _emerald)),
                               const SizedBox(height: 4),
-                              Text('₹${pendingAmount.toInt()}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: pendingAmount > 0 ? _amber : _emerald)),
+                              Text('₹${pendingAmount.toInt()}',
+                                  style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: pendingAmount > 0
+                                          ? _amber
+                                          : _emerald)),
                             ],
                           ),
                         ),
@@ -1203,14 +1398,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     ],
                   ),
                   const SizedBox(height: 20),
-                  const Text('ITEMIZED STATUTORY FEE HEADS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+                  const Text('ITEMIZED STATUTORY FEE HEADS',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF94A3B8),
+                          letterSpacing: 0.6)),
                   const SizedBox(height: 10),
                   ...heads.map((h) {
                     final name = h['head'] ?? 'Fee Head';
                     final ann = (h['annual'] as num?)?.toDouble() ?? 0.0;
                     return Container(
                       margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: _surface,
                         borderRadius: BorderRadius.circular(10),
@@ -1219,8 +1420,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
-                          Text('₹${ann.toInt()} / yr', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _ink)),
+                          Text(name,
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: _ink)),
+                          Text('₹${ann.toInt()} / yr',
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: _ink)),
                         ],
                       ),
                     );
@@ -1232,14 +1441,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         child: OutlinedButton(
                           onPressed: () {
                             Navigator.pop(ctx);
-                            final sId = _currentChild?['username']?.toString() ?? _currentChild?['id']?.toString() ?? '';
-                            context.go(sId.isNotEmpty ? '/school/fees?studentId=$sId' : '/school/fees');
+                            final sId =
+                                _currentChild?['username']?.toString() ??
+                                    _currentChild?['id']?.toString() ??
+                                    '';
+                            context.go(sId.isNotEmpty
+                                ? '/school/fees?studentId=$sId'
+                                : '/school/fees');
                           },
                           style: OutlinedButton.styleFrom(
                             foregroundColor: _ink,
                             side: const BorderSide(color: _border),
                             padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                           child: const Text('Full Fee Portal'),
                         ),
@@ -1256,10 +1471,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                               backgroundColor: _primary,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
                               elevation: 0,
                             ),
-                            child: const Text('Pay Dues Online', style: TextStyle(fontWeight: FontWeight.bold)),
+                            child: const Text('Pay Dues Online',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -1298,16 +1515,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: _roseSoft, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.assignment_rounded, color: _rose, size: 20),
+                    decoration: BoxDecoration(
+                        color: _roseSoft,
+                        borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.assignment_rounded,
+                        color: _rose, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Homework Diary & Tasks Register', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                        Text('Student: ${_currentChild?['name'] ?? "Student"} (${_currentChild?['class_name'] ?? ""})', style: const TextStyle(fontSize: 12, color: _muted)),
+                        const Text('Homework Diary & Tasks Register',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: _ink)),
+                        Text(
+                            'Student: ${_currentChild?['name'] ?? "Student"} (${_currentChild?['class_name'] ?? ""})',
+                            style:
+                                const TextStyle(fontSize: 12, color: _muted)),
                       ],
                     ),
                   ),
@@ -1324,7 +1551,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   ? const Padding(
                       padding: EdgeInsets.all(40),
                       child: Center(
-                        child: Text('No homework records assigned for this class cohort yet.', style: TextStyle(color: _muted)),
+                        child: Text(
+                            'No homework records assigned for this class cohort yet.',
+                            style: TextStyle(color: _muted)),
                       ),
                     )
                   : ListView.separated(
@@ -1337,10 +1566,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         final subj = hw['subject']?.toString() ?? 'General';
                         final due = hw['due_date']?.toString() ?? '';
                         final desc = hw['description']?.toString() ?? '';
-                        final status = (hw['status']?.toString() ?? 'pending').toLowerCase();
+                        final status = (hw['status']?.toString() ?? 'pending')
+                            .toLowerCase();
                         final isSubmitted = status == 'submitted';
                         final isOverdue = status == 'overdue';
-                        final teacher = hw['teacher_username']?.toString() ?? 'Faculty';
+                        final teacher =
+                            hw['teacher_username']?.toString() ?? 'Faculty';
                         final feedback = hw['teacher_feedback']?.toString();
 
                         return Container(
@@ -1354,45 +1585,69 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
                                       color: _primarySoft,
                                       borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: Text(subj, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _primary)),
+                                    child: Text(subj,
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: _primary)),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: isSubmitted ? _emeraldSoft : (isOverdue ? _roseSoft : _amberSoft),
+                                      color: isSubmitted
+                                          ? _emeraldSoft
+                                          : (isOverdue
+                                              ? _roseSoft
+                                              : _amberSoft),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
-                                      isSubmitted ? 'SUBMITTED' : (isOverdue ? 'OVERDUE' : 'PENDING'),
+                                      isSubmitted
+                                          ? 'SUBMITTED'
+                                          : (isOverdue ? 'OVERDUE' : 'PENDING'),
                                       style: TextStyle(
                                         fontSize: 10.5,
                                         fontWeight: FontWeight.w800,
-                                        color: isSubmitted ? _emerald : (isOverdue ? _rose : _amber),
+                                        color: isSubmitted
+                                            ? _emerald
+                                            : (isOverdue ? _rose : _amber),
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: _ink)),
+                              Text(title,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: _ink)),
                               if (desc.isNotEmpty) ...[
                                 const SizedBox(height: 4),
-                                Text(desc, style: const TextStyle(fontSize: 12.5, color: _muted)),
+                                Text(desc,
+                                    style: const TextStyle(
+                                        fontSize: 12.5, color: _muted)),
                               ],
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(Icons.schedule, size: 13, color: _muted),
+                                  const Icon(Icons.schedule,
+                                      size: 13, color: _muted),
                                   const SizedBox(width: 4),
-                                  Text('Due: $due • Teacher: $teacher', style: const TextStyle(fontSize: 11, color: _muted)),
+                                  Text('Due: $due • Teacher: $teacher',
+                                      style: const TextStyle(
+                                          fontSize: 11, color: _muted)),
                                 ],
                               ),
                               if (feedback != null && feedback.isNotEmpty) ...[
@@ -1405,12 +1660,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                   ),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.rate_review_outlined, size: 14, color: _emerald),
+                                      const Icon(Icons.rate_review_outlined,
+                                          size: 14, color: _emerald),
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: Text(
                                           'Teacher Feedback: $feedback',
-                                          style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: _ink),
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              fontStyle: FontStyle.italic,
+                                              color: _ink),
                                         ),
                                       ),
                                     ],
@@ -1439,7 +1698,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     foregroundColor: _ink,
                     side: const BorderSide(color: _border),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
               ),
@@ -1470,24 +1730,30 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   color: _roseSoft,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.notifications_active_rounded, color: _rose, size: 16),
+                child: const Icon(Icons.notifications_active_rounded,
+                    color: _rose, size: 16),
               ),
               const SizedBox(width: 8),
               const Text(
                 'Live Student & Safety Alerts',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
               ),
               const Spacer(),
               if (_liveAlerts.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: _roseSoft,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     '${_liveAlerts.length} Active',
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _rose),
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: _rose),
                   ),
                 ),
             ],
@@ -1503,12 +1769,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.verified_user_rounded, color: _emerald, size: 18),
+                  const Icon(Icons.verified_user_rounded,
+                      color: _emerald, size: 18),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'All clear: No critical student alerts or attendance flags for ${_currentChild?['name'] ?? "your child"} today.',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _emerald),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _emerald),
                     ),
                   ),
                 ],
@@ -1562,7 +1832,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     children: [
                       Container(
                         padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(
+                            color: bg, borderRadius: BorderRadius.circular(8)),
                         child: Icon(icon, color: color, size: 16),
                       ),
                       const SizedBox(width: 10),
@@ -1570,13 +1841,22 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: _ink)),
+                            Text(title,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                    color: _ink)),
                             const SizedBox(height: 2),
-                            Text(body, style: const TextStyle(fontSize: 11, color: _muted), maxLines: 2, overflow: TextOverflow.ellipsis),
+                            Text(body,
+                                style: const TextStyle(
+                                    fontSize: 11, color: _muted),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis),
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right_rounded, size: 18, color: _muted),
+                      const Icon(Icons.chevron_right_rounded,
+                          size: 18, color: _muted),
                     ],
                   ),
                 ),
@@ -1610,18 +1890,24 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       color: _primarySoft,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.forum_rounded, color: _primary, size: 16),
+                    child: const Icon(Icons.forum_rounded,
+                        color: _primary, size: 16),
                   ),
                   const SizedBox(width: 8),
                   const Text(
                     'Messages & Teacher Broadcasts',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ],
               ),
               TextButton(
                 onPressed: _showMessagesInboxModal,
-                child: const Text('View All Inbox', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _primary)),
+                child: const Text('View All Inbox',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _primary)),
               ),
             ],
           ),
@@ -1630,7 +1916,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Center(
-                child: Text('No active messages or teacher broadcasts for this class cohort.', style: TextStyle(color: _muted, fontSize: 12)),
+                child: Text(
+                    'No active messages or teacher broadcasts for this class cohort.',
+                    style: TextStyle(color: _muted, fontSize: 12)),
               ),
             )
           else
@@ -1656,11 +1944,19 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     children: [
                       CircleAvatar(
                         radius: 14,
-                        backgroundColor: isTeacher ? _emeraldSoft : (isClass ? _blueSoft : _primarySoft),
+                        backgroundColor: isTeacher
+                            ? _emeraldSoft
+                            : (isClass ? _blueSoft : _primarySoft),
                         child: Icon(
-                          isTeacher ? Icons.person_rounded : (isClass ? Icons.campaign_rounded : Icons.article_rounded),
+                          isTeacher
+                              ? Icons.person_rounded
+                              : (isClass
+                                  ? Icons.campaign_rounded
+                                  : Icons.article_rounded),
                           size: 14,
-                          color: isTeacher ? _emerald : (isClass ? _blue : _primary),
+                          color: isTeacher
+                              ? _emerald
+                              : (isClass ? _blue : _primary),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -1671,18 +1967,35 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(sender, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: _ink)),
+                                Text(sender,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                        color: _ink)),
                                 Text(
-                                  isTeacher ? '1:1 Thread' : (isClass ? 'Class Notice' : 'Circular'),
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: isTeacher ? _emerald : _muted),
+                                  isTeacher
+                                      ? '1:1 Thread'
+                                      : (isClass ? 'Class Notice' : 'Circular'),
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: isTeacher ? _emerald : _muted),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 2),
-                            Text(subj, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _ink)),
+                            Text(subj,
+                                style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: _ink)),
                             if (body.isNotEmpty) ...[
                               const SizedBox(height: 1),
-                              Text(body, style: const TextStyle(fontSize: 11, color: _muted), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              Text(body,
+                                  style: const TextStyle(
+                                      fontSize: 11, color: _muted),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
                             ],
                           ],
                         ),
@@ -1721,16 +2034,25 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: _roseSoft, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.notifications_active_rounded, color: _rose, size: 20),
+                    decoration: BoxDecoration(
+                        color: _roseSoft,
+                        borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.notifications_active_rounded,
+                        color: _rose, size: 20),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Live Student & Safety Alerts', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                        Text('Real dynamic updates derived from school registers', style: TextStyle(fontSize: 12, color: _muted)),
+                        Text('Live Student & Safety Alerts',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: _ink)),
+                        Text(
+                            'Real dynamic updates derived from school registers',
+                            style: TextStyle(fontSize: 12, color: _muted)),
                       ],
                     ),
                   ),
@@ -1747,7 +2069,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   ? const Padding(
                       padding: EdgeInsets.all(40),
                       child: Center(
-                        child: Text('All clear: No critical student alerts or attendance flags.', style: TextStyle(color: _muted)),
+                        child: Text(
+                            'All clear: No critical student alerts or attendance flags.',
+                            style: TextStyle(color: _muted)),
                       ),
                     )
                   : ListView.separated(
@@ -1770,9 +2094,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: _ink)),
+                              Text(title,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                      color: _ink)),
                               const SizedBox(height: 4),
-                              Text(body, style: const TextStyle(fontSize: 12, color: _muted)),
+                              Text(body,
+                                  style: const TextStyle(
+                                      fontSize: 12, color: _muted)),
                               if (route.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 Align(
@@ -1782,7 +2112,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                       Navigator.pop(ctx);
                                       context.go(route);
                                     },
-                                    child: const Text('Open Module', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _primary)),
+                                    child: const Text('Open Module',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: _primary)),
                                   ),
                                 ),
                               ],
@@ -1823,16 +2157,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.forum_rounded, color: _primary, size: 20),
+                      decoration: BoxDecoration(
+                          color: _primarySoft,
+                          borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.forum_rounded,
+                          color: _primary, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Parent Communication Inbox', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                          Text('Student: ${_currentChild?['name'] ?? "Child"} (${_currentChild?['class_name'] ?? ""})', style: const TextStyle(fontSize: 12, color: _muted)),
+                          const Text('Parent Communication Inbox',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: _ink)),
+                          Text(
+                              'Student: ${_currentChild?['name'] ?? "Child"} (${_currentChild?['class_name'] ?? ""})',
+                              style:
+                                  const TextStyle(fontSize: 12, color: _muted)),
                         ],
                       ),
                     ),
@@ -1849,8 +2193,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 indicatorColor: _primary,
                 indicatorSize: TabBarIndicatorSize.tab,
                 tabs: [
-                  Tab(icon: Icon(Icons.campaign_outlined, size: 16), text: 'Broadcasts & Notices'),
-                  Tab(icon: Icon(Icons.chat_bubble_outline_rounded, size: 16), text: '1:1 Teacher Threads'),
+                  Tab(
+                      icon: Icon(Icons.campaign_outlined, size: 16),
+                      text: 'Broadcasts & Notices'),
+                  Tab(
+                      icon: Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                      text: '1:1 Teacher Threads'),
                 ],
               ),
               const Divider(height: 1, color: _border),
@@ -1862,16 +2210,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         ? const Center(
                             child: Padding(
                               padding: EdgeInsets.all(40),
-                              child: Text('No announcements or circulars received yet.', style: TextStyle(color: _muted)),
+                              child: Text(
+                                  'No announcements or circulars received yet.',
+                                  style: TextStyle(color: _muted)),
                             ),
                           )
                         : ListView.separated(
                             padding: const EdgeInsets.all(16),
                             itemCount: _messagesInbox.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
                             itemBuilder: (c, i) {
                               final m = _messagesInbox[i];
-                              final sender = m['sender']?.toString() ?? 'Faculty';
+                              final sender =
+                                  m['sender']?.toString() ?? 'Faculty';
                               final subj = m['subject']?.toString() ?? 'Notice';
                               final body = m['body']?.toString() ?? '';
                               final src = m['source']?.toString() ?? 'School';
@@ -1888,23 +2240,48 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(6)),
-                                          child: Text(src, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: _primary)),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                              color: _primarySoft,
+                                              borderRadius:
+                                                  BorderRadius.circular(6)),
+                                          child: Text(src,
+                                              style: const TextStyle(
+                                                  fontSize: 10.5,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: _primary)),
                                         ),
                                         if (dt.isNotEmpty)
-                                          Text(dt.contains('T') ? dt.split('T')[0] : dt, style: const TextStyle(fontSize: 11, color: _muted)),
+                                          Text(
+                                              dt.contains('T')
+                                                  ? dt.split('T')[0]
+                                                  : dt,
+                                              style: const TextStyle(
+                                                  fontSize: 11, color: _muted)),
                                       ],
                                     ),
                                     const SizedBox(height: 8),
-                                    Text(subj, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: _ink)),
+                                    Text(subj,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13.5,
+                                            color: _ink)),
                                     const SizedBox(height: 4),
-                                    Text(body, style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155))),
+                                    Text(body,
+                                        style: const TextStyle(
+                                            fontSize: 12.5,
+                                            color: Color(0xFF334155))),
                                     const SizedBox(height: 6),
-                                    Text('From: $sender', style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: _muted)),
+                                    Text('From: $sender',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontStyle: FontStyle.italic,
+                                            color: _muted)),
                                   ],
                                 ),
                               );
@@ -1928,20 +2305,27 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                 const CircleAvatar(
                                   radius: 20,
                                   backgroundColor: _primarySoft,
-                                  child: Icon(Icons.school_rounded, color: _primary, size: 20),
+                                  child: Icon(Icons.school_rounded,
+                                      color: _primary, size: 20),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        _currentChild?['class_teacher'] ?? 'Class Teacher',
-                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: _ink),
+                                        _currentChild?['class_teacher'] ??
+                                            'Class Teacher',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14,
+                                            color: _ink),
                                       ),
                                       Text(
                                         'Class Mentor • ${_currentChild?['class_name'] ?? ""} ${_currentChild?['section'] ?? ""}',
-                                        style: const TextStyle(fontSize: 11, color: _muted),
+                                        style: const TextStyle(
+                                            fontSize: 11, color: _muted),
                                       ),
                                     ],
                                   ),
@@ -1954,12 +2338,19 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: _primary,
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
                                     elevation: 0,
                                   ),
-                                  icon: const Icon(Icons.send_rounded, size: 14),
-                                  label: const Text('Send Message', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                  icon:
+                                      const Icon(Icons.send_rounded, size: 14),
+                                  label: const Text('Send Message',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold)),
                                 ),
                               ],
                             ),
@@ -1969,30 +2360,43 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                             child: FutureBuilder<List<Map<String, dynamic>>>(
                               future: _schoolService.getParentTeacherThread(
                                 parentUsername: _parentName,
-                                studentId: _currentChild?['username']?.toString() ?? _currentChild?['id']?.toString() ?? '',
-                                teacherId: _currentChild?['class_teacher_id']?.toString() ?? 'classteacher',
+                                studentId:
+                                    _currentChild?['username']?.toString() ??
+                                        _currentChild?['id']?.toString() ??
+                                        '',
+                                teacherId: _currentChild?['class_teacher_id']
+                                        ?.toString() ??
+                                    'classteacher',
                               ),
                               builder: (c, snap) {
-                                if (snap.connectionState == ConnectionState.waiting) {
-                                  return const Center(child: CircularProgressIndicator());
+                                if (snap.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Center(
+                                      child: CircularProgressIndicator());
                                 }
                                 final threads = snap.data ?? [];
                                 if (threads.isEmpty) {
                                   return Center(
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
-                                        Icon(Icons.mark_chat_unread_outlined, size: 40, color: _muted.withValues(alpha: 0.4)),
+                                        Icon(Icons.mark_chat_unread_outlined,
+                                            size: 40,
+                                            color:
+                                                _muted.withValues(alpha: 0.4)),
                                         const SizedBox(height: 10),
                                         Text(
                                           'No direct messages exchanged with ${_currentChild?['class_teacher'] ?? "the teacher"} yet.',
-                                          style: const TextStyle(color: _muted, fontSize: 12),
+                                          style: const TextStyle(
+                                              color: _muted, fontSize: 12),
                                           textAlign: TextAlign.center,
                                         ),
                                         const SizedBox(height: 6),
                                         const Text(
                                           'Tap "Send Message" above to initiate a direct query.',
-                                          style: TextStyle(color: _muted, fontSize: 11),
+                                          style: TextStyle(
+                                              color: _muted, fontSize: 11),
                                         ),
                                       ],
                                     ),
@@ -2001,34 +2405,65 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
                                 return ListView.separated(
                                   itemCount: threads.length,
-                                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 8),
                                   itemBuilder: (c, idx) {
                                     final th = threads[idx];
-                                    final isParent = th['sender_role'] == 'parent';
+                                    final isParent =
+                                        th['sender_role'] == 'parent';
                                     final b = th['body']?.toString() ?? '';
                                     final sub = th['subject']?.toString() ?? '';
-                                    final time = th['created_at']?.toString() ?? '';
+                                    final time =
+                                        th['created_at']?.toString() ?? '';
 
                                     return Align(
-                                      alignment: isParent ? Alignment.centerRight : Alignment.centerLeft,
+                                      alignment: isParent
+                                          ? Alignment.centerRight
+                                          : Alignment.centerLeft,
                                       child: Container(
-                                        constraints: const BoxConstraints(maxWidth: 320),
+                                        constraints:
+                                            const BoxConstraints(maxWidth: 320),
                                         padding: const EdgeInsets.all(12),
                                         decoration: BoxDecoration(
-                                          color: isParent ? _primarySoft : const Color(0xFFF1F5F9),
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: isParent ? _primary.withValues(alpha: 0.25) : _border),
+                                          color: isParent
+                                              ? _primarySoft
+                                              : const Color(0xFFF1F5F9),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          border: Border.all(
+                                              color: isParent
+                                                  ? _primary.withValues(
+                                                      alpha: 0.25)
+                                                  : _border),
                                         ),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             if (sub.isNotEmpty)
-                                              Text(sub, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isParent ? _primary : _ink)),
-                                            Text(b, style: const TextStyle(fontSize: 12.5, color: _ink)),
+                                              Text(sub,
+                                                  style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 12,
+                                                      color: isParent
+                                                          ? _primary
+                                                          : _ink)),
+                                            Text(b,
+                                                style: const TextStyle(
+                                                    fontSize: 12.5,
+                                                    color: _ink)),
                                             const SizedBox(height: 4),
                                             Text(
-                                              time.contains('T') ? time.split('T')[0] : time,
-                                              style: TextStyle(fontSize: 9.5, color: isParent ? _primary.withValues(alpha: 0.7) : _muted),
+                                              time.contains('T')
+                                                  ? time.split('T')[0]
+                                                  : time,
+                                              style: TextStyle(
+                                                  fontSize: 9.5,
+                                                  color: isParent
+                                                      ? _primary.withValues(
+                                                          alpha: 0.7)
+                                                      : _muted),
                                             ),
                                           ],
                                         ),
@@ -2056,8 +2491,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     final subCtrl = TextEditingController();
     final bodyCtrl = TextEditingController();
     final teacherName = _currentChild?['class_teacher'] ?? 'Class Teacher';
-    final teacherId = _currentChild?['class_teacher_id']?.toString() ?? 'classteacher';
-    final studentId = _currentChild?['username']?.toString() ?? _currentChild?['id']?.toString() ?? '';
+    final teacherId =
+        _currentChild?['class_teacher_id']?.toString() ?? 'classteacher';
+    final studentId = _currentChild?['username']?.toString() ??
+        _currentChild?['id']?.toString() ??
+        '';
 
     showDialog(
       context: context,
@@ -2067,16 +2505,23 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.mail_outline_rounded, color: _primary, size: 20),
+              decoration: BoxDecoration(
+                  color: _primarySoft, borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.mail_outline_rounded,
+                  color: _primary, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Direct Message to Teacher', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                  Text('Recipient: $teacherName', style: const TextStyle(fontSize: 12, color: _muted)),
+                  const Text('Direct Message to Teacher',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: _ink)),
+                  Text('Recipient: $teacherName',
+                      style: const TextStyle(fontSize: 12, color: _muted)),
                 ],
               ),
             ),
@@ -2086,7 +2531,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('SUBJECT / TOPIC', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _muted)),
+            const Text('SUBJECT / TOPIC',
+                style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w800, color: _muted)),
             const SizedBox(height: 6),
             TextField(
               controller: subCtrl,
@@ -2095,12 +2542,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 hintStyle: const TextStyle(fontSize: 13, color: _muted),
                 filled: true,
                 fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _border)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _border)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
             ),
             const SizedBox(height: 14),
-            const Text('MESSAGE BODY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _muted)),
+            const Text('MESSAGE BODY',
+                style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w800, color: _muted)),
             const SizedBox(height: 6),
             TextField(
               controller: bodyCtrl,
@@ -2110,7 +2562,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 hintStyle: const TextStyle(fontSize: 13, color: _muted),
                 filled: true,
                 fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _border)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _border)),
                 contentPadding: const EdgeInsets.all(12),
               ),
             ),
@@ -2140,7 +2594,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(ok ? 'Message delivered to $teacherName.' : 'Message dispatched.'),
+                    content: Text(ok
+                        ? 'Message delivered to $teacherName.'
+                        : 'Message dispatched.'),
                     backgroundColor: _primary,
                     behavior: SnackBarBehavior.floating,
                   ),
@@ -2155,10 +2611,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             style: ElevatedButton.styleFrom(
               backgroundColor: _primary,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
               elevation: 0,
             ),
-            child: const Text('Send Message', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Send Message',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -2171,11 +2629,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     final hwCount = (_metrics['pendingHomework'] as num?)?.toInt() ?? 0;
     final lastResult = _metrics['lastResult']?.toString() ?? 'No record';
 
-    final isCbseWarning = _attendanceTrajectory['is_cbse_warning_active'] == true;
-    final shortageDays = (_attendanceTrajectory['cbse_shortage_days'] as num?)?.toInt() ?? 0;
+    final isCbseWarning =
+        _attendanceTrajectory['is_cbse_warning_active'] == true;
+    final shortageDays =
+        (_attendanceTrajectory['cbse_shortage_days'] as num?)?.toInt() ?? 0;
 
     final periods = (_timetableData['periods'] as List<dynamic>?) ?? [];
-    final activeSubject = _timetableData['active_subject']?.toString() ?? 'Classes Active';
+    final activeSubject =
+        _timetableData['active_subject']?.toString() ?? 'Classes Active';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2199,7 +2660,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     color: const Color(0xFFDC2626),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                  child: const Icon(Icons.warning_amber_rounded,
+                      color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2210,15 +2672,24 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         children: [
                           const Text(
                             'CBSE Statutory Attendance Warning',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF991B1B)),
+                            style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF991B1B)),
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                            decoration: BoxDecoration(color: const Color(0xFFDC2626), borderRadius: BorderRadius.circular(6)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                                color: const Color(0xFFDC2626),
+                                borderRadius: BorderRadius.circular(6)),
                             child: Text(
                               '${attPct.toStringAsFixed(1)}% < 75%',
-                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
@@ -2226,14 +2697,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       const SizedBox(height: 4),
                       Text(
                         'Your child has an attendance of ${attPct.toStringAsFixed(1)}%, which is below the statutory 75.0% board minimum ($shortageDays days short). Regular attendance is strictly mandatory for board examination hall-ticket eligibility.',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D), height: 1.4),
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF7F1D1D),
+                            height: 1.4),
                       ),
                       const SizedBox(height: 8),
                       InkWell(
                         onTap: _showAttendanceDrillDownModal,
                         child: const Text(
                           'View Attendance Trajectory & Excused Leaves →',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFDC2626)),
                         ),
                       ),
                     ],
@@ -2264,7 +2741,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     color: _primarySoft,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.event_note_rounded, color: _primary, size: 18),
+                  child: const Icon(Icons.event_note_rounded,
+                      color: _primary, size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2272,11 +2750,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _examCountdown['title']?.toString() ?? 'Upcoming Term Examination',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink),
+                        _examCountdown['title']?.toString() ??
+                            'Upcoming Term Examination',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: _ink),
                       ),
                       Text(
-                        _examCountdown['countdown_text']?.toString() ?? 'CBSE Assessment Cycle',
+                        _examCountdown['countdown_text']?.toString() ??
+                            'CBSE Assessment Cycle',
                         style: const TextStyle(fontSize: 11, color: _muted),
                       ),
                     ],
@@ -2289,9 +2772,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _ink,
                     side: const BorderSide(color: _border),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     minimumSize: const Size(0, 32),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
               ],
@@ -2305,7 +2790,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               child: _buildMetricTile(
                 title: 'Attendance',
                 value: '${attPct.toStringAsFixed(1)}%',
-                subtitle: attPct > 0 ? '${attPct.toStringAsFixed(1)}% Present' : 'Attendance unrecorded',
+                subtitle: attPct > 0
+                    ? '${attPct.toStringAsFixed(1)}% Present'
+                    : 'Attendance unrecorded',
                 icon: Icons.how_to_reg_rounded,
                 color: isCbseWarning ? _rose : _emerald,
                 bgColor: isCbseWarning ? _roseSoft : _emeraldSoft,
@@ -2317,7 +2804,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               child: _buildMetricTile(
                 title: 'Term Fee Dues',
                 value: feesPending,
-                subtitle: feesPending == '₹0' ? 'No outstanding dues' : 'Academic session dues',
+                subtitle: feesPending == '₹0'
+                    ? 'No outstanding dues'
+                    : 'Academic session dues',
                 icon: Icons.account_balance_wallet_rounded,
                 color: feesPending != '₹0' ? _amber : _emerald,
                 bgColor: feesPending != '₹0' ? _amberSoft : _emeraldSoft,
@@ -2333,7 +2822,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               child: _buildMetricTile(
                 title: 'Pending Homework',
                 value: '$hwCount Active',
-                subtitle: hwCount > 0 ? '$hwCount tasks due' : 'All assignments submitted',
+                subtitle: hwCount > 0
+                    ? '$hwCount tasks due'
+                    : 'All assignments submitted',
                 icon: Icons.assignment_rounded,
                 color: hwCount > 0 ? _rose : _emerald,
                 bgColor: hwCount > 0 ? _roseSoft : _emeraldSoft,
@@ -2345,7 +2836,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               child: _buildMetricTile(
                 title: 'Summative Grade',
                 value: lastResult,
-                subtitle: lastResult.contains('(') ? 'CBSE Scale Assessment' : 'Term evaluation pending',
+                subtitle: lastResult.contains('(')
+                    ? 'CBSE Scale Assessment'
+                    : 'Term evaluation pending',
                 icon: Icons.workspace_premium_rounded,
                 color: _primary,
                 bgColor: _primarySoft,
@@ -2375,20 +2868,32 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     children: [
                       Container(
                         padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(color: _roseSoft, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.menu_book_rounded, color: _rose, size: 16),
+                        decoration: BoxDecoration(
+                            color: _roseSoft,
+                            borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.menu_book_rounded,
+                            color: _rose, size: 16),
                       ),
                       const SizedBox(width: 8),
                       const Text(
                         'Homework Diary & Daily Tasks',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _ink),
                       ),
                     ],
                   ),
                   TextButton(
                     onPressed: _showHomeworkDiaryModal,
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32)),
-                    child: const Text('View All Diary →', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _primary)),
+                    style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 32)),
+                    child: const Text('View All Diary →',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _primary)),
                   ),
                 ],
               ),
@@ -2399,10 +2904,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   alignment: Alignment.center,
                   child: const Column(
                     children: [
-                      Icon(Icons.assignment_turned_in_outlined, size: 36, color: _muted),
+                      Icon(Icons.assignment_turned_in_outlined,
+                          size: 36, color: _muted),
                       SizedBox(height: 8),
-                      Text('No Active Homework Assigned', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _ink)),
-                      Text('All assignments for this cohort are up to date.', style: TextStyle(fontSize: 11.5, color: _muted)),
+                      Text('No Active Homework Assigned',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: _ink)),
+                      Text('All assignments for this cohort are up to date.',
+                          style: TextStyle(fontSize: 11.5, color: _muted)),
                     ],
                   ),
                 )
@@ -2411,7 +2922,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   final title = hw['title']?.toString() ?? 'Task';
                   final subj = hw['subject']?.toString() ?? 'General';
                   final due = hw['due_date']?.toString() ?? 'Upcoming';
-                  final status = (hw['status']?.toString() ?? 'pending').toLowerCase();
+                  final status =
+                      (hw['status']?.toString() ?? 'pending').toLowerCase();
                   final isSubmitted = status == 'submitted';
                   final isOverdue = status == 'overdue';
 
@@ -2429,7 +2941,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: isSubmitted ? _emerald : (isOverdue ? _rose : _amber),
+                            color: isSubmitted
+                                ? _emerald
+                                : (isOverdue ? _rose : _amber),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -2438,24 +2952,37 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: _ink)),
+                              Text(title,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      color: _ink)),
                               const SizedBox(height: 2),
-                              Text('$subj • Due: $due', style: const TextStyle(fontSize: 11, color: _muted)),
+                              Text('$subj • Due: $due',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: _muted)),
                             ],
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: isSubmitted ? _emeraldSoft : (isOverdue ? _roseSoft : _amberSoft),
+                            color: isSubmitted
+                                ? _emeraldSoft
+                                : (isOverdue ? _roseSoft : _amberSoft),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            isSubmitted ? 'SUBMITTED' : (isOverdue ? 'OVERDUE' : 'PENDING'),
+                            isSubmitted
+                                ? 'SUBMITTED'
+                                : (isOverdue ? 'OVERDUE' : 'PENDING'),
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color: isSubmitted ? _emerald : (isOverdue ? _rose : _amber),
+                              color: isSubmitted
+                                  ? _emerald
+                                  : (isOverdue ? _rose : _amber),
                             ),
                           ),
                         ),
@@ -2489,28 +3016,36 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       color: _primarySoft,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.schedule_rounded, color: _primary, size: 16),
+                    child: const Icon(Icons.schedule_rounded,
+                        color: _primary, size: 16),
                   ),
                   const SizedBox(width: 8),
                   const Text(
                     "Today's Period Schedule (Live Tracker)",
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: _emeraldSoft,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: _emerald.withValues(alpha: 0.25)),
+                      border:
+                          Border.all(color: _emerald.withValues(alpha: 0.25)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.fiber_manual_record, color: _emerald, size: 8),
+                        const Icon(Icons.fiber_manual_record,
+                            color: _emerald, size: 8),
                         const SizedBox(width: 4),
                         Text(
                           'Now: $activeSubject',
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald),
+                          style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: _emerald),
                         ),
                       ],
                     ),
@@ -2519,7 +3054,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               ),
               const SizedBox(height: 14),
               if (periods.isEmpty)
-                const Center(child: Text('No timetable entries found for today.', style: TextStyle(color: _muted, fontSize: 12)))
+                const Center(
+                    child: Text('No timetable entries found for today.',
+                        style: TextStyle(color: _muted, fontSize: 12)))
               else
                 ...periods.map((p) {
                   final isLive = p['is_live'] == true;
@@ -2549,7 +3086,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           decoration: BoxDecoration(
                             color: isLive ? _primary : Colors.white,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: isLive ? _primary : _border),
+                            border:
+                                Border.all(color: isLive ? _primary : _border),
                           ),
                           child: Center(
                             child: Text(
@@ -2578,18 +3116,24 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                     ),
                                   ),
                                   const SizedBox(width: 6),
-                                  Text('• $room', style: const TextStyle(fontSize: 11, color: _muted)),
+                                  Text('• $room',
+                                      style: const TextStyle(
+                                          fontSize: 11, color: _muted)),
                                   if (isLive) ...[
                                     const SizedBox(width: 6),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 5, vertical: 1),
                                       decoration: BoxDecoration(
                                         color: _primary,
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: const Text(
                                         'LIVE',
-                                        style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900),
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.w900),
                                       ),
                                     ),
                                   ],
@@ -2597,7 +3141,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                               ),
                               Text(
                                 '$time • $teacher (${topic.isNotEmpty ? topic : "Regular Class"})',
-                                style: const TextStyle(fontSize: 10, color: _muted),
+                                style: const TextStyle(
+                                    fontSize: 10, color: _muted),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -2632,12 +3177,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       color: _amberSoft,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.star_rounded, color: _amber, size: 16),
+                    child:
+                        const Icon(Icons.star_rounded, color: _amber, size: 16),
                   ),
                   const SizedBox(width: 8),
                   const Text(
                     'Teacher Commendation & Diary Note',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ],
               ),
@@ -2653,8 +3200,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _scholasticData['class_teacher_remarks']?.toString() ?? 'No pastoral observations submitted by subject faculty for today.',
-                      style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: _ink),
+                      _scholasticData['class_teacher_remarks']?.toString() ??
+                          'No pastoral observations submitted by subject faculty for today.',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: _ink),
                     ),
                     const SizedBox(height: 6),
                     Row(
@@ -2662,7 +3213,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       children: [
                         Text(
                           '— ${_currentChild?['class_teacher'] ?? 'Class Teacher'} • Academic Observation',
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _muted),
+                          style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: _muted),
                         ),
                       ],
                     ),
@@ -2697,19 +3251,28 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           color: _emeraldSoft,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.table_chart_rounded, color: _emerald, size: 16),
+                        child: const Icon(Icons.table_chart_rounded,
+                            color: _emerald, size: 16),
                       ),
                       const SizedBox(width: 8),
                       const Text(
                         'My Reports Hub (14 Official Excel Packs)',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _ink),
                       ),
                     ],
                   ),
                   TextButton.icon(
                     onPressed: _showParentReportsHubModal,
-                    icon: const Icon(Icons.download_rounded, size: 14, color: _emerald),
-                    label: const Text('Open Hub', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _emerald)),
+                    icon: const Icon(Icons.download_rounded,
+                        size: 14, color: _emerald),
+                    label: const Text('Open Hub',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _emerald)),
                   ),
                 ],
               ),
@@ -2727,10 +3290,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     foregroundColor: _ink,
                     side: const BorderSide(color: _border),
                     padding: const EdgeInsets.symmetric(vertical: 11),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
-                  icon: const Icon(Icons.assessment_rounded, size: 16, color: _emerald),
-                  label: const Text('Browse All 14 Per-Child Reports', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.assessment_rounded,
+                      size: 16, color: _emerald),
+                  label: const Text('Browse All 14 Per-Child Reports',
+                      style: TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -2757,19 +3324,28 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       SizedBox(width: 8),
                       Text(
                         'School Circulars & Event Notices',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _ink),
                       ),
                     ],
                   ),
                   TextButton(
                     onPressed: () => context.go('/school/circulars'),
-                    child: const Text('View All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _primary)),
+                    child: const Text('View All',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _primary)),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               if (_circulars.isEmpty)
-                const Center(child: Text('No notices published today.', style: TextStyle(color: _muted, fontSize: 12)))
+                const Center(
+                    child: Text('No notices published today.',
+                        style: TextStyle(color: _muted, fontSize: 12)))
               else
                 ..._circulars.map((c) => Container(
                       margin: const EdgeInsets.only(bottom: 8),
@@ -2787,7 +3363,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                               color: _primarySoft,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.campaign_outlined, color: _primary, size: 16),
+                            child: const Icon(Icons.campaign_outlined,
+                                color: _primary, size: 16),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -2796,24 +3373,32 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                               children: [
                                 Text(
                                   c['title'] ?? 'Notice',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: _ink),
                                 ),
                                 Text(
                                   c['date'] ?? 'Recent',
-                                  style: const TextStyle(fontSize: 10, color: _muted),
+                                  style: const TextStyle(
+                                      fontSize: 10, color: _muted),
                                 ),
                               ],
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
                               color: _blueSoft,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               c['category'] ?? 'General',
-                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _blue),
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: _blue),
                             ),
                           ),
                         ],
@@ -2858,7 +3443,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _muted)),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _muted)),
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
@@ -2872,7 +3461,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             const SizedBox(height: 6),
             Text(
               value,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.2),
+              style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: _ink,
+                  letterSpacing: -0.2),
             ),
             const SizedBox(height: 2),
             Text(subtitle, style: const TextStyle(fontSize: 10, color: _muted)),
@@ -2893,7 +3486,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     final rank = sch['cbse_rank']?.toString() ?? 'N/A';
     final remarks = sch['class_teacher_remarks']?.toString() ?? '';
     final subjects = (sch['scholastic_subjects'] as List<dynamic>?) ?? [];
-    final coScholastic = (sch['co_scholastic_activities'] as List<dynamic>?) ?? [];
+    final coScholastic =
+        (sch['co_scholastic_activities'] as List<dynamic>?) ?? [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2930,7 +3524,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 child: Center(
                   child: Text(
                     grade,
-                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900),
                   ),
                 ),
               ),
@@ -2943,18 +3540,25 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       children: [
                         Text(
                           '${pct.toStringAsFixed(1)}% Aggregate',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink),
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: _ink),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: _emeraldSoft,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             rank,
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald),
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: _emerald),
                           ),
                         ),
                       ],
@@ -2971,12 +3575,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () => _showOfficialHpcModal(sch),
                 icon: const Icon(Icons.print_rounded, size: 14),
-                label: const Text('Print HPC', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                label: const Text('Print HPC',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
               ),
             ],
           ),
@@ -3000,7 +3608,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   SizedBox(width: 8),
                   Text(
                     'Subject-wise Scholastic Evaluation',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ],
               ),
@@ -3033,7 +3642,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         child: Center(
                           child: Text(
                             sGrade,
-                            style: const TextStyle(fontWeight: FontWeight.w900, color: _primary, fontSize: 13),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: _primary,
+                                fontSize: 13),
                           ),
                         ),
                       ),
@@ -3042,8 +3654,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(sub, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-                            Text('Taught by: $teacher', style: const TextStyle(fontSize: 10, color: _muted)),
+                            Text(sub,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _ink)),
+                            Text('Taught by: $teacher',
+                                style: const TextStyle(
+                                    fontSize: 10, color: _muted)),
                           ],
                         ),
                       ),
@@ -3052,11 +3670,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         children: [
                           Text(
                             '$obtained / $total',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _ink),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: _ink),
                           ),
                           Text(
                             'Percentile: $percentile',
-                            style: const TextStyle(fontSize: 10, color: _emerald, fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                                fontSize: 10,
+                                color: _emerald,
+                                fontWeight: FontWeight.w700),
                           ),
                         ],
                       ),
@@ -3086,7 +3710,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   SizedBox(width: 8),
                   Text(
                     'Co-Scholastic & Life Skills (5-Point Scale)',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ],
               ),
@@ -3107,20 +3732,31 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: _emeraldSoft,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(gr, style: const TextStyle(fontWeight: FontWeight.w900, color: _emerald, fontSize: 13)),
+                        child: Text(gr,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: _emerald,
+                                fontSize: 13)),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(act, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-                            Text(desc, style: const TextStyle(fontSize: 10, color: _muted)),
+                            Text(act,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _ink)),
+                            Text(desc,
+                                style: const TextStyle(
+                                    fontSize: 10, color: _muted)),
                           ],
                         ),
                       ),
@@ -3151,14 +3787,18 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     SizedBox(width: 8),
                     Text(
                       'Class Teacher Holistic Reflection',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _ink),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
                   remarks,
-                  style: const TextStyle(fontSize: 12, color: _ink, height: 1.4),
+                  style:
+                      const TextStyle(fontSize: 12, color: _ink, height: 1.4),
                 ),
               ],
             ),
@@ -3205,18 +3845,25 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           color: _emeraldSoft,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.check_circle_rounded, color: _emerald, size: 18),
+                        child: const Icon(Icons.check_circle_rounded,
+                            color: _emerald, size: 18),
                       ),
                       const SizedBox(width: 8),
                       const Text(
                         'CBSE Statutory Attendance Rate',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _ink),
                       ),
                     ],
                   ),
                   Text(
                     '${pct.toStringAsFixed(1)}%',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: _emerald),
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: _emerald),
                   ),
                 ],
               ),
@@ -3262,7 +3909,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   SizedBox(width: 8),
                   Text(
                     'Biometric Gate Turnstile Logs (Recent)',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ],
               ),
@@ -3316,13 +3964,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('$date • $gate', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-                            Text('In: $inTime  |  Out: $outTime', style: const TextStyle(fontSize: 11, color: _muted)),
+                            Text('$date • $gate',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _ink)),
+                            Text('In: $inTime  |  Out: $outTime',
+                                style: const TextStyle(
+                                    fontSize: 11, color: _muted)),
                           ],
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           color: isLate
                               ? _amberSoft
@@ -3373,7 +4028,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       SizedBox(width: 8),
                       Text(
                         'Student Leave History',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _ink),
                       ),
                     ],
                   ),
@@ -3381,19 +4039,25 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       minimumSize: const Size(60, 30),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: _showApplyLeaveModal,
                     icon: const Icon(Icons.add_rounded, size: 14),
-                    label: const Text('Apply Leave', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                    label: const Text('Apply Leave',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               if (_leaves.isEmpty)
-                const Center(child: Text('No leave applications filed for this child.', style: TextStyle(color: _muted, fontSize: 12)))
+                const Center(
+                    child: Text('No leave applications filed for this child.',
+                        style: TextStyle(color: _muted, fontSize: 12)))
               else
                 ..._leaves.map((l) {
                   final st = l['status']?.toString() ?? 'Pending';
@@ -3413,12 +4077,24 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: isApp ? _emeraldSoft : isRej ? _roseSoft : _amberSoft,
+                            color: isApp
+                                ? _emeraldSoft
+                                : isRej
+                                    ? _roseSoft
+                                    : _amberSoft,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
-                            isApp ? Icons.check_circle : isRej ? Icons.cancel : Icons.hourglass_top,
-                            color: isApp ? _emerald : isRej ? _rose : _amber,
+                            isApp
+                                ? Icons.check_circle
+                                : isRej
+                                    ? Icons.cancel
+                                    : Icons.hourglass_top,
+                            color: isApp
+                                ? _emerald
+                                : isRej
+                                    ? _rose
+                                    : _amber,
                             size: 16,
                           ),
                         ),
@@ -3429,16 +4105,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                             children: [
                               Text(
                                 '${l['type']} (${l['start_date']} to ${l['end_date']})',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink),
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _ink),
                               ),
-                              Text('Reason: ${l['reason']}', style: const TextStyle(fontSize: 11, color: _muted)),
+                              Text('Reason: ${l['reason']}',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: _muted)),
                             ],
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
-                            color: isApp ? _emeraldSoft : isRej ? _roseSoft : _amberSoft,
+                            color: isApp
+                                ? _emeraldSoft
+                                : isRej
+                                    ? _roseSoft
+                                    : _amberSoft,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -3446,7 +4132,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: isApp ? _emerald : isRej ? _rose : _amber,
+                              color: isApp
+                                  ? _emerald
+                                  : isRej
+                                      ? _rose
+                                      : _amber,
                             ),
                           ),
                         ),
@@ -3464,7 +4154,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   Widget _buildStatPill(String label, String value, Color color) {
     return Column(
       children: [
-        Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color)),
+        Text(value,
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w800, color: color)),
         const SizedBox(height: 2),
         Text(label, style: const TextStyle(fontSize: 10, color: _muted)),
       ],
@@ -3491,7 +4183,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             SizedBox(height: 12),
             Text(
               'No Bus Route Assigned',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _ink),
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: _ink),
             ),
             SizedBox(height: 6),
             Text(
@@ -3535,7 +4228,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       color: _blueSoft,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.directions_bus_rounded, color: _blue, size: 22),
+                    child: const Icon(Icons.directions_bus_rounded,
+                        color: _blue, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -3544,19 +4238,29 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       children: [
                         Text(
                           'Fleet Bus: $busNo',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink),
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: _ink),
                         ),
-                        Text(route, style: const TextStyle(fontSize: 12, color: _muted)),
+                        Text(route,
+                            style:
+                                const TextStyle(fontSize: 12, color: _muted)),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: _emeraldSoft,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text('Route Scheduled', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald)),
+                    child: const Text('Route Scheduled',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: _emerald)),
                   ),
                 ],
               ),
@@ -3567,8 +4271,13 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 children: [
                   const Icon(Icons.location_on_rounded, size: 16, color: _rose),
                   const SizedBox(width: 6),
-                  const Text('Designated Stop: ', style: TextStyle(fontSize: 12, color: _muted)),
-                  Text(stop, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
+                  const Text('Designated Stop: ',
+                      style: TextStyle(fontSize: 12, color: _muted)),
+                  Text(stop,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _ink)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -3576,7 +4285,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 children: [
                   const Icon(Icons.videocam_rounded, size: 16, color: _primary),
                   const SizedBox(width: 6),
-                  Text('Security: $cctv • $gps', style: const TextStyle(fontSize: 11, color: _muted)),
+                  Text('Security: $cctv • $gps',
+                      style: const TextStyle(fontSize: 11, color: _muted)),
                 ],
               ),
             ],
@@ -3630,7 +4340,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       SizedBox(width: 8),
                       Text(
                         'Campus Early Gate Passes',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _ink),
                       ),
                     ],
                   ),
@@ -3638,13 +4351,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       minimumSize: const Size(60, 30),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: _showRequestGatePassModal,
                     icon: const Icon(Icons.add_rounded, size: 14),
-                    label: const Text('Issue Pass', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                    label: const Text('Issue Pass',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
@@ -3682,7 +4399,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                               color: _emeraldSoft,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.verified_user_rounded, color: _emerald, size: 16),
+                            child: const Icon(Icons.verified_user_rounded,
+                                color: _emerald, size: 16),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -3691,22 +4409,31 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                               children: [
                                 Text(
                                   'Pass #${gp['pass_no']} • Exit: ${gp['exit_time']}',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: _ink),
                                 ),
                                 Text(
                                   'Pickup: ${gp['pickup_person']} • ${gp['reason']}',
-                                  style: const TextStyle(fontSize: 11, color: _muted),
+                                  style: const TextStyle(
+                                      fontSize: 11, color: _muted),
                                 ),
                               ],
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
                               color: _emeraldSoft,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text('Security Verified', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald)),
+                            child: const Text('Security Verified',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: _emerald)),
                           ),
                         ],
                       ),
@@ -3739,13 +4466,21 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             children: [
               Icon(icon, color: color, size: 16),
               const SizedBox(width: 6),
-              Text(role, style: const TextStyle(fontSize: 11, color: _muted, fontWeight: FontWeight.w600)),
+              Text(role,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: _muted,
+                      fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 6),
-          Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _ink)),
+          Text(name,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w800, color: _ink)),
           const SizedBox(height: 2),
-          Text(phone, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+          Text(phone,
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: color)),
         ],
       ),
     );
@@ -3761,7 +4496,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     final totalPaid = (ledger['total_paid'] as num?)?.toDouble() ?? 0.0;
     final pendingAmount = (ledger['pending_amount'] as num?)?.toDouble() ?? 0.0;
     final nextDue = ledger['next_due_date']?.toString() ?? 'Fully Cleared';
-    final nextInst = ledger['next_installment_name']?.toString() ?? 'Academic Dues';
+    final nextInst =
+        ledger['next_installment_name']?.toString() ?? 'Academic Dues';
     final heads = (ledger['fee_heads_breakdown'] as List<dynamic>?) ?? [];
     final receipts = (ledger['receipts'] as List<dynamic>?) ?? [];
 
@@ -3800,24 +4536,31 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
-                          isAllCleared ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
+                          isAllCleared
+                              ? Icons.check_circle_rounded
+                              : Icons.pending_actions_rounded,
                           color: isAllCleared ? _emerald : _amber,
                           size: 18,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        isAllCleared ? 'No Dues Pending' : 'Upcoming Installment: $nextInst',
+                        isAllCleared
+                            ? 'No Dues Pending'
+                            : 'Upcoming Installment: $nextInst',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: isAllCleared ? _emerald : const Color(0xFF92400E),
+                          color:
+                              isAllCleared ? _emerald : const Color(0xFF92400E),
                         ),
                       ),
                     ],
                   ),
                   Text(
-                    isAllCleared ? '₹0 Pending' : '₹${pendingAmount.toInt()} Due',
+                    isAllCleared
+                        ? '₹0 Pending'
+                        : '₹${pendingAmount.toInt()} Due',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
@@ -3840,8 +4583,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Annual Total: ₹${totalAnnual.toInt()}', style: const TextStyle(fontSize: 11, color: _muted)),
-                        Text('Paid: ₹${totalPaid.toInt()}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _emerald)),
+                        Text('Annual Total: ₹${totalAnnual.toInt()}',
+                            style:
+                                const TextStyle(fontSize: 11, color: _muted)),
+                        Text('Paid: ₹${totalPaid.toInt()}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: _emerald)),
                       ],
                     ),
                   ),
@@ -3850,12 +4599,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
-                      onPressed: () => _showPayFeeModal(pendingAmount, nextInst),
+                      onPressed: () =>
+                          _showPayFeeModal(pendingAmount, nextInst),
                       icon: const Icon(Icons.payment_rounded, size: 15),
-                      label: const Text('Pay Online Now', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                      label: const Text('Pay Online Now',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700)),
                     ),
                 ],
               ),
@@ -3881,7 +4635,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   SizedBox(width: 8),
                   Text(
                     'Fee Heads Schedule (Itemized Statutory Breakdown)',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ],
               ),
@@ -3902,13 +4657,23 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(head, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink)),
+                        child: Text(head,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _ink)),
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('₹${qtr.toInt()} / qtr', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-                          Text('Annual: ₹${ann.toInt()}', style: const TextStyle(fontSize: 10, color: _muted)),
+                          Text('₹${qtr.toInt()} / qtr',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: _ink)),
+                          Text('Annual: ₹${ann.toInt()}',
+                              style:
+                                  const TextStyle(fontSize: 10, color: _muted)),
                         ],
                       ),
                     ],
@@ -3937,7 +4702,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   SizedBox(width: 8),
                   Text(
                     'Paid Receipts & Reconciled Invoices',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ],
               ),
@@ -3965,25 +4731,40 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           color: _emeraldSoft,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.check_circle_outline, color: _emerald, size: 16),
+                        child: const Icon(Icons.check_circle_outline,
+                            color: _emerald, size: 16),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(qtr, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-                            Text('$recNo • Paid on: $date ($mode)', style: const TextStyle(fontSize: 10, color: _muted)),
+                            Text(qtr,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _ink)),
+                            Text('$recNo • Paid on: $date ($mode)',
+                                style: const TextStyle(
+                                    fontSize: 10, color: _muted)),
                           ],
                         ),
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('₹${amt.toInt()}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _emerald)),
+                          Text('₹${amt.toInt()}',
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: _emerald)),
                           InkWell(
                             onTap: () => _showReceiptModal(r),
-                            child: const Text('View PDF', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _primary)),
+                            child: const Text('View PDF',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: _primary)),
                           ),
                         ],
                       ),
@@ -4016,14 +4797,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   backgroundColor: _primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
                 onPressed: () => _showComposeTeacherMessageModal(),
                 icon: const Icon(Icons.send_rounded, size: 18),
                 label: Text(
                   'Message Class Teacher (${_currentChild?['class_teacher'] ?? "Faculty"})',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13),
                 ),
               ),
             ),
@@ -4036,11 +4819,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       foregroundColor: _ink,
                       side: const BorderSide(color: _border),
                       padding: const EdgeInsets.symmetric(vertical: 11),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: _showBookPtmModal,
                     icon: const Icon(Icons.calendar_month_rounded, size: 16),
-                    label: const Text('Schedule PTM', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                    label: const Text('Schedule PTM',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 12.5)),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -4050,11 +4836,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       foregroundColor: _rose,
                       side: const BorderSide(color: Color(0xFFFECDD3)),
                       padding: const EdgeInsets.symmetric(vertical: 11),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: _showGrievancesDeskModal,
                     icon: const Icon(Icons.report_problem_outlined, size: 16),
-                    label: const Text('Principal Grievance', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                    label: const Text('Principal Grievance',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 12.5)),
                   ),
                 ),
               ],
@@ -4077,11 +4866,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.event_available_rounded, color: _emerald, size: 18),
+                    Icon(Icons.event_available_rounded,
+                        color: _emerald, size: 18),
                     SizedBox(width: 8),
                     Text(
                       'Confirmed PTM Appointments',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _ink),
                     ),
                   ],
                 ),
@@ -4092,11 +4885,13 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       decoration: BoxDecoration(
                         color: _emeraldSoft,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _emerald.withValues(alpha: 0.25)),
+                        border:
+                            Border.all(color: _emerald.withValues(alpha: 0.25)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.video_call_rounded, color: _emerald, size: 20),
+                          const Icon(Icons.video_call_rounded,
+                              color: _emerald, size: 20),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
@@ -4104,33 +4899,49 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                               children: [
                                 Text(
                                   'With ${p['teacher']} • ${p['date']} (${p['time_slot']})',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: _ink),
                                 ),
-                                Text('Agenda: ${p['agenda']}', style: const TextStyle(fontSize: 11, color: _muted)),
+                                Text('Agenda: ${p['agenda']}',
+                                    style: const TextStyle(
+                                        fontSize: 11, color: _muted)),
                               ],
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
                               color: _emerald,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text('Confirmed', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
+                            child: const Text('Confirmed',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white)),
                           ),
                           const SizedBox(width: 4),
                           IconButton(
-                            icon: const Icon(Icons.cancel_outlined, size: 18, color: _rose),
+                            icon: const Icon(Icons.cancel_outlined,
+                                size: 18, color: _rose),
                             tooltip: 'Cancel Appointment',
                             onPressed: () async {
                               final bId = p['id']?.toString() ?? '';
                               if (bId.isEmpty) return;
-                              final ok = await _schoolService.cancelPtmBooking(bookingId: bId);
+                              final ok = await _schoolService.cancelPtmBooking(
+                                  bookingId: bId);
                               if (ok && mounted) {
                                 final child = _currentChild;
-                                if (child != null) _loadSelectedChildDetails(child);
+                                if (child != null)
+                                  _loadSelectedChildDetails(child);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('PTM Appointment cancelled.'), backgroundColor: _rose),
+                                  const SnackBar(
+                                      content:
+                                          Text('PTM Appointment cancelled.'),
+                                      backgroundColor: _rose),
                                 );
                               }
                             },
@@ -4161,7 +4972,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   SizedBox(width: 8),
                   Text(
                     'Subject Teachers Directory',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ],
               ),
@@ -4189,7 +5001,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         backgroundColor: color.withValues(alpha: 0.15),
                         child: Text(
                           name.isNotEmpty ? name[0] : 'T',
-                          style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 16),
+                          style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -4197,9 +5012,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
-                            Text('$sub • $desig', style: const TextStyle(fontSize: 11, color: _muted)),
-                            Text('$room • $email', style: const TextStyle(fontSize: 10, color: _muted)),
+                            Text(name,
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: _ink)),
+                            Text('$sub • $desig',
+                                style: const TextStyle(
+                                    fontSize: 11, color: _muted)),
+                            Text('$room • $email',
+                                style: const TextStyle(
+                                    fontSize: 10, color: _muted)),
                           ],
                         ),
                       ),
@@ -4207,12 +5030,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _primary,
                           side: const BorderSide(color: Color(0xFFC7D2FE)),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           minimumSize: const Size(50, 30),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                         onPressed: () => _prefillPtmTeacher(name),
-                        child: const Text('Book PTM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                        child: const Text('Book PTM',
+                            style: TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),
@@ -4233,7 +5060,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     final inf = _infirmaryData;
     final blood = inf['blood_group']?.toString() ?? 'B+';
     final bmi = inf['bmi']?.toString() ?? '19.8 (Normal)';
-    final allergies = inf['known_allergies']?.toString() ?? 'Dust, Peanuts (Mild)';
+    final allergies =
+        inf['known_allergies']?.toString() ?? 'Dust, Peanuts (Mild)';
     final visits = (inf['clinic_visits'] as List<dynamic>?) ?? [];
 
     final cafe = _cafeteriaData;
@@ -4263,7 +5091,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       color: _roseSoft,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.health_and_safety_rounded, color: _rose, size: 22),
+                    child: const Icon(Icons.health_and_safety_rounded,
+                        color: _rose, size: 22),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -4272,19 +5101,28 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       children: [
                         Text(
                           'Campus Infirmary & Medical Health',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: _ink),
                         ),
-                        Text('Campus Medical Officer: Dr. R. K. Singhal', style: TextStyle(fontSize: 11, color: _muted)),
+                        Text('Campus Medical Officer: Dr. R. K. Singhal',
+                            style: TextStyle(fontSize: 11, color: _muted)),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: _roseSoft,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text('Blood $blood', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _rose)),
+                    child: Text('Blood $blood',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: _rose)),
                   ),
                 ],
               ),
@@ -4309,19 +5147,25 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, size: 16, color: _rose),
+                    const Icon(Icons.warning_amber_rounded,
+                        size: 16, color: _rose),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Documented Allergies: $allergies',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF991B1B)),
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF991B1B)),
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
-              const Text('Recent Infirmary Visits:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
+              const Text('Recent Infirmary Visits:',
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
               const SizedBox(height: 6),
               ...visits.map((v) => Container(
                     margin: const EdgeInsets.only(bottom: 6),
@@ -4337,13 +5181,22 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('${v['date']} (${v['time']})', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _ink)),
-                            Text(v['attended_by'] ?? '', style: const TextStyle(fontSize: 10, color: _muted)),
+                            Text('${v['date']} (${v['time']})',
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: _ink)),
+                            Text(v['attended_by'] ?? '',
+                                style: const TextStyle(
+                                    fontSize: 10, color: _muted)),
                           ],
                         ),
                         const SizedBox(height: 2),
-                        Text('Symptoms: ${v['symptoms']}', style: const TextStyle(fontSize: 10, color: _rose)),
-                        Text('Treatment: ${v['treatment']}', style: const TextStyle(fontSize: 10, color: _muted)),
+                        Text('Symptoms: ${v['symptoms']}',
+                            style: const TextStyle(fontSize: 10, color: _rose)),
+                        Text('Treatment: ${v['treatment']}',
+                            style:
+                                const TextStyle(fontSize: 10, color: _muted)),
                       ],
                     ),
                   )),
@@ -4371,7 +5224,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       color: _amberSoft,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.restaurant_rounded, color: _amber, size: 22),
+                    child: const Icon(Icons.restaurant_rounded,
+                        color: _amber, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -4380,9 +5234,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       children: [
                         const Text(
                           'Smart Canteen RFID Wallet',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: _ink),
                         ),
-                        Text('Balance: ₹${balance.toInt()} • Limit: ₹${spendLimit.toInt()}/day', style: const TextStyle(fontSize: 11, color: _muted)),
+                        Text(
+                            'Balance: ₹${balance.toInt()} • Limit: ₹${spendLimit.toInt()}/day',
+                            style:
+                                const TextStyle(fontSize: 11, color: _muted)),
                       ],
                     ),
                   ),
@@ -4390,12 +5250,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _amber,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       minimumSize: const Size(60, 32),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: () => _showRechargeCanteenModal(balance),
-                    child: const Text('Top Up', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                    child: const Text('Top Up',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700)),
                   ),
                 ],
               ),
@@ -4404,7 +5268,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               const SizedBox(height: 12),
 
               // Today's Lunch Menu
-              const Text("Today's FSSAI Pure Veg Nutrition Menu:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
+              const Text("Today's FSSAI Pure Veg Nutrition Menu:",
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -4417,8 +5283,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      lunchMenu['title']?.toString() ?? 'Nutritious Shivalik Thali',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _emerald),
+                      lunchMenu['title']?.toString() ??
+                          'Nutritious Shivalik Thali',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _emerald),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -4428,11 +5298,23 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Text('⚡ ${lunchMenu['calories']}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _amber)),
+                        Text('⚡ ${lunchMenu['calories']}',
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _amber)),
                         const SizedBox(width: 12),
-                        Text('🥩 ${lunchMenu['protein']}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _blue)),
+                        Text('🥩 ${lunchMenu['protein']}',
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _blue)),
                         const SizedBox(width: 12),
-                        const Text('🌱 Pure Vegetarian', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _emerald)),
+                        const Text('🌱 Pure Vegetarian',
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _emerald)),
                       ],
                     ),
                   ],
@@ -4478,7 +5360,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       const SizedBox(height: 6),
                       const Text(
                         'SHIVALIK INTERNATIONAL SCHOOL',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: _ink),
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: _ink),
                       ),
                       const Text(
                         'Affiliated to CBSE, New Delhi (Affiliation No: 3530124)',
@@ -4486,7 +5371,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       ),
                       const Text(
                         'HOLISTIC PROGRESS CARD (HPC) • SESSION 2025-26',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _primary),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: _primary),
                       ),
                     ],
                   ),
@@ -4497,10 +5385,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Student: $name', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-                    Text('Class & Sec: $className-$section', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink)),
-                    Text('Roll No: $rollNo', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink)),
-                    Text('Adm: $admNo', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink)),
+                    Text('Student: $name',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _ink)),
+                    Text('Class & Sec: $className-$section',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _ink)),
+                    Text('Roll No: $rollNo',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _ink)),
+                    Text('Adm: $admNo',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _ink)),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -4510,18 +5414,55 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     const TableRow(
                       decoration: BoxDecoration(color: Color(0xFFF1F5F9)),
                       children: [
-                        Padding(padding: EdgeInsets.all(8), child: Text('Subject', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(8), child: Text('Max', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(8), child: Text('Obt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Padding(padding: EdgeInsets.all(8), child: Text('Grade', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Text('Subject',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11))),
+                        Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Text('Max',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11))),
+                        Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Text('Obt',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11))),
+                        Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Text('Grade',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11))),
                       ],
                     ),
                     ...subjects.map((s) => TableRow(
                           children: [
-                            Padding(padding: const EdgeInsets.all(8), child: Text(s['subject'] ?? '', style: const TextStyle(fontSize: 11))),
-                            Padding(padding: const EdgeInsets.all(8), child: Text('${s['total_marks']}', style: const TextStyle(fontSize: 11))),
-                            Padding(padding: const EdgeInsets.all(8), child: Text('${s['obtained']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
-                            Padding(padding: const EdgeInsets.all(8), child: Text(s['grade'] ?? '', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _primary))),
+                            Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Text(s['subject'] ?? '',
+                                    style: const TextStyle(fontSize: 11))),
+                            Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Text('${s['total_marks']}',
+                                    style: const TextStyle(fontSize: 11))),
+                            Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Text('${s['obtained']}',
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold))),
+                            Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Text(s['grade'] ?? '',
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: _primary))),
                           ],
                         )),
                   ],
@@ -4530,8 +5471,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Aggregate: ${pct.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _emerald)),
-                    Text('Final Grade: $grade', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _primary)),
+                    Text('Aggregate: ${pct.toStringAsFixed(1)}%',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: _emerald)),
+                    Text('Final Grade: $grade',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: _primary)),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -4542,21 +5491,28 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       children: [
                         Container(height: 1, width: 120, color: _muted),
                         const SizedBox(height: 4),
-                        const Text('Class Teacher Signature', style: TextStyle(fontSize: 10, color: _muted)),
+                        const Text('Class Teacher Signature',
+                            style: TextStyle(fontSize: 10, color: _muted)),
                       ],
                     ),
                     Column(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             border: Border.all(color: _primary),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text('SEAL VERIFIED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _primary)),
+                          child: const Text('SEAL VERIFIED',
+                              style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  color: _primary)),
                         ),
                         const SizedBox(height: 4),
-                        const Text('Principal Seal', style: TextStyle(fontSize: 10, color: _muted)),
+                        const Text('Principal Seal',
+                            style: TextStyle(fontSize: 10, color: _muted)),
                       ],
                     ),
                   ],
@@ -4580,7 +5536,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
   void _showPayFeeModal(double amount, String quarter) {
     final child = _currentChild;
     final name = child?['name']?.toString() ?? 'Student';
-    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? '';
+    final studentId =
+        child?['username']?.toString() ?? child?['id']?.toString() ?? '';
 
     String selectedMode = 'UPI (GPay / PhonePe / Paytm)';
 
@@ -4588,20 +5545,25 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: Row(
             children: [
               const Icon(Icons.payment_rounded, color: _primary),
               const SizedBox(width: 8),
-              const Text('Pay School Fees Online', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Text('Pay School Fees Online',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Student: $name', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              Text('Installment: $quarter', style: const TextStyle(fontSize: 12, color: _muted)),
+              Text('Student: $name',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13)),
+              Text('Installment: $quarter',
+                  style: const TextStyle(fontSize: 12, color: _muted)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -4612,30 +5574,50 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Amount Payable:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    Text('₹${amount.toInt()}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _primary)),
+                    const Text('Amount Payable:',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                    Text('₹${amount.toInt()}',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: _primary)),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
-              const Text('Select Payment Gateway / Method:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const Text('Select Payment Gateway / Method:',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 initialValue: selectedMode,
-                decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
                 items: const [
-                  DropdownMenuItem(value: 'UPI (GPay / PhonePe / Paytm)', child: Text('UPI (GPay / PhonePe / Paytm)')),
-                  DropdownMenuItem(value: 'Net Banking (HDFC / SBI / ICICI)', child: Text('Net Banking (HDFC / SBI / ICICI)')),
-                  DropdownMenuItem(value: 'Credit / Debit Card', child: Text('Credit / Debit Card')),
+                  DropdownMenuItem(
+                      value: 'UPI (GPay / PhonePe / Paytm)',
+                      child: Text('UPI (GPay / PhonePe / Paytm)')),
+                  DropdownMenuItem(
+                      value: 'Net Banking (HDFC / SBI / ICICI)',
+                      child: Text('Net Banking (HDFC / SBI / ICICI)')),
+                  DropdownMenuItem(
+                      value: 'Credit / Debit Card',
+                      child: Text('Credit / Debit Card')),
                 ],
-                onChanged: (v) => setDlgState(() => selectedMode = v ?? selectedMode),
+                onChanged: (v) =>
+                    setDlgState(() => selectedMode = v ?? selectedMode),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _primary, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary, foregroundColor: Colors.white),
               onPressed: () async {
                 Navigator.pop(ctx);
                 final res = await _schoolService.payChildFeeInstallment(
@@ -4649,7 +5631,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Payment Successful! Receipt #${res['receipt_no']} issued.'),
+                      content: Text(
+                          'Payment Successful! Receipt #${res['receipt_no']} issued.'),
                       backgroundColor: _emerald,
                     ),
                   );
@@ -4668,23 +5651,27 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Official Fee Receipt', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text('Official Fee Receipt',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Receipt Number: ${r['receipt_no']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('Receipt Number: ${r['receipt_no']}',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
             Text('Quarter: ${r['quarter']}'),
             Text('Amount Paid: ₹${(r['amount'] as num?)?.toInt()}'),
             Text('Date: ${r['paid_date']}'),
             Text('Mode: ${r['payment_mode']}'),
             Text('Transaction ID: ${r['transaction_id']}'),
             const SizedBox(height: 12),
-            const Text('Status: 🟢 Bank Verified & Reconciled', style: TextStyle(color: _emerald, fontWeight: FontWeight.bold)),
+            const Text('Status: 🟢 Bank Verified & Reconciled',
+                style: TextStyle(color: _emerald, fontWeight: FontWeight.bold)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
       ),
     );
@@ -4694,35 +5681,51 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     final child = _currentChild;
     final studentName = child?['name']?.toString() ?? 'Student';
 
-    String selectedTeacher = _teachers.isNotEmpty ? _teachers.first['name'] : 'Class Teacher';
+    String selectedTeacher =
+        _teachers.isNotEmpty ? _teachers.first['name'] : 'Class Teacher';
     DateTime selectedDate = DateTime.now().add(const Duration(days: 2));
     String timeSlot = '02:30 PM - 02:45 PM';
-    final agendaCtrl = TextEditingController(text: 'Review Summative Assessment & STEM performance');
+    final agendaCtrl = TextEditingController(
+        text: 'Review Summative Assessment & STEM performance');
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text('Book Parent-Teacher Meeting (PTM)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('Book Parent-Teacher Meeting (PTM)',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Student: $studentName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                Text('Student: $studentName',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 12)),
                 const SizedBox(height: 12),
-                const Text('Select Teacher:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                const Text('Select Teacher:',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                 DropdownButtonFormField<String>(
                   initialValue: selectedTeacher,
-                  decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                  decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
                   items: _teachers
-                      .map((t) => DropdownMenuItem(value: t['name']?.toString() ?? '', child: Text(t['name']?.toString() ?? '')))
+                      .map((t) => DropdownMenuItem(
+                          value: t['name']?.toString() ?? '',
+                          child: Text(t['name']?.toString() ?? '')))
                       .toList(),
-                  onChanged: (v) => setDlgState(() => selectedTeacher = v ?? selectedTeacher),
+                  onChanged: (v) =>
+                      setDlgState(() => selectedTeacher = v ?? selectedTeacher),
                 ),
                 const SizedBox(height: 12),
-                const Text('Appointment Date:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                const Text('Appointment Date:',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 OutlinedButton.icon(
                   onPressed: () async {
@@ -4739,34 +5742,53 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   icon: const Icon(Icons.calendar_today_rounded, size: 14),
                   label: Text(
                     '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 13),
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text('Time Slot:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                const Text('Time Slot:',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                 DropdownButtonFormField<String>(
                   initialValue: timeSlot,
-                  decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                  decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
                   items: const [
-                    DropdownMenuItem(value: '02:30 PM - 02:45 PM', child: Text('02:30 PM - 02:45 PM')),
-                    DropdownMenuItem(value: '02:45 PM - 03:00 PM', child: Text('02:45 PM - 03:00 PM')),
-                    DropdownMenuItem(value: '03:00 PM - 03:15 PM', child: Text('03:00 PM - 03:15 PM')),
-                    DropdownMenuItem(value: '03:15 PM - 03:30 PM', child: Text('03:15 PM - 03:30 PM')),
+                    DropdownMenuItem(
+                        value: '02:30 PM - 02:45 PM',
+                        child: Text('02:30 PM - 02:45 PM')),
+                    DropdownMenuItem(
+                        value: '02:45 PM - 03:00 PM',
+                        child: Text('02:45 PM - 03:00 PM')),
+                    DropdownMenuItem(
+                        value: '03:00 PM - 03:15 PM',
+                        child: Text('03:00 PM - 03:15 PM')),
+                    DropdownMenuItem(
+                        value: '03:15 PM - 03:30 PM',
+                        child: Text('03:15 PM - 03:30 PM')),
                   ],
                   onChanged: (v) => setDlgState(() => timeSlot = v ?? timeSlot),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: agendaCtrl,
-                  decoration: const InputDecoration(labelText: 'Meeting Agenda / Focus', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Meeting Agenda / Focus',
+                      border: OutlineInputBorder()),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _primary, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary, foregroundColor: Colors.white),
               onPressed: () async {
                 Navigator.pop(ctx);
                 await _schoolService.bookPtmSlot(
@@ -4780,7 +5802,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 await _loadSelectedChildDetails(child!);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('PTM slot booked with $selectedTeacher!'), backgroundColor: _emerald),
+                    SnackBar(
+                        content: Text('PTM slot booked with $selectedTeacher!'),
+                        backgroundColor: _emerald),
                   );
                 }
               },
@@ -4799,7 +5823,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showApplyLeaveModal() {
     final child = _currentChild;
-    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? '';
+    final studentId =
+        child?['username']?.toString() ?? child?['id']?.toString() ?? '';
     final studentName = child?['name']?.toString() ?? 'Student';
     final classId = child?['class_id']?.toString() ?? '';
 
@@ -4812,8 +5837,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Text('Apply Leave: $studentName', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text('Apply Leave: $studentName',
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -4821,14 +5849,23 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: leaveType,
-                  decoration: const InputDecoration(labelText: 'Leave Category', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Leave Category',
+                      border: OutlineInputBorder()),
                   items: const [
-                    DropdownMenuItem(value: 'Medical Leave', child: Text('Medical Leave')),
-                    DropdownMenuItem(value: 'Casual Leave', child: Text('Casual Leave')),
-                    DropdownMenuItem(value: 'Family Function', child: Text('Family Function')),
-                    DropdownMenuItem(value: 'Emergency Leave', child: Text('Emergency Leave')),
+                    DropdownMenuItem(
+                        value: 'Medical Leave', child: Text('Medical Leave')),
+                    DropdownMenuItem(
+                        value: 'Casual Leave', child: Text('Casual Leave')),
+                    DropdownMenuItem(
+                        value: 'Family Function',
+                        child: Text('Family Function')),
+                    DropdownMenuItem(
+                        value: 'Emergency Leave',
+                        child: Text('Emergency Leave')),
                   ],
-                  onChanged: (v) => setDlgState(() => leaveType = v ?? leaveType),
+                  onChanged: (v) =>
+                      setDlgState(() => leaveType = v ?? leaveType),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -4836,13 +5873,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     Expanded(
                       child: TextButton.icon(
                         icon: const Icon(Icons.calendar_today, size: 14),
-                        label: Text('From: ${startDate.toIso8601String().split('T')[0]}'),
+                        label: Text(
+                            'From: ${startDate.toIso8601String().split('T')[0]}'),
                         onPressed: () async {
                           final p = await showDatePicker(
                             context: ctx,
                             initialDate: startDate,
                             firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(const Duration(days: 60)),
+                            lastDate:
+                                DateTime.now().add(const Duration(days: 60)),
                           );
                           if (p != null) setDlgState(() => startDate = p);
                         },
@@ -4851,13 +5890,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     Expanded(
                       child: TextButton.icon(
                         icon: const Icon(Icons.calendar_today, size: 14),
-                        label: Text('To: ${endDate.toIso8601String().split('T')[0]}'),
+                        label: Text(
+                            'To: ${endDate.toIso8601String().split('T')[0]}'),
                         onPressed: () async {
                           final p = await showDatePicker(
                             context: ctx,
                             initialDate: endDate,
                             firstDate: startDate,
-                            lastDate: DateTime.now().add(const Duration(days: 60)),
+                            lastDate:
+                                DateTime.now().add(const Duration(days: 60)),
                           );
                           if (p != null) setDlgState(() => endDate = p);
                         },
@@ -4878,9 +5919,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _primary, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary, foregroundColor: Colors.white),
               onPressed: () async {
                 Navigator.pop(ctx);
                 await _schoolService.applyStudentLeave(
@@ -4896,7 +5940,9 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 await _loadSelectedChildDetails(child!);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Leave filed and sent to Class Teacher.'), backgroundColor: _emerald),
+                    const SnackBar(
+                        content: Text('Leave filed and sent to Class Teacher.'),
+                        backgroundColor: _emerald),
                   );
                 }
               },
@@ -4910,7 +5956,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showRequestGatePassModal() {
     final child = _currentChild;
-    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? '';
+    final studentId =
+        child?['username']?.toString() ?? child?['id']?.toString() ?? '';
     final studentName = child?['name']?.toString() ?? 'Student';
     final className = child?['class_name']?.toString() ?? 'Class 10';
 
@@ -4924,40 +5971,53 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Issue Campus Early Gate Pass', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text('Issue Campus Early Gate Pass',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Student: $studentName ($className)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              Text('Student: $studentName ($className)',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 12)),
               const SizedBox(height: 12),
               TextField(
                 controller: personCtrl,
-                decoration: const InputDecoration(labelText: 'Authorized Pickup Person Name', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Authorized Pickup Person Name',
+                    border: OutlineInputBorder()),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: relationCtrl,
-                decoration: const InputDecoration(labelText: 'Relationship to Child', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Relationship to Child',
+                    border: OutlineInputBorder()),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: phoneCtrl,
-                decoration: const InputDecoration(labelText: 'Contact Phone Number', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Contact Phone Number',
+                    border: OutlineInputBorder()),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: reasonCtrl,
-                decoration: const InputDecoration(labelText: 'Reason for Early Departure', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Reason for Early Departure',
+                    border: OutlineInputBorder()),
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _primary, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _primary, foregroundColor: Colors.white),
             onPressed: () async {
               Navigator.pop(ctx);
               await _schoolService.requestGatePass(
@@ -4969,16 +6029,19 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 pickupPersonName: personCtrl.text.trim(),
                 pickupPersonRelation: relationCtrl.text.trim(),
                 pickupPersonPhone: phoneCtrl.text.trim(),
-                isAuthorizedOnRecord: true,
+                isAuthorizedOnRecord: false,
               );
               await _loadSelectedChildDetails(child!);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Gate Pass authorized and sent to Main Gate Security!'), backgroundColor: _emerald),
+                  const SnackBar(
+                      content:
+                          Text('Gate pass request submitted for approval.'),
+                      backgroundColor: _emerald),
                 );
               }
             },
-            child: const Text('Authorize Gate Pass'),
+            child: const Text('Submit Gate Pass Request'),
           ),
         ],
       ),
@@ -4995,16 +6058,33 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           final child = _currentChild;
           final sName = child?['name']?.toString() ?? 'Student';
           final cName = child?['class_name']?.toString() ?? 'Class';
-          final attPct = (_attendanceTrajectory['overall_pct'] as num?)?.toDouble() ?? (_metrics['attendance'] as num?)?.toDouble() ?? 0.0;
-          final dailyPoints = (_attendanceTrajectory['daily_points'] as List<dynamic>?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? <Map<String, dynamic>>[];
-          final workingDays = (_attendanceTrajectory['days_evaluated'] as num?)?.toInt() ?? 0;
-          final present = (_attendanceTrajectory['days_present'] as num?)?.toInt() ?? 0;
-          final absent = (_attendanceTrajectory['days_absent'] as num?)?.toInt() ?? 0;
-          final lateCount = (_attendanceTrajectory['days_late'] as num?)?.toInt() ?? 0;
-          final excused = (_attendanceTrajectory['days_excused'] as num?)?.toInt() ?? 0;
-          final shortage = (_attendanceTrajectory['cbse_shortage_days'] as num?)?.toInt() ?? 0;
+          final attPct =
+              (_attendanceTrajectory['overall_pct'] as num?)?.toDouble() ??
+                  (_metrics['attendance'] as num?)?.toDouble() ??
+                  0.0;
+          final dailyPoints =
+              (_attendanceTrajectory['daily_points'] as List<dynamic>?)
+                      ?.map((e) => Map<String, dynamic>.from(e as Map))
+                      .toList() ??
+                  <Map<String, dynamic>>[];
+          final workingDays =
+              (_attendanceTrajectory['days_evaluated'] as num?)?.toInt() ?? 0;
+          final present =
+              (_attendanceTrajectory['days_present'] as num?)?.toInt() ?? 0;
+          final absent =
+              (_attendanceTrajectory['days_absent'] as num?)?.toInt() ?? 0;
+          final lateCount =
+              (_attendanceTrajectory['days_late'] as num?)?.toInt() ?? 0;
+          final excused =
+              (_attendanceTrajectory['days_excused'] as num?)?.toInt() ?? 0;
+          final shortage =
+              (_attendanceTrajectory['cbse_shortage_days'] as num?)?.toInt() ??
+                  0;
 
-          final subs = (_scholasticData['subjects'] as List<dynamic>?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? <Map<String, dynamic>>[];
+          final subs = (_scholasticData['subjects'] as List<dynamic>?)
+                  ?.map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList() ??
+              <Map<String, dynamic>>[];
           final hwList = _homeworkDiary;
           final ledger = _feeLedger;
           final leavesList = _leaves;
@@ -5030,16 +6110,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: _emeraldSoft, borderRadius: BorderRadius.circular(10)),
-                        child: const Icon(Icons.table_chart_rounded, color: _emerald, size: 20),
+                        decoration: BoxDecoration(
+                            color: _emeraldSoft,
+                            borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.table_chart_rounded,
+                            color: _emerald, size: 20),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Official Per-Child Reports Hub', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                            Text('Active Student: $sName ($cName) • Dual-Sheet Excel (.xlsx) Standards', style: const TextStyle(fontSize: 12, color: _muted)),
+                            const Text('Official Per-Child Reports Hub',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: _ink)),
+                            Text(
+                                'Active Student: $sName ($cName) • Dual-Sheet Excel (.xlsx) Standards',
+                                style: const TextStyle(
+                                    fontSize: 12, color: _muted)),
                           ],
                         ),
                       ),
@@ -5083,7 +6173,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                               child: Text(
                                 '$name ($cls)',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSel ? Colors.white : _muted),
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSel ? Colors.white : _muted),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -5102,10 +6195,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R01',
                         title: 'Attendance Trend (30-Day Velocity)',
-                        desc: 'Line chart trajectory with red dashed 75% CBSE statutory threshold. Daily rows + monthly summary.',
+                        desc:
+                            'Line chart trajectory with red dashed 75% CBSE statutory threshold. Daily rows + monthly summary.',
                         hasChart: true,
                         onChart: () => _showAttendanceDrillDownModal(),
-                        onDownload: () => SchoolExportService.exportParentAttendanceTrendExcel(
+                        onDownload: () => SchoolExportService
+                            .exportParentAttendanceTrendExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5119,9 +6214,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R02',
                         title: 'Attendance Register (Date-Wise Log)',
-                        desc: 'Complete register rows of Present, Absent, Late, and Excused entries with summary totals.',
+                        desc:
+                            'Complete register rows of Present, Absent, Late, and Excused entries with summary totals.',
                         hasChart: false,
-                        onDownload: () => SchoolExportService.exportParentAttendanceRegisterExcel(
+                        onDownload: () => SchoolExportService
+                            .exportParentAttendanceRegisterExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5139,10 +6236,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R03',
                         title: 'CBSE Statutory 75% Attendance Warning Audit',
-                        desc: 'Board exam hall ticket eligibility evaluation. Monthly rows, shortage recovery days, and condonation flags.',
+                        desc:
+                            'Board exam hall ticket eligibility evaluation. Monthly rows, shortage recovery days, and condonation flags.',
                         hasChart: true,
                         onChart: () => _showAttendanceDrillDownModal(),
-                        onDownload: () => SchoolExportService.exportParentAttendanceWarningExcel(
+                        onDownload: () => SchoolExportService
+                            .exportParentAttendanceWarningExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5157,10 +6256,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R04',
                         title: 'Marks Trend (Exam-to-Exam Progression)',
-                        desc: 'Exam-wise progression line across Half Yearly and Final terms with CBSE 9-point scale grading.',
+                        desc:
+                            'Exam-wise progression line across Half Yearly and Final terms with CBSE 9-point scale grading.',
                         hasChart: true,
                         onChart: () => _showOfficialHpcModal(_scholasticData),
-                        onDownload: () => SchoolExportService.exportParentMarksTrendExcel(
+                        onDownload: () =>
+                            SchoolExportService.exportParentMarksTrendExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5173,10 +6274,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R05',
                         title: 'Subject-Wise Performance & Focus Breakdown',
-                        desc: 'Bar chart averages per subject, max marks vs marks obtained, percentage, and teacher feedback.',
+                        desc:
+                            'Bar chart averages per subject, max marks vs marks obtained, percentage, and teacher feedback.',
                         hasChart: true,
                         onChart: () => _showOfficialHpcModal(_scholasticData),
-                        onDownload: () => SchoolExportService.exportParentSubjectPerformanceExcel(
+                        onDownload: () => SchoolExportService
+                            .exportParentSubjectPerformanceExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5189,9 +6292,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R06',
                         title: 'CBSE Holistic Progress Card (HPC) Summary',
-                        desc: 'Comprehensive scholastic and co-scholastic domain scores, rank in cohort, and Principal validation remarks.',
+                        desc:
+                            'Comprehensive scholastic and co-scholastic domain scores, rank in cohort, and Principal validation remarks.',
                         hasChart: false,
-                        onDownload: () => SchoolExportService.exportParentReportCardSummaryExcel(
+                        onDownload: () => SchoolExportService
+                            .exportParentReportCardSummaryExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5204,10 +6309,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R07',
                         title: 'Homework Completion & Task Register',
-                        desc: 'Task-by-task submission ledger: title, subject, due date, submission timestamp, and faculty grading remarks.',
+                        desc:
+                            'Task-by-task submission ledger: title, subject, due date, submission timestamp, and faculty grading remarks.',
                         hasChart: true,
                         onChart: () => _showHomeworkDiaryModal(),
-                        onDownload: () => SchoolExportService.exportParentHomeworkCompletionExcel(
+                        onDownload: () => SchoolExportService
+                            .exportParentHomeworkCompletionExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5220,10 +6327,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R08',
                         title: 'Statutory Fee Statement & Ledger Breakdown',
-                        desc: '12-Month schedule (April-March), itemized fee heads (Tuition, IT, Lab, Sports), paid vs due, and late fines.',
+                        desc:
+                            '12-Month schedule (April-March), itemized fee heads (Tuition, IT, Lab, Sports), paid vs due, and late fines.',
                         hasChart: true,
                         onChart: () => _showFeeDrillDownModal(),
-                        onDownload: () => SchoolExportService.exportParentFeeStatementExcel(
+                        onDownload: () =>
+                            SchoolExportService.exportParentFeeStatementExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5236,10 +6345,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R09',
                         title: 'Fee Receipts & Reconciled Payments History',
-                        desc: 'Chronological payment receipts register: official receipt no, amount, payment mode, bank transaction ID.',
+                        desc:
+                            'Chronological payment receipts register: official receipt no, amount, payment mode, bank transaction ID.',
                         hasChart: false,
                         onDownload: () async {
-                          final receipts = await _schoolService.getStudentReceipts(child?['username']?.toString() ?? child?['id']?.toString() ?? '');
+                          final receipts =
+                              await _schoolService.getStudentReceipts(
+                                  child?['username']?.toString() ??
+                                      child?['id']?.toString() ??
+                                      '');
                           if (ctx.mounted) {
                             SchoolExportService.exportParentFeeReceiptsExcel(
                               context: context,
@@ -5256,9 +6370,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R10',
                         title: 'Student Leave Applications & Medical Decisions',
-                        desc: 'Dossier of student leave requests: category (Medical, Casual), start date, end date, days count, and decision status.',
+                        desc:
+                            'Dossier of student leave requests: category (Medical, Casual), start date, end date, days count, and decision status.',
                         hasChart: false,
-                        onDownload: () => SchoolExportService.exportParentLeaveHistoryExcel(
+                        onDownload: () =>
+                            SchoolExportService.exportParentLeaveHistoryExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5270,10 +6386,13 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       // PAR-R11
                       _buildReportItem(
                         code: 'PAR-R11',
-                        title: 'Parent-Teacher Meeting (PTM) Appointment Register',
-                        desc: 'History of booked appointments: faculty member, date, time slot, discussion agenda, and status.',
+                        title:
+                            'Parent-Teacher Meeting (PTM) Appointment Register',
+                        desc:
+                            'History of booked appointments: faculty member, date, time slot, discussion agenda, and status.',
                         hasChart: false,
-                        onDownload: () => SchoolExportService.exportParentPtmHistoryExcel(
+                        onDownload: () =>
+                            SchoolExportService.exportParentPtmHistoryExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5286,12 +6405,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       _buildReportItem(
                         code: 'PAR-R12',
                         title: 'Parent Grievance Dossier & Resolution Audit',
-                        desc: 'Statutory escalation log: ticket no, domain category, description, and school leadership response remarks.',
+                        desc:
+                            'Statutory escalation log: ticket no, domain category, description, and school leadership response remarks.',
                         hasChart: false,
                         onDownload: () async {
-                          final grievances = await _schoolService.getParentComplaints(parentUsername: _parentName);
+                          final grievances = await _schoolService
+                              .getParentComplaints(parentUsername: _parentName);
                           if (ctx.mounted) {
-                            SchoolExportService.exportParentGrievanceHistoryExcel(
+                            SchoolExportService
+                                .exportParentGrievanceHistoryExcel(
                               context: context,
                               parentUsername: _parentName,
                               studentName: sName,
@@ -5305,10 +6427,13 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       // PAR-R13
                       _buildReportItem(
                         code: 'PAR-R13',
-                        title: 'Transport Attendance & Commute Safety Telematics',
-                        desc: 'RFID stop verification logs: morning home pickup, campus gate in-sensor scan, and afternoon drop ETA.',
+                        title:
+                            'Transport Attendance & Commute Safety Telematics',
+                        desc:
+                            'RFID stop verification logs: morning home pickup, campus gate in-sensor scan, and afternoon drop ETA.',
                         hasChart: false,
-                        onDownload: () => SchoolExportService.exportParentTransportAttendanceExcel(
+                        onDownload: () => SchoolExportService
+                            .exportParentTransportAttendanceExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5320,12 +6445,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       // PAR-R14
                       _buildReportItem(
                         code: 'PAR-R14',
-                        title: 'Monthly Progress Pack (Multi-Sheet Comprehensive Dossier)',
-                        desc: 'The master dossier: 5 specialized sheets covering Executive Summary, Attendance Velocity, Academics, Tasks, and Fees.',
+                        title:
+                            'Monthly Progress Pack (Multi-Sheet Comprehensive Dossier)',
+                        desc:
+                            'The master dossier: 5 specialized sheets covering Executive Summary, Attendance Velocity, Academics, Tasks, and Fees.',
                         hasChart: true,
                         isPrimary: true,
                         onChart: () => _showOfficialHpcModal(_scholasticData),
-                        onDownload: () => SchoolExportService.exportParentMonthlyProgressPackExcel(
+                        onDownload: () => SchoolExportService
+                            .exportParentMonthlyProgressPackExcel(
                           context: context,
                           parentUsername: _parentName,
                           studentName: sName,
@@ -5362,7 +6490,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       decoration: BoxDecoration(
         color: isPrimary ? _primarySoft : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isPrimary ? _primary.withValues(alpha: 0.3) : _border),
+        border: Border.all(
+            color: isPrimary ? _primary.withValues(alpha: 0.3) : _border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -5378,22 +6507,32 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 ),
                 child: Text(
                   code,
-                  style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w900),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900),
                 ),
               ),
               if (isPrimary)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: _emeraldSoft,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Text('MASTER PACK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _emerald)),
+                  child: const Text('MASTER PACK',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: _emerald)),
                 ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: _ink)),
+          Text(title,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w800, fontSize: 13.5, color: _ink)),
           const SizedBox(height: 4),
           Text(desc, style: const TextStyle(fontSize: 11.5, color: _muted)),
           const SizedBox(height: 12),
@@ -5405,11 +6544,15 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _ink,
                     side: const BorderSide(color: _border),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                   icon: const Icon(Icons.show_chart_rounded, size: 14),
-                  label: const Text('Chart View', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                  label: const Text('Chart View',
+                      style: TextStyle(
+                          fontSize: 11.5, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -5419,14 +6562,19 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isPrimary ? _primary : _emerald,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                     elevation: 0,
                   ),
                   icon: const Icon(Icons.download_rounded, size: 14),
                   label: Text(
-                    isPrimary ? 'Download Master Pack (.xlsx)' : 'Download Excel (.xlsx)',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    isPrimary
+                        ? 'Download Master Pack (.xlsx)'
+                        : 'Download Excel (.xlsx)',
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -5462,16 +6610,25 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: _roseSoft, borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.report_problem_outlined, color: _rose, size: 20),
+                      decoration: BoxDecoration(
+                          color: _roseSoft,
+                          borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.report_problem_outlined,
+                          color: _rose, size: 20),
                     ),
                     const SizedBox(width: 12),
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Parent Grievance & Complaint Desk', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                          Text('Statutory escalation tracker with School Leadership', style: TextStyle(fontSize: 12, color: _muted)),
+                          Text('Parent Grievance & Complaint Desk',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: _ink)),
+                          Text(
+                              'Statutory escalation tracker with School Leadership',
+                              style: TextStyle(fontSize: 12, color: _muted)),
                         ],
                       ),
                     ),
@@ -5484,7 +6641,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               ),
               const Divider(height: 1, color: _border),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -5496,27 +6654,35 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       backgroundColor: _rose,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       elevation: 0,
                     ),
-                    icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
-                    label: const Text('File New Grievance to Principal', style: TextStyle(fontWeight: FontWeight.bold)),
+                    icon:
+                        const Icon(Icons.add_circle_outline_rounded, size: 16),
+                    label: const Text('File New Grievance to Principal',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
               Flexible(
                 child: FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _schoolService.getParentComplaints(parentUsername: _parentName),
+                  future: _schoolService.getParentComplaints(
+                      parentUsername: _parentName),
                   builder: (c, snap) {
                     if (snap.connectionState == ConnectionState.waiting) {
-                      return const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator()));
+                      return const Center(
+                          child: Padding(
+                              padding: EdgeInsets.all(30),
+                              child: CircularProgressIndicator()));
                     }
                     final complaints = snap.data ?? [];
                     if (complaints.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.all(40),
                         child: Center(
-                          child: Text('No complaints or grievances filed yet.', style: TextStyle(color: _muted)),
+                          child: Text('No complaints or grievances filed yet.',
+                              style: TextStyle(color: _muted)),
                         ),
                       );
                     }
@@ -5531,7 +6697,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         final sub = g['subject']?.toString() ?? 'Grievance';
                         final cat = g['category']?.toString() ?? 'General';
                         final desc = g['description']?.toString() ?? '';
-                        final status = (g['status']?.toString() ?? 'Submitted').toLowerCase();
+                        final status = (g['status']?.toString() ?? 'Submitted')
+                            .toLowerCase();
                         final dt = g['created_at']?.toString() ?? '';
                         final adminReply = g['admin_reply']?.toString() ?? '';
 
@@ -5549,37 +6716,66 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(6)),
-                                    child: Text(tNo, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _ink)),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                        color: const Color(0xFFE2E8F0),
+                                        borderRadius: BorderRadius.circular(6)),
+                                    child: Text(tNo,
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            color: _ink)),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: isResolved ? _emeraldSoft : (isInReview ? _blueSoft : _amberSoft),
+                                      color: isResolved
+                                          ? _emeraldSoft
+                                          : (isInReview
+                                              ? _blueSoft
+                                              : _amberSoft),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
-                                      isResolved ? 'RESOLVED' : (isInReview ? 'IN REVIEW' : 'SUBMITTED'),
+                                      isResolved
+                                          ? 'RESOLVED'
+                                          : (isInReview
+                                              ? 'IN REVIEW'
+                                              : 'SUBMITTED'),
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w800,
-                                        color: isResolved ? _emerald : (isInReview ? _blue : _amber),
+                                        color: isResolved
+                                            ? _emerald
+                                            : (isInReview ? _blue : _amber),
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Text(sub, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: _ink)),
+                              Text(sub,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13.5,
+                                      color: _ink)),
                               const SizedBox(height: 3),
-                              Text('$cat • Logged: ${dt.contains("T") ? dt.split("T")[0] : dt}', style: const TextStyle(fontSize: 11, color: _muted)),
+                              Text(
+                                  '$cat • Logged: ${dt.contains("T") ? dt.split("T")[0] : dt}',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: _muted)),
                               if (desc.isNotEmpty) ...[
                                 const SizedBox(height: 6),
-                                Text(desc, style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
+                                Text(desc,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF334155))),
                               ],
                               if (adminReply.isNotEmpty) ...[
                                 const SizedBox(height: 8),
@@ -5588,17 +6784,23 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                   decoration: BoxDecoration(
                                     color: _emeraldSoft,
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: _emerald.withValues(alpha: 0.2)),
+                                    border: Border.all(
+                                        color: _emerald.withValues(alpha: 0.2)),
                                   ),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      const Icon(Icons.check_circle_rounded, color: _emerald, size: 14),
+                                      const Icon(Icons.check_circle_rounded,
+                                          color: _emerald, size: 14),
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: Text(
                                           'Leadership Response: $adminReply',
-                                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF065F46), fontWeight: FontWeight.w600),
+                                          style: const TextStyle(
+                                              fontSize: 11.5,
+                                              color: Color(0xFF065F46),
+                                              fontWeight: FontWeight.w600),
                                         ),
                                       ),
                                     ],
@@ -5611,13 +6813,21 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                   alignment: Alignment.centerRight,
                                   child: TextButton.icon(
                                     onPressed: () async {
-                                      final ok = await _schoolService.reopenParentComplaint(complaintId: g['id']?.toString() ?? '');
+                                      final ok = await _schoolService
+                                          .reopenParentComplaint(
+                                              complaintId:
+                                                  g['id']?.toString() ?? '');
                                       if (ok) {
                                         setSheetState(() {});
                                       }
                                     },
-                                    icon: const Icon(Icons.replay_rounded, size: 14, color: _rose),
-                                    label: const Text('Reopen Ticket', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _rose)),
+                                    icon: const Icon(Icons.replay_rounded,
+                                        size: 14, color: _rose),
+                                    label: const Text('Reopen Ticket',
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: _rose)),
                                   ),
                                 ),
                               ],
@@ -5648,8 +6858,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text('Principal Grievance Desk', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('Principal Grievance Desk',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -5657,27 +6869,50 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: category,
-                  decoration: const InputDecoration(labelText: 'Complaint Domain', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Complaint Domain',
+                      border: OutlineInputBorder()),
                   items: const [
-                    DropdownMenuItem(value: 'Academic Curriculum', child: Text('Academic Curriculum')),
-                    DropdownMenuItem(value: 'Transport Fleet & Route', child: Text('Transport Fleet & Route')),
-                    DropdownMenuItem(value: 'Fee & Accounts', child: Text('Fee & Accounts')),
-                    DropdownMenuItem(value: 'Hygiene & Campus Canteen', child: Text('Hygiene & Campus Canteen')),
-                    DropdownMenuItem(value: 'Safety & Anti-Bullying', child: Text('Safety & Anti-Bullying')),
+                    DropdownMenuItem(
+                        value: 'Academic Curriculum',
+                        child: Text('Academic Curriculum')),
+                    DropdownMenuItem(
+                        value: 'Transport Fleet & Route',
+                        child: Text('Transport Fleet & Route')),
+                    DropdownMenuItem(
+                        value: 'Fee & Accounts', child: Text('Fee & Accounts')),
+                    DropdownMenuItem(
+                        value: 'Hygiene & Campus Canteen',
+                        child: Text('Hygiene & Campus Canteen')),
+                    DropdownMenuItem(
+                        value: 'Safety & Anti-Bullying',
+                        child: Text('Safety & Anti-Bullying')),
                   ],
                   onChanged: (v) => setDlgState(() => category = v ?? category),
                 ),
                 const SizedBox(height: 10),
-                TextField(controller: subjectCtrl, decoration: const InputDecoration(labelText: 'Subject Line', border: OutlineInputBorder())),
+                TextField(
+                    controller: subjectCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Subject Line',
+                        border: OutlineInputBorder())),
                 const SizedBox(height: 10),
-                TextField(controller: descCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Detailed Observation', border: OutlineInputBorder())),
+                TextField(
+                    controller: descCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                        labelText: 'Detailed Observation',
+                        border: OutlineInputBorder())),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _rose, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _rose, foregroundColor: Colors.white),
               onPressed: () async {
                 Navigator.pop(ctx);
                 final res = await _schoolService.fileParentComplaint(
@@ -5689,7 +6924,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 );
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Grievance registered under Ticket #${res['ticket_no']}. Principal notified.'), backgroundColor: _emerald),
+                    SnackBar(
+                        content: Text(
+                            'Grievance registered under Ticket #${res['ticket_no']}. Principal notified.'),
+                        backgroundColor: _emerald),
                   );
                 }
               },
@@ -5703,44 +6941,65 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   void _showRechargeCanteenModal(double currentBalance) {
     final child = _currentChild;
-    final studentId = child?['username']?.toString() ?? child?['id']?.toString() ?? '';
+    final studentId =
+        child?['username']?.toString() ?? child?['id']?.toString() ?? '';
     double topUp = 500.0;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text('Top Up Canteen RFID Wallet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('Top Up Canteen RFID Wallet',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Current Wallet Balance: ₹${currentBalance.toInt()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text('Current Wallet Balance: ₹${currentBalance.toInt()}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              const Text('Select Top Up Amount:', style: TextStyle(fontSize: 12, color: _muted)),
+              const Text('Select Top Up Amount:',
+                  style: TextStyle(fontSize: 12, color: _muted)),
               const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  ChoiceChip(label: const Text('+₹200'), selected: topUp == 200, onSelected: (_) => setDlgState(() => topUp = 200)),
-                  ChoiceChip(label: const Text('+₹500'), selected: topUp == 500, onSelected: (_) => setDlgState(() => topUp = 500)),
-                  ChoiceChip(label: const Text('+₹1000'), selected: topUp == 1000, onSelected: (_) => setDlgState(() => topUp = 1000)),
+                  ChoiceChip(
+                      label: const Text('+₹200'),
+                      selected: topUp == 200,
+                      onSelected: (_) => setDlgState(() => topUp = 200)),
+                  ChoiceChip(
+                      label: const Text('+₹500'),
+                      selected: topUp == 500,
+                      onSelected: (_) => setDlgState(() => topUp = 500)),
+                  ChoiceChip(
+                      label: const Text('+₹1000'),
+                      selected: topUp == 1000,
+                      onSelected: (_) => setDlgState(() => topUp = 1000)),
                 ],
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _amber, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _amber, foregroundColor: Colors.white),
               onPressed: () async {
                 Navigator.pop(ctx);
-                await _schoolService.rechargeCafeteriaWallet(studentId: studentId, amount: topUp);
+                await _schoolService.rechargeCafeteriaWallet(
+                    studentId: studentId, amount: topUp);
                 await _loadSelectedChildDetails(child!);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Canteen wallet recharged with ₹${topUp.toInt()}!'), backgroundColor: _emerald),
+                    SnackBar(
+                        content: Text(
+                            'Canteen wallet recharged with ₹${topUp.toInt()}!'),
+                        backgroundColor: _emerald),
                   );
                 }
               },
@@ -5752,32 +7011,44 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     );
   }
 
-  void _showContactStaffModal(String driverName, String driverPhone, String condName, String condPhone) {
+  void _showContactStaffModal(String driverName, String driverPhone,
+      String condName, String condPhone) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Transport Staff Direct Line', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text('Transport Staff Direct Line',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ListTile(
-              leading: const CircleAvatar(backgroundColor: _blueSoft, child: Icon(Icons.person, color: _blue)),
-              title: Text(driverName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              leading: const CircleAvatar(
+                  backgroundColor: _blueSoft,
+                  child: Icon(Icons.person, color: _blue)),
+              title: Text(driverName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text('Bus Driver • $driverPhone'),
             ),
             ListTile(
-              leading: const CircleAvatar(backgroundColor: _emeraldSoft, child: Icon(Icons.support_agent, color: _emerald)),
-              title: Text(condName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              leading: const CircleAvatar(
+                  backgroundColor: _emeraldSoft,
+                  child: Icon(Icons.support_agent, color: _emerald)),
+              title: Text(condName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text('Bus Conductor • $condPhone'),
             ),
             const Divider(),
-            const Text('Transport Manager: +91 135-2749921 (School Helpline)', style: TextStyle(fontSize: 11, color: _muted)),
+            const Text('Transport Manager: +91 135-2749921 (School Helpline)',
+                style: TextStyle(fontSize: 11, color: _muted)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
       ),
     );
@@ -5807,16 +7078,24 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.folder_shared_rounded, color: _primary, size: 20),
+                    decoration: BoxDecoration(
+                        color: _primarySoft,
+                        borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.folder_shared_rounded,
+                        color: _primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('LMS Study Materials & Worksheets', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                        Text('Digital courseware published by subject faculty', style: TextStyle(fontSize: 12, color: _muted)),
+                        Text('LMS Study Materials & Worksheets',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: _ink)),
+                        Text('Digital courseware published by subject faculty',
+                            style: TextStyle(fontSize: 12, color: _muted)),
                       ],
                     ),
                   ),
@@ -5833,7 +7112,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 future: _schoolService.getStudyMaterials(classId: classId),
                 builder: (ctx, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: _primary)));
+                    return const Center(
+                        child: Padding(
+                            padding: EdgeInsets.all(32),
+                            child: CircularProgressIndicator(color: _primary)));
                   }
                   final list = snapshot.data ?? [];
                   if (list.isEmpty) {
@@ -5843,11 +7125,20 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.folder_open_rounded, size: 48, color: _muted),
+                            Icon(Icons.folder_open_rounded,
+                                size: 48, color: _muted),
                             SizedBox(height: 12),
-                            Text('No Course Materials Uploaded', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _ink)),
+                            Text('No Course Materials Uploaded',
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: _ink)),
                             SizedBox(height: 6),
-                            Text('Subject teachers have not uploaded downloadable worksheets for this class cohort yet.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: _muted)),
+                            Text(
+                                'Subject teachers have not uploaded downloadable worksheets for this class cohort yet.',
+                                textAlign: TextAlign.center,
+                                style:
+                                    TextStyle(fontSize: 12.5, color: _muted)),
                           ],
                         ),
                       ),
@@ -5860,9 +7151,11 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (ctx, i) {
                       final item = list[i];
-                      final title = item['title']?.toString() ?? 'Study Material';
+                      final title =
+                          item['title']?.toString() ?? 'Study Material';
                       final subj = item['subject']?.toString() ?? 'General';
-                      final author = item['uploaded_by']?.toString() ?? 'Faculty';
+                      final author =
+                          item['uploaded_by']?.toString() ?? 'Faculty';
                       final url = item['file_url']?.toString();
 
                       return Container(
@@ -5876,35 +7169,52 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           children: [
                             Container(
                               padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
-                              child: const Icon(Icons.picture_as_pdf_rounded, color: _primary, size: 22),
+                              decoration: BoxDecoration(
+                                  color: _primarySoft,
+                                  borderRadius: BorderRadius.circular(10)),
+                              child: const Icon(Icons.picture_as_pdf_rounded,
+                                  color: _primary, size: 22),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: _ink)),
+                                  Text(title,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13.5,
+                                          color: _ink)),
                                   const SizedBox(height: 3),
-                                  Text('$subj • Uploaded by $author', style: const TextStyle(fontSize: 11.5, color: _muted)),
+                                  Text('$subj • Uploaded by $author',
+                                      style: const TextStyle(
+                                          fontSize: 11.5, color: _muted)),
                                 ],
                               ),
                             ),
                             if (url != null && url.isNotEmpty)
                               IconButton(
-                                icon: const Icon(Icons.download_rounded, color: _primary),
+                                icon: const Icon(Icons.download_rounded,
+                                    color: _primary),
                                 tooltip: 'Download',
                                 onPressed: () {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Downloading $title...'), backgroundColor: _emerald),
+                                    SnackBar(
+                                        content: Text('Downloading $title...'),
+                                        backgroundColor: _emerald),
                                   );
                                 },
                               )
                             else
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
-                                child: const Text('Reference Only', style: TextStyle(fontSize: 10, color: _muted)),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6)),
+                                child: const Text('Reference Only',
+                                    style:
+                                        TextStyle(fontSize: 10, color: _muted)),
                               ),
                           ],
                         ),
@@ -5947,16 +7257,25 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.people_alt_rounded, color: _primary, size: 20),
+                    decoration: BoxDecoration(
+                        color: _primarySoft,
+                        borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.people_alt_rounded,
+                        color: _primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('My Children Registry', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                        Text('Officially linked students under your guardianship', style: TextStyle(fontSize: 12, color: _muted)),
+                        Text('My Children Registry',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: _ink)),
+                        Text(
+                            'Officially linked students under your guardianship',
+                            style: TextStyle(fontSize: 12, color: _muted)),
                       ],
                     ),
                   ),
@@ -5973,7 +7292,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   ? const Padding(
                       padding: EdgeInsets.all(32),
                       child: Center(
-                        child: Text('No student records currently linked.', style: TextStyle(color: _muted)),
+                        child: Text('No student records currently linked.',
+                            style: TextStyle(color: _muted)),
                       ),
                     )
                   : ListView.separated(
@@ -5983,10 +7303,14 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                       itemBuilder: (ctx, i) {
                         final child = _children[i];
                         final name = child['name']?.toString() ?? 'Student';
-                        final className = child['class_name']?.toString() ?? 'Class';
+                        final className =
+                            child['class_name']?.toString() ?? 'Class';
                         final section = child['section']?.toString() ?? '';
-                        final roll = child['roll_number']?.toString() ?? child['roll_no']?.toString() ?? '--';
-                        final adm = child['admission_number']?.toString() ?? '--';
+                        final roll = child['roll_number']?.toString() ??
+                            child['roll_no']?.toString() ??
+                            '--';
+                        final adm =
+                            child['admission_number']?.toString() ?? '--';
                         final rel = child['relation']?.toString() ?? 'Child';
                         final isSelected = i == _selectedChildIndex;
 
@@ -5995,13 +7319,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           decoration: BoxDecoration(
                             color: isSelected ? _primarySoft : _surface,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: isSelected ? _primary : _border, width: isSelected ? 1.5 : 1),
+                            border: Border.all(
+                                color: isSelected ? _primary : _border,
+                                width: isSelected ? 1.5 : 1),
                           ),
                           child: Row(
                             children: [
                               CircleAvatar(
                                 radius: 22,
-                                backgroundColor: isSelected ? _primary : const Color(0xFFF1F5F9),
+                                backgroundColor: isSelected
+                                    ? _primary
+                                    : const Color(0xFFF1F5F9),
                                 child: Text(
                                   name.isNotEmpty ? name[0] : 'S',
                                   style: TextStyle(
@@ -6018,21 +7346,41 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                   children: [
                                     Row(
                                       children: [
-                                        Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: _ink)),
+                                        Text(name,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 14,
+                                                color: _ink)),
                                         if (isSelected) ...[
                                           const SizedBox(width: 6),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                            decoration: BoxDecoration(color: _primary, borderRadius: BorderRadius.circular(6)),
-                                            child: const Text('ACTIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 1),
+                                            decoration: BoxDecoration(
+                                                color: _primary,
+                                                borderRadius:
+                                                    BorderRadius.circular(6)),
+                                            child: const Text('ACTIVE',
+                                                style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 9,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
                                           ),
                                         ],
                                       ],
                                     ),
                                     const SizedBox(height: 3),
-                                    Text('$className${section.isNotEmpty ? "-$section" : ""} • Roll #$roll • Adm: $adm', style: const TextStyle(fontSize: 12, color: _muted)),
+                                    Text(
+                                        '$className${section.isNotEmpty ? "-$section" : ""} • Roll #$roll • Adm: $adm',
+                                        style: const TextStyle(
+                                            fontSize: 12, color: _muted)),
                                     const SizedBox(height: 2),
-                                    Text('Linked as: $rel', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _primary)),
+                                    Text('Linked as: $rel',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: _primary)),
                                   ],
                                 ),
                               ),
@@ -6045,11 +7393,16 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: _primary,
                                     side: const BorderSide(color: _primary),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
                                     minimumSize: const Size(0, 36),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8)),
                                   ),
-                                  child: const Text('Select', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                  child: const Text('Select',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700)),
                                 ),
                             ],
                           ),
@@ -6073,7 +7426,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     backgroundColor: _primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
                 ),
@@ -6116,16 +7470,24 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: _primarySoft, borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.manage_accounts_rounded, color: _primary, size: 20),
+                      decoration: BoxDecoration(
+                          color: _primarySoft,
+                          borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.manage_accounts_rounded,
+                          color: _primary, size: 20),
                     ),
                     const SizedBox(width: 12),
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Profile & Parent Settings', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-                          Text('Notification preferences & account oversight', style: TextStyle(fontSize: 12, color: _muted)),
+                          Text('Profile & Parent Settings',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: _ink)),
+                          Text('Notification preferences & account oversight',
+                              style: TextStyle(fontSize: 12, color: _muted)),
                         ],
                       ),
                     ),
@@ -6155,8 +7517,13 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                             radius: 26,
                             backgroundColor: _primary,
                             child: Text(
-                              _parentName.isNotEmpty ? _parentName[0].toUpperCase() : 'P',
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
+                              _parentName.isNotEmpty
+                                  ? _parentName[0].toUpperCase()
+                                  : 'P',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 18),
                             ),
                           ),
                           const SizedBox(width: 14),
@@ -6164,19 +7531,36 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(_parentName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: _ink)),
+                                Text(_parentName,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 15,
+                                        color: _ink)),
                                 const SizedBox(height: 2),
-                                const Text('Shivalik International School • Parent Portal', style: TextStyle(fontSize: 12, color: _muted)),
+                                const Text(
+                                    'Shivalik International School • Parent Portal',
+                                    style:
+                                        TextStyle(fontSize: 12, color: _muted)),
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                      decoration: BoxDecoration(color: _emeraldSoft, borderRadius: BorderRadius.circular(6)),
-                                      child: const Text('VERIFIED GUARDIAN', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: _emerald)),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                          color: _emeraldSoft,
+                                          borderRadius:
+                                              BorderRadius.circular(6)),
+                                      child: const Text('VERIFIED GUARDIAN',
+                                          style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: _emerald)),
                                     ),
                                     const SizedBox(width: 6),
-                                    Text('${_children.length} Students Linked', style: const TextStyle(fontSize: 11, color: _muted)),
+                                    Text('${_children.length} Students Linked',
+                                        style: const TextStyle(
+                                            fontSize: 11, color: _muted)),
                                   ],
                                 ),
                               ],
@@ -6188,7 +7572,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     const SizedBox(height: 20),
 
                     // Notification Preferences Section
-                    const Text('INSTANT NOTIFICATION PREFERENCES', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+                    const Text('INSTANT NOTIFICATION PREFERENCES',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF94A3B8),
+                            letterSpacing: 0.6)),
                     const SizedBox(height: 10),
                     Container(
                       decoration: BoxDecoration(
@@ -6201,35 +7590,63 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           SwitchListTile(
                             dense: true,
                             activeThumbColor: _primary,
-                            title: const Text('Absence & Late Arrival Alerts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
-                            subtitle: const Text('Immediate in-app and SMS alert if student is marked absent', style: TextStyle(fontSize: 11, color: _muted)),
+                            title: const Text('Absence & Late Arrival Alerts',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _ink)),
+                            subtitle: const Text(
+                                'Immediate in-app and SMS alert if student is marked absent',
+                                style: TextStyle(fontSize: 11, color: _muted)),
                             value: alertAbsence,
-                            onChanged: (v) => setSheetState(() => alertAbsence = v),
+                            onChanged: (v) =>
+                                setSheetState(() => alertAbsence = v),
                           ),
                           const Divider(height: 1, color: _border),
                           SwitchListTile(
                             dense: true,
                             activeThumbColor: _primary,
-                            title: const Text('Homework & Assignment Alerts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
-                            subtitle: const Text('Daily digest when subject faculty assign new homework', style: TextStyle(fontSize: 11, color: _muted)),
+                            title: const Text('Homework & Assignment Alerts',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _ink)),
+                            subtitle: const Text(
+                                'Daily digest when subject faculty assign new homework',
+                                style: TextStyle(fontSize: 11, color: _muted)),
                             value: alertHomework,
-                            onChanged: (v) => setSheetState(() => alertHomework = v),
+                            onChanged: (v) =>
+                                setSheetState(() => alertHomework = v),
                           ),
                           const Divider(height: 1, color: _border),
                           SwitchListTile(
                             dense: true,
                             activeThumbColor: _primary,
-                            title: const Text('Fee Dues & Payment Receipts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
-                            subtitle: const Text('5th of month due date reminder and payment confirmation', style: TextStyle(fontSize: 11, color: _muted)),
+                            title: const Text('Fee Dues & Payment Receipts',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _ink)),
+                            subtitle: const Text(
+                                '5th of month due date reminder and payment confirmation',
+                                style: TextStyle(fontSize: 11, color: _muted)),
                             value: alertFees,
-                            onChanged: (v) => setSheetState(() => alertFees = v),
+                            onChanged: (v) =>
+                                setSheetState(() => alertFees = v),
                           ),
                           const Divider(height: 1, color: _border),
                           SwitchListTile(
                             dense: true,
                             activeThumbColor: _primary,
-                            title: const Text('PTM Schedule & Meeting Confirmations', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
-                            subtitle: const Text('Appointment reminders for booked parent-teacher conferences', style: TextStyle(fontSize: 11, color: _muted)),
+                            title: const Text(
+                                'PTM Schedule & Meeting Confirmations',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _ink)),
+                            subtitle: const Text(
+                                'Appointment reminders for booked parent-teacher conferences',
+                                style: TextStyle(fontSize: 11, color: _muted)),
                             value: alertPtm,
                             onChanged: (v) => setSheetState(() => alertPtm = v),
                           ),
@@ -6237,10 +7654,18 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                           SwitchListTile(
                             dense: true,
                             activeThumbColor: _primary,
-                            title: const Text('Emergency Circulars & Weather Alerts', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
-                            subtitle: const Text('Official statutory updates and campus weather holidays', style: TextStyle(fontSize: 11, color: _muted)),
+                            title: const Text(
+                                'Emergency Circulars & Weather Alerts',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _ink)),
+                            subtitle: const Text(
+                                'Official statutory updates and campus weather holidays',
+                                style: TextStyle(fontSize: 11, color: _muted)),
                             value: alertCirculars,
-                            onChanged: (v) => setSheetState(() => alertCirculars = v),
+                            onChanged: (v) =>
+                                setSheetState(() => alertCirculars = v),
                           ),
                         ],
                       ),
@@ -6248,20 +7673,28 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     const SizedBox(height: 20),
 
                     // Security & Privacy Action
-                    const Text('DATA PRIVACY & CHILD SAFETY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.6)),
+                    const Text('DATA PRIVACY & CHILD SAFETY',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF94A3B8),
+                            letterSpacing: 0.6)),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
                       onPressed: () {
                         Navigator.pop(ctx);
                         _showReportWrongLinkDialog();
                       },
-                      icon: const Icon(Icons.shield_outlined, size: 16, color: _rose),
+                      icon: const Icon(Icons.shield_outlined,
+                          size: 16, color: _rose),
                       label: const Text('Report Incorrect Child Linkage'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _rose,
                         side: const BorderSide(color: Color(0xFFFECDD3)),
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -6270,7 +7703,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Parent notification preferences saved successfully.'),
+                            content: Text(
+                                'Parent notification preferences saved successfully.'),
                             backgroundColor: _emerald,
                           ),
                         );
@@ -6279,10 +7713,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                         backgroundColor: _primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
-                      child: const Text('Save Preferences', style: TextStyle(fontWeight: FontWeight.w700)),
+                      child: const Text('Save Preferences',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
@@ -6300,7 +7736,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Report Incorrect Student Link', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text('Report Incorrect Student Link',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -6314,25 +7751,29 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               controller: noteCtrl,
               maxLines: 3,
               decoration: const InputDecoration(
-                hintText: 'Enter student name or roll number and explain discrepancy...',
+                hintText:
+                    'Enter student name or roll number and explain discrepancy...',
                 border: OutlineInputBorder(),
               ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Discrepancy report filed. The administrative security desk will review this within 4 hours.'),
+                  content: Text(
+                      'Discrepancy report filed. The administrative security desk will review this within 4 hours.'),
                   backgroundColor: _rose,
                 ),
               );
             },
-            style: ElevatedButton.styleFrom(backgroundColor: _rose, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _rose, foregroundColor: Colors.white),
             child: const Text('Submit Report'),
           ),
         ],
@@ -6361,10 +7802,12 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     decoration: BoxDecoration(
                       color: _primarySoft,
                       shape: BoxShape.circle,
-                      border: Border.all(color: _primary.withValues(alpha: 0.2)),
+                      border:
+                          Border.all(color: _primary.withValues(alpha: 0.2)),
                     ),
                     child: const Center(
-                      child: Icon(Icons.family_restroom_rounded, color: _primary, size: 22),
+                      child: Icon(Icons.family_restroom_rounded,
+                          color: _primary, size: 22),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -6372,23 +7815,32 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_parentName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: _ink)),
+                        Text(_parentName,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                                color: _ink)),
                         const SizedBox(height: 2),
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1.5),
                               decoration: BoxDecoration(
                                 color: _primarySoft,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 '${_children.length} Linked ${_children.length == 1 ? "Child" : "Children"}',
-                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _primary),
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: _primary),
                               ),
                             ),
                             const SizedBox(width: 6),
-                            const Text('CBSE K-12', style: TextStyle(fontSize: 10, color: _muted)),
+                            const Text('CBSE K-12',
+                                style: TextStyle(fontSize: 10, color: _muted)),
                           ],
                         ),
                       ],
@@ -6400,85 +7852,113 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             const Divider(height: 1, color: _border),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 children: [
                   _buildDrawerSectionHeader('CORE & COMMUNICATION'),
-                  _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard Home', () => Navigator.pop(context), isActive: true),
-                  _buildDrawerTile(Icons.event_note_rounded, 'Academic Calendar & Milestones', () {
+                  _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard Home',
+                      () => Navigator.pop(context),
+                      isActive: true),
+                  _buildDrawerTile(Icons.event_note_rounded,
+                      'Academic Calendar & Milestones', () {
                     Navigator.pop(context);
                     context.push('/school/calendar');
                   }),
-                  _buildDrawerTile(Icons.chat_bubble_outline_rounded, 'Messages & Teacher Inbox', () {
+                  _buildDrawerTile(Icons.chat_bubble_outline_rounded,
+                      'Messages & Teacher Inbox', () {
                     Navigator.pop(context);
                     _showMessagesInboxModal();
                   }, badgeCount: _unreadMessagesCount),
-                  _buildDrawerTile(Icons.notifications_active_outlined, 'Live Safety Alerts', () {
+                  _buildDrawerTile(
+                      Icons.notifications_active_outlined, 'Live Safety Alerts',
+                      () {
                     Navigator.pop(context);
                     _showLiveAlertsModal();
                   }, badgeCount: _liveAlerts.length),
-                  _buildDrawerTile(Icons.badge_outlined, 'My Children Registry', () {
+                  _buildDrawerTile(Icons.badge_outlined, 'My Children Registry',
+                      () {
                     Navigator.pop(context);
                     _showMyChildrenModal();
                   }),
-
                   _buildDrawerSectionHeader('DAILY OPERATIONS & ACADEMICS'),
-                  _buildDrawerTile(Icons.how_to_reg_rounded, 'Daily Attendance & Logs', () {
+                  _buildDrawerTile(
+                      Icons.how_to_reg_rounded, 'Daily Attendance & Logs', () {
                     Navigator.pop(context);
                     context.go('/school/attendance');
                   }),
-                  _buildDrawerTile(Icons.menu_book_rounded, 'Homework Diary', () {
+                  _buildDrawerTile(Icons.menu_book_rounded, 'Homework Diary',
+                      () {
                     Navigator.pop(context);
                     context.go('/school/homework');
                   }),
-                  _buildDrawerTile(Icons.account_balance_wallet_outlined, 'Fees & Receipts Statement', () {
+                  _buildDrawerTile(Icons.account_balance_wallet_outlined,
+                      'Fees & Receipts Statement', () {
                     Navigator.pop(context);
-                    final sId = _currentChild?['username']?.toString() ?? _currentChild?['id']?.toString() ?? '';
-                    context.go(sId.isNotEmpty ? '/school/fees?studentId=$sId' : '/school/fees');
+                    final sId = _currentChild?['username']?.toString() ??
+                        _currentChild?['id']?.toString() ??
+                        '';
+                    context.go(sId.isNotEmpty
+                        ? '/school/fees?studentId=$sId'
+                        : '/school/fees');
                   }),
-                  _buildDrawerTile(Icons.bar_chart_rounded, 'My Reports & Analytics', () {
+                  _buildDrawerTile(
+                      Icons.bar_chart_rounded, 'My Reports & Analytics', () {
                     Navigator.pop(context);
                     _showParentReportsHubModal();
                   }),
-                  _buildDrawerTile(Icons.handshake_outlined, 'PTM Meeting Bookings', () {
+                  _buildDrawerTile(
+                      Icons.handshake_outlined, 'PTM Meeting Bookings', () {
                     Navigator.pop(context);
                     _showBookPtmModal();
                   }),
-                  _buildDrawerTile(Icons.report_problem_outlined, 'Parent Grievance Desk', () {
+                  _buildDrawerTile(
+                      Icons.report_problem_outlined, 'Parent Grievance Desk',
+                      () {
                     Navigator.pop(context);
                     _showGrievancesDeskModal();
                   }),
-                  _buildDrawerTile(Icons.campaign_outlined, 'Official School Circulars', () {
+                  _buildDrawerTile(
+                      Icons.campaign_outlined, 'Official School Circulars', () {
                     Navigator.pop(context);
                     context.go('/school/circulars');
                   }),
-                  _buildDrawerTile(Icons.directions_bus_outlined, 'Bus Fleet & Commute', () {
+                  _buildDrawerTile(
+                      Icons.directions_bus_outlined, 'Bus Fleet & Commute', () {
                     Navigator.pop(context);
                     context.go('/school/transport');
                   }),
-                  _buildDrawerTile(Icons.description_outlined, 'CBSE Report Cards & HPC', () {
+                  _buildDrawerTile(
+                      Icons.description_outlined, 'CBSE Report Cards & HPC',
+                      () {
                     Navigator.pop(context);
                     context.go('/school/report-card');
                   }),
-                  _buildDrawerTile(Icons.calendar_month_outlined, 'Weekly Timetable Schedule', () {
+                  _buildDrawerTile(Icons.calendar_month_outlined,
+                      'Weekly Timetable Schedule', () {
                     Navigator.pop(context);
                     context.go('/school/timetable');
                   }),
-                  _buildDrawerTile(Icons.local_library_outlined, 'Campus Library Catalog', () {
+                  _buildDrawerTile(
+                      Icons.local_library_outlined, 'Campus Library Catalog',
+                      () {
                     Navigator.pop(context);
                     context.go('/school/library');
                   }),
-                  _buildDrawerTile(Icons.card_membership_outlined, 'Certificates & No Dues', () {
+                  _buildDrawerTile(
+                      Icons.card_membership_outlined, 'Certificates & No Dues',
+                      () {
                     Navigator.pop(context);
                     context.go('/school/certificates');
                   }),
-                  _buildDrawerTile(Icons.folder_shared_outlined, 'LMS Study Materials', () {
+                  _buildDrawerTile(
+                      Icons.folder_shared_outlined, 'LMS Study Materials', () {
                     Navigator.pop(context);
                     final child = _currentChild;
                     _showMaterialsSheet(child?['class_id']?.toString() ?? '');
                   }),
-
                   _buildDrawerSectionHeader('ACCOUNT & SETTINGS'),
-                  _buildDrawerTile(Icons.settings_outlined, 'Profile & Settings', () {
+                  _buildDrawerTile(
+                      Icons.settings_outlined, 'Profile & Settings', () {
                     Navigator.pop(context);
                     _showProfileAndSettingsModal();
                   }),
@@ -6489,11 +7969,17 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: ListTile(
-                leading: const Icon(Icons.logout_rounded, color: _rose, size: 20),
-                title: const Text('Sign Out', style: TextStyle(color: _rose, fontWeight: FontWeight.w700, fontSize: 13)),
+                leading:
+                    const Icon(Icons.logout_rounded, color: _rose, size: 20),
+                title: const Text('Sign Out',
+                    style: TextStyle(
+                        color: _rose,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13)),
                 minLeadingWidth: 24,
                 dense: true,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
                 onTap: () async {
                   await _authService.logout();
                   if (mounted) context.go('/login');
@@ -6521,7 +8007,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
     );
   }
 
-  Widget _buildDrawerTile(IconData icon, String label, VoidCallback onTap, {bool isActive = false, int badgeCount = 0}) {
+  Widget _buildDrawerTile(IconData icon, String label, VoidCallback onTap,
+      {bool isActive = false, int badgeCount = 0}) {
     return ListTile(
       leading: Icon(icon, color: isActive ? _primary : _muted, size: 19),
       title: Text(
@@ -6541,7 +8028,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
               ),
               child: Text(
                 '$badgeCount',
-                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold),
               ),
             )
           : null,
@@ -6587,18 +8077,21 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                   color: Color(0xFFFDF2F8),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.family_restroom_rounded, size: 36, color: Color(0xFFDB2777)),
+                child: const Icon(Icons.family_restroom_rounded,
+                    size: 36, color: Color(0xFFDB2777)),
               ),
               const SizedBox(height: 18),
               const Text(
                 'No Student Profile Linked',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink),
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w800, color: _ink),
               ),
               const SizedBox(height: 8),
               Text(
                 'Your parent account "$_parentName" currently has no linked student records in the active academic registry. To view your child\'s live attendance, grades, and fee ledger, request a linking below or contact administration.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: _muted, height: 1.45),
+                style:
+                    const TextStyle(fontSize: 13, color: _muted, height: 1.45),
               ),
               const SizedBox(height: 22),
               ElevatedButton.icon(
@@ -6608,8 +8101,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFDB2777),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
               ),
@@ -6621,8 +8116,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: _ink,
                   side: const BorderSide(color: _border),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
@@ -6639,7 +8136,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Submit Child Linking Request', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text('Submit Child Linking Request',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -6669,18 +8167,22 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Linking request submitted to School Administration. Verification pending within 24 hours.'),
+                  content: Text(
+                      'Linking request submitted to School Administration. Verification pending within 24 hours.'),
                   backgroundColor: Color(0xFF059669),
                 ),
               );
             },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDB2777), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDB2777),
+                foregroundColor: Colors.white),
             child: const Text('Submit Request'),
           ),
         ],
@@ -6707,13 +8209,31 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             child: Row(
               children: [
                 const SizedBox(width: 12),
-                Container(width: 32, height: 32, decoration: const BoxDecoration(color: Color(0xFFE2E8F0), shape: BoxShape.circle)),
+                Container(
+                    width: 32,
+                    height: 32,
+                    decoration: const BoxDecoration(
+                        color: Color(0xFFE2E8F0), shape: BoxShape.circle)),
                 const SizedBox(width: 10),
-                Container(width: 120, height: 14, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                Container(
+                    width: 120,
+                    height: 14,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(4))),
                 const Spacer(),
-                Container(width: 32, height: 32, decoration: const BoxDecoration(color: Color(0xFFF1F5F9), shape: BoxShape.circle)),
+                Container(
+                    width: 32,
+                    height: 32,
+                    decoration: const BoxDecoration(
+                        color: Color(0xFFF1F5F9), shape: BoxShape.circle)),
                 const SizedBox(width: 10),
-                Container(width: 100, height: 14, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                Container(
+                    width: 100,
+                    height: 14,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(4))),
                 const SizedBox(width: 12),
               ],
             ),
@@ -6732,18 +8252,37 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             ),
             child: Row(
               children: [
-                Container(width: 56, height: 56, decoration: const BoxDecoration(color: Color(0xFFE2E8F0), shape: BoxShape.circle)),
+                Container(
+                    width: 56,
+                    height: 56,
+                    decoration: const BoxDecoration(
+                        color: Color(0xFFE2E8F0), shape: BoxShape.circle)),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(width: 160, height: 18, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 160,
+                          height: 18,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 10),
-                      Container(width: 220, height: 12, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 220,
+                          height: 12,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 10),
-                      Container(width: 140, height: 12, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 140,
+                          height: 12,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4))),
                     ],
                   ),
                 ),
@@ -6768,11 +8307,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(width: 70, height: 11, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 70,
+                          height: 11,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 8),
-                      Container(width: 50, height: 20, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 50,
+                          height: 20,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 6),
-                      Container(width: 90, height: 10, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 90,
+                          height: 10,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4))),
                     ],
                   ),
                 ),
@@ -6791,11 +8345,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(width: 70, height: 11, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 70,
+                          height: 11,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 8),
-                      Container(width: 60, height: 20, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 60,
+                          height: 20,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 6),
-                      Container(width: 90, height: 10, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 90,
+                          height: 10,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4))),
                     ],
                   ),
                 ),
@@ -6818,11 +8387,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(width: 80, height: 11, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 80,
+                          height: 11,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 8),
-                      Container(width: 45, height: 20, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 45,
+                          height: 20,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 6),
-                      Container(width: 95, height: 10, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 95,
+                          height: 10,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4))),
                     ],
                   ),
                 ),
@@ -6841,11 +8425,26 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(width: 80, height: 11, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 80,
+                          height: 11,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 8),
-                      Container(width: 65, height: 20, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 65,
+                          height: 20,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4))),
                       const SizedBox(height: 6),
-                      Container(width: 100, height: 10, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4))),
+                      Container(
+                          width: 100,
+                          height: 10,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4))),
                     ],
                   ),
                 ),
@@ -6866,13 +8465,33 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(width: 180, height: 16, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(4))),
+                Container(
+                    width: 180,
+                    height: 16,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(4))),
                 const SizedBox(height: 16),
-                Container(width: double.infinity, height: 38, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10))),
+                Container(
+                    width: double.infinity,
+                    height: 38,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10))),
                 const SizedBox(height: 10),
-                Container(width: double.infinity, height: 38, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10))),
+                Container(
+                    width: double.infinity,
+                    height: 38,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10))),
                 const SizedBox(height: 10),
-                Container(width: double.infinity, height: 38, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10))),
+                Container(
+                    width: double.infinity,
+                    height: 38,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10))),
               ],
             ),
           ),
@@ -6893,7 +8512,8 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             Text(
               _errorMessage ?? 'An unexpected error occurred.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink),
+              style: const TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600, color: _ink),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -6922,7 +8542,8 @@ class _SliverTabHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 64.0;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
     return child;
   }
 
