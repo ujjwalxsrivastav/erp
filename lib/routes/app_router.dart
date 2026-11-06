@@ -223,10 +223,10 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/my-payslips': {..._schoolStaffRoles, 'staff', 'accountant'},
 
   // Student specific
-  '/school/student-dashboard': {'student', 'sstudent', ..._schoolAdminRoles},
+  '/school/student-dashboard': {'student', 'sstudent'},
 
   // Parent specific
-  '/school/parent-dashboard': {'parent', 'sparent', ..._schoolAdminRoles},
+  '/school/parent-dashboard': {'parent', 'sparent'},
 
   // Shared / Multi-role (views adapt based on role)
   // Parents do not have an AI view yet.  Do not route them through a child's
