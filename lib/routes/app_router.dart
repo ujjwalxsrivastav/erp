@@ -158,7 +158,6 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/homework/add': _schoolStaffRoles,
   '/school/lesson-plans': _schoolStaffRoles,
   '/school/examination': _schoolStaffRoles,
-  '/school/ai-tools': _schoolStaffRoles,
   '/school/discipline': _schoolStaffRoles,
   '/school/inventory': _schoolStaffRoles,
   '/school/reports': _schoolStaffRoles,
@@ -171,6 +170,8 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/parent-dashboard': {'parent', 'sparent', ..._schoolAdminRoles},
 
   // Shared / Multi-role (views adapt based on role)
+  '/school/ai-tools': _allSchoolRoles,
+  '/school/chatbot': _allSchoolRoles,
   '/school/homework': _allSchoolRoles,
   '/school/leave': _allSchoolRoles,
   '/school/report-card': _allSchoolRoles,
@@ -184,7 +185,6 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/living': {..._allSchoolRoles, 'warden', 'nurse'},
   '/school/alumni': {..._allSchoolRoles, 'alumni'},
   '/school/activities': _allSchoolRoles,
-  '/school/chatbot': _allSchoolRoles,
   '/school/calendar': _allSchoolRoles,
   '/school/academic-calendar': _allSchoolRoles,
 };

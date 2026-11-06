@@ -363,9 +363,15 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isStaff = _currentRole == 'teacher' ||
+        _currentRole == 'admin' ||
+        _currentRole == 'sadmin' ||
+        _currentRole == 'superadmin' ||
+        _currentRole == 'principal';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Faculty Assistant & RAG Desk'),
+        title: Text(isStaff ? 'AI Faculty Assistant & RAG Desk' : 'Shivalik AI Campus Assistant'),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -376,34 +382,38 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
           ),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Export AI Usage (SP-R15)',
-            icon: const Icon(Icons.analytics_outlined),
-            onPressed: _exportAiUsageExcel,
-          ),
-          IconButton(
-            tooltip: 'Export Chat Audit (SP-R13)',
-            icon: const Icon(Icons.chat_bubble_outline),
-            onPressed: _exportChatExcel,
-          ),
+          if (isStaff) ...[
+            IconButton(
+              tooltip: 'Export AI Usage (SP-R15)',
+              icon: const Icon(Icons.analytics_outlined),
+              onPressed: _exportAiUsageExcel,
+            ),
+            IconButton(
+              tooltip: 'Export Chat Audit (SP-R13)',
+              icon: const Icon(Icons.chat_bubble_outline),
+              onPressed: _exportChatExcel,
+            ),
+          ],
           IconButton(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh),
             onPressed: _loadData,
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.amber,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(icon: Icon(Icons.rate_review_outlined), text: 'Remarks Drafter'),
-            Tab(icon: Icon(Icons.quiz_outlined), text: 'Question Generator'),
-            Tab(icon: Icon(Icons.assignment_turned_in_outlined), text: 'Homework Feedback'),
-            Tab(icon: Icon(Icons.smart_toy_outlined), text: 'RAG Chatbot'),
-          ],
-        ),
+        bottom: isStaff
+            ? TabBar(
+                controller: _tabController,
+                indicatorColor: Colors.amber,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white70,
+                tabs: const [
+                  Tab(icon: Icon(Icons.rate_review_outlined), text: 'Remarks Drafter'),
+                  Tab(icon: Icon(Icons.quiz_outlined), text: 'Question Generator'),
+                  Tab(icon: Icon(Icons.assignment_turned_in_outlined), text: 'Homework Feedback'),
+                  Tab(icon: Icon(Icons.smart_toy_outlined), text: 'RAG Chatbot'),
+                ],
+              )
+            : null,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -420,22 +430,24 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
                     ],
                   ),
                 )
-              : Column(
-                  children: [
-                    _buildKpiBanner(),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildRemarksTab(),
-                          _buildQuestionPaperTab(),
-                          _buildFeedbackTab(),
-                          _buildRagChatTab(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              : isStaff
+                  ? Column(
+                      children: [
+                        _buildKpiBanner(),
+                        Expanded(
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              _buildRemarksTab(),
+                              _buildQuestionPaperTab(),
+                              _buildFeedbackTab(),
+                              _buildRagChatTab(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  : _buildRagChatTab(),
     );
   }
 
@@ -874,13 +886,22 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
   }
 
   Widget _buildRagChatTab() {
-    final quickPrompts = [
-      'What is staff PF rate?',
-      'Hostel gate pass procedure?',
-      'Library fine policy?',
-      'Cafeteria menu balance?',
-      'Discipline suspension rule?',
-    ];
+    final quickPrompts = (_currentRole == 'student' || _currentRole == 'parent')
+        ? [
+            'Fee payment & receipt?',
+            'Library fine policy?',
+            'Hostel gate pass procedure?',
+            'Cafeteria menu balance?',
+            'Academic calendar & exam dates?',
+            'School timings & periods?',
+          ]
+        : [
+            'What is staff PF rate?',
+            'Hostel gate pass procedure?',
+            'Library fine policy?',
+            'Cafeteria menu balance?',
+            'Discipline suspension rule?',
+          ];
 
     return Column(
       children: [
