@@ -246,7 +246,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
         children: [
           FloatingActionButton.extended(
             heroTag: 'admin_ai_chatbot_fab',
-            onPressed: () => context.push('/school/ai-tools?tab=chatbot'),
+            onPressed: () => context.push('/school/ai-tools-faculty?tab=chatbot'),
             backgroundColor: const Color(0xFF7C3AED),
             foregroundColor: Colors.white,
             elevation: 4,
@@ -386,7 +386,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              onTap: () => context.push('/school/ai-tools?tab=chatbot'),
+              onTap: () => context.push('/school/ai-tools-faculty?tab=chatbot'),
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 child: Row(
@@ -3885,7 +3885,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     subtitle: 'Draft remarks, generate 40/40/20 exam blueprints, or query institutional policies',
                     onTap: () {
                       Navigator.pop(ctx);
-                      context.push('/school/ai-tools');
+                      context.push('/school/ai-tools-faculty');
                     },
                   ),
                   _buildQuickActionRow(
@@ -5729,7 +5729,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   _buildDrawerCategory('AI & INSTITUTIONAL INTELLIGENCE'),
                   _buildDrawerItem(Icons.auto_awesome_rounded, 'AI Assistant & Policy Chatbot (SP11)', () {
                     Navigator.pop(context);
-                    context.go('/school/ai-tools');
+                    context.go('/school/ai-tools-faculty');
                   }),
                   _buildDrawerItem(Icons.security_rounded, 'Permission Matrix & Marks Lock (SP10)', () {
                     Navigator.pop(context);

@@ -323,7 +323,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
-                onTap: () => context.push('/school/ai-tools'),
+                onTap: () => context.push('/school/ai-tools-faculty'),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   child: Row(
@@ -388,7 +388,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       drawer: _buildDrawer(),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'teacher_ai_tools_fab',
-        onPressed: () => context.push('/school/ai-tools'),
+        onPressed: () => context.push('/school/ai-tools-faculty'),
         backgroundColor: const Color(0xFF7C3AED),
         foregroundColor: Colors.white,
         elevation: 4,
@@ -3633,7 +3633,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   }),
                   _buildDrawerTile(Icons.auto_awesome_rounded, 'AI Studio & Question Paper Generator (SP11)', () {
                     Navigator.pop(context);
-                    context.push('/school/ai-tools');
+                    context.push('/school/ai-tools-faculty');
                   }),
                   _buildDrawerTile(Icons.analytics_rounded, 'My Reports & Analytics', () {
                     Navigator.pop(context);

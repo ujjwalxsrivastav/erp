@@ -134,6 +134,7 @@ import '../features/school/admin/school_multi_admin_screen.dart';
 import '../features/school/library/school_library_deep_screen.dart';
 import '../features/school/admin/school_permission_matrix_screen.dart';
 import '../features/school/ai/school_ai_assistant_screen.dart';
+import '../features/school/ai/faculty_ai_screen.dart';
 import '../features/school/ai/student_ai_screen.dart';
 import '../features/school/notifications/notifications_screen.dart';
 import '../features/school/calendar/school_academic_calendar_screen.dart';
@@ -394,9 +395,12 @@ final router = GoRouter(
                 ? '/school/discipline-staff'
                 : (isLearner ? '/school/discipline-notices' : null);
           case '/school/ai-tools':
+            return isStaff
+                ? '/school/ai-tools-faculty${state.uri.hasQuery ? '?${state.uri.query}' : ''}'
+                : (normalizedRole == 'student' ? '/school/ai-student' : null);
           case '/school/chatbot':
             return isStaff
-                ? '/school/ai-tools-faculty'
+                ? '/school/ai-tools-faculty?tab=chatbot'
                 : (normalizedRole == 'student' ? '/school/ai-student' : null);
           case '/school/calendar':
           case '/school/academic-calendar':
@@ -653,7 +657,11 @@ final router = GoRouter(
         builder: (context, state) => const StudentDisciplineScreen()),
     GoRoute(
         path: '/school/ai-tools-faculty',
-        builder: (context, state) => const SchoolAiAssistantScreen()),
+        builder: (context, state) {
+          final tab = state.uri.queryParameters['tab'];
+          final initialTab = tab == 'chatbot' || tab == '3' ? 3 : tab == 'questions' || tab == '1' ? 1 : tab == 'feedback' || tab == '2' ? 2 : 0;
+          return FacultyAiScreen(initialTab: initialTab);
+        }),
     GoRoute(
         path: '/school/ai-student',
         builder: (context, state) => const StudentAiScreen()),

@@ -377,7 +377,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           drawer: isWide ? null : _buildSidebar(context),
           floatingActionButton: FloatingActionButton.extended(
             heroTag: 'student_ai_chatbot_fab',
-            onPressed: () => context.push('/school/ai-tools?tab=chatbot'),
+            onPressed: () => context.push('/school/ai-student'),
             backgroundColor: const Color(0xFF7C3AED),
             foregroundColor: Colors.white,
             elevation: 4,
@@ -1739,7 +1739,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               _buildDrawerCategory('AI INSTITUTIONAL INTELLIGENCE'),
               _buildDrawerItem(Icons.auto_awesome_rounded, 'Ask School AI Chatbot (SP11)', () {
                 if (isDrawer) Navigator.pop(context);
-                context.push('/school/ai-tools?tab=chatbot');
+                context.push('/school/ai-student');
               }),
               _buildDrawerCategory('ACADEMIC SERVICES'),
               _buildDrawerItem(Icons.event_note_rounded, 'Academic Calendar & Holidays', () {

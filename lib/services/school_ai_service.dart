@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'school_payroll_service.dart';
+import 'auth_service.dart';
 
 class SchoolAiService {
   static final SchoolAiService _instance = SchoolAiService._internal();
@@ -149,6 +150,9 @@ class SchoolAiService {
 
     // 4. Institutional RAG knowledge engine if cloud keys are unconfigured or offline
     if (result.trim().isEmpty) {
+      if (feature == 'rag_chat' && role.toLowerCase() == 'student') {
+        throw const SchoolAiException('The verified student AI service is unavailable.');
+      }
       result = _fallbackInstitutionalResponse(
         feature: feature,
         userPrompt: userPrompt,
@@ -656,14 +660,35 @@ Student's Work Summary: $studentSubmissionSummary
     required String userRole,
     required String username,
   }) async {
-    final isStudent = userRole.toLowerCase() == 'student';
+    final currentUsername = await AuthService().getCurrentUsername() ?? '';
+    if (currentUsername.isEmpty || currentUsername != username) {
+      throw SchoolAiException('AI identity must match the signed-in account.');
+    }
+    final liveRole = (await AuthService().getLiveUserRole(currentUsername) ?? '').toLowerCase();
+    final normalizedRole = liveRole == 'steacher'
+        ? 'teacher'
+        : liveRole == 'sstudent'
+            ? 'student'
+            : liveRole == 'sadmin'
+                ? 'admin'
+                : liveRole;
+    if (normalizedRole != userRole.toLowerCase()) {
+      throw SchoolAiException('AI role must match the live school account role.');
+    }
+    if (!{'student', 'teacher', 'class_teacher', 'admin', 'principal', 'superadmin'}.contains(normalizedRole)) {
+      throw SchoolAiException('This role cannot use the school AI assistant.');
+    }
+    final isStudent = normalizedRole == 'student';
+    if (isStudent && RegExp(r'\b(staff|payroll|salary|pf|esi|professional tax|provident fund|employee contribution)\b', caseSensitive: false).hasMatch(question)) {
+      return 'I can help with student-facing school policies and information. Please contact the school office for staff employment or payroll questions.';
+    }
     final systemPrompt = '''
 You are the school's AI assistant. Answer only from verified information made
 available to you. Do not invent institutional facts, policies, fees, staff
 rules, deadlines, or student records. If verified information is unavailable,
 say so plainly and direct the user to the school office.
 
-The current user is a $userRole. ${isStudent ? 'Do not disclose staff, payroll, other-student, or administrative information.' : 'Do not disclose information outside the user\'s authorised scope.'}
+The verified current user is a $normalizedRole. ${isStudent ? 'Answer only student-facing school policy questions and this student’s own records when verified context is available. Never disclose staff, payroll, other-student, or administrative information.' : 'Do not disclose information outside the user\'s authorised scope.'}
 Keep replies concise, helpful, and respectful.
 ''';
 
@@ -672,7 +697,7 @@ Keep replies concise, helpful, and respectful.
       userPrompt: question,
       feature: 'rag_chat',
       username: username,
-      role: userRole,
+      role: normalizedRole,
     );
   }
 

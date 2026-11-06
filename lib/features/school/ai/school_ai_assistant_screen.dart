@@ -3,6 +3,8 @@ import '../../../services/school_ai_service.dart';
 import '../../../services/school_export_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/school_service.dart';
+import 'widgets/rag_chat_panel.dart';
 
 class SchoolAiAssistantScreen extends StatefulWidget {
   final int initialTab;
@@ -21,34 +23,37 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
   bool _isLoading = true;
   String? _errorMessage;
 
-  String _currentUsername = 'admin';
-  String _currentRole = 'teacher';
+  String _currentUsername = '';
+  String _currentRole = '';
 
   Map<String, dynamic> _stats = {};
   List<Map<String, dynamic>> _remarks = [];
   List<Map<String, dynamic>> _questionPapers = [];
   List<Map<String, dynamic>> _feedbacks = [];
-  final List<Map<String, String>> _chatMessages = [];
 
   // Controllers for remark generation
-  final _studentNameCtrl = TextEditingController(text: 'Aarav Sharma');
-  final _studentUserCtrl = TextEditingController(text: 'sstudent1');
-  final _marksCtrl = TextEditingController(text: '88.5');
-  final _attCtrl = TextEditingController(text: '94.2');
-  final _notesCtrl = TextEditingController(text: 'Exemplary focus in science laboratory, needs encouragement in group presentations.');
+  final _studentNameCtrl = TextEditingController();
+  final _studentUserCtrl = TextEditingController();
+  final _marksCtrl = TextEditingController();
+  final _attCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+  final _examCtrl = TextEditingController();
+  final _remarkClassCtrl = TextEditingController();
+  final _feedbackAssignmentCtrl = TextEditingController();
+  final _feedbackStudentCtrl = TextEditingController();
+  final _feedbackSummaryCtrl = TextEditingController();
+  final _feedbackScoreCtrl = TextEditingController();
+  final _feedbackMaxCtrl = TextEditingController();
   bool _isGeneratingRemark = false;
 
   // Controllers for question paper
-  final _qpSubjectCtrl = TextEditingController(text: 'Science & Biology');
-  final _qpClassCtrl = TextEditingController(text: 'Class 10-A');
-  final _qpChaptersCtrl = TextEditingController(text: 'Life Processes, Control & Coordination, Heredity');
-  final _qpMarksCtrl = TextEditingController(text: '50');
+  final _qpSubjectCtrl = TextEditingController();
+  final _qpClassCtrl = TextEditingController();
+  final _qpChaptersCtrl = TextEditingController();
+  final _qpMarksCtrl = TextEditingController();
   bool _isGeneratingPaper = false;
 
   // Controller for chat
-  final _chatCtrl = TextEditingController();
-  final ScrollController _chatScroll = ScrollController();
-  bool _isChatLoading = false;
 
   @override
   void initState() {
@@ -59,10 +64,6 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
       initialIndex: widget.initialTab.clamp(0, 3),
     );
     _loadData();
-    _chatMessages.add({
-      'sender': 'assistant',
-      'text': 'Hello! I am your Shivalik International School Institutional AI Assistant. Ask me anything about school policies, payroll, hostel allocations, cafeteria menus, library overdue fines, or student discipline rules.',
-    });
   }
 
   @override
@@ -73,12 +74,17 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
     _marksCtrl.dispose();
     _attCtrl.dispose();
     _notesCtrl.dispose();
+    _examCtrl.dispose();
+    _remarkClassCtrl.dispose();
+    _feedbackAssignmentCtrl.dispose();
+    _feedbackStudentCtrl.dispose();
+    _feedbackSummaryCtrl.dispose();
+    _feedbackScoreCtrl.dispose();
+    _feedbackMaxCtrl.dispose();
     _qpSubjectCtrl.dispose();
     _qpClassCtrl.dispose();
     _qpChaptersCtrl.dispose();
     _qpMarksCtrl.dispose();
-    _chatCtrl.dispose();
-    _chatScroll.dispose();
     super.dispose();
   }
 
@@ -89,10 +95,14 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
     });
 
     try {
-      final uname = await _authService.getCurrentUsername() ?? 'admin';
-      final role = await _authService.getCurrentUserRole() ?? 'teacher';
+      final uname = await _authService.getCurrentUsername() ?? '';
+      final rawRole = uname.isEmpty ? null : await _authService.getLiveUserRole(uname);
+      if (uname.isEmpty || rawRole == null) throw Exception('Your signed-in school role could not be verified.');
+      final role = rawRole == 'steacher' ? 'teacher' : rawRole == 'sadmin' ? 'admin' : rawRole;
+      if (!{'teacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'}.contains(rawRole)) throw Exception('This role cannot access faculty AI tools.');
+      final isAdmin = {'admin', 'sadmin', 'principal', 'superadmin'}.contains(rawRole);
 
-      final stats = await _aiService.getAiStats();
+      final stats = isAdmin ? await _aiService.getAiStats() : <String, dynamic>{};
 
       // Live queries from runtime tables (R5)
       List<Map<String, dynamic>> remarks = [];
@@ -100,6 +110,7 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
       List<Map<String, dynamic>> feedbacks = [];
 
       try {
+      if (!isAdmin) throw StateError('Saved remarks have no owner column for safe teacher scoping.');
         final remRes = await SupabaseService.client
             .from('school_ai_remarks')
             .select()
@@ -108,18 +119,16 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
       } catch (_) {}
 
       try {
-        final qpRes = await SupabaseService.client
-            .from('school_ai_question_papers')
-            .select()
-            .order('created_at', ascending: false);
+        var qpQuery = SupabaseService.client.from('school_ai_question_papers').select();
+        if (!isAdmin) qpQuery = qpQuery.eq('created_by', uname);
+        final qpRes = await qpQuery.order('created_at', ascending: false);
         papers = List<Map<String, dynamic>>.from(qpRes);
       } catch (_) {}
 
       try {
-        final fbRes = await SupabaseService.client
-            .from('school_ai_feedback')
-            .select()
-            .order('created_at', ascending: false);
+        var fbQuery = SupabaseService.client.from('school_ai_feedback').select();
+        if (!isAdmin) fbQuery = fbQuery.eq('created_by', uname);
+        final fbRes = await fbQuery.order('created_at', ascending: false);
         feedbacks = List<Map<String, dynamic>>.from(fbRes);
       } catch (_) {}
 
@@ -151,11 +160,12 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
           .select()
           .order('created_at', ascending: false);
       final usageLogs = List<Map<String, dynamic>>.from(res);
+      final instituteName = await SchoolService().getSchoolInstituteName() ?? '';
 
       if (!mounted) return;
       await SchoolExportService.exportSchoolChatbotUsageExcel(
         context: context,
-        instituteName: 'Shivalik International School (SHIV-SCH)',
+        instituteName: instituteName,
         usageLogs: usageLogs,
       );
     } catch (e) {
@@ -167,9 +177,10 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
 
   Future<void> _exportAiUsageExcel() async {
     try {
+      final instituteName = await SchoolService().getSchoolInstituteName() ?? '';
       await SchoolExportService.exportSchoolAiUsageExcel(
         context: context,
-        instituteName: 'Shivalik International School (SHIV-SCH)',
+        instituteName: instituteName,
         aiStats: _stats,
         remarksList: _remarks,
         questionPapers: _questionPapers,
@@ -184,16 +195,22 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
   Future<void> _handleGenerateRemark() async {
     final sName = _studentNameCtrl.text.trim();
     final sUser = _studentUserCtrl.text.trim();
-    final marks = double.tryParse(_marksCtrl.text.trim()) ?? 80.0;
-    final att = double.tryParse(_attCtrl.text.trim()) ?? 90.0;
+    final exam = _examCtrl.text.trim();
+    final classId = _remarkClassCtrl.text.trim();
+    final marks = double.tryParse(_marksCtrl.text.trim());
+    final att = double.tryParse(_attCtrl.text.trim());
+    if (sName.isEmpty || sUser.isEmpty || exam.isEmpty || classId.isEmpty || marks == null || att == null || marks < 0 || marks > 100 || att < 0 || att > 100) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter the student, class, exam, marks, and attendance from verified records.')));
+      return;
+    }
 
     setState(() => _isGeneratingRemark = true);
     try {
       final rem = await _aiService.draftReportCardRemark(
         studentUsername: sUser,
         studentName: sName,
-        examId: 'EXAM-MID-2026',
-        classId: 'Class 10-A',
+        examId: exam,
+        classId: classId,
         marksPercentage: marks,
         attendancePercentage: att,
         behaviouralNotes: _notesCtrl.text.trim(),
@@ -223,7 +240,11 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
     final sub = _qpSubjectCtrl.text.trim();
     final cls = _qpClassCtrl.text.trim();
     final chs = _qpChaptersCtrl.text.trim();
-    final marks = int.tryParse(_qpMarksCtrl.text.trim()) ?? 50;
+    final marks = int.tryParse(_qpMarksCtrl.text.trim());
+    if (sub.isEmpty || cls.isEmpty || chs.isEmpty || marks == null || marks <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter the allotted class, subject, chapters, and total marks.')));
+      return;
+    }
 
     setState(() => _isGeneratingPaper = true);
     try {
@@ -246,6 +267,31 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('AI Error: $e'), backgroundColor: Colors.red.shade700),
       );
+    }
+  }
+
+  Future<void> _handleFeedbackDraft() async {
+    final assignment = _feedbackAssignmentCtrl.text.trim();
+    final student = _feedbackStudentCtrl.text.trim();
+    final summary = _feedbackSummaryCtrl.text.trim();
+    final score = double.tryParse(_feedbackScoreCtrl.text.trim());
+    final maxScore = double.tryParse(_feedbackMaxCtrl.text.trim());
+    if (assignment.isEmpty || student.isEmpty || summary.isEmpty || score == null || maxScore == null || maxScore <= 0 || score < 0 || score > maxScore) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter the assignment, student, submission summary, and valid score.')));
+      return;
+    }
+    try {
+      final feedback = await _aiService.draftAssignmentFeedback(
+        assignmentTitle: assignment,
+        studentName: student,
+        studentSubmissionSummary: summary,
+        score: score,
+        maxScore: maxScore,
+        teacherUsername: _currentUsername,
+      );
+      if (mounted) setState(() => _feedbacks.insert(0, feedback));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Feedback draft failed: $e')));
     }
   }
 
@@ -292,86 +338,45 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.check, size: 16),
-              label: const Text('Approve Blueprint'),
-              onPressed: () {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Question paper approved for examination printing!'), backgroundColor: Colors.green),
-                );
-              },
-            ),
           ],
         );
       },
     );
   }
 
-  Future<void> _handleSendChat([String? customPrompt]) async {
-    final query = customPrompt ?? _chatCtrl.text.trim();
-    if (query.isEmpty) return;
-
-    if (customPrompt == null) _chatCtrl.clear();
-
-    setState(() {
-      _chatMessages.add({'sender': 'user', 'text': query});
-      _isChatLoading = true;
-    });
-
-    _scrollChatToBottom();
-
-    try {
-      final answer = await _aiService.askRagAssistant(
-        question: query,
+  Future<String> _askChat(String question) => _aiService.askRagAssistant(
+        question: question,
         userRole: _currentRole,
         username: _currentUsername,
       );
 
-      if (mounted) {
-        setState(() {
-          _chatMessages.add({'sender': 'assistant', 'text': answer});
-          _isChatLoading = false;
-        });
-        _scrollChatToBottom();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _chatMessages.add({
-            'sender': 'assistant',
-            'text': 'Notice: $e. You can also contact the institutional administrative desk.',
-          });
-          _isChatLoading = false;
-        });
-        _scrollChatToBottom();
-      }
+  Future<void> _decideRemark(Map<String, dynamic> remark, bool approve) async {
+    final author = (remark['teacher_username'] ?? remark['created_by'])?.toString() ?? '';
+    if (author.isEmpty || author == _currentUsername) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This draft has no verified maker identity for approval.')));
+      return;
     }
-  }
-
-  void _scrollChatToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_chatScroll.hasClients) {
-        _chatScroll.animateTo(
-          _chatScroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    try {
+      await _aiService.approveRemark(remarkId: remark['id'].toString(), teacherUsername: _currentUsername, approve: approve);
+      if (mounted) setState(() => remark['status'] = approve ? 'approved' : 'rejected');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Remark decision failed: $e')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isStaff = _currentRole == 'teacher' ||
+        _currentRole == 'class_teacher' ||
         _currentRole == 'admin' ||
         _currentRole == 'sadmin' ||
         _currentRole == 'superadmin' ||
         _currentRole == 'principal';
+    final isAdmin = {'admin', 'sadmin', 'superadmin', 'principal'}.contains(_currentRole);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isStaff ? 'AI Faculty Assistant & RAG Desk' : 'Shivalik AI Campus Assistant'),
+        title: Text(isStaff ? 'AI Faculty Assistant & RAG Desk' : 'School Assistant'),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -382,7 +387,7 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
           ),
         ),
         actions: [
-          if (isStaff) ...[
+          if (isAdmin) ...[
             IconButton(
               tooltip: 'Export AI Usage (SP-R15)',
               icon: const Icon(Icons.analytics_outlined),
@@ -433,7 +438,7 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
               : isStaff
                   ? Column(
                       children: [
-                        _buildKpiBanner(),
+                        if (isAdmin) _buildKpiBanner(),
                         Expanded(
                           child: TabBarView(
                             controller: _tabController,
@@ -457,7 +462,7 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: LayoutBuilder(builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 700;
-        final approvalRate = (_stats['approval_rate_percent'] as num?)?.toDouble() ?? 92.5;
+        final approvalRate = (_stats['approval_rate_percent'] as num?)?.toDouble() ?? 0.0;
 
         return isMobile
             ? Column(
@@ -564,6 +569,12 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: TextField(controller: _remarkClassCtrl, decoration: const InputDecoration(labelText: 'Allotted Class ID', border: OutlineInputBorder()))),
+                    const SizedBox(width: 12),
+                    Expanded(child: TextField(controller: _examCtrl, decoration: const InputDecoration(labelText: 'Exam Session ID', border: OutlineInputBorder()))),
+                  ]),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -664,11 +675,9 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          if (!isApproved) ...[
+                          if (!isApproved && _currentRole == 'principal') ...[
                             TextButton(
-                              onPressed: () {
-                                setState(() => rem['status'] = 'rejected');
-                              },
+                              onPressed: () => _decideRemark(rem, false),
                               child: const Text('Reject', style: TextStyle(color: Colors.red)),
                             ),
                             const SizedBox(width: 8),
@@ -676,14 +685,9 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
                               style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
                               icon: const Icon(Icons.check, size: 14),
                               label: const Text('Approve & Publish'),
-                              onPressed: () {
-                                setState(() => rem['status'] = 'approved');
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Remark approved for official report card!')),
-                                );
-                              },
+                              onPressed: () => _decideRemark(rem, true),
                             ),
-                          ] else ...[
+                          ] else if (isApproved) ...[
                             const Icon(Icons.verified, size: 16, color: Colors.green),
                             const SizedBox(width: 6),
                             const Text('Signed by Faculty', style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
@@ -825,24 +829,23 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                   ),
                   const SizedBox(height: 16),
+                  TextField(controller: _feedbackAssignmentCtrl, decoration: const InputDecoration(labelText: 'Assignment title', border: OutlineInputBorder())),
+                  const SizedBox(height: 10),
+                  TextField(controller: _feedbackStudentCtrl, decoration: const InputDecoration(labelText: 'Student name', border: OutlineInputBorder())),
+                  const SizedBox(height: 10),
+                  TextField(controller: _feedbackSummaryCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Submission summary', border: OutlineInputBorder())),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(child: TextField(controller: _feedbackScoreCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Score', border: OutlineInputBorder()))),
+                    const SizedBox(width: 10),
+                    Expanded(child: TextField(controller: _feedbackMaxCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Maximum score', border: OutlineInputBorder()))),
+                  ]),
+                  const SizedBox(height: 12),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Draft Feedback for Aarav Sharma (Photosynthesis Lab)'),
-                    onPressed: () async {
-                      final fb = await _aiService.draftAssignmentFeedback(
-                        assignmentTitle: 'Photosynthesis Lab Experiment Report',
-                        studentName: 'Aarav Sharma',
-                        studentSubmissionSummary: 'Accurate hypothesis and diagram; minor calculation error in net oxygen volume output.',
-                        score: 18.0,
-                        maxScore: 20.0,
-                        teacherUsername: _currentUsername,
-                      );
-                      setState(() => _feedbacks.insert(0, fb));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Feedback drafted! Faculty approval pending.'), backgroundColor: Colors.indigo),
-                      );
-                    },
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const Text('Draft Feedback'),
+                    onPressed: _handleFeedbackDraft,
                   ),
                 ],
               ),
@@ -886,106 +889,10 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
   }
 
   Widget _buildRagChatTab() {
-    final quickPrompts = (_currentRole == 'student' || _currentRole == 'parent')
-        ? [
-            'Fee payment & receipt?',
-            'Library fine policy?',
-            'Hostel gate pass procedure?',
-            'Cafeteria menu balance?',
-            'Academic calendar & exam dates?',
-            'School timings & periods?',
-          ]
-        : [
-            'What is staff PF rate?',
-            'Hostel gate pass procedure?',
-            'Library fine policy?',
-            'Cafeteria menu balance?',
-            'Discipline suspension rule?',
-          ];
-
-    return Column(
-      children: [
-        // Quick chips
-        Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: quickPrompts.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, i) {
-              return ActionChip(
-                label: Text(quickPrompts[i], style: const TextStyle(fontSize: 11)),
-                backgroundColor: Colors.indigo.shade50,
-                onPressed: () => _handleSendChat(quickPrompts[i]),
-              );
-            },
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView.builder(
-            controller: _chatScroll,
-            padding: const EdgeInsets.all(16),
-            itemCount: _chatMessages.length,
-            itemBuilder: (context, i) {
-              final msg = _chatMessages[i];
-              final isUser = msg['sender'] == 'user';
-
-              return Align(
-                alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isUser ? const Color(0xFF312E81) : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: isUser ? null : Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Text(
-                    msg['text'] ?? '',
-                    style: TextStyle(
-                      color: isUser ? Colors.white : Colors.black87,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        if (_isChatLoading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 4),
-            child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-          ),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: Colors.grey.shade300)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _chatCtrl,
-                  decoration: const InputDecoration(
-                    hintText: 'Ask RAG Assistant about any school policy or module...',
-                    border: InputBorder.none,
-                  ),
-                  onSubmitted: (_) => _handleSendChat(),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.send, color: Color(0xFF312E81)),
-                onPressed: () => _handleSendChat(),
-              ),
-            ],
-          ),
-        ),
-      ],
+    return RagChatPanel(
+      onSend: _askChat,
+      inputHint: 'Ask about verified school policies',
+      quickPrompts: const ['Academic calendar', 'School timings', 'Library policy', 'Homework workflow'],
     );
   }
 }
