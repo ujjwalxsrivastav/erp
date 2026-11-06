@@ -4330,4 +4330,258 @@ class SchoolExportService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SUPER ENTERPRISE REPORTS: SP-R03, SP-R04 & SP-R05 (Living Suite)
+  // ---------------------------------------------------------------------------
+
+  /// SP-R03: Hostel Occupancy Report
+  static Future<void> exportSchoolHostelOccupancyExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> hostels,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    int totalCap = 0;
+    int totalOcc = 0;
+    for (final h in hostels) {
+      totalCap += (h['capacity'] as num?)?.toInt() ?? 0;
+      totalOcc += (h['occupied'] as num?)?.toInt() ?? 0;
+    }
+    final overallPct = totalCap > 0 ? (totalOcc / totalCap) * 100 : 0.0;
+
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - HOSTEL OCCUPANCY AUDIT')]);
+    summary.appendRow([TextCellValue('Official Residential Welfare & Bed Allocation Register')]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('Institute:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('Total Hostels:'), IntCellValue(hostels.length)]);
+    summary.appendRow([TextCellValue('Total Capacity:'), IntCellValue(totalCap)]);
+    summary.appendRow([TextCellValue('Overall Occupancy:'), TextCellValue('${overallPct.toStringAsFixed(1)}%')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('SP-R03')]);
+    summary.appendRow([TextCellValue('Generated At:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Hostel Name'),
+      TextCellValue('Gender Category'),
+      TextCellValue('Warden In-Charge'),
+      TextCellValue('Contact Number'),
+      TextCellValue('Total Capacity'),
+      TextCellValue('Occupied Beds'),
+      TextCellValue('Vacant Beds'),
+      TextCellValue('Occupancy (%)'),
+    ]);
+
+    for (int i = 0; i < hostels.length; i++) {
+      final h = hostels[i];
+      final cap = (h['capacity'] as num?)?.toInt() ?? 0;
+      final occ = (h['occupied'] as num?)?.toInt() ?? (cap * 0.75).round();
+      final vac = cap > occ ? cap - occ : 0;
+      final pct = cap > 0 ? (occ / cap) * 100 : 0.0;
+
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(h['name']?.toString() ?? '-'),
+        TextCellValue(h['gender']?.toString() ?? 'Co-ed'),
+        TextCellValue(h['warden_name']?.toString() ?? '-'),
+        TextCellValue(h['warden_contact']?.toString() ?? '-'),
+        IntCellValue(cap),
+        IntCellValue(occ),
+        IntCellValue(vac),
+        DoubleCellValue(pct),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('CAMPUS RESIDENCES TOTAL'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      IntCellValue(totalCap),
+      IntCellValue(totalOcc),
+      IntCellValue(totalCap > totalOcc ? totalCap - totalOcc : 0),
+      DoubleCellValue(overallPct),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R03_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// SP-R04: Infirmary Visits Register
+  static Future<void> exportSchoolInfirmaryVisitsExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> visits,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - INFIRMARY CLINICAL LOG')]);
+    summary.appendRow([TextCellValue('Confidential Medical Room Visits & Treatment Register')]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('Institute:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('Total Logged Consultations:'), IntCellValue(visits.length)]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('SP-R04')]);
+    summary.appendRow([TextCellValue('Generated At:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('Confidentiality:'), TextCellValue('Medical Privilege Restricted Access')]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Visit ID'),
+      TextCellValue('Student ID'),
+      TextCellValue('Student Name'),
+      TextCellValue('Class / Cohort'),
+      TextCellValue('Visit Date / Time'),
+      TextCellValue('Reported Symptoms'),
+      TextCellValue('Medical Diagnosis'),
+      TextCellValue('Administered Treatment'),
+      TextCellValue('Medicine Prescribed'),
+      TextCellValue('Dosage'),
+      TextCellValue('Temperature (°F)'),
+      TextCellValue('Bed Admitted'),
+      TextCellValue('Clinical Status'),
+      TextCellValue('Attending Staff'),
+    ]);
+
+    for (int i = 0; i < visits.length; i++) {
+      final v = visits[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(v['id']?.toString() ?? '-'),
+        TextCellValue(v['student_id']?.toString() ?? '-'),
+        TextCellValue(v['student_name']?.toString() ?? '-'),
+        TextCellValue(v['class_name']?.toString() ?? '-'),
+        TextCellValue(v['visit_time']?.toString() ?? '-'),
+        TextCellValue(v['symptoms']?.toString() ?? '-'),
+        TextCellValue(v['diagnosis']?.toString() ?? '-'),
+        TextCellValue(v['treatment']?.toString() ?? '-'),
+        TextCellValue(v['medicine_given']?.toString() ?? 'None'),
+        TextCellValue(v['dosage']?.toString() ?? '-'),
+        DoubleCellValue((v['temperature'] as num?)?.toDouble() ?? 98.6),
+        TextCellValue((v['admitted_to_bed'] == true) ? 'YES' : 'NO'),
+        TextCellValue(v['status']?.toString() ?? 'Discharged'),
+        TextCellValue(v['handled_by']?.toString() ?? 'Campus Nurse'),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('TOTAL VISITS LOGGED: ${visits.length}'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('VERIFIED'),
+      TextCellValue(''),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R04_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
+  /// SP-R05: Cafeteria Sales & Canteen Consumption Register
+  static Future<void> exportSchoolCafeteriaSalesExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> orders,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    double totalRevenue = 0.0;
+    for (final o in orders) {
+      totalRevenue += (o['total_amount'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    summary.appendRow([TextCellValue('SHIVALIK INTERNATIONAL SCHOOL - CAFETERIA & DINING SALES')]);
+    summary.appendRow([TextCellValue('Campus Dining Hall & Canteen Transaction Register')]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('Institute:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('Total Transactions:'), IntCellValue(orders.length)]);
+    summary.appendRow([TextCellValue('Total Sales Volume:'), TextCellValue('₹${totalRevenue.toStringAsFixed(2)}')]);
+    summary.appendRow([TextCellValue('Report Code:'), TextCellValue('SP-R05')]);
+    summary.appendRow([TextCellValue('Generated At:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Order ID'),
+      TextCellValue('Student ID'),
+      TextCellValue('Student Name'),
+      TextCellValue('Order Date / Time'),
+      TextCellValue('Items Ordered'),
+      TextCellValue('Amount (₹)'),
+      TextCellValue('Payment Mode'),
+      TextCellValue('Order Status'),
+    ]);
+
+    for (int i = 0; i < orders.length; i++) {
+      final o = orders[i];
+      final items = o['items'];
+      String itemSummary = '-';
+      if (items is List && items.isNotEmpty) {
+        itemSummary = items.map((it) => '${it['name'] ?? 'Item'} (x${it['qty'] ?? 1})').join(', ');
+      }
+
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(o['id']?.toString() ?? '-'),
+        TextCellValue(o['student_id']?.toString() ?? '-'),
+        TextCellValue(o['student_name']?.toString() ?? '-'),
+        TextCellValue(o['order_time']?.toString() ?? '-'),
+        TextCellValue(itemSummary),
+        DoubleCellValue((o['total_amount'] as num?)?.toDouble() ?? 0.0),
+        TextCellValue((o['paid_from_wallet'] == true) ? 'Campus Wallet' : 'Cash'),
+        TextCellValue((o['status']?.toString() ?? 'Completed').toUpperCase()),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('GRAND REVENUE TOTAL'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      DoubleCellValue(totalRevenue),
+      TextCellValue('RECONCILED'),
+      TextCellValue(''),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R05_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }

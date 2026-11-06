@@ -24,7 +24,7 @@
 | 9 | Report Cards: Board Formats + HPC + Promotion Linkage | DONE | `06e46c9` | CBSE 9-point scale evaluated (Aarav: 526/600, 87.7% -> A2, GP 9.0) -> co-scholastic domains (4 areas, Grade A) -> QR verification seal URL -> Promotion verdict verified | CBSE 9-point scale, HPC 360 card, co-scholastic evaluation, QR validation seal |
 | 10 | School Staff Decision + Parent Experience Completion | DONE | `460fe7d` | E2E parent journey test passed on live Supabase: multi-child switching (Aarav 10-A <-> Aryan 9-A), student leave application -> approval -> attendance excused (3adb7552), PTM booking (e6d6759b), grievance ticket (3d9dff76), LMS-lite materials modal | Multi-child switcher, live alerts, student leaves, PTM booking, parent grievances, LMS-lite, staff role routing |
 | 11 | Certificates, Library, Circulars, Reports | DONE | `lib/features/school/{certificates,library,reports,circulars}/` | E2E Step 11 test passed on live Supabase: Certificate serial CERT-2026-0901 with QR seal; Book issue LIB-ISS-3828 & return with Rs 25 late fine auto-posted to fees (12cafe5d); Circular delivery efdd7952; Principal briefing & 38-field UDISE+ export compiled | Pre-checks No-Dues, QR certificates, barcode library, late fine posting, Principal morning briefing, 38-field UDISE+ export |
-| 12 | Discipline, Activities, Hostel/Infirmary | DEFERRED | Per Step 1 facts | Client school has no hostel/infirmary; discipline tracked via incidents | Recorded in Step 1 |
+| 12 | Discipline, Activities, Hostel/Infirmary | IN PROGRESS | `lib/features/school/living/` | Live DB test passed for clinic visits, gate passes, and canteen orders | SP3 Hostel, Infirmary, Cafeteria completed |
 | 13 | Designer-Grade UI/UX Polish Pass | DONE | `lib/features/school/` (all 18 screens) | `dart analyze lib/features/school/`: 0 errors, 0 warnings, 0 deprecations | Section 7 100% applied: gradient AppBars, pill TabBars, 4-state handling, 48dp targets, 8pt grid |
 | 14 | Final QA, Build, and Handoff | TODO | — | — | — |
 | 15 | Production Deployment and Client Handover | TODO | — | — | — |
@@ -32,6 +32,9 @@
 ---
 
 ## 2. Step Verification & Checkpoint History
+
+- **CHECKPOINT: Step SP3 complete** — Hostel, Infirmary, and Cafeteria suite with 11 tables (`database/school_hostel_infirmary_cafeteria_setup.sql`), `SchoolLivingService`, `SchoolLivingScreen` with 3 segmented command tabs, reports SP-R03, SP-R04, SP-R05, and live Supabase verification — 2026-11-06 07:38 IST
+- **CHECKPOINT: Step SP2 complete** — School Payroll module with `school_payroll_setup.sql`, `SchoolPayrollService`, statutory deductions (PF 12%, ESI 0.75%, PT 200), `SchoolPayrollScreen`, `SchoolMyPayslipsScreen`, reports SP-R01, SP-R02, and live Supabase verification (commit `8e2b142`) — 2026-11-06 07:29 IST
 
 - **CHECKPOINT: Step 0 complete** — HEAD at cece360, analyze clean (0 errors), mock and gap lists documented — 2026-11-03 20:27 IST
 - **CHECKPOINT: Step 1 complete** — Live Supabase backend verified (all 17 tables exist, 4 school roles verified, client facts defaults established) — 2026-11-03 20:30 IST
