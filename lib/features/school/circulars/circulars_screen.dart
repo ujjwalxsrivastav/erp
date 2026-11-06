@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
+import 'circular_components.dart';
+import 'package:go_router/go_router.dart';
 
 class CircularsScreen extends StatefulWidget {
-  const CircularsScreen({super.key});
+  const CircularsScreen({super.key, this.readOnly = false});
+  final bool readOnly;
 
   @override
   State<CircularsScreen> createState() => _CircularsScreenState();
@@ -14,9 +17,10 @@ class _CircularsScreenState extends State<CircularsScreen> {
   final _authService = AuthService();
   String _selectedCategory = 'All';
   String? _userRole;
+  String? _username;
   bool _isLoading = true;
   String? _errorMessage;
-  final List<String> _categories = [
+  List<String> _categories = [
     'All',
     'General',
     'Academic',
@@ -27,6 +31,20 @@ class _CircularsScreenState extends State<CircularsScreen> {
   ];
 
   List<Map<String, dynamic>> _circulars = [];
+  List<Map<String, dynamic>> _children = [];
+  String? _selectedStudent;
+  List<String> _audiences = ['All'];
+  Map<String, String> _audienceLabels = {};
+  List<String> _publishCategories = [
+    'General',
+    'Academic',
+    'Exam',
+    'Fee',
+    'Events',
+    'Holiday'
+  ];
+  final Map<String, String> _circularNotificationIds = {};
+  final Set<String> _readCirculars = {};
 
   @override
   void initState() {
@@ -40,11 +58,115 @@ class _CircularsScreenState extends State<CircularsScreen> {
       _errorMessage = null;
     });
     try {
-      final role = await _authService.getCurrentUserRole();
-      final list = await _schoolService.getCirculars();
+      final username = await _authService.getCurrentUsername() ?? '';
+      final role = username.isEmpty
+          ? null
+          : await _authService.getLiveUserRole(username);
+      if (role == null || role.isEmpty)
+        throw StateError('No verified school role.');
+      final normalized = role == 'sadmin'
+          ? 'admin'
+          : role == 'steacher'
+              ? 'teacher'
+              : role;
+      if (normalized == 'parent' && _children.isEmpty) {
+        _children = await _schoolService.getParentChildren(username);
+      }
+      if (normalized == 'parent' &&
+          (_selectedStudent == null ||
+              !_children.any((child) =>
+                  child['username']?.toString() == _selectedStudent ||
+                  child['id']?.toString() == _selectedStudent))) {
+        _selectedStudent = _children.isEmpty
+            ? null
+            : _children.first['username']?.toString() ??
+                _children.first['id']?.toString();
+      }
+      final list = await _schoolService.getCirculars(
+          studentUsername: normalized == 'parent' ? _selectedStudent : null);
+      var audiences = <String>['All', 'Students', 'Parents', 'Teachers'];
+      final audienceLabels = <String, String>{};
+      var categories = _categories.where((value) => value != 'All').toList();
+      if (normalized == 'teacher' || normalized == 'class_teacher') {
+        final assigned =
+            await _schoolService.getTeacherAllAssignedClasses(username);
+        audiences = assigned
+            .map((row) =>
+                row['class_name']?.toString() ??
+                row['name']?.toString() ??
+                row['id']?.toString() ??
+                row['class_id']?.toString() ??
+                '')
+            .where((id) => id.isNotEmpty)
+            .toSet()
+            .toList();
+        for (final row in assigned) {
+          final id = row['class_name']?.toString() ??
+              row['name']?.toString() ??
+              row['id']?.toString() ??
+              row['class_id']?.toString() ??
+              '';
+          if (id.isNotEmpty) {
+            audienceLabels[id] =
+                row['name']?.toString() ?? row['class_name']?.toString() ?? id;
+          }
+        }
+      } else if ({'admin', 'principal', 'superadmin'}.contains(normalized)) {
+        for (final row in await _schoolService.getSchoolClasses()) {
+          final id = row['name']?.toString() ?? row['id']?.toString() ?? '';
+          if (id.isNotEmpty) {
+            audiences.add(id);
+            audienceLabels[id] = row['name']?.toString() ?? id;
+          }
+        }
+      } else if (normalized == 'librarian') {
+        audiences = ['Students', 'Parents'];
+        categories = ['Library'];
+      } else if (normalized == 'warden') {
+        audiences = ['warden'];
+        categories = ['Hostel'];
+      } else if (normalized == 'nurse') {
+        audiences = ['nurse'];
+        categories = ['Infirmary'];
+      } else if (normalized == 'accountant') {
+        audiences = ['Students', 'Parents'];
+        categories = ['Fee'];
+      }
+      final notificationIds = <String, String>{};
+      final readIds = <String>{};
+      try {
+        final notifications = await _schoolService.getNotificationsForUser(
+            username: username,
+            role: role,
+            studentUsername: normalized == 'parent' ? _selectedStudent : null);
+        for (final notification in notifications
+            .where((item) => item['ref_type'] == 'school_circulars')) {
+          if ({'admin', 'principal', 'superadmin'}.contains(normalized) &&
+              notification['user_id']?.toString() != username) {
+            continue;
+          }
+          final refId = notification['ref_id']?.toString() ?? '';
+          final notifId = notification['id']?.toString() ?? '';
+          if (refId.isNotEmpty && notifId.isNotEmpty) {
+            notificationIds[refId] = notifId;
+            if (notification['is_read'] == true) readIds.add(refId);
+          }
+        }
+      } catch (_) {}
       if (mounted) {
         setState(() {
-          _userRole = role;
+          _userRole = normalized;
+          _username = username;
+          _audiences = audiences;
+          _audienceLabels = audienceLabels;
+          _publishCategories = categories;
+          _categories = ['All', ...categories];
+          _circularNotificationIds
+            ..clear()
+            ..addAll(notificationIds);
+          _readCirculars
+            ..clear()
+            ..addAll(readIds);
           _circulars = list;
           _isLoading = false;
         });
@@ -69,11 +191,25 @@ class _CircularsScreenState extends State<CircularsScreen> {
         .toList();
   }
 
+  Future<void> _markCircularRead(Map<String, dynamic> circular) async {
+    final circularId = circular['id']?.toString() ?? '';
+    final notificationId = _circularNotificationIds[circularId];
+    if (notificationId == null || _readCirculars.contains(circularId)) return;
+    try {
+      await _schoolService.markNotificationRead(notificationId: notificationId);
+      if (mounted) setState(() => _readCirculars.add(circularId));
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Could not mark this circular as read.')));
+    }
+  }
+
   void _showCreateDialog() {
     final titleCtrl = TextEditingController();
     final contentCtrl = TextEditingController();
-    String category = 'General';
-    String audience = 'All';
+    String category = _publishCategories.first;
+    String audience = _audiences.first;
 
     showDialog(
       context: context,
@@ -113,14 +249,7 @@ class _CircularsScreenState extends State<CircularsScreen> {
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
                   ),
-                  items: [
-                    'General',
-                    'Academic',
-                    'Exam',
-                    'Fee',
-                    'Events',
-                    'Holiday'
-                  ]
+                  items: _publishCategories
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
                   onChanged: (v) {
@@ -140,8 +269,9 @@ class _CircularsScreenState extends State<CircularsScreen> {
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
                   ),
-                  items: ['All', 'Students', 'Parents', 'Teachers']
-                      .map((a) => DropdownMenuItem(value: a, child: Text(a)))
+                  items: _audiences
+                      .map((a) => DropdownMenuItem(
+                          value: a, child: Text(_audienceLabels[a] ?? a)))
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setDialogState(() => audience = v);
@@ -186,10 +316,9 @@ class _CircularsScreenState extends State<CircularsScreen> {
                   'target_audience': audience,
                   'published_at':
                       DateTime.now().toIso8601String().substring(0, 10),
-                  'author': 'School Admin',
                 };
                 await _schoolService.createCircular(newCirc);
-                setState(() => _circulars.insert(0, newCirc));
+                await _loadData();
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -217,9 +346,16 @@ class _CircularsScreenState extends State<CircularsScreen> {
       'principal',
       'superadmin',
       'teacher',
-      'steacher'
+      'steacher',
+      'class_teacher',
+      'librarian',
+      'warden',
+      'nurse',
+      'accountant'
     };
-    final canPublish = publisherRoles.contains(_userRole?.toLowerCase());
+    final canPublish = !widget.readOnly &&
+        publisherRoles.contains(_userRole?.toLowerCase()) &&
+        _audiences.isNotEmpty;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -228,6 +364,12 @@ class _CircularsScreenState extends State<CircularsScreen> {
           'Notices & Circulars',
           style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
         ),
+        actions: [
+          IconButton(
+              tooltip: 'Notifications',
+              onPressed: () => context.go('/school/notifications'),
+              icon: const Icon(Icons.notifications_outlined))
+        ],
         foregroundColor: Colors.white,
         elevation: 0,
         flexibleSpace: Container(
@@ -309,6 +451,33 @@ class _CircularsScreenState extends State<CircularsScreen> {
               ),
             ),
           ),
+          if (_userRole == 'parent')
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: DropdownButtonFormField<String>(
+                initialValue: _selectedStudent,
+                decoration: const InputDecoration(
+                    labelText: 'Circulars for child',
+                    border: OutlineInputBorder()),
+                items: _children
+                    .map((child) {
+                      final username = child['username']?.toString() ??
+                          child['id']?.toString() ??
+                          '';
+                      final name = child['name']?.toString() ??
+                          child['student_name']?.toString() ??
+                          username;
+                      return DropdownMenuItem(
+                          value: username, child: Text(name));
+                    })
+                    .where((item) => item.value?.isNotEmpty == true)
+                    .toList(),
+                onChanged: (value) {
+                  setState(() => _selectedStudent = value);
+                  _loadData();
+                },
+              ),
+            ),
           Expanded(
             child: _isLoading
                 ? _buildLoadingSkeleton()
@@ -346,6 +515,15 @@ class _CircularsScreenState extends State<CircularsScreen> {
                                     c['published_at']?.toString() ?? '';
                                 final audience =
                                     c['target_audience']?.toString() ?? 'All';
+
+                                if (widget.readOnly) {
+                                  final circularId = c['id']?.toString() ?? '';
+                                  return CircularCard(
+                                    circular: c,
+                                    isRead: _readCirculars.contains(circularId),
+                                    onRead: () => _markCircularRead(c),
+                                  );
+                                }
 
                                 return Container(
                                   margin: const EdgeInsets.only(bottom: 12),
@@ -453,6 +631,39 @@ class _CircularsScreenState extends State<CircularsScreen> {
                                                 fontSize: 12,
                                                 color: Color(0xFF94A3B8)),
                                           ),
+                                          if (_circularNotificationIds
+                                                  .containsKey(
+                                                      c['id']?.toString()) &&
+                                              !_readCirculars.contains(
+                                                  c['id']?.toString())) ...[
+                                            const SizedBox(width: 12),
+                                            TextButton.icon(
+                                                onPressed: () =>
+                                                    _markCircularRead(c),
+                                                icon: const Icon(
+                                                    Icons
+                                                        .mark_email_read_outlined,
+                                                    size: 16),
+                                                label: const Text('Mark read')),
+                                          ],
+                                          if (!widget.readOnly &&
+                                              (c['published_by']?.toString() ==
+                                                      _username ||
+                                                  {
+                                                    'admin',
+                                                    'principal',
+                                                    'superadmin'
+                                                  }.contains(_userRole)))
+                                            IconButton(
+                                                tooltip: 'Retract circular',
+                                                onPressed: () async {
+                                                  await _schoolService
+                                                      .deleteCircular(
+                                                          c['id'].toString());
+                                                  await _loadData();
+                                                },
+                                                icon: const Icon(
+                                                    Icons.delete_outline)),
                                         ],
                                       ),
                                     ],

@@ -456,12 +456,14 @@ class SchoolService {
         int subCount = 0;
         int lateCount = 0;
         for (final submission in subs) {
-          final submittedAt = DateTime.tryParse(
-              submission['submitted_at']?.toString() ?? '');
+          final submittedAt =
+              DateTime.tryParse(submission['submitted_at']?.toString() ?? '');
           final submittedDay = submittedAt == null
               ? null
               : DateTime(submittedAt.year, submittedAt.month, submittedAt.day);
-          if (dueDay != null && submittedDay != null && submittedDay.isAfter(dueDay)) {
+          if (dueDay != null &&
+              submittedDay != null &&
+              submittedDay.isAfter(dueDay)) {
             lateCount++;
           } else {
             subCount++;
@@ -471,7 +473,8 @@ class SchoolService {
         late += lateCount;
 
         final today = DateTime.now();
-        final overdue = dueDay != null && dueDay.isBefore(DateTime(today.year, today.month, today.day));
+        final overdue = dueDay != null &&
+            dueDay.isBefore(DateTime(today.year, today.month, today.day));
         if (overdue) missing += (students.length - subs.length).clamp(0, 999);
       }
     }
@@ -495,22 +498,32 @@ class SchoolService {
     String? feedback,
   }) async {
     final username = await AuthService().getCurrentUsername() ?? '';
-    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
-    await permissions.enforce(feature: 'homework', requiredPermission: 'edit', username: username);
+    final role =
+        (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(
+        feature: 'homework', requiredPermission: 'edit', username: username);
     if (role != 'teacher' && role != 'steacher' && role != 'class_teacher') {
       throw Exception('Only teaching staff can grade homework submissions.');
     }
-    final submission = await _supabase.from('school_homework_submissions')
-        .select('homework_id').eq('id', submissionId).maybeSingle();
+    final submission = await _supabase
+        .from('school_homework_submissions')
+        .select('homework_id')
+        .eq('id', submissionId)
+        .maybeSingle();
     if (submission == null) throw Exception('Submission was not found.');
-    final homework = await _supabase.from('school_homework')
-        .select('class_id,class_name').eq('id', submission['homework_id']).maybeSingle();
+    final homework = await _supabase
+        .from('school_homework')
+        .select('class_id,class_name')
+        .eq('id', submission['homework_id'])
+        .maybeSingle();
     if (homework == null) throw Exception('Homework was not found.');
     final assigned = await getTeacherAllAssignedClasses(username);
     final classId = homework['class_id']?.toString() ?? '';
     final className = homework['class_name']?.toString() ?? '';
-    if (!assigned.any((row) => row['id']?.toString() == classId ||
-        row['class_id']?.toString() == classId || row['class_name']?.toString() == className ||
+    if (!assigned.any((row) =>
+        row['id']?.toString() == classId ||
+        row['class_id']?.toString() == classId ||
+        row['class_name']?.toString() == className ||
         row['name']?.toString() == className)) {
       throw Exception('You cannot grade work outside your allotted classes.');
     }
@@ -1706,6 +1719,11 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getTeacherNotifications(
       String teacherUsername) async {
     try {
+      final role =
+          await permissions.getLiveUserRole(teacherUsername) ?? 'teacher';
+      final persisted =
+          await getNotificationsForUser(username: teacherUsername, role: role);
+      if (persisted.isNotEmpty) return persisted;
       final alerts = <Map<String, dynamic>>[];
       final todayStr = DateTime.now().toIso8601String().substring(0, 10);
 
@@ -1768,7 +1786,6 @@ class SchoolService {
   // In-memory operational stores for resilient stateful workflows
   final Map<String, List<Map<String, dynamic>>> _attendanceStore = {};
   final Map<String, List<Map<String, dynamic>>> _marksStore = {};
-  final List<Map<String, dynamic>> _circularsStore = [];
   final List<Map<String, dynamic>> _admissionsStore = [];
   final List<Map<String, dynamic>> _enquiriesStore = [];
   final List<Map<String, dynamic>> _feePaymentsStore = [];
@@ -2307,10 +2324,16 @@ class SchoolService {
     if (currentUsername.isEmpty || currentUsername != username) {
       throw Exception('Timetable identity must match the signed-in account.');
     }
-    final liveRole = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
-    await permissions.enforce(feature: 'timetable', requiredPermission: 'view', username: username);
-    if (liveRole == 'teacher' || liveRole == 'steacher' || liveRole == 'class_teacher') {
-      var query = _supabase.from('school_timetable').select()
+    final liveRole =
+        (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(
+        feature: 'timetable', requiredPermission: 'view', username: username);
+    if (liveRole == 'teacher' ||
+        liveRole == 'steacher' ||
+        liveRole == 'class_teacher') {
+      var query = _supabase
+          .from('school_timetable')
+          .select()
           .eq('teacher_username', username);
       if (day != null && day.isNotEmpty) query = query.eq('day', day);
       final response = await query.order('period');
@@ -2319,21 +2342,32 @@ class SchoolService {
     final isStudent = liveRole == 'student' || liveRole == 'sstudent';
     final isParent = liveRole == 'parent' || liveRole == 'sparent';
     final target = isParent ? (studentUsername ?? '') : username;
-    if (!isStudent && !isParent) throw Exception('This role does not use the personal timetable view.');
+    if (!isStudent && !isParent)
+      throw Exception('This role does not use the personal timetable view.');
     if (target.isEmpty) return [];
     if (isParent) {
-      final link = await _supabase.from('parent_student_links').select('student_username')
-          .eq('parent_username', username).eq('student_username', target).maybeSingle();
-      if (link == null) throw Exception('This student is not linked to your account.');
+      final link = await _supabase
+          .from('parent_student_links')
+          .select('student_username')
+          .eq('parent_username', username)
+          .eq('student_username', target)
+          .maybeSingle();
+      if (link == null)
+        throw Exception('This student is not linked to your account.');
     }
-    final profile = await _supabase.from('school_students').select()
-        .eq('username', target).maybeSingle();
+    final profile = await _supabase
+        .from('school_students')
+        .select()
+        .eq('username', target)
+        .maybeSingle();
     if (profile == null) return [];
     final classId = profile['class_id']?.toString() ?? '';
     final className = profile['class_name']?.toString();
     if (classId.isEmpty && (className == null || className.isEmpty)) return [];
-    return getTimetableForClass(classId, className: className,
-        section: profile['section']?.toString(), day: day);
+    return getTimetableForClass(classId,
+        className: className,
+        section: profile['section']?.toString(),
+        day: day);
   }
 
   /// Distinct class + subject pairs from the timetable for one teacher — the
@@ -2466,7 +2500,8 @@ class SchoolService {
     } catch (e) {
       return {
         'hasClash': true,
-        'message': 'Clash check failed; timetable changes are blocked until it succeeds.',
+        'message':
+            'Clash check failed; timetable changes are blocked until it succeeds.',
         'error': e.toString(),
       };
     }
@@ -2484,8 +2519,10 @@ class SchoolService {
     required String room,
   }) async {
     final username = await AuthService().getCurrentUsername() ?? '';
-    await permissions.enforce(feature: 'timetable', requiredPermission: 'edit', username: username);
-    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(
+        feature: 'timetable', requiredPermission: 'edit', username: username);
+    final role =
+        (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
     if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
       throw Exception('Only school administrators can edit timetable periods.');
     }
@@ -2535,10 +2572,13 @@ class SchoolService {
 
   Future<bool> deleteTimetableEntry(String id) async {
     final username = await AuthService().getCurrentUsername() ?? '';
-    await permissions.enforce(feature: 'timetable', requiredPermission: 'edit', username: username);
-    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(
+        feature: 'timetable', requiredPermission: 'edit', username: username);
+    final role =
+        (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
     if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
-      throw Exception('Only school administrators can delete timetable periods.');
+      throw Exception(
+          'Only school administrators can delete timetable periods.');
     }
     try {
       await _supabase.from('school_timetable').delete().eq('id', id);
@@ -2719,13 +2759,17 @@ class SchoolService {
     String? assignedBy,
   }) async {
     final currentUsername = await AuthService().getCurrentUsername() ?? '';
-    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '')
+        .toLowerCase();
     await permissions.enforce(
       feature: 'timetable',
       requiredPermission: role == 'principal' ? 'approve' : 'edit',
       username: currentUsername,
     );
-    if (role != 'admin' && role != 'sadmin' && role != 'superadmin' && role != 'principal') {
+    if (role != 'admin' &&
+        role != 'sadmin' &&
+        role != 'superadmin' &&
+        role != 'principal') {
       throw Exception('Only school administrators can assign substitutes.');
     }
     final todayStr = DateTime.now().toIso8601String().split('T')[0];
@@ -2773,27 +2817,38 @@ class SchoolService {
     String? notes,
   }) async {
     final currentUsername = await AuthService().getCurrentUsername() ?? '';
-    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '')
+        .toLowerCase();
     await permissions.enforce(
       feature: 'timetable',
       requiredPermission: role == 'principal' ? 'approve' : 'edit',
       username: currentUsername,
     );
-    if (role != 'admin' && role != 'sadmin' && role != 'superadmin' && role != 'principal') {
+    if (role != 'admin' &&
+        role != 'sadmin' &&
+        role != 'superadmin' &&
+        role != 'principal') {
       throw Exception('Only school administrators can assign substitutes.');
     }
-    final entry = await _supabase.from('school_timetable').select()
-        .eq('id', periodId).maybeSingle();
+    final entry = await _supabase
+        .from('school_timetable')
+        .select()
+        .eq('id', periodId)
+        .maybeSingle();
     if (entry == null) throw Exception('Timetable period was not found.');
-    if ((entry['teacher_username']?.toString() ?? '').toLowerCase() != absentTeacherUsername.toLowerCase()) {
-      throw Exception('The selected absence does not match this timetable period.');
+    if ((entry['teacher_username']?.toString() ?? '').toLowerCase() !=
+        absentTeacherUsername.toLowerCase()) {
+      throw Exception(
+          'The selected absence does not match this timetable period.');
     }
     final day = entry['day']?.toString() ?? '';
     final period = int.tryParse(entry['period']?.toString() ?? '') ?? 0;
-    if (day.isEmpty || period < 1) throw Exception('Timetable period details are incomplete.');
+    if (day.isEmpty || period < 1)
+      throw Exception('Timetable period details are incomplete.');
     final available = await getAvailableSubstitutes(day: day, period: period);
     if (!available.any((teacher) =>
-        teacher['username']?.toString().toLowerCase() == substituteUsername.toLowerCase())) {
+        teacher['username']?.toString().toLowerCase() ==
+        substituteUsername.toLowerCase())) {
       throw Exception('The selected teacher is not available for this period.');
     }
     return assignSubstitution(
@@ -2875,12 +2930,18 @@ class SchoolService {
   }) async {
     final currentUsername = await AuthService().getCurrentUsername() ?? '';
     if (currentUsername.isEmpty || currentUsername != teacherUsername) {
-      throw Exception('Substitution requests are scoped to the signed-in teacher.');
+      throw Exception(
+          'Substitution requests are scoped to the signed-in teacher.');
     }
-    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
-    await permissions.enforce(feature: 'timetable', requiredPermission: 'view', username: currentUsername);
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '')
+        .toLowerCase();
+    await permissions.enforce(
+        feature: 'timetable',
+        requiredPermission: 'view',
+        username: currentUsername);
     if (role != 'teacher' && role != 'steacher' && role != 'class_teacher') {
-      throw Exception('Only teaching staff can view assigned substitution requests.');
+      throw Exception(
+          'Only teaching staff can view assigned substitution requests.');
     }
     return getSubstitutionLogs(date: date, teacherUsername: currentUsername);
   }
@@ -2890,29 +2951,46 @@ class SchoolService {
     required bool accept,
   }) async {
     final username = await AuthService().getCurrentUsername() ?? '';
-    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
-    await permissions.enforce(feature: 'timetable', requiredPermission: 'edit', username: username);
+    final role =
+        (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(
+        feature: 'timetable', requiredPermission: 'edit', username: username);
     if (role != 'teacher' && role != 'steacher' && role != 'class_teacher') {
-      throw Exception('Only teaching staff can respond to their own substitution offers.');
+      throw Exception(
+          'Only teaching staff can respond to their own substitution offers.');
     }
-    final row = await _supabase.from('school_circulars').select('content')
-        .eq('id', circularId).eq('category', 'Substitution')
-        .eq('target_audience', username).maybeSingle();
-    if (row == null) throw Exception('This substitution offer is not assigned to your account.');
+    final row = await _supabase
+        .from('school_circulars')
+        .select('content')
+        .eq('id', circularId)
+        .eq('category', 'Substitution')
+        .eq('target_audience', username)
+        .maybeSingle();
+    if (row == null)
+      throw Exception(
+          'This substitution offer is not assigned to your account.');
     final content = row['content']?.toString() ?? '';
-    if (!content.contains('SUBSTITUTION_RECORD')) throw Exception('Substitution record is invalid.');
-    final withoutResponse = content.replaceAll(RegExp(r'\s*\|\s*Response: [^|]*'), '');
+    if (!content.contains('SUBSTITUTION_RECORD'))
+      throw Exception('Substitution record is invalid.');
+    final withoutResponse =
+        content.replaceAll(RegExp(r'\s*\|\s*Response: [^|]*'), '');
     final response = accept ? 'Accepted' : 'Declined';
-    await _supabase.from('school_circulars').update({
-      'content': '$withoutResponse | Response: $response | Responded At: ${DateTime.now().toIso8601String()}',
-    }).eq('id', circularId).eq('target_audience', username);
+    await _supabase
+        .from('school_circulars')
+        .update({
+          'content':
+              '$withoutResponse | Response: $response | Responded At: ${DateTime.now().toIso8601String()}',
+        })
+        .eq('id', circularId)
+        .eq('target_audience', username);
   }
 
   // ===== ENTERPRISE LESSON PLANS & CURRICULUM SYLLABUS ENGINE =====
 
   static final List<Map<String, dynamic>> _defaultEnterpriseLessonPlans = [];
 
-  static final Map<String, Map<String, List<Map<String, dynamic>>>> _defaultCurriculumSyllabusUnits = {};
+  static final Map<String, Map<String, List<Map<String, dynamic>>>>
+      _defaultCurriculumSyllabusUnits = {};
 
   /// Fetch all rich enterprise lesson plans matching filters
   Future<List<Map<String, dynamic>>> getEnterpriseLessonPlans({
@@ -2920,8 +2998,11 @@ class SchoolService {
     String? subject,
     String? status,
   }) async {
-    final rows = await _supabase.from('school_circulars').select()
-        .eq('institute_code', 'SHIV-SCH').eq('category', 'LessonPlan');
+    final rows = await _supabase
+        .from('school_circulars')
+        .select()
+        .eq('institute_code', 'SHIV-SCH')
+        .eq('category', 'LessonPlan');
     final plans = <Map<String, dynamic>>[];
     for (final row in List<Map<String, dynamic>>.from(rows)) {
       final content = row['content']?.toString() ?? '';
@@ -2929,14 +3010,17 @@ class SchoolService {
       final fields = <String, String>{};
       for (final token in content.split('|')) {
         final colon = token.indexOf(':');
-        if (colon > 0) fields[token.substring(0, colon).trim()] = token.substring(colon + 1).trim();
+        if (colon > 0)
+          fields[token.substring(0, colon).trim()] =
+              token.substring(colon + 1).trim();
       }
       plans.add({
         'id': row['id'],
         'class_id': fields['Class'] ?? '',
         'subject': fields['Subject'] ?? '',
         'teacher_username': row['published_by']?.toString() ?? '',
-        'teacher_name': fields['Teacher'] ?? row['published_by']?.toString() ?? '',
+        'teacher_name':
+            fields['Teacher'] ?? row['published_by']?.toString() ?? '',
         'chapter_title': fields['Chapter'] ?? '',
         'topic': fields['Topic'] ?? '',
         'planned_date': fields['PlannedDate'] ?? '',
@@ -2975,10 +3059,13 @@ class SchoolService {
   Future<Map<String, dynamic>> saveEnterpriseLessonPlan(
       Map<String, dynamic> planData) async {
     final username = await AuthService().getCurrentUsername() ?? '';
-    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
-    await permissions.enforce(feature: 'timetable', requiredPermission: 'edit', username: username);
+    final role =
+        (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(
+        feature: 'timetable', requiredPermission: 'edit', username: username);
     if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
-      throw Exception('Only school administrators can manage the syllabus tracker.');
+      throw Exception(
+          'Only school administrators can manage the syllabus tracker.');
     }
 
     final updated = {
@@ -2992,15 +3079,19 @@ class SchoolService {
         'PlannedDate: ${updated['planned_date'] ?? ''} | Status: ${updated['status']} | Objective: ${updated['objective'] ?? ''} | '
         'Resources: ${updated['resources'] ?? ''}';
 
-    final response = await _supabase.from('school_circulars').insert({
-        'institute_code': 'SHIV-SCH',
-        'title':
-            'Lesson Plan: ${updated['subject'] ?? ''} (${updated['chapter_title'] ?? ''})',
-        'content': structured,
-        'category': 'LessonPlan',
-        'target_audience': 'all',
-        'published_by': username,
-      }).select('id').single();
+    final response = await _supabase
+        .from('school_circulars')
+        .insert({
+          'institute_code': 'SHIV-SCH',
+          'title':
+              'Lesson Plan: ${updated['subject'] ?? ''} (${updated['chapter_title'] ?? ''})',
+          'content': structured,
+          'category': 'LessonPlan',
+          'target_audience': 'all',
+          'published_by': username,
+        })
+        .select('id')
+        .single();
 
     return {...updated, 'id': response['id']};
   }
@@ -3014,7 +3105,8 @@ class SchoolService {
     int? rubricRating,
   }) async {
     final username = await AuthService().getCurrentUsername() ?? '';
-    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    final role =
+        (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
     await permissions.enforce(
       feature: 'timetable',
       requiredPermission: role == 'principal' ? 'approve' : 'edit',
@@ -3023,19 +3115,28 @@ class SchoolService {
     if (!{'admin', 'sadmin', 'superadmin', 'principal'}.contains(role)) {
       throw Exception('Only school leadership can approve lesson plans.');
     }
-    final row = await _supabase.from('school_circulars').select('content')
-        .eq('id', id).eq('category', 'LessonPlan').maybeSingle();
+    final row = await _supabase
+        .from('school_circulars')
+        .select('content')
+        .eq('id', id)
+        .eq('category', 'LessonPlan')
+        .maybeSingle();
     if (row == null) return false;
     final original = row['content']?.toString() ?? '';
-    final withStatus = original.replaceFirst(RegExp(r'Status: [^|]*'), 'Status: $status');
+    final withStatus =
+        original.replaceFirst(RegExp(r'Status: [^|]*'), 'Status: $status');
     final audit = [
-      if (approverName != null && approverName.isNotEmpty) 'ApprovedBy: $approverName',
+      if (approverName != null && approverName.isNotEmpty)
+        'ApprovedBy: $approverName',
       if (remarks != null && remarks.isNotEmpty) 'Remarks: $remarks',
       if (rubricRating != null) 'RubricRating: $rubricRating',
       'ReviewedAt: ${DateTime.now().toIso8601String()}',
     ].join(' | ');
-    await _supabase.from('school_circulars')
-        .update({'content': '$withStatus | $audit'}).eq('id', id).eq('category', 'LessonPlan');
+    await _supabase
+        .from('school_circulars')
+        .update({'content': '$withStatus | $audit'})
+        .eq('id', id)
+        .eq('category', 'LessonPlan');
     return true;
   }
 
@@ -3183,7 +3284,8 @@ class SchoolService {
     final totalUnits = plans.length;
     final taughtUnits = plans.where((p) => p['status'] == 'Taught').length;
     final hasData = pacing['has_data'] == true;
-    final coveragePct = (pacing['syllabus_percentage'] as num?)?.toDouble() ?? 0.0;
+    final coveragePct =
+        (pacing['syllabus_percentage'] as num?)?.toDouble() ?? 0.0;
     final isLagging = hasData && !pacing['is_on_track'];
 
     return {
@@ -3195,8 +3297,8 @@ class SchoolService {
       'laggingAlert': !hasData
           ? 'No syllabus plans have been recorded for this class.'
           : isLagging
-          ? 'Syllabus coverage is lagging behind target schedule (< 70% completed).'
-          : 'Syllabus coverage is currently on schedule for pre-board exams.',
+              ? 'Syllabus coverage is lagging behind target schedule (< 70% completed).'
+              : 'Syllabus coverage is currently on schedule for pre-board exams.',
     };
   }
 
@@ -3387,6 +3489,7 @@ class SchoolService {
           .from('school_attendance')
           .upsert(records, onConflict: 'student_id,date');
       _attendanceStore[key] = List<Map<String, dynamic>>.from(records);
+      await _notifyAbsentAttendance(records);
       return true;
     } catch (_) {}
 
@@ -3419,9 +3522,56 @@ class SchoolService {
 
     if (saved > 0) {
       _attendanceStore[key] = List<Map<String, dynamic>>.from(records);
+      await _notifyAbsentAttendance(records);
       return true;
     }
     return false;
+  }
+
+  Future<void> _notifyAbsentAttendance(
+      List<Map<String, dynamic>> records) async {
+    final absentees = records.where((record) =>
+        (record['status']?.toString().toLowerCase() ?? '') == 'absent');
+    for (final record in absentees) {
+      final student = record['student_id']?.toString() ?? '';
+      if (student.isEmpty) continue;
+      final date = record['date']?.toString() ?? '';
+      final title = 'Student marked absent';
+      final body = 'Attendance was recorded as absent for $date.';
+      try {
+        await createNotification(
+          userId: student,
+          role: 'student',
+          type: 'absence',
+          title: title,
+          body: body,
+          refType: 'school_attendance',
+          refId: '${student}_$date',
+        );
+      } catch (_) {}
+      try {
+        final links = await _supabase
+            .from('parent_student_links')
+            .select('parent_username')
+            .eq('student_username', student);
+        for (final link in List<Map<String, dynamic>>.from(links)) {
+          final parent = link['parent_username']?.toString() ?? '';
+          if (parent.isEmpty) continue;
+          try {
+            await createNotification(
+              userId: parent,
+              role: 'parent',
+              childId: student,
+              type: 'absence',
+              title: title,
+              body: body,
+              refType: 'school_attendance',
+              refId: '${student}_$date',
+            );
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
   }
 
   Future<List<Map<String, dynamic>>> getAttendanceReport({
@@ -3523,43 +3673,65 @@ class SchoolService {
     if (studentUsername.trim().isEmpty) return [];
     final currentUsername = await AuthService().getCurrentUsername() ?? '';
     if (currentUsername.isEmpty) throw Exception('Sign in to view homework.');
-    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
-    await permissions.enforce(feature: 'homework', requiredPermission: 'view', username: currentUsername);
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '')
+        .toLowerCase();
+    await permissions.enforce(
+        feature: 'homework',
+        requiredPermission: 'view',
+        username: currentUsername);
     if (role == 'student' || role == 'sstudent') {
-      if (studentUsername != currentUsername) throw Exception('Students can only view their own homework.');
+      if (studentUsername != currentUsername)
+        throw Exception('Students can only view their own homework.');
     } else if (role == 'parent' || role == 'sparent') {
-      final link = await _supabase.from('parent_student_links').select('student_username')
-          .eq('parent_username', currentUsername).eq('student_username', studentUsername).maybeSingle();
-      if (link == null) throw Exception('This student is not linked to your account.');
+      final link = await _supabase
+          .from('parent_student_links')
+          .select('student_username')
+          .eq('parent_username', currentUsername)
+          .eq('student_username', studentUsername)
+          .maybeSingle();
+      if (link == null)
+        throw Exception('This student is not linked to your account.');
     } else if (!{'admin', 'sadmin', 'principal', 'superadmin'}.contains(role)) {
       throw Exception('This role cannot view a student homework diary.');
     }
-    final result = await _supabase.from('school_students').select()
-        .eq('username', studentUsername).maybeSingle();
+    final result = await _supabase
+        .from('school_students')
+        .select()
+        .eq('username', studentUsername)
+        .maybeSingle();
     if (result == null) return [];
     final profile = Map<String, dynamic>.from(result);
     final classId = profile['class_id']?.toString();
     final className = profile['class_name']?.toString();
     var section = profile['section']?.toString();
-    if ((section == null || section.isEmpty) && className != null && className.contains('-')) {
+    if ((section == null || section.isEmpty) &&
+        className != null &&
+        className.contains('-')) {
       section = className.substring(className.lastIndexOf('-') + 1);
     }
-    if ((classId == null || classId.isEmpty) && (className == null || className.isEmpty)) return [];
-    return getHomework(classId: classId, className: className, section: section);
+    if ((classId == null || classId.isEmpty) &&
+        (className == null || className.isEmpty)) return [];
+    return getHomework(
+        classId: classId, className: className, section: section);
   }
 
   Future<bool> createHomework(Map<String, dynamic> data) async {
     final username = await AuthService().getCurrentUsername() ?? '';
-    await permissions.enforce(feature: 'homework', requiredPermission: 'edit', username: username);
-    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(
+        feature: 'homework', requiredPermission: 'edit', username: username);
+    final role =
+        (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
     if (role == 'teacher' || role == 'steacher' || role == 'class_teacher') {
       final assigned = await getTeacherAllAssignedClasses(username);
       final classId = data['class_id']?.toString() ?? '';
       final className = data['class_name']?.toString() ?? '';
-      final allowed = assigned.any((row) => row['id']?.toString() == classId ||
-          row['class_id']?.toString() == classId || row['class_name']?.toString() == className ||
+      final allowed = assigned.any((row) =>
+          row['id']?.toString() == classId ||
+          row['class_id']?.toString() == classId ||
+          row['class_name']?.toString() == className ||
           row['name']?.toString() == className);
-      if (!allowed) throw Exception('Homework can only be assigned to an allotted class.');
+      if (!allowed)
+        throw Exception('Homework can only be assigned to an allotted class.');
     }
 
     // Only send columns that exist on school_homework; extra keys make the
@@ -3579,7 +3751,32 @@ class SchoolService {
     payload.removeWhere((_, value) => value == null);
 
     try {
-      await _supabase.from('school_homework').insert(payload);
+      final inserted = await _supabase
+          .from('school_homework')
+          .insert(payload)
+          .select('id')
+          .single();
+      final audience = (data['class_id']?.toString().isNotEmpty ?? false)
+          ? data['class_id'].toString()
+          : data['class_name']?.toString() ?? '';
+      if (audience.isNotEmpty) {
+        final recipients = await _circularRecipientUsers(audience, 'teacher');
+        for (final recipient in recipients) {
+          try {
+            await createNotification(
+              userId: recipient['username']!,
+              role: recipient['role']!,
+              type: 'homework_published',
+              title: 'New homework published',
+              body:
+                  '${data['title'] ?? 'Homework'}${data['due_date'] == null ? '' : ' • Due ${data['due_date']}'}',
+              refType: 'school_homework',
+              refId: inserted['id']?.toString(),
+              childId: recipient['child_id'],
+            );
+          } catch (_) {}
+        }
+      }
       return true;
     } catch (_) {
       return false;
@@ -3688,23 +3885,39 @@ class SchoolService {
     String? attachmentUrl,
   }) async {
     final currentUsername = await AuthService().getCurrentUsername() ?? '';
-    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
-    await permissions.enforce(feature: 'homework', requiredPermission: 'edit', username: currentUsername);
-    if (currentUsername.isEmpty || studentUsername != currentUsername ||
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '')
+        .toLowerCase();
+    await permissions.enforce(
+        feature: 'homework',
+        requiredPermission: 'edit',
+        username: currentUsername);
+    if (currentUsername.isEmpty ||
+        studentUsername != currentUsername ||
         (role != 'student' && role != 'sstudent')) {
       throw Exception('Only the signed-in student can submit their homework.');
     }
-    final profile = await _supabase.from('school_students').select('class_id,class_name,section')
-        .eq('username', currentUsername).maybeSingle();
-    final assigned = await _supabase.from('school_homework').select('id,class_id,class_name,section')
-        .eq('id', homeworkId).maybeSingle();
-    if (profile == null || assigned == null) throw Exception('Student or homework record was not found.');
+    final profile = await _supabase
+        .from('school_students')
+        .select('class_id,class_name,section')
+        .eq('username', currentUsername)
+        .maybeSingle();
+    final assigned = await _supabase
+        .from('school_homework')
+        .select('id,class_id,class_name,section,teacher_username')
+        .eq('id', homeworkId)
+        .maybeSingle();
+    if (profile == null || assigned == null)
+      throw Exception('Student or homework record was not found.');
     final classId = profile['class_id']?.toString() ?? '';
     final className = profile['class_name']?.toString() ?? '';
-    final sameClass = (classId.isNotEmpty && classId == assigned['class_id']?.toString()) ||
-        (className.isNotEmpty && className == assigned['class_name']?.toString() &&
-            (profile['section']?.toString() ?? '') == (assigned['section']?.toString() ?? ''));
-    if (!sameClass) throw Exception('This homework is not assigned to your class.');
+    final sameClass =
+        (classId.isNotEmpty && classId == assigned['class_id']?.toString()) ||
+            (className.isNotEmpty &&
+                className == assigned['class_name']?.toString() &&
+                (profile['section']?.toString() ?? '') ==
+                    (assigned['section']?.toString() ?? ''));
+    if (!sameClass)
+      throw Exception('This homework is not assigned to your class.');
     final row = {
       'homework_id': homeworkId,
       'student_username': studentUsername,
@@ -3722,6 +3935,26 @@ class SchoolService {
       await _supabase
           .from('school_homework_submissions')
           .upsert(row, onConflict: 'homework_id,student_username');
+      final teacher = assigned['teacher_username']?.toString() ?? '';
+      if (teacher.isNotEmpty) {
+        try {
+          final saved = await _supabase
+              .from('school_homework_submissions')
+              .select('id')
+              .eq('homework_id', homeworkId)
+              .eq('student_username', studentUsername)
+              .single();
+          await createNotification(
+            userId: teacher,
+            role: 'teacher',
+            type: 'homework_submitted',
+            title: 'Homework submission received',
+            body: '${studentName ?? studentUsername} submitted an assignment.',
+            refType: 'school_homework_submissions',
+            refId: saved['id']?.toString(),
+          );
+        } catch (_) {}
+      }
       return true;
     } catch (_) {
       return false;
@@ -5031,7 +5264,49 @@ class SchoolService {
     }).toList();
 
     try {
-      await _supabase.from('school_fee_payments').insert(demands);
+      final saved = await _supabase
+          .from('school_fee_payments')
+          .insert(demands)
+          .select('id,student_id');
+      for (final row in List<Map<String, dynamic>>.from(saved)) {
+        final student = row['student_id']?.toString() ?? '';
+        if (student.isEmpty) continue;
+        final notificationBody =
+            '$cleanHead fee of ₹${amount.toStringAsFixed(0)} is due by $dueDate.';
+        try {
+          await createNotification(
+            userId: student,
+            role: 'student',
+            type: 'fee_due',
+            title: 'Fee due reminder',
+            body: notificationBody,
+            refType: 'school_fee_payments',
+            refId: row['id']?.toString(),
+          );
+        } catch (_) {}
+        try {
+          final links = await _supabase
+              .from('parent_student_links')
+              .select('parent_username')
+              .eq('student_username', student);
+          for (final link in List<Map<String, dynamic>>.from(links)) {
+            final parent = link['parent_username']?.toString() ?? '';
+            if (parent.isEmpty) continue;
+            try {
+              await createNotification(
+                userId: parent,
+                role: 'parent',
+                childId: student,
+                type: 'fee_due',
+                title: 'Fee due reminder',
+                body: notificationBody,
+                refType: 'school_fee_payments',
+                refId: row['id']?.toString(),
+              );
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
       return demands.length;
     } on PostgrestException catch (e) {
       if (e.code != '42703' && e.code != 'PGRST204') rethrow;
@@ -5509,72 +5784,296 @@ class SchoolService {
   }
 
   // ===== CIRCULARS & NOTICES =====
-  Future<List<Map<String, dynamic>>> getCirculars({String? category}) async {
-    try {
-      var query = _supabase.from('school_circulars').select();
-      if (category != null && category != 'All') {
-        query = query.eq('category', category);
+  Future<Set<String>> _circularClassScopes(String username, String role,
+      {String? studentUsername}) async {
+    final classes = <String>{};
+    Future<void> addStudent(Map<String, dynamic>? student) async {
+      if (student == null) return;
+      for (final key in ['class_id', 'class_name', 'section']) {
+        final value = student[key]?.toString().trim() ?? '';
+        if (value.isNotEmpty) classes.add(value);
       }
-      final response = await query.order('published_at', ascending: false);
-      final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    if (_circularsStore.isNotEmpty) {
-      if (category != null && category != 'All') {
-        return _circularsStore.where((c) => c['category'] == category).toList();
-      }
-      return _circularsStore;
+      final name = student['class_name']?.toString() ?? '';
+      final section = student['section']?.toString() ?? '';
+      if (name.isNotEmpty && section.isNotEmpty) classes.add('$name-$section');
     }
 
-    final defaults = [
-      {
-        'id': 'circ-1',
-        'title': 'Annual Sports Day 2026 - Registration Open',
-        'content':
-            'All students from classes 6 to 12 are invited to register for track and field events with their respective house captains by Friday.',
-        'category': 'Events',
-        'target_audience': 'All',
-        'published_at': '2026-11-01',
-        'author': 'Physical Education Dept',
-        'urgent': false,
-      },
-      {
-        'id': 'circ-2',
-        'title': 'Parent-Teacher Meeting (PTM) Scheduled for Nov 15',
-        'content':
-            'Mandatory PTM to discuss Mid-Term evaluation progress and academic performance. Slot timings sent to registered parent emails.',
-        'category': 'Academic',
-        'target_audience': 'Parents',
-        'published_at': '2026-10-28',
-        'author': 'Principal Office',
-        'urgent': true,
-      },
-      {
-        'id': 'circ-3',
-        'title': 'Winter Uniform Transition Guidelines',
-        'content':
-            'Winter uniform guidelines will be in effect starting Monday, 17th November. Please refer to school handbook for blazer and sweater specs.',
-        'category': 'General',
-        'target_audience': 'All',
-        'published_at': '2026-10-25',
-        'author': 'Administration',
-        'urgent': false,
-      },
-    ];
-    _circularsStore.addAll(defaults);
-    return defaults;
+    if (role == 'student') {
+      await addStudent(await getSchoolStudentProfile(username));
+    } else if (role == 'parent') {
+      final children = await getParentChildren(username);
+      if (studentUsername != null &&
+          !children.any((child) =>
+              child['username']?.toString() == studentUsername ||
+              child['id']?.toString() == studentUsername)) {
+        throw Exception('This student is not linked to your parent account.');
+      }
+      for (final child in children.where((child) =>
+          studentUsername == null ||
+          child['username']?.toString() == studentUsername ||
+          child['id']?.toString() == studentUsername)) {
+        await addStudent(child);
+      }
+    } else if (role == 'teacher' || role == 'class_teacher') {
+      for (final row in await getTeacherAllAssignedClasses(username)) {
+        for (final key in ['id', 'class_id', 'name', 'class_name']) {
+          final value = row[key]?.toString().trim() ?? '';
+          if (value.isNotEmpty) classes.add(value);
+        }
+      }
+    }
+    return classes;
+  }
+
+  String _normalizedSchoolRole(String value) {
+    final role = value.toLowerCase().trim();
+    return const {
+          'sadmin': 'admin',
+          'steacher': 'teacher',
+          'sstudent': 'student',
+          'sparent': 'parent'
+        }[role] ??
+        role;
+  }
+
+  Future<List<Map<String, dynamic>>> getCirculars(
+      {String? category, String? studentUsername}) async {
+    final username = await AuthService().getCurrentUsername() ?? '';
+    if (username.isEmpty) throw Exception('Sign in to view school circulars.');
+    final role = _normalizedSchoolRole(
+        await permissions.getLiveUserRole(username) ?? '');
+    const readers = {
+      'admin',
+      'principal',
+      'superadmin',
+      'teacher',
+      'class_teacher',
+      'student',
+      'parent',
+      'librarian',
+      'warden',
+      'nurse',
+      'accountant',
+      'driver',
+      'conductor',
+      'attendant',
+      'alumni',
+      'staff'
+    };
+    if (!readers.contains(role))
+      throw Exception('This role cannot view circulars.');
+    await permissions.enforce(
+        feature: 'circulars', requiredPermission: 'view', username: username);
+
+    var query = _supabase.from('school_circulars').select();
+    if (category != null && category != 'All')
+      query = query.eq('category', category);
+    final classes = await _circularClassScopes(username, role,
+        studentUsername: studentUsername);
+    if ({'admin', 'principal', 'superadmin'}.contains(role)) {
+      return List<Map<String, dynamic>>.from(
+          await query.order('published_at', ascending: false));
+    }
+    if (role == 'teacher' || role == 'class_teacher') {
+      return List<Map<String, dynamic>>.from(
+          await query.order('published_at', ascending: false));
+    }
+    final audiences = <String>{'all', 'All', role, '${role}s'};
+    if (role == 'student') audiences.add('students');
+    if (role == 'parent') audiences.add('parents');
+    if (role == 'teacher' || role == 'class_teacher') audiences.add('teachers');
+    if (role == 'librarian' || role == 'accountant') {
+      audiences.addAll(['students', 'Students', 'parents', 'Parents']);
+    }
+    audiences.addAll(audiences
+        .map((value) => value.isEmpty
+            ? value
+            : '${value[0].toUpperCase()}${value.substring(1)}')
+        .toList());
+    audiences.addAll(classes);
+    query = query.inFilter('target_audience', audiences.toList());
+    return List<Map<String, dynamic>>.from(
+        await query.order('published_at', ascending: false));
   }
 
   Future<bool> createCircular(Map<String, dynamic> data) async {
-    await permissions.enforce(feature: 'circulars', requiredPermission: 'edit');
-    await _supabase.from('school_circulars').insert(data);
+    final username = await AuthService().getCurrentUsername() ?? '';
+    if (username.isEmpty) throw Exception('Sign in to publish a circular.');
+    final role = _normalizedSchoolRole(
+        await permissions.getLiveUserRole(username) ?? '');
+    await permissions.enforce(
+        feature: 'circulars', requiredPermission: 'edit', username: username);
+    final audience = (data['target_audience']?.toString() ?? 'all').trim();
+    final category = (data['category']?.toString() ?? 'General').trim();
+    final classes = await _circularClassScopes(username, role);
+    final leaders = {'admin', 'principal', 'superadmin'};
+    if (!leaders.contains(role)) {
+      if (role == 'teacher' || role == 'class_teacher') {
+        if (!classes.contains(audience))
+          throw Exception(
+              'Teachers may publish only to their assigned classes.');
+      } else {
+        const domain = {
+          'librarian': 'Library',
+          'warden': 'Hostel',
+          'nurse': 'Infirmary',
+          'accountant': 'Fee'
+        };
+        if (domain[role] == null ||
+            category.toLowerCase() != domain[role]!.toLowerCase()) {
+          throw Exception(
+              'This role may publish only its own service circular category.');
+        }
+        final allowedAudiences = (role == 'librarian' || role == 'accountant')
+            ? {'students', 'parents'}
+            : {role};
+        if (!allowedAudiences.contains(audience.toLowerCase())) {
+          throw Exception(
+              'This role may publish only to its permitted service audience.');
+        }
+      }
+    }
+    final payload = {
+      'title': (data['title']?.toString() ?? '').trim(),
+      'content': (data['content']?.toString() ?? '').trim(),
+      'category': category,
+      'target_audience': audience,
+      'published_by': username,
+      'published_at': DateTime.now().toIso8601String(),
+    };
+    if ((payload['title'] as String).isEmpty ||
+        (payload['content'] as String).isEmpty) {
+      throw ArgumentError('Circular title and content are required.');
+    }
+    final inserted = await _supabase
+        .from('school_circulars')
+        .insert(payload)
+        .select('id')
+        .single();
+    final recipients = await _circularRecipientUsers(audience, role);
+    for (final recipient in recipients) {
+      try {
+        await createNotification(
+          userId: recipient['username']!,
+          role: recipient['role']!,
+          type: 'circular',
+          title: payload['title'] as String,
+          body: payload['content'] as String,
+          refType: 'school_circulars',
+          refId: inserted['id']?.toString(),
+          childId: recipient['child_id'],
+        );
+      } catch (_) {}
+    }
     return true;
   }
 
+  Future<List<Map<String, String>>> _circularRecipientUsers(
+    String audience,
+    String actorRole,
+  ) async {
+    if ({'admin', 'principal', 'superadmin'}.contains(actorRole) &&
+        audience.toLowerCase() == 'all') {
+      final rows = await _supabase
+          .from('users')
+          .select('username,role')
+          .eq('institute_type', 'school');
+      return List<Map<String, dynamic>>.from(rows)
+          .where((r) => r['username'] != null && r['role'] != null)
+          .map((r) => {
+                'username': r['username'].toString(),
+                'role': _normalizedSchoolRole(r['role'].toString())
+              })
+          .toList();
+    }
+    final recipients = <String, Map<String, String>>{};
+    final studentRows = await _supabase
+        .from('school_students')
+        .select('username,class_id,class_name,section');
+    for (final student in List<Map<String, dynamic>>.from(studentRows)) {
+      final studentClass = [
+        student['class_id'],
+        student['class_name'],
+        student['section']
+      ].whereType<Object>().map((v) => v.toString()).toSet();
+      final className = student['class_name']?.toString() ?? '';
+      final section = student['section']?.toString() ?? '';
+      if (className.isNotEmpty && section.isNotEmpty)
+        studentClass.add('$className-$section');
+      final matchesClass =
+          audience.toLowerCase() == 'all' || studentClass.contains(audience);
+      final normalizedAudience = audience.toLowerCase();
+      if (!matchesClass &&
+          normalizedAudience != 'students' &&
+          normalizedAudience != 'parents' &&
+          normalizedAudience != 'all') continue;
+      final studentUsername = student['username']?.toString() ?? '';
+      if (studentUsername.isEmpty) continue;
+      if (normalizedAudience == 'all' ||
+          normalizedAudience == 'students' ||
+          matchesClass) {
+        recipients[studentUsername] = {
+          'username': studentUsername,
+          'role': 'student'
+        };
+      }
+      if (normalizedAudience == 'all' ||
+          normalizedAudience == 'parents' ||
+          matchesClass) {
+        final links = await _supabase
+            .from('parent_student_links')
+            .select('parent_username')
+            .eq('student_username', studentUsername);
+        for (final link in List<Map<String, dynamic>>.from(links)) {
+          final parent = link['parent_username']?.toString() ?? '';
+          if (parent.isNotEmpty)
+            recipients['$parent|$studentUsername'] = {
+              'username': parent,
+              'role': 'parent',
+              'child_id': studentUsername
+            };
+        }
+      }
+    }
+    const roleTargets = {
+      'teachers': 'teacher',
+      'teacher': 'teacher',
+      'librarian': 'librarian',
+      'warden': 'warden',
+      'nurse': 'nurse',
+      'accountant': 'accountant'
+    };
+    final roleTarget = roleTargets[audience.toLowerCase()];
+    if (roleTarget != null) {
+      final rows = await _supabase
+          .from('users')
+          .select('username,role')
+          .eq('institute_type', 'school')
+          .inFilter('role', [roleTarget, 's$roleTarget']);
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final recipient = row['username']?.toString() ?? '';
+        if (recipient.isNotEmpty)
+          recipients[recipient] = {'username': recipient, 'role': roleTarget};
+      }
+    }
+    return recipients.values.toList();
+  }
+
   Future<bool> deleteCircular(String id) async {
-    await permissions.enforce(
-        feature: 'circulars', requiredPermission: 'approve');
+    final username = await AuthService().getCurrentUsername() ?? '';
+    if (username.isEmpty) throw Exception('Sign in to retract a circular.');
+    final role = _normalizedSchoolRole(
+        await permissions.getLiveUserRole(username) ?? '');
+    final circular = await _supabase
+        .from('school_circulars')
+        .select('published_by')
+        .eq('id', id)
+        .maybeSingle();
+    if (circular == null) return false;
+    if (!{'admin', 'principal', 'superadmin'}.contains(role) &&
+        circular['published_by']?.toString() != username) {
+      throw Exception('You may retract only your own circulars.');
+    }
     await _supabase.from('school_circulars').delete().eq('id', id);
     return true;
   }
@@ -7999,6 +8498,14 @@ class SchoolService {
     String? classId,
     String? className,
   }) async {
+    try {
+      final persisted = await getNotificationsForUser(
+        username: parentUsername,
+        role: await permissions.getLiveUserRole(parentUsername) ?? 'parent',
+        studentUsername: studentId,
+      );
+      if (persisted.isNotEmpty) return persisted;
+    } catch (_) {}
     final alerts = <Map<String, dynamic>>[];
 
     // 1. Try school_notifications table
@@ -8203,11 +8710,27 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getHolidays() async {
     final username = await AuthService().getCurrentUsername() ?? '';
     if (username.isEmpty) throw Exception('Sign in to view school holidays.');
-    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
-    if (!{'student', 'sstudent', 'parent', 'sparent', 'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'}.contains(role)) throw Exception('This role cannot view school holidays.');
-    final response = await _supabase.from('school_academic_calendar')
-        .select('id,title,description,start_date,end_date,category,target_audience')
-        .ilike('category', 'holiday').order('start_date', ascending: true);
+    final role =
+        (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    if (!{
+      'student',
+      'sstudent',
+      'parent',
+      'sparent',
+      'teacher',
+      'steacher',
+      'class_teacher',
+      'admin',
+      'sadmin',
+      'principal',
+      'superadmin'
+    }.contains(role)) throw Exception('This role cannot view school holidays.');
+    final response = await _supabase
+        .from('school_academic_calendar')
+        .select(
+            'id,title,description,start_date,end_date,category,target_audience')
+        .ilike('category', 'holiday')
+        .order('start_date', ascending: true);
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -8315,17 +8838,28 @@ class SchoolService {
   }) async {
     final current = await AuthService().getCurrentUsername() ?? '';
     if (current.isEmpty) throw Exception('Sign in to apply for leave.');
-    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
-    await permissions.enforce(feature: 'leave', requiredPermission: 'edit', username: current);
-    final username = (studentUsername != null && studentUsername.isNotEmpty) ? studentUsername : studentId;
+    final role =
+        (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    await permissions.enforce(
+        feature: 'leave', requiredPermission: 'edit', username: current);
+    final username = (studentUsername != null && studentUsername.isNotEmpty)
+        ? studentUsername
+        : studentId;
     if (role == 'student' || role == 'sstudent') {
-      if (username != current) throw Exception('Students can only apply for their own leave.');
+      if (username != current)
+        throw Exception('Students can only apply for their own leave.');
     } else if (role == 'parent' || role == 'sparent') {
-      final link = await _supabase.from('parent_student_links').select('student_username')
-          .eq('parent_username', current).eq('student_username', username).maybeSingle();
-      if (link == null) throw Exception('This student is not linked to your account.');
+      final link = await _supabase
+          .from('parent_student_links')
+          .select('student_username')
+          .eq('parent_username', current)
+          .eq('student_username', username)
+          .maybeSingle();
+      if (link == null)
+        throw Exception('This student is not linked to your account.');
     } else {
-      throw Exception('Only a student or linked parent can submit a student leave request.');
+      throw Exception(
+          'Only a student or linked parent can submit a student leave request.');
     }
     final classTeacher = await getClassTeacherForClass(
       classId: classId,
@@ -8430,16 +8964,32 @@ class SchoolService {
   }) async {
     final current = await AuthService().getCurrentUsername() ?? '';
     if (current.isEmpty) throw Exception('Sign in to view leave requests.');
-    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    final role =
+        (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
     if (role == 'student' || role == 'sstudent') {
-      if (studentId != null && studentId != current) throw Exception('Students can only view their own leave requests.');
+      if (studentId != null && studentId != current)
+        throw Exception('Students can only view their own leave requests.');
       studentId = current;
     } else if (role == 'parent' || role == 'sparent') {
-      if (studentId == null || studentId.isEmpty) throw Exception('Choose a linked child to view leave requests.');
-      final link = await _supabase.from('parent_student_links').select('student_username')
-          .eq('parent_username', current).eq('student_username', studentId).maybeSingle();
-      if (link == null) throw Exception('This student is not linked to your account.');
-    } else if (!{'admin', 'sadmin', 'principal', 'superadmin', 'teacher', 'steacher', 'class_teacher'}.contains(role)) {
+      if (studentId == null || studentId.isEmpty)
+        throw Exception('Choose a linked child to view leave requests.');
+      final link = await _supabase
+          .from('parent_student_links')
+          .select('student_username')
+          .eq('parent_username', current)
+          .eq('student_username', studentId)
+          .maybeSingle();
+      if (link == null)
+        throw Exception('This student is not linked to your account.');
+    } else if (!{
+      'admin',
+      'sadmin',
+      'principal',
+      'superadmin',
+      'teacher',
+      'steacher',
+      'class_teacher'
+    }.contains(role)) {
       throw Exception('This role cannot view student leave requests.');
     }
     final merged = _mergeLeaveLists(
@@ -8470,22 +9020,45 @@ class SchoolService {
     }).toList();
     if (role == 'teacher' || role == 'steacher' || role == 'class_teacher') {
       final classes = await getTeacherAllAssignedClasses(current);
-      final ids = classes.map((c) => (c['class_id'] ?? c['id'] ?? '').toString()).where((v) => v.isNotEmpty).toSet();
-      final names = classes.map((c) => (c['class_name'] ?? c['name'] ?? '').toString().toLowerCase()).where((v) => v.isNotEmpty).toSet();
-      return filtered.where((leave) => (ids.contains(leave['class_id']?.toString()) || names.contains((leave['class_name']?.toString() ?? '').toLowerCase())) && leave['status']?.toString() == 'approved').toList();
+      final ids = classes
+          .map((c) => (c['class_id'] ?? c['id'] ?? '').toString())
+          .where((v) => v.isNotEmpty)
+          .toSet();
+      final names = classes
+          .map((c) =>
+              (c['class_name'] ?? c['name'] ?? '').toString().toLowerCase())
+          .where((v) => v.isNotEmpty)
+          .toSet();
+      return filtered
+          .where((leave) =>
+              (ids.contains(leave['class_id']?.toString()) ||
+                  names.contains(
+                      (leave['class_name']?.toString() ?? '').toLowerCase())) &&
+              leave['status']?.toString() == 'approved')
+          .toList();
     }
     return filtered;
   }
 
-  Future<List<Map<String, dynamic>>> getLeavesForParent({required String parentUsername, String? studentUsername}) async {
+  Future<List<Map<String, dynamic>>> getLeavesForParent(
+      {required String parentUsername, String? studentUsername}) async {
     final current = await AuthService().getCurrentUsername() ?? '';
-    if (current != parentUsername) throw Exception('Parents can only view leave applications for their own account.');
-    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
-    if (role != 'parent' && role != 'sparent') throw Exception('Parent role required.');
+    if (current != parentUsername)
+      throw Exception(
+          'Parents can only view leave applications for their own account.');
+    final role =
+        (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    if (role != 'parent' && role != 'sparent')
+      throw Exception('Parent role required.');
     if (studentUsername == null || studentUsername.isEmpty) return [];
-    final link = await _supabase.from('parent_student_links').select('student_username')
-        .eq('parent_username', current).eq('student_username', studentUsername).maybeSingle();
-    if (link == null) throw Exception('This student is not linked to your account.');
+    final link = await _supabase
+        .from('parent_student_links')
+        .select('student_username')
+        .eq('parent_username', current)
+        .eq('student_username', studentUsername)
+        .maybeSingle();
+    if (link == null)
+      throw Exception('This student is not linked to your account.');
     return getStudentLeaves(studentId: studentUsername);
   }
 
@@ -8604,9 +9177,12 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getLeaveRequestsForClassTeacher(
       String teacherUsername) async {
     final current = await AuthService().getCurrentUsername() ?? '';
-    if (current.isEmpty || current != teacherUsername) throw Exception('You can only view your own class leave queue.');
-    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
-    if (!{'teacher', 'steacher', 'class_teacher'}.contains(role)) throw Exception('Only class teachers can access this queue.');
+    if (current.isEmpty || current != teacherUsername)
+      throw Exception('You can only view your own class leave queue.');
+    final role =
+        (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    if (!{'teacher', 'steacher', 'class_teacher'}.contains(role))
+      throw Exception('Only class teachers can access this queue.');
     if (teacherUsername.isEmpty) return [];
     final teacher = teacherUsername.trim().toLowerCase();
 
@@ -8631,11 +9207,16 @@ class SchoolService {
     if (!_missingTables.contains('school_student_leaves')) {
       for (final classId in teacherClassIds) {
         try {
-          final response = await _supabase.from('school_student_leaves')
-              .select().eq('class_id', classId).order('created_at', ascending: false);
-          tableRows.addAll(List<Map<String, dynamic>>.from(response).map(_normaliseLeaveRow));
+          final response = await _supabase
+              .from('school_student_leaves')
+              .select()
+              .eq('class_id', classId)
+              .order('created_at', ascending: false);
+          tableRows.addAll(List<Map<String, dynamic>>.from(response)
+              .map(_normaliseLeaveRow));
         } catch (e) {
-          if (_isTableMissingError(e)) _missingTables.add('school_student_leaves');
+          if (_isTableMissingError(e))
+            _missingTables.add('school_student_leaves');
         }
       }
     }
@@ -8743,12 +9324,23 @@ class SchoolService {
     String? remarks,
   }) async {
     final current = await AuthService().getCurrentUsername() ?? '';
-    if (current.isEmpty || current != reviewedBy) throw Exception('Reviewer must match the signed-in user.');
-    final role = (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
-    if (!{'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'}.contains(role)) throw Exception('This role cannot review student leave.');
+    if (current.isEmpty || current != reviewedBy)
+      throw Exception('Reviewer must match the signed-in user.');
+    final role =
+        (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    if (!{
+      'teacher',
+      'steacher',
+      'class_teacher',
+      'admin',
+      'sadmin',
+      'principal',
+      'superadmin'
+    }.contains(role)) throw Exception('This role cannot review student leave.');
     if (!{'admin', 'sadmin', 'principal', 'superadmin'}.contains(role)) {
       final ownQueue = await getLeaveRequestsForClassTeacher(current);
-      if (!ownQueue.any((leave) => leave['id']?.toString() == leaveId)) throw Exception('This leave request is outside your assigned classes.');
+      if (!ownQueue.any((leave) => leave['id']?.toString() == leaveId))
+        throw Exception('This leave request is outside your assigned classes.');
     }
     final normalised =
         status.toLowerCase() == 'approved' ? 'approved' : 'rejected';
@@ -9609,14 +10201,97 @@ class SchoolService {
   /// (SMS/WhatsApp/push) are intentionally not implied by this method.
   Future<void> createNotification({
     required String userId,
+    required String role,
     required String type,
     required String title,
     required String body,
     String? refType,
     String? refId,
+    String? childId,
   }) async {
+    final actor = await AuthService().getCurrentUsername() ?? '';
+    if (actor.isEmpty)
+      throw Exception('Sign in to create an in-app notification.');
+    final actorRole =
+        _normalizedSchoolRole(await permissions.getLiveUserRole(actor) ?? '');
+    final recipientRole = _normalizedSchoolRole(role);
+    const notificationActors = {
+      'admin',
+      'sadmin',
+      'superadmin',
+      'principal',
+      'teacher',
+      'class_teacher',
+      'librarian',
+      'warden',
+      'nurse',
+      'accountant'
+    };
+    const notificationRoles = {
+      'admin',
+      'principal',
+      'superadmin',
+      'teacher',
+      'class_teacher',
+      'student',
+      'parent',
+      'librarian',
+      'warden',
+      'nurse',
+      'accountant',
+      'driver',
+      'conductor',
+      'attendant',
+      'alumni',
+      'staff'
+    };
+    final isOwnHomeworkSubmission = actorRole == 'student' &&
+        type == 'homework_submitted' &&
+        refType == 'school_homework_submissions' &&
+        refId != null;
+    if (!notificationActors.contains(actorRole) && !isOwnHomeworkSubmission) {
+      throw Exception('This role cannot create notifications.');
+    }
+    if (isOwnHomeworkSubmission) {
+      final submission = await _supabase
+          .from('school_homework_submissions')
+          .select('student_username,homework_id')
+          .eq('id', refId)
+          .maybeSingle();
+      if (submission == null ||
+          submission['student_username']?.toString() != actor) {
+        throw Exception(
+            'A student may notify a teacher only about their own submission.');
+      }
+      final assignment = await _supabase
+          .from('school_homework')
+          .select('teacher_username')
+          .eq('id', submission['homework_id']?.toString() ?? '')
+          .maybeSingle();
+      if (assignment?['teacher_username']?.toString() != userId) {
+        throw Exception(
+            'Only the assigned teacher may receive this submission alert.');
+      }
+    }
+    if (!notificationRoles.contains(recipientRole)) {
+      throw ArgumentError('The notification recipient role is not supported.');
+    }
+    if (refType != null && refId != null) {
+      var duplicateQuery = _supabase
+          .from('school_notifications')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('type', type)
+          .eq('ref_type', refType)
+          .eq('ref_id', refId);
+      if (childId != null)
+        duplicateQuery = duplicateQuery.eq('child_id', childId);
+      if (await duplicateQuery.maybeSingle() != null) return;
+    }
     await _supabase.from('school_notifications').insert({
       'user_id': userId,
+      'user_role': recipientRole,
+      if (childId != null) 'child_id': childId,
       'type': type,
       'title': title,
       'body': body,
@@ -9627,36 +10302,133 @@ class SchoolService {
 
   Future<List<Map<String, dynamic>>> getNotificationsForUser({
     required String username,
+    required String role,
+    String? studentUsername,
     int limit = 50,
   }) async {
-    final response = await _supabase
-        .from('school_notifications')
-        .select()
-        .eq('user_id', username)
-        .order('created_at', ascending: false)
-        .limit(limit);
-    return List<Map<String, dynamic>>.from(response);
+    final safeLimit = limit.clamp(1, 200);
+    final currentUser = await AuthService().getCurrentUsername() ?? '';
+    if (currentUser.isEmpty || currentUser != username) {
+      throw Exception('You may only read notifications for your own account.');
+    }
+    final liveRole = _normalizedSchoolRole(
+        await permissions.getLiveUserRole(username) ?? '');
+    if (liveRole.isEmpty || liveRole != _normalizedSchoolRole(role)) {
+      throw Exception('The supplied role does not match the active account.');
+    }
+    await permissions.enforce(
+        feature: 'circulars', requiredPermission: 'view', username: username);
+    if (liveRole == 'parent' && studentUsername != null) {
+      final children = await getParentChildren(username);
+      final linked = children
+          .map((child) =>
+              child['username']?.toString() ?? child['id']?.toString() ?? '')
+          .toSet();
+      if (!linked.contains(studentUsername))
+        throw Exception('This student is not linked to your parent account.');
+    }
+    var query = _supabase.from('school_notifications').select();
+    if (!{'admin', 'sadmin', 'principal', 'superadmin'}.contains(liveRole)) {
+      query = query.eq('user_id', username);
+    }
+    final response =
+        await query.order('created_at', ascending: false).limit(safeLimit);
+    var notifications = List<Map<String, dynamic>>.from(response);
+    if (liveRole == 'parent') {
+      final children = await getParentChildren(username);
+      final linked = children
+          .map((child) =>
+              child['username']?.toString() ?? child['id']?.toString() ?? '')
+          .toSet();
+      notifications = notifications.where((item) {
+        final childId = item['child_id']?.toString() ?? '';
+        if (studentUsername != null)
+          return childId.isEmpty || childId == studentUsername;
+        return childId.isEmpty || linked.contains(childId);
+      }).toList();
+    }
+    return notifications;
   }
 
   Future<void> markNotificationRead({required String notificationId}) async {
+    final username = await AuthService().getCurrentUsername() ?? '';
+    if (username.isEmpty) throw Exception('Sign in to update a notification.');
+    final role = _normalizedSchoolRole(
+        await permissions.getLiveUserRole(username) ?? '');
+    await permissions.enforce(
+        feature: 'circulars', requiredPermission: 'view', username: username);
+    final notification = await _supabase
+        .from('school_notifications')
+        .select('user_id,child_id')
+        .eq('id', notificationId)
+        .maybeSingle();
+    if (notification == null ||
+        notification['user_id']?.toString() != username) {
+      throw Exception(
+          'This notification does not belong to the signed-in user.');
+    }
+    final childId = notification['child_id']?.toString() ?? '';
+    if (role == 'parent' && childId.isNotEmpty) {
+      final children = await getParentChildren(username);
+      final links = children
+          .map((child) =>
+              child['username']?.toString() ?? child['id']?.toString() ?? '')
+          .toSet();
+      if (!links.contains(childId))
+        throw Exception(
+            'This notification is outside your linked-child scope.');
+    }
     await _supabase
         .from('school_notifications')
-        .update({'is_read': true}).eq('id', notificationId);
+        .update({'is_read': true})
+        .eq('id', notificationId)
+        .eq('user_id', username);
   }
 
-  Future<void> markAllNotificationsRead({required String username}) async {
-    await _supabase
+  Future<void> markAllNotificationsRead(
+      {required String username, String? studentUsername}) async {
+    final currentUser = await AuthService().getCurrentUsername() ?? '';
+    if (currentUser.isEmpty || currentUser != username) {
+      throw Exception(
+          'You may only update notifications for your own account.');
+    }
+    final role = _normalizedSchoolRole(
+        await permissions.getLiveUserRole(username) ?? '');
+    if (role.isEmpty)
+      throw Exception('The active account has no verified school role.');
+    await permissions.enforce(
+        feature: 'circulars', requiredPermission: 'view', username: username);
+    if (role == 'parent' && studentUsername != null) {
+      final children = await getParentChildren(username);
+      final linked = children
+          .map((child) =>
+              child['username']?.toString() ?? child['id']?.toString() ?? '')
+          .toSet();
+      if (!linked.contains(studentUsername)) {
+        throw Exception('This student is not linked to your parent account.');
+      }
+    }
+    var query = _supabase
         .from('school_notifications')
         .update({'is_read': true})
         .eq('user_id', username)
         .eq('is_read', false);
+    if (role == 'parent' && studentUsername != null) {
+      query = query.or('child_id.is.null,child_id.eq.$studentUsername');
+    }
+    await query;
   }
 
   Future<List<Map<String, dynamic>>> getStudentNotifications(
       String studentUsername) async {
     final notifications = <Map<String, dynamic>>[];
+    try {
+      notifications.addAll(await getNotificationsForUser(
+          username: studentUsername, role: 'student'));
+    } catch (_) {}
 
-    if (!_missingTables.contains('school_notifications')) {
+    if (notifications.isEmpty &&
+        !_missingTables.contains('school_notifications')) {
       try {
         final response = await _supabase
             .from('school_notifications')

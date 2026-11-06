@@ -111,6 +111,8 @@ import '../features/school/timetable/student_timetable_screen.dart';
 import '../features/school/timetable/admin_timetable_screen.dart';
 import '../features/school/timetable/teacher_timetable_screen.dart';
 import '../features/school/circulars/circulars_screen.dart';
+import '../features/school/circulars/staff_circulars_screen.dart';
+import '../features/school/circulars/student_circulars_screen.dart';
 import '../features/school/transport/transport_screen.dart';
 import '../features/school/transport/student_transport_screen.dart';
 import '../features/school/fee/school_fee_screen.dart';
@@ -160,6 +162,19 @@ const _schoolAccountantRoles = {
   'principal',
   'superadmin',
   'accountant'
+};
+const _schoolCircularStaffRoles = {
+  'admin',
+  'sadmin',
+  'principal',
+  'superadmin',
+  'teacher',
+  'steacher',
+  'class_teacher',
+  'librarian',
+  'warden',
+  'nurse',
+  'accountant',
 };
 const _allSchoolRoles = {
   'admin',
@@ -256,28 +271,55 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/library-librarian': {'librarian', ..._schoolAdminRoles},
   '/school/library-student': _allSchoolRoles,
   '/school/homework-teacher': {
-    'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'
+    'teacher',
+    'steacher',
+    'class_teacher',
+    'admin',
+    'sadmin',
+    'principal',
+    'superadmin'
   },
   '/school/homework-student': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/homework-add-teacher': {
-    'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin'
+    'teacher',
+    'steacher',
+    'class_teacher',
+    'admin',
+    'sadmin'
   },
   '/school/timetable-admin': {'admin', 'sadmin', 'principal', 'superadmin'},
   '/school/timetable-teacher': {'teacher', 'steacher', 'class_teacher'},
   '/school/timetable-student': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/leave-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/leave-approvals': {'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'},
+  '/school/leave-approvals': {
+    'teacher',
+    'steacher',
+    'class_teacher',
+    'admin',
+    'sadmin',
+    'principal',
+    'superadmin'
+  },
   '/school/discipline-staff': {..._schoolStaffRoles, 'warden'},
   '/school/discipline-notices': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/ai-tools-faculty': _schoolStaffRoles,
   '/school/ai-student': {'student', 'sstudent'},
   '/school/calendar-admin': _schoolAdminRoles,
   '/school/calendar-student': {
-    'student', 'sstudent', 'parent', 'sparent', 'teacher', 'steacher', 'class_teacher',
-    'librarian', 'warden', 'nurse', 'accountant'
+    'student',
+    'sstudent',
+    'parent',
+    'sparent',
+    'teacher',
+    'steacher',
+    'class_teacher',
+    'librarian',
+    'warden',
+    'nurse',
+    'accountant'
   },
-  '/school/circulars-staff': _schoolStaffRoles,
-  '/school/circulars-student': {'student', 'sstudent', 'parent', 'sparent'},
+  '/school/circulars-staff': _schoolCircularStaffRoles,
+  '/school/circulars-student': _allSchoolRoles,
   '/school/notifications': _allSchoolRoles,
 };
 
@@ -413,9 +455,13 @@ final router = GoRouter(
                 ? '/school/calendar-admin'
                 : '/school/calendar-student';
           case '/school/circulars':
-            return isStaff
+            return (isStaff ||
+                    {'librarian', 'warden', 'nurse', 'accountant'}
+                        .contains(normalizedRole))
                 ? '/school/circulars-staff'
-                : (isLearner ? '/school/circulars-student' : null);
+                : (_allSchoolRoles.contains(normalizedRole)
+                    ? '/school/circulars-student'
+                    : null);
           default:
             return null;
         }
@@ -653,7 +699,8 @@ final router = GoRouter(
         builder: (context, state) => const StudentTimetableScreen()),
     GoRoute(
         path: '/school/leave-approvals',
-        builder: (context, state) => const StudentLeaveScreen(approvalsOnly: true)),
+        builder: (context, state) =>
+            const StudentLeaveScreen(approvalsOnly: true)),
     GoRoute(
         path: '/school/discipline-staff',
         builder: (context, state) => const StaffDisciplineScreen()),
@@ -664,7 +711,13 @@ final router = GoRouter(
         path: '/school/ai-tools-faculty',
         builder: (context, state) {
           final tab = state.uri.queryParameters['tab'];
-          final initialTab = tab == 'chatbot' || tab == '3' ? 3 : tab == 'questions' || tab == '1' ? 1 : tab == 'feedback' || tab == '2' ? 2 : 0;
+          final initialTab = tab == 'chatbot' || tab == '3'
+              ? 3
+              : tab == 'questions' || tab == '1'
+                  ? 1
+                  : tab == 'feedback' || tab == '2'
+                      ? 2
+                      : 0;
           return FacultyAiScreen(initialTab: initialTab);
         }),
     GoRoute(
@@ -677,11 +730,12 @@ final router = GoRouter(
         path: '/school/calendar-student',
         builder: (context, state) => const StudentCalendarScreen()),
     GoRoute(
-        path: '/school/circulars-staff',
-        builder: (context, state) => const CircularsScreen()),
+      path: '/school/circulars-staff',
+      builder: (context, state) => const StaffCircularsScreen(),
+    ),
     GoRoute(
         path: '/school/circulars-student',
-        builder: (context, state) => const CircularsScreen()),
+        builder: (context, state) => const StudentCircularsScreen()),
     GoRoute(
         path: '/school/notifications',
         builder: (context, state) => const NotificationsScreen()),

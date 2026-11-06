@@ -7,7 +7,8 @@ import 'auth_service.dart';
 enum AccessLevel { none, view, edit, approve }
 
 class SchoolPermissionService {
-  static final SchoolPermissionService _instance = SchoolPermissionService._internal();
+  static final SchoolPermissionService _instance =
+      SchoolPermissionService._internal();
   factory SchoolPermissionService() => _instance;
   SchoolPermissionService._internal();
 
@@ -26,6 +27,11 @@ class SchoolPermissionService {
     'warden',
     'nurse',
     'accountant',
+    'driver',
+    'conductor',
+    'attendant',
+    'alumni',
+    'staff',
   ];
 
   static const List<String> supportedFeatures = [
@@ -51,7 +57,8 @@ class SchoolPermissionService {
   // 1. PERMISSION MATRIX MANAGEMENT
   // ==========================================
 
-  Future<List<Map<String, dynamic>>> getMatrix({String instituteId = 'SHIV-SCH'}) async {
+  Future<List<Map<String, dynamic>>> getMatrix(
+      {String instituteId = 'SHIV-SCH'}) async {
     try {
       final res = await _supabase
           .from('school_role_permissions')
@@ -75,7 +82,8 @@ class SchoolPermissionService {
         final Map<String, Map<String, dynamic>> latestMap = {};
         for (var c in circList) {
           try {
-            final data = jsonDecode(c['content']?.toString() ?? '{}') as Map<String, dynamic>;
+            final data = jsonDecode(c['content']?.toString() ?? '{}')
+                as Map<String, dynamic>;
             final key = '${data['role']}_${data['feature']}';
             latestMap.putIfAbsent(key, () => data);
           } catch (_) {}
@@ -141,7 +149,9 @@ class SchoolPermissionService {
     String granted = 'none';
     if (customMatrix != null && customMatrix.isNotEmpty) {
       final match = customMatrix.firstWhere(
-        (m) => m['role']?.toString().toLowerCase() == role && m['feature']?.toString().toLowerCase() == feature.toLowerCase(),
+        (m) =>
+            m['role']?.toString().toLowerCase() == role &&
+            m['feature']?.toString().toLowerCase() == feature.toLowerCase(),
         orElse: () => {},
       );
       if (match.isNotEmpty && match['permission'] != null) {
@@ -182,12 +192,16 @@ class SchoolPermissionService {
 
     final liveRole = await getLiveUserRole(uname);
     if (liveRole == null || liveRole.isEmpty) {
-      throw Exception('Access Denied: User "$uname" does not have an active verified role in the system.');
+      throw Exception(
+          'Access Denied: User "$uname" does not have an active verified role in the system.');
     }
 
     // Normalize roles like 'steacher' -> 'teacher', 'sstudent' -> 'student', 'sparent' -> 'parent', 'sadmin' -> 'admin'
     final normalized = liveRole.startsWith('s') &&
-            (liveRole == 'steacher' || liveRole == 'sstudent' || liveRole == 'sparent' || liveRole == 'sadmin')
+            (liveRole == 'steacher' ||
+                liveRole == 'sstudent' ||
+                liveRole == 'sparent' ||
+                liveRole == 'sadmin')
         ? liveRole.substring(1)
         : liveRole;
 
@@ -237,7 +251,10 @@ class SchoolPermissionService {
     String instituteId = 'SHIV-SCH',
   }) async {
     try {
-      var query = _supabase.from('school_marks_locks').select().eq('institute_id', instituteId);
+      var query = _supabase
+          .from('school_marks_locks')
+          .select()
+          .eq('institute_id', instituteId);
       if (examId != null && examId.isNotEmpty) {
         query = query.eq('exam_id', examId);
       }
@@ -257,13 +274,17 @@ class SchoolPermissionService {
           .order('published_at', ascending: false);
       final circList = List<Map<String, dynamic>>.from(circRes);
       if (circList.isNotEmpty) {
-        return circList.map((c) {
-          try {
-            return jsonDecode(c['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          } catch (_) {
-            return <String, dynamic>{};
-          }
-        }).where((m) => m.isNotEmpty).toList();
+        return circList
+            .map((c) {
+              try {
+                return jsonDecode(c['content']?.toString() ?? '{}')
+                    as Map<String, dynamic>;
+              } catch (_) {
+                return <String, dynamic>{};
+              }
+            })
+            .where((m) => m.isNotEmpty)
+            .toList();
       }
     } catch (_) {}
 
@@ -276,9 +297,13 @@ class SchoolPermissionService {
     String subject = 'All',
     String instituteId = 'SHIV-SCH',
   }) async {
-    final locks = await getMarksLocks(examId: examId, classId: classId, instituteId: instituteId);
+    final locks = await getMarksLocks(
+        examId: examId, classId: classId, instituteId: instituteId);
     final match = locks.firstWhere(
-      (l) => l['exam_id'] == examId && l['class_id'] == classId && (l['subject'] == subject || l['subject'] == 'All'),
+      (l) =>
+          l['exam_id'] == examId &&
+          l['class_id'] == classId &&
+          (l['subject'] == subject || l['subject'] == 'All'),
       orElse: () => {},
     );
 
@@ -330,7 +355,8 @@ class SchoolPermissionService {
       await _supabase.from('school_marks_locks').upsert(payload);
     } catch (_) {
       await _supabase.from('school_circulars').insert({
-        'title': 'Marks Lock Updated: $examId / $classId ($subject) -> ${isLocked ? "LOCKED" : "UNLOCKED"}',
+        'title':
+            'Marks Lock Updated: $examId / $classId ($subject) -> ${isLocked ? "LOCKED" : "UNLOCKED"}',
         'content': jsonEncode(payload),
         'category': 'MarksLock',
         'target_audience': 'Teacher',
@@ -359,7 +385,10 @@ class SchoolPermissionService {
     String instituteId = 'SHIV-SCH',
   }) async {
     try {
-      var query = _supabase.from('school_maker_checker_requests').select().eq('institute_id', instituteId);
+      var query = _supabase
+          .from('school_maker_checker_requests')
+          .select()
+          .eq('institute_id', instituteId);
       if (status != null && status != 'All') {
         query = query.eq('status', status.toLowerCase());
       }
@@ -379,16 +408,23 @@ class SchoolPermissionService {
           .order('published_at', ascending: false);
       final circList = List<Map<String, dynamic>>.from(circRes);
       if (circList.isNotEmpty) {
-        final items = circList.map((c) {
-          try {
-            return jsonDecode(c['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          } catch (_) {
-            return <String, dynamic>{};
-          }
-        }).where((m) => m.isNotEmpty).toList();
+        final items = circList
+            .map((c) {
+              try {
+                return jsonDecode(c['content']?.toString() ?? '{}')
+                    as Map<String, dynamic>;
+              } catch (_) {
+                return <String, dynamic>{};
+              }
+            })
+            .where((m) => m.isNotEmpty)
+            .toList();
 
         if (status != null && status != 'All') {
-          return items.where((i) => i['status']?.toString().toLowerCase() == status.toLowerCase()).toList();
+          return items
+              .where((i) =>
+                  i['status']?.toString().toLowerCase() == status.toLowerCase())
+              .toList();
         }
         return items;
       }
@@ -414,7 +450,8 @@ class SchoolPermissionService {
       'request_type': requestType,
       'entity_id': entityId,
       'title': title,
-      'description': description ?? 'Maker submitted $requestType for $entityId',
+      'description':
+          description ?? 'Maker submitted $requestType for $entityId',
       'maker_username': makerUsername,
       'maker_role': makerRole,
       'status': 'pending',
@@ -454,14 +491,16 @@ class SchoolPermissionService {
   }) async {
     // 1. Fetch current request to enforce Separation of Duty (maker != checker)
     final requests = await getMakerCheckerRequests(instituteId: instituteId);
-    final req = requests.firstWhere((r) => r['id'] == requestId, orElse: () => {});
+    final req =
+        requests.firstWhere((r) => r['id'] == requestId, orElse: () => {});
     if (req.isEmpty) {
       throw Exception('Request $requestId not found.');
     }
 
     final maker = req['maker_username']?.toString() ?? '';
     if (maker.toLowerCase() == checkerUsername.toLowerCase()) {
-      throw Exception('Separation of Duty Violation: Maker ($maker) cannot approve their own request!');
+      throw Exception(
+          'Separation of Duty Violation: Maker ($maker) cannot approve their own request!');
     }
 
     final newStatus = approve ? 'approved' : 'rejected';
@@ -470,7 +509,8 @@ class SchoolPermissionService {
       'status': newStatus,
       'checker_username': checkerUsername,
       'reviewed_at': DateTime.now().toIso8601String(),
-      if (!approve && rejectionReason != null) 'rejection_reason': rejectionReason,
+      if (!approve && rejectionReason != null)
+        'rejection_reason': rejectionReason,
     };
 
     try {
@@ -482,7 +522,8 @@ class SchoolPermissionService {
       }).eq('id', requestId);
     } catch (_) {
       await _supabase.from('school_circulars').insert({
-        'title': 'Maker-Checker Decision: $requestId -> ${newStatus.toUpperCase()}',
+        'title':
+            'Maker-Checker Decision: $requestId -> ${newStatus.toUpperCase()}',
         'content': jsonEncode(payload),
         'category': 'MakerChecker',
         'target_audience': 'Admin',
@@ -505,13 +546,15 @@ class SchoolPermissionService {
   // 4. STATS & SUMMARY
   // ==========================================
 
-  Future<Map<String, dynamic>> getStats({String instituteId = 'SHIV-SCH'}) async {
+  Future<Map<String, dynamic>> getStats(
+      {String instituteId = 'SHIV-SCH'}) async {
     final matrix = await getMatrix(instituteId: instituteId);
     final locks = await getMarksLocks(instituteId: instituteId);
     final requests = await getMakerCheckerRequests(instituteId: instituteId);
 
     final lockedCount = locks.where((l) => l['is_locked'] == true).length;
-    final pendingApprovals = requests.where((r) => r['status'] == 'pending').length;
+    final pendingApprovals =
+        requests.where((r) => r['status'] == 'pending').length;
 
     return {
       'configured_roles': supportedRoles.length,
@@ -527,7 +570,8 @@ class SchoolPermissionService {
   // ==========================================
 
   String _getDefaultPermission(String role, String feature) {
-    if (role == 'superadmin' || role == 'sadmin' || role == 'principal') return 'approve';
+    if (role == 'superadmin' || role == 'sadmin' || role == 'principal')
+      return 'approve';
 
     switch (role) {
       case 'teacher':
@@ -536,7 +580,8 @@ class SchoolPermissionService {
         if (feature == 'timetable') return 'edit';
         if (feature == 'leave') return 'view';
         if (feature == 'discipline') return 'edit';
-        if (feature == 'circulars' || feature == 'library' || feature == 'timetable') return 'view';
+        if (feature == 'circulars') return 'edit';
+        if (feature == 'library' || feature == 'timetable') return 'view';
         return 'none';
 
       case 'class_teacher':
@@ -546,38 +591,65 @@ class SchoolPermissionService {
         if (feature == 'leave') return 'approve';
         if (feature == 'discipline') return 'edit';
         if (feature == 'discipline') return 'edit';
-        if (feature == 'fees' || feature == 'hostel' || feature == 'circulars' || feature == 'library') return 'view';
+        if (feature == 'circulars') return 'edit';
+        if (feature == 'fees' || feature == 'hostel' || feature == 'library')
+          return 'view';
         return 'none';
 
       case 'librarian':
         if (feature == 'library') return 'approve';
+        if (feature == 'circulars') return 'edit';
         if (feature == 'fees') return 'view';
         return 'none';
 
       case 'warden':
         if (feature == 'hostel') return 'approve';
+        if (feature == 'circulars') return 'edit';
         if (feature == 'discipline') return 'edit';
         if (feature == 'infirmary') return 'view';
         return 'none';
 
       case 'nurse':
         if (feature == 'infirmary') return 'approve';
+        if (feature == 'circulars') return 'edit';
         return 'none';
 
       case 'accountant':
         if (feature == 'fees' || feature == 'payroll') return 'edit';
+        if (feature == 'circulars') return 'edit';
         if (feature == 'inventory') return 'view';
         return 'none';
 
+      case 'driver':
+      case 'conductor':
+      case 'attendant':
+        if (feature == 'circulars' || feature == 'transport') return 'view';
+        return 'none';
+
+      case 'alumni':
+      case 'staff':
+        if (feature == 'circulars') return 'view';
+        return 'none';
+
       case 'parent':
-        if (feature == 'attendance' || feature == 'marks' || feature == 'fees' || feature == 'transport' || feature == 'infirmary' || feature == 'circulars' || feature == 'homework') return 'view';
+        if (feature == 'attendance' ||
+            feature == 'marks' ||
+            feature == 'fees' ||
+            feature == 'transport' ||
+            feature == 'infirmary' ||
+            feature == 'circulars' ||
+            feature == 'homework') return 'view';
         if (feature == 'timetable') return 'view';
         if (feature == 'leave') return 'edit';
         if (feature == 'discipline') return 'view';
         return 'none';
 
       case 'student':
-        if (feature == 'attendance' || feature == 'marks' || feature == 'fees' || feature == 'library' || feature == 'circulars') return 'view';
+        if (feature == 'attendance' ||
+            feature == 'marks' ||
+            feature == 'fees' ||
+            feature == 'library' ||
+            feature == 'circulars') return 'view';
         if (feature == 'homework') return 'edit';
         if (feature == 'timetable') return 'view';
         if (feature == 'leave') return 'edit';
@@ -640,13 +712,15 @@ class SchoolPermissionService {
         'request_type': 'payroll_lock',
         'entity_id': 'RUN-2026-10',
         'title': 'Monthly Payroll Lock Approval (October 2026)',
-        'description': 'Disbursement authorization for 24 staff members totaling ₹13,42,800',
+        'description':
+            'Disbursement authorization for 24 staff members totaling ₹13,42,800',
         'maker_username': 'accountant1',
         'maker_role': 'accountant',
         'checker_username': null,
         'status': 'pending',
         'action_data': {'total_cost': 1342800, 'staff_count': 24},
-        'created_at': DateTime.now().subtract(const Duration(hours: 4)).toIso8601String(),
+        'created_at':
+            DateTime.now().subtract(const Duration(hours: 4)).toIso8601String(),
       },
       {
         'id': 'MC-102',
@@ -654,13 +728,15 @@ class SchoolPermissionService {
         'request_type': 'marks_bulk_upload',
         'entity_id': 'EXAM-MID-2026',
         'title': 'Bulk Marks Moderation Approval — Class 10-A Mathematics',
-        'description': 'Upward grade moderation of +2 grace marks across 38 students',
+        'description':
+            'Upward grade moderation of +2 grace marks across 38 students',
         'maker_username': 'steacher1',
         'maker_role': 'teacher',
         'checker_username': null,
         'status': 'pending',
         'action_data': {'class_id': 'Class 10-A', 'subject': 'Mathematics'},
-        'created_at': DateTime.now().subtract(const Duration(hours: 8)).toIso8601String(),
+        'created_at':
+            DateTime.now().subtract(const Duration(hours: 8)).toIso8601String(),
       },
       {
         'id': 'MC-103',
@@ -668,13 +744,16 @@ class SchoolPermissionService {
         'request_type': 'discipline_suspension',
         'entity_id': 'INC-2026-004',
         'title': 'Disciplinary Suspension Sanction — 3 Days',
-        'description': 'Severe lab damage incident recommendation by inquiry committee',
+        'description':
+            'Severe lab damage incident recommendation by inquiry committee',
         'maker_username': 'warden1',
         'maker_role': 'warden',
         'checker_username': null,
         'status': 'pending',
         'action_data': {'student_username': 'sstudent2', 'suspension_days': 3},
-        'created_at': DateTime.now().subtract(const Duration(hours: 12)).toIso8601String(),
+        'created_at': DateTime.now()
+            .subtract(const Duration(hours: 12))
+            .toIso8601String(),
       },
     ];
   }
