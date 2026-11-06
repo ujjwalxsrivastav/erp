@@ -4786,4 +4786,95 @@ class SchoolExportService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SUPER ENTERPRISE REPORT: SP-R08 (Activities, Clubs & Sports Register)
+  // ---------------------------------------------------------------------------
+
+  /// SP-R08: Co-Curricular Activities, Clubs & Sports Accolades Register
+  static Future<void> exportSchoolActivitiesParticipationExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> participations,
+    required List<Map<String, dynamic>> clubs,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    int goldCount = 0;
+    int silverCount = 0;
+    int bronzeCount = 0;
+    int certsCount = 0;
+
+    for (final p in participations) {
+      final award = (p['position_award'] ?? '').toString();
+      if (award.contains('1st') || award.contains('Gold') || award.contains('Champion')) goldCount++;
+      if (award.contains('2nd') || award.contains('Silver')) silverCount++;
+      if (award.contains('3rd') || award.contains('Bronze')) bronzeCount++;
+      if (p['certificate_serial'] != null && p['certificate_serial'].toString().isNotEmpty) certsCount++;
+    }
+
+    summary.appendRow([TextCellValue('INSTITUTION:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('REPORT:'), TextCellValue('Co-Curricular Activities, Clubs & Sports Accolades Register')]);
+    summary.appendRow([TextCellValue('REPORT CODE:'), TextCellValue('SP-R08')]);
+    summary.appendRow([TextCellValue('GENERATED AT:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('KEY METRIC'), TextCellValue('VALUE')]);
+    summary.appendRow([TextCellValue('Total Registered Participations:'), IntCellValue(participations.length)]);
+    summary.appendRow([TextCellValue('Accredited Certificates Issued:'), IntCellValue(certsCount)]);
+    summary.appendRow([TextCellValue('Gold / 1st Place Honors:'), IntCellValue(goldCount)]);
+    summary.appendRow([TextCellValue('Silver / 2nd Place Honors:'), IntCellValue(silverCount)]);
+    summary.appendRow([TextCellValue('Bronze / 3rd Place Honors:'), IntCellValue(bronzeCount)]);
+    summary.appendRow([TextCellValue('Active Clubs & Societies:'), IntCellValue(clubs.length)]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Student ID'),
+      TextCellValue('Student Name'),
+      TextCellValue('Class & Section'),
+      TextCellValue('Activity Domain'),
+      TextCellValue('Competition / Item Name'),
+      TextCellValue('Award / Position Honors'),
+      TextCellValue('Certificate Serial Code'),
+      TextCellValue('Validation Status'),
+    ]);
+
+    for (int i = 0; i < participations.length; i++) {
+      final p = participations[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(p['student_id']?.toString() ?? '-'),
+        TextCellValue(p['student_name']?.toString() ?? '-'),
+        TextCellValue(p['class_section']?.toString() ?? '-'),
+        TextCellValue(p['activity_type']?.toString() ?? 'Activity'),
+        TextCellValue(p['role_or_item']?.toString() ?? '-'),
+        TextCellValue(p['position_award']?.toString() ?? 'Participant'),
+        TextCellValue(p['certificate_serial']?.toString() ?? 'PENDING'),
+        TextCellValue(p['certificate_issued'] == true ? 'ACCREDITED & ISSUED' : 'PARTICIPATED'),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('${participations.length} PARTICIPANTS'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('TOTAL MEDALS: ${goldCount + silverCount + bronzeCount}'),
+      TextCellValue(''),
+      TextCellValue('$certsCount ISSUED'),
+      TextCellValue('VERIFIED'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R08_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }
