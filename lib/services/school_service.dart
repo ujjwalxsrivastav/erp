@@ -5069,13 +5069,14 @@ class SchoolService {
       return false;
     }
     try {
+      // school_co_scholastic has no `term` column — exam_type already scopes the
+      // row, and writing an unknown column fails the whole upsert.
       final rows = areas
           .map((a) => {
                 'student_id': studentId,
                 'exam_type': examType,
                 'area': a['area'],
                 'grade': a['grade'],
-                'term': examType,
               })
           .toList();
       await _supabase
@@ -5184,9 +5185,9 @@ class SchoolService {
         return false;
       }
 
-      void cacheSavedRows() {
+      void cacheSavedRows(List<Map<String, dynamic>> saved) {
         final groups = <String, List<Map<String, dynamic>>>{};
-        for (final row in rows) {
+        for (final row in saved) {
           final key =
               '${row['class_id']}_${row['subject']}_${row['exam_type']}';
           (groups[key] ??= <Map<String, dynamic>>[]).add(row);
@@ -5200,20 +5201,36 @@ class SchoolService {
         invalidateCache('exam_types:');
       }
 
-      // Preferred path: one upsert keyed on (student, subject, exam) — requires
-      // the unique index created by database/03_report_card_seed.sql.
-      try {
-        await _supabase
-            .from('school_marks')
-            .upsert(rows, onConflict: 'student_id,subject,exam_type');
-        cacheSavedRows();
-        return true;
-      } catch (_) {}
+      // Preferred path: one upsert keyed on (student, subject, exam). Rows may
+      // carry optional columns (theory_marks / internal_marks / class_id) that
+      // an older database has not been migrated for yet — those are stripped and
+      // the write retried instead of failing with "column does not exist".
+      var effectiveRows = rows;
+      for (var attempt = 0; attempt < 5; attempt++) {
+        try {
+          await _supabase.from('school_marks').upsert(effectiveRows,
+              onConflict: 'student_id,subject,exam_type');
+          cacheSavedRows(effectiveRows);
+          return true;
+        } catch (e) {
+          final missing = missingSchemaColumn(e);
+          if (missing == null ||
+              !effectiveRows.first.containsKey(missing) ||
+              missing == 'student_id' ||
+              missing == 'subject' ||
+              missing == 'exam_type') {
+            break;
+          }
+          effectiveRows = [
+            for (final row in effectiveRows) {...row}..remove(missing),
+          ];
+        }
+      }
 
       // Fallback (unique index not created yet): update existing row per key,
       // otherwise insert — still avoids duplicates.
       try {
-        for (final row in rows) {
+        for (final row in effectiveRows) {
           final existing = await _supabase
               .from('school_marks')
               .select('id')
@@ -5232,7 +5249,7 @@ class SchoolService {
             await _supabase.from('school_marks').insert(row);
           }
         }
-        cacheSavedRows();
+        cacheSavedRows(effectiveRows);
         return true;
       } catch (e) {
         lastMarksError = 'Could not save marks: $e';
@@ -5246,6 +5263,24 @@ class SchoolService {
 
   /// Reason the last [saveMarks] call failed (null when it succeeded).
   String? lastMarksError;
+
+  static final RegExp _missingColumnPattern = RegExp(
+    "(?:Could not find the '([a-zA-Z0-9_]+)' column"
+    '|column "([a-zA-Z0-9_]+)" of relation "[a-zA-Z0-9_]+" does not exist'
+    '|column "([a-zA-Z0-9_]+)" does not exist)',
+    caseSensitive: false,
+  );
+
+  /// Extracts the column name from a PostgREST / Postgres "missing column"
+  /// error so a write can drop that optional column and be retried. Returns
+  /// null when the failure is something else.
+  static String? missingSchemaColumn(Object? error) {
+    if (error == null) return null;
+    final match = _missingColumnPattern.firstMatch(error.toString());
+    if (match == null) return null;
+    final name = match.group(1) ?? match.group(2) ?? match.group(3);
+    return (name == null || name.isEmpty) ? null : name;
+  }
 
   /// A class teacher's final handoff. It locks the exact class, assessment and
   /// subject; administrators may still correct the record through [saveMarks].

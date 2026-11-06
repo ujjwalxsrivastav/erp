@@ -325,6 +325,20 @@ class SchoolPermissionService {
     return false;
   }
 
+  static final RegExp _missingColumnPattern = RegExp(
+    "(?:Could not find the '([a-zA-Z0-9_]+)' column"
+    '|column "([a-zA-Z0-9_]+)" of relation "[a-zA-Z0-9_]+" does not exist'
+    '|column "([a-zA-Z0-9_]+)" does not exist)',
+    caseSensitive: false,
+  );
+
+  static String? _missingColumn(Object? error) {
+    if (error == null) return null;
+    final match = _missingColumnPattern.firstMatch(error.toString());
+    if (match == null) return null;
+    return match.group(1) ?? match.group(2) ?? match.group(3);
+  }
+
   Future<Map<String, dynamic>> setMarksLock({
     required String examId,
     required String classId,
@@ -352,17 +366,42 @@ class SchoolPermissionService {
       'updated_at': DateTime.now().toIso8601String(),
     };
 
-    try {
-      await _supabase.from('school_marks_locks').upsert(payload);
-    } catch (_) {
-      await _supabase.from('school_circulars').insert({
-        'title':
-            'Marks Lock Updated: $examId / $classId ($subject) -> ${isLocked ? "LOCKED" : "UNLOCKED"}',
-        'content': jsonEncode(payload),
-        'category': 'MarksLock',
-        'target_audience': 'Teacher',
-        'published_at': DateTime.now().toIso8601String(),
-      });
+    // Older databases may miss one of the optional columns (updated_at,
+    // deadline, unlock_reason). Strip the offending column and retry instead of
+    // failing the whole submission with "column ... does not exist".
+    var saved = false;
+    final effective = Map<String, dynamic>.from(payload);
+    for (var attempt = 0; attempt < 5; attempt++) {
+      try {
+        await _supabase.from('school_marks_locks').upsert(effective);
+        saved = true;
+        break;
+      } catch (e) {
+        final missing = _missingColumn(e);
+        if (missing == null ||
+            !effective.containsKey(missing) ||
+            missing == 'id' ||
+            missing == 'exam_id' ||
+            missing == 'class_id') {
+          break;
+        }
+        effective.remove(missing);
+      }
+    }
+
+    if (!saved) {
+      // Last resort: keep a note in the circulars register so the submission is
+      // still recorded somewhere readable by the administration.
+      try {
+        await _supabase.from('school_circulars').insert({
+          'title':
+              'Marks Lock Updated: $examId / $classId ($subject) -> ${isLocked ? "LOCKED" : "UNLOCKED"}',
+          'content': jsonEncode(payload),
+          'category': 'MarksLock',
+          'target_audience': 'Teacher',
+          'published_at': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
     }
 
     await _payroll.logAudit(
