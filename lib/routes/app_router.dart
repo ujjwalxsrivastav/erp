@@ -125,6 +125,7 @@ import '../features/school/library/school_library_deep_screen.dart';
 import '../features/school/admin/school_permission_matrix_screen.dart';
 import '../features/school/ai/school_ai_assistant_screen.dart';
 import '../features/school/ai/student_ai_screen.dart';
+import '../features/school/notifications/notifications_screen.dart';
 import '../features/school/calendar/school_academic_calendar_screen.dart';
 import '../features/school/admin/school_masters_screen.dart';
 import '../services/auth_service.dart';
@@ -646,6 +647,9 @@ final router = GoRouter(
     GoRoute(
         path: '/school/circulars-student',
         builder: (context, state) => const CircularsScreen()),
+    GoRoute(
+        path: '/school/notifications',
+        builder: (context, state) => const NotificationsScreen()),
 
     // ===== SCHOOL - ADMIN =====
     GoRoute(
