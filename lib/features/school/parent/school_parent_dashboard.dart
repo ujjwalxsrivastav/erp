@@ -318,6 +318,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   PreferredSizeWidget _buildExecutiveAppBar() {
     return AppBar(
+      toolbarHeight: 64,
       backgroundColor: _surface,
       foregroundColor: _ink,
       elevation: 0,
@@ -334,18 +335,25 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
             child: const Icon(Icons.family_restroom, color: _primary, size: 20),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome, $_parentName',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink),
-              ),
-              const Text(
-                'Shivalik International School • Parent Portal',
-                style: TextStyle(fontSize: 11, color: _muted),
-              ),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Welcome, $_parentName',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const Text(
+                  'Shivalik International School • Parent Portal',
+                  style: TextStyle(fontSize: 11, color: _muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -6737,7 +6745,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
   Widget _buildLoadingState() {
     return SingleChildScrollView(
-      physics: const NeverScrollableScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -6903,7 +6911,6 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
 
           // Schedule Card Skeleton
           Container(
-            height: 180,
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
