@@ -10314,6 +10314,53 @@ class SchoolService {
 
   // ===== N10: STUDENT NOTIFICATIONS CENTER =====
 
+  /// Single write path for in-app school notifications. Delivery providers
+  /// (SMS/WhatsApp/push) are intentionally not implied by this method.
+  Future<void> createNotification({
+    required String userId,
+    required String type,
+    required String title,
+    required String body,
+    String? refType,
+    String? refId,
+  }) async {
+    await _supabase.from('school_notifications').insert({
+      'user_id': userId,
+      'type': type,
+      'title': title,
+      'body': body,
+      if (refType != null) 'ref_type': refType,
+      if (refId != null) 'ref_id': refId,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getNotificationsForUser({
+    required String username,
+    int limit = 50,
+  }) async {
+    final response = await _supabase
+        .from('school_notifications')
+        .select()
+        .eq('user_id', username)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<void> markNotificationRead({required String notificationId}) async {
+    await _supabase
+        .from('school_notifications')
+        .update({'is_read': true}).eq('id', notificationId);
+  }
+
+  Future<void> markAllNotificationsRead({required String username}) async {
+    await _supabase
+        .from('school_notifications')
+        .update({'is_read': true})
+        .eq('user_id', username)
+        .eq('is_read', false);
+  }
+
   Future<List<Map<String, dynamic>>> getStudentNotifications(
       String studentUsername) async {
     final notifications = <Map<String, dynamic>>[];
