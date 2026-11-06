@@ -98,39 +98,13 @@ class SchoolService {
       final id = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
       final subject = c['subject']?.toString() ?? '';
       if (id.isNotEmpty && seen.add(id)) {
-        String displayName = id;
-        if (id.toLowerCase() == 'cls-10a') {
-          displayName = 'Class 10-A';
-        } else if (id.toLowerCase() == 'cls-9a') {
-          displayName = 'Class 9-A';
-        } else if (id.toLowerCase() == 'cls-10b') {
-          displayName = 'Class 10-B';
-        } else if (id.toLowerCase().startsWith('cls-')) {
-          displayName = 'Class ' + id.substring(4).toUpperCase();
-        }
+        final displayName = c['class_name']?.toString() ?? id;
         results.add({
           'id': id,
           'class_id': id,
           'name': displayName,
           'class_name': displayName,
           'role': subject.isNotEmpty ? 'Subject: $subject' : 'Subject Faculty',
-          'is_class_teacher': false,
-        });
-      }
-    }
-
-    // 3. Fallback if teacher has no specific rows in DB yet: provide first 2 school classes
-    if (results.isEmpty) {
-      final allClasses = await getSchoolClasses();
-      for (final c in allClasses.take(2)) {
-        final id = c['id']?.toString() ?? '';
-        final name = c['name']?.toString() ?? 'Class';
-        results.add({
-          'id': id,
-          'class_id': id,
-          'name': name,
-          'class_name': name,
-          'role': 'Assigned Faculty',
           'is_class_teacher': false,
         });
       }
@@ -2273,7 +2247,7 @@ class SchoolService {
           .order('period');
       return List<Map<String, dynamic>>.from(response);
     } catch (_) {
-      return [];
+      rethrow;
     }
   }
 
@@ -2281,7 +2255,7 @@ class SchoolService {
     try {
       final response = await _supabase
           .from('school_timetable')
-          .select('class_id, subject')
+          .select('class_id, class_name, subject')
           .eq('teacher_username', username);
       final list = List<Map<String, dynamic>>.from(response);
       if (list.isNotEmpty) {
@@ -2307,31 +2281,59 @@ class SchoolService {
   }) async {
     final aliases =
         classAliases(classId: classId, className: className, section: section);
+    if (aliases.isEmpty) return [];
+    String quote(String value) => value.replaceAll('"', '\\"');
+    final terms = <String>{
+      for (final alias in aliases) ...[
+        'class_id.eq."${quote(alias)}"',
+        'class_name.eq."${quote(alias)}"',
+      ],
+      if (className != null && className.trim().isNotEmpty)
+        'class_name.eq."${quote(className.trim())}"',
+    };
+    var query = _supabase.from('school_timetable').select().or(terms.join(','));
+    if (day != null && day.isNotEmpty) query = query.eq('day', day);
+    final response = await query.order('period');
+    return List<Map<String, dynamic>>.from(response);
+  }
 
-    // Match by class identity first: timetable rows still use 'cls-10a'
-    // while the class picker is driven by UUID rows from `school_classes`.
-    try {
-      var query = _supabase.from('school_timetable').select();
-      if (day != null && day.isNotEmpty) {
-        query = query.eq('day', day);
-      }
-      final response = await query.order('period');
-      final rows = List<Map<String, dynamic>>.from(response);
-      final matches = rows.where((row) => _classMatches(row, aliases)).toList();
-      if (matches.isNotEmpty) return matches;
-    } catch (_) {}
-
-    try {
-      var query =
-          _supabase.from('school_timetable').select().eq('class_id', classId);
-      if (day != null && day.isNotEmpty) {
-        query = query.eq('day', day);
-      }
+  /// Read a timetable only for the caller or a child linked to the caller.
+  Future<List<Map<String, dynamic>>> getMyTimetable({
+    required String username,
+    String? studentUsername,
+    String? day,
+  }) async {
+    final currentUsername = await AuthService().getCurrentUsername() ?? '';
+    if (currentUsername.isEmpty || currentUsername != username) {
+      throw Exception('Timetable identity must match the signed-in account.');
+    }
+    final liveRole = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(feature: 'timetable', requiredPermission: 'view', username: username);
+    if (liveRole == 'teacher' || liveRole == 'steacher' || liveRole == 'class_teacher') {
+      var query = _supabase.from('school_timetable').select()
+          .eq('teacher_username', username);
+      if (day != null && day.isNotEmpty) query = query.eq('day', day);
       final response = await query.order('period');
       return List<Map<String, dynamic>>.from(response);
-    } catch (_) {
-      return [];
     }
+    final isStudent = liveRole == 'student' || liveRole == 'sstudent';
+    final isParent = liveRole == 'parent' || liveRole == 'sparent';
+    final target = isParent ? (studentUsername ?? '') : username;
+    if (!isStudent && !isParent) throw Exception('This role does not use the personal timetable view.');
+    if (target.isEmpty) return [];
+    if (isParent) {
+      final link = await _supabase.from('parent_student_links').select('student_username')
+          .eq('parent_username', username).eq('student_username', target).maybeSingle();
+      if (link == null) throw Exception('This student is not linked to your account.');
+    }
+    final profile = await _supabase.from('school_students').select()
+        .eq('username', target).maybeSingle();
+    if (profile == null) return [];
+    final classId = profile['class_id']?.toString() ?? '';
+    final className = profile['class_name']?.toString();
+    if (classId.isEmpty && (className == null || className.isEmpty)) return [];
+    return getTimetableForClass(classId, className: className,
+        section: profile['section']?.toString(), day: day);
   }
 
   /// Distinct class + subject pairs from the timetable for one teacher — the
@@ -2462,7 +2464,11 @@ class SchoolService {
 
       return {'hasClash': false};
     } catch (e) {
-      return {'hasClash': false, 'error': e.toString()};
+      return {
+        'hasClash': true,
+        'message': 'Clash check failed; timetable changes are blocked until it succeeds.',
+        'error': e.toString(),
+      };
     }
   }
 
@@ -2477,6 +2483,12 @@ class SchoolService {
     required String teacherUsername,
     required String room,
   }) async {
+    final username = await AuthService().getCurrentUsername() ?? '';
+    await permissions.enforce(feature: 'timetable', requiredPermission: 'edit', username: username);
+    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
+      throw Exception('Only school administrators can edit timetable periods.');
+    }
     // Live clash detection before saving
     final clash = await checkTimetableClash(
       day: day,
@@ -2522,6 +2534,12 @@ class SchoolService {
   }
 
   Future<bool> deleteTimetableEntry(String id) async {
+    final username = await AuthService().getCurrentUsername() ?? '';
+    await permissions.enforce(feature: 'timetable', requiredPermission: 'edit', username: username);
+    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
+      throw Exception('Only school administrators can delete timetable periods.');
+    }
     try {
       await _supabase.from('school_timetable').delete().eq('id', id);
       return true;
@@ -2588,7 +2606,7 @@ class SchoolService {
       }
       return teachersSet.toList()..sort();
     } catch (_) {
-      return ['steacher1', 'mrs_gupta', 'ms_verma', 'mr_singh', 'ms_nair'];
+      rethrow;
     }
   }
 
@@ -2605,7 +2623,7 @@ class SchoolService {
       }
       return loads;
     } catch (_) {
-      return {};
+      rethrow;
     }
   }
 
@@ -2642,7 +2660,7 @@ class SchoolService {
         };
       }).toList();
     } catch (_) {
-      return [];
+      rethrow;
     }
   }
 
@@ -2684,7 +2702,7 @@ class SchoolService {
           (a['currentLoad'] as int).compareTo(b['currentLoad'] as int));
       return available;
     } catch (_) {
-      return [];
+      rethrow;
     }
   }
 
@@ -2700,11 +2718,21 @@ class SchoolService {
     String? notes,
     String? assignedBy,
   }) async {
+    final currentUsername = await AuthService().getCurrentUsername() ?? '';
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
+    await permissions.enforce(
+      feature: 'timetable',
+      requiredPermission: role == 'principal' ? 'approve' : 'edit',
+      username: currentUsername,
+    );
+    if (role != 'admin' && role != 'sadmin' && role != 'superadmin' && role != 'principal') {
+      throw Exception('Only school administrators can assign substitutes.');
+    }
     final todayStr = DateTime.now().toIso8601String().split('T')[0];
     final structuredContent =
         'SUBSTITUTION_RECORD | Date: $todayStr | Day: $day | Period: $period | '
         'Class: $classId | Room: $room | Original: $originalTeacher | '
-        'Substitute: $substituteTeacher | Time: $time | Notes: ${notes ?? "Morning Coverage"}';
+        'Substitute: $substituteTeacher | Time: $time | Notes: ${notes ?? ""}';
 
     final payload = {
       'institute_code': 'SHIV-SCH',
@@ -2712,7 +2740,7 @@ class SchoolService {
       'content': structuredContent,
       'category': 'Substitution',
       'target_audience': substituteTeacher,
-      'published_by': assignedBy ?? 'Academic Head',
+      'published_by': currentUsername,
     };
 
     final response = await _supabase
@@ -2733,17 +2761,68 @@ class SchoolService {
       'subject': subject,
       'time': time,
       'status': 'Assigned',
-      'assigned_by': assignedBy ?? 'Academic Head',
+      'assigned_by': currentUsername,
     };
   }
 
-  Future<List<Map<String, dynamic>>> getSubstitutionLogs({String? date}) async {
+  /// Assigns an available teacher to one real timetable entry.
+  Future<Map<String, dynamic>> assignSubstitute({
+    required String absentTeacherUsername,
+    required String periodId,
+    required String substituteUsername,
+    String? notes,
+  }) async {
+    final currentUsername = await AuthService().getCurrentUsername() ?? '';
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
+    await permissions.enforce(
+      feature: 'timetable',
+      requiredPermission: role == 'principal' ? 'approve' : 'edit',
+      username: currentUsername,
+    );
+    if (role != 'admin' && role != 'sadmin' && role != 'superadmin' && role != 'principal') {
+      throw Exception('Only school administrators can assign substitutes.');
+    }
+    final entry = await _supabase.from('school_timetable').select()
+        .eq('id', periodId).maybeSingle();
+    if (entry == null) throw Exception('Timetable period was not found.');
+    if ((entry['teacher_username']?.toString() ?? '').toLowerCase() != absentTeacherUsername.toLowerCase()) {
+      throw Exception('The selected absence does not match this timetable period.');
+    }
+    final day = entry['day']?.toString() ?? '';
+    final period = int.tryParse(entry['period']?.toString() ?? '') ?? 0;
+    if (day.isEmpty || period < 1) throw Exception('Timetable period details are incomplete.');
+    final available = await getAvailableSubstitutes(day: day, period: period);
+    if (!available.any((teacher) =>
+        teacher['username']?.toString().toLowerCase() == substituteUsername.toLowerCase())) {
+      throw Exception('The selected teacher is not available for this period.');
+    }
+    return assignSubstitution(
+      day: day,
+      period: period,
+      classId: entry['class_id']?.toString() ?? '',
+      subject: entry['subject']?.toString() ?? '',
+      originalTeacher: absentTeacherUsername,
+      substituteTeacher: substituteUsername,
+      room: entry['room']?.toString() ?? '',
+      time: '${entry['start_time'] ?? ''} - ${entry['end_time'] ?? ''}',
+      notes: notes,
+      assignedBy: currentUsername,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getSubstitutionLogs({
+    String? date,
+    String? teacherUsername,
+  }) async {
     try {
-      final response = await _supabase
+      var query = _supabase
           .from('school_circulars')
           .select()
-          .eq('category', 'Substitution')
-          .order('created_at', ascending: false);
+          .eq('category', 'Substitution');
+      if (teacherUsername != null && teacherUsername.isNotEmpty) {
+        query = query.eq('target_audience', teacherUsername);
+      }
+      final response = await query.order('created_at', ascending: false);
 
       final result = <Map<String, dynamic>>[];
       for (final row in response) {
@@ -2757,7 +2836,7 @@ class SchoolService {
               map[kv[0].trim()] = kv.sublist(1).join(':').trim();
             }
           }
-          result.add({
+          final log = {
             'id': row['id'],
             'title': row['title'],
             'date': map['Date'] ??
@@ -2771,9 +2850,13 @@ class SchoolService {
             'substitute_teacher': map['Substitute'] ?? '',
             'time': map['Time'] ?? '',
             'notes': map['Notes'] ?? '',
-            'assigned_by': row['published_by'] ?? 'Academic Head',
+            'assigned_by': row['published_by'] ?? '',
             'created_at': row['published_at'] ?? row['created_at'],
-          });
+            'status': map['Response'] ?? 'Assigned',
+          };
+          if (date == null || date.isEmpty || log['date'] == date) {
+            result.add(log);
+          }
         }
       }
 
@@ -2782,922 +2865,54 @@ class SchoolService {
       }
       return result;
     } catch (_) {
-      return [];
+      rethrow;
     }
+  }
+
+  Future<List<Map<String, dynamic>>> getSubstitutionRequests({
+    required String teacherUsername,
+    String? date,
+  }) async {
+    final currentUsername = await AuthService().getCurrentUsername() ?? '';
+    if (currentUsername.isEmpty || currentUsername != teacherUsername) {
+      throw Exception('Substitution requests are scoped to the signed-in teacher.');
+    }
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
+    await permissions.enforce(feature: 'timetable', requiredPermission: 'view', username: currentUsername);
+    if (role != 'teacher' && role != 'steacher' && role != 'class_teacher') {
+      throw Exception('Only teaching staff can view assigned substitution requests.');
+    }
+    return getSubstitutionLogs(date: date, teacherUsername: currentUsername);
+  }
+
+  Future<void> respondToSubstitution({
+    required String circularId,
+    required bool accept,
+  }) async {
+    final username = await AuthService().getCurrentUsername() ?? '';
+    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(feature: 'timetable', requiredPermission: 'edit', username: username);
+    if (role != 'teacher' && role != 'steacher' && role != 'class_teacher') {
+      throw Exception('Only teaching staff can respond to their own substitution offers.');
+    }
+    final row = await _supabase.from('school_circulars').select('content')
+        .eq('id', circularId).eq('category', 'Substitution')
+        .eq('target_audience', username).maybeSingle();
+    if (row == null) throw Exception('This substitution offer is not assigned to your account.');
+    final content = row['content']?.toString() ?? '';
+    if (!content.contains('SUBSTITUTION_RECORD')) throw Exception('Substitution record is invalid.');
+    final withoutResponse = content.replaceAll(RegExp(r'\s*\|\s*Response: [^|]*'), '');
+    final response = accept ? 'Accepted' : 'Declined';
+    await _supabase.from('school_circulars').update({
+      'content': '$withoutResponse | Response: $response | Responded At: ${DateTime.now().toIso8601String()}',
+    }).eq('id', circularId).eq('target_audience', username);
   }
 
   // ===== ENTERPRISE LESSON PLANS & CURRICULUM SYLLABUS ENGINE =====
 
-  static final List<Map<String, dynamic>> _defaultEnterpriseLessonPlans = [
-    {
-      'id': 'LP-2026-MATH-01',
-      'plan_code': 'CBSE/10/MATH/CH04/01',
-      'class_id': 'cls-10a',
-      'class_name': 'Class 10-A',
-      'subject': 'Mathematics',
-      'chapter_no': 'Chapter 4',
-      'chapter_title': 'Quadratic Equations',
-      'topic':
-          'Solving Quadratic Equations by Factorisation & Quadratic Formula',
-      'sub_topics': [
-        'Standard form ax² + bx + c = 0 (a ≠ 0)',
-        'Middle-term split method with factor sign rules',
-        'Derivation of Discriminant (D = b² - 4ac)',
-        'Nature of roots: Real & distinct, Real & equal, No real roots',
-      ],
-      'teacher_username': 'steacher1',
-      'teacher_name': 'Rajesh Sharma (TGT Mathematics)',
-      'planned_date': '2026-11-06',
-      'target_completion_date': '2026-11-10',
-      'total_periods': 4,
-      'current_period': 2,
-      'academic_term': 'Term 2 (Pre-Board 2026-27)',
-      'pedagogy_method': 'Inquiry-Based & Problem-Solving Approach',
-      'blooms_taxonomy': 'Analyzing & Evaluating',
-      'specific_learning_outcomes': [
-        'Distinguish between linear, quadratic, and higher-degree polynomial equations.',
-        'Formulate real-life parabolic word problems (projectile trajectories, area dimensions) into standard quadratic equations.',
-        'Apply the quadratic formula with 100% computational accuracy for irrational roots.',
-      ],
-      'five_e_model': {
-        'engage':
-            'Show a visual video clip of a basketball shot trajectory and ask students at what time t the ball touches ground level h = 0.',
-        'explore':
-            'Distribute 4 parabolic graph cards to pairs; challenge students to identify why the curves intersect the x-axis at 0, 1, or 2 points.',
-        'explain':
-            'Derive standard form ax² + bx + c = 0 and middle-term split using geometric algebra tiles on the interactive digital smartboard.',
-        'elaborate':
-            'Challenge with a geometry problem: find dimensions of a rectangular prayer hall whose area is 300 m² and length is 1m more than twice its breadth.',
-        'evaluate':
-            '3-Minute Formative Exit Ticket: 2 quick questions (1 middle-term split, 1 discriminant evaluation).',
-      },
-      'tlm_resources': [
-        {
-          'name': 'NCERT Class 10 Textbook (Ex 4.1 to 4.3)',
-          'type': 'Textbook',
-          'url': ''
-        },
-        {
-          'name': 'GeoGebra Dynamic Parabola Simulation',
-          'type': 'Digital Tool',
-          'url': 'https://www.geogebra.org/m/parabola'
-        },
-        {
-          'name': 'Algebra Tiles Physical Manipulatives',
-          'type': 'Lab Kit',
-          'url': ''
-        },
-        {
-          'name': 'Smart Interactive Board Presentation #MATH-10-04',
-          'type': 'Smart Classroom',
-          'url': ''
-        },
-      ],
-      'classwork_summary':
-          'Solved NCERT Ex 4.2 Q1 (i, iv, v) and Q3 on board with peer explanation rounds.',
-      'homework_assigned':
-          'NCERT Ex 4.2 Q2, Q4, Q5 & Worksheet #04 in Mathematics Register.',
-      'exit_ticket_quiz':
-          'Evaluate discriminant D for 2x² - 4x + 3 = 0 and state nature of roots.',
-      'inclusive_strategies': {
-        'slower_learners':
-            'Provide step-by-step cue card for middle-term splitting with visual integer factor pairs.',
-        'gifted_students':
-            'Bonus task: Prove why discriminant b² - 4ac < 0 implies no real roots using completing-the-square vertex form.',
-      },
-      'status': 'Approved',
-      'approval_audit': {
-        'approved_by': 'Dr. K. S. Rawat (Principal)',
-        'approved_at': '2026-11-04 15:30',
-        'rubric_rating': 5,
-        'hod_remarks':
-            'Exemplary lesson structure with active 5E model and GeoGebra integration. Approved for execution.',
-      },
-      'reflection': {
-        'is_recorded': true,
-        'taught_on': '2026-11-05',
-        'concept_mastery_pct': 88.0,
-        'what_went_well':
-            'GeoGebra simulation helped 90% students intuitively visualize why roots are x-intercepts.',
-        'learning_gaps':
-            'Students struggled with negative coefficient signs during middle term split in Q5.',
-        'remedial_action':
-            '15-minute zero period practice session scheduled on Friday with buddy mentorship.',
-        'struggling_students': ['sstudent1', 'student4'],
-      },
-    },
-    {
-      'id': 'LP-2026-SCI-01',
-      'plan_code': 'CBSE/10/SCI/CH10/01',
-      'class_id': 'cls-10a',
-      'class_name': 'Class 10-A',
-      'subject': 'Science',
-      'chapter_no': 'Chapter 10',
-      'chapter_title': 'Light - Reflection and Refraction',
-      'topic': 'Image Formation by Spherical Concave Mirrors & Mirror Formula',
-      'sub_topics': [
-        'Principal axis, Focus, Center of Curvature & Focal length',
-        'Rules for drawing ray diagrams for concave mirrors',
-        'Real inverted vs Virtual erect image cases',
-        'Cartesian Sign Convention & Mirror formula (1/f = 1/v + 1/u)',
-      ],
-      'teacher_username': 'steacher1',
-      'teacher_name': 'Dr. Anita Desai (PGT Physics)',
-      'planned_date': '2026-11-04',
-      'target_completion_date': '2026-11-08',
-      'total_periods': 5,
-      'current_period': 4,
-      'academic_term': 'Term 2 (Pre-Board 2026-27)',
-      'pedagogy_method': 'Hands-on Experimental & Constructivist Lab Approach',
-      'blooms_taxonomy': 'Applying & Analyzing',
-      'specific_learning_outcomes': [
-        'Construct accurate ray diagrams for object positions at infinity, C, between C and F, and between F and P.',
-        'Apply Cartesian sign conventions to mirror formula without sign confusion.',
-        'Calculate magnification m and predict whether image is magnified, diminished, real, or virtual.',
-      ],
-      'five_e_model': {
-        'engage':
-            'Show reflection of face in stainless steel spoon (inner concave vs outer convex) and ask why face appears inverted.',
-        'explore':
-            'In Physics Lab, students use optical bench, concave mirror (f = 15cm) and illuminated candle to capture sharp image on screen.',
-        'explain':
-            'Draw the 4 standard rays on blackboard. Formalize mirror formula 1/f = 1/v + 1/u and linear magnification m = -v/u.',
-        'elaborate':
-            'Discuss real-world optics: dentist head mirrors, solar concentrators, vehicle headlights, and satellite reflector antennas.',
-        'evaluate':
-            'Exit slip numerical: An object 4 cm in height is placed at 25 cm in front of a concave mirror of focal length 15 cm. Find image distance and height.',
-      },
-      'tlm_resources': [
-        {
-          'name': 'NCERT Class 10 Science (Light Chapter 10)',
-          'type': 'Textbook',
-          'url': ''
-        },
-        {
-          'name': 'PhET Interactive Geometric Optics Simulation',
-          'type': 'Digital Tool',
-          'url': 'https://phet.colorado.edu/en/simulations/geometric-optics'
-        },
-        {
-          'name':
-              'Physics Lab Optical Bench, Concave Mirrors (f=15cm, f=20cm), Candle',
-          'type': 'Lab Kit',
-          'url': ''
-        },
-        {
-          'name': 'Laser Ray Box with Cylindrical Lenses',
-          'type': 'Lab Apparatus',
-          'url': ''
-        },
-      ],
-      'classwork_summary':
-          'Demonstrated ray diagrams for 4 cases on board; students solved Example 10.1 & 10.2.',
-      'homework_assigned':
-          'NCERT In-text Questions Pg 168 (Q1 to Q4) & Ray diagram drawing sheet in Practical Journal.',
-      'exit_ticket_quiz':
-          'Where should an object be placed in front of a concave mirror to get a virtual and magnified image?',
-      'inclusive_strategies': {
-        'slower_learners':
-            'Provide optical color-coded ray diagram template (Parallel ray = Red, Focal ray = Green).',
-        'gifted_students':
-            'Derive why magnification m = h\'/h = -v/u using similar triangles theorem.',
-      },
-      'status': 'Taught',
-      'approval_audit': {
-        'approved_by': 'Mrs. Sunita Kaul (HOD Science)',
-        'approved_at': '2026-11-03 11:20',
-        'rubric_rating': 5,
-        'hod_remarks':
-            'Excellent laboratory integration with PhET simulation backup. Approved.',
-      },
-      'reflection': {
-        'is_recorded': true,
-        'taught_on': '2026-11-04',
-        'concept_mastery_pct': 92.5,
-        'what_went_well':
-            'Hands-on optical bench experiment gave students crystal clear understanding of real vs virtual focal plane.',
-        'learning_gaps':
-            'A few students forgot negative sign for focal length of concave mirror in Cartesian convention.',
-        'remedial_action':
-            'Reinforced Cartesian coordinate axis trick (+ right, - left of pole P) in 5-minute revision recap.',
-        'struggling_students': ['student3'],
-      },
-    },
-    {
-      'id': 'LP-2026-ENG-01',
-      'plan_code': 'CBSE/10/ENG/CH01/01',
-      'class_id': 'cls-10a',
-      'class_name': 'Class 10-A',
-      'subject': 'English',
-      'chapter_no': 'Chapter 1',
-      'chapter_title': 'First Flight: A Letter to God',
-      'topic':
-          'Blind Faith vs Rationality, Dramatic Irony & Character Sketch of Lencho',
-      'sub_topics': [
-        'Detailed textual reading and pronunciation nuances',
-        'Lencho\'s unshakeable faith in divine providence',
-        'The role of postmaster and post office employees as unsung humanitarians',
-        'Dramatic irony: calling benefactors a "bunch of crooks"',
-      ],
-      'teacher_username': 'steacher1',
-      'teacher_name': 'Meenakshi Iyer (TGT English)',
-      'planned_date': '2026-11-07',
-      'target_completion_date': '2026-11-09',
-      'total_periods': 3,
-      'current_period': 1,
-      'academic_term': 'Term 2 (Pre-Board 2026-27)',
-      'pedagogy_method': 'Communicative & Critical Thinking Literary Dialogue',
-      'blooms_taxonomy': 'Evaluating & Creating',
-      'specific_learning_outcomes': [
-        'Critically analyze character motivations and conflicting perspectives in the narrative.',
-        'Explain the literary device of dramatic irony with precise textual evidence.',
-        'Draft an empathetic diary entry from the postmaster\'s point of view.',
-      ],
-      'five_e_model': {
-        'engage':
-            'Ask class: "If you found an envelope with ₹10,000 cash on a rainy street addressed to God, what would you do?"',
-        'explore':
-            'Students read Lencho\'s letter to God in groups and note down key adjectives describing Lencho\'s emotional state.',
-        'explain':
-            'Discuss dramatic irony: the contrast between what Lencho believes vs what the reader and author know.',
-        'elaborate':
-            'Pair role-play: Conversation between the Postmaster and the clerk when opening the second letter.',
-        'evaluate':
-            'Short answer question: Why did the postmaster send money to Lencho? Why did he sign the letter "God"?',
-      },
-      'tlm_resources': [
-        {'name': 'NCERT First Flight Textbook', 'type': 'Textbook', 'url': ''},
-        {
-          'name': 'Audio Narration Recording with Authentic Tone',
-          'type': 'Audio-Visual',
-          'url': ''
-        },
-        {
-          'name': 'Character Comparative Graphic Organizer',
-          'type': 'Worksheet',
-          'url': ''
-        },
-      ],
-      'classwork_summary':
-          'Read pages 3-6 aloud; discussed oral comprehension questions 1 to 3.',
-      'homework_assigned':
-          'Write a 120-word diary entry as the Postmaster after receiving Lencho\'s ungrateful second letter.',
-      'exit_ticket_quiz':
-          'State one positive trait and one tragic flaw in Lencho\'s personality.',
-      'inclusive_strategies': {
-        'slower_learners':
-            'Provide bilingual vocabulary glossary for words like "downpour", "hailstones", "solitary", "crooks".',
-        'gifted_students':
-            'Debate topic: Was the postmaster right in deceiving Lencho to preserve his faith, or should he have revealed the truth?',
-      },
-      'status': 'In Progress',
-      'approval_audit': {
-        'approved_by': 'Mrs. R. Sen (Vice Principal & HOD Humanities)',
-        'approved_at': '2026-11-03 14:00',
-        'rubric_rating': 5,
-        'hod_remarks': 'Insightful pedagogical questions. Approved.',
-      },
-      'reflection': {
-        'is_recorded': false,
-        'taught_on': '',
-        'concept_mastery_pct': 0.0,
-        'what_went_well': '',
-        'learning_gaps': '',
-        'remedial_action': '',
-        'struggling_students': [],
-      },
-    },
-    {
-      'id': 'LP-2026-SST-01',
-      'plan_code': 'CBSE/10/SST/CH01/01',
-      'class_id': 'cls-10a',
-      'class_name': 'Class 10-A',
-      'subject': 'Social Science',
-      'chapter_no': 'History Chapter 1',
-      'chapter_title': 'The Rise of Nationalism in Europe',
-      'topic':
-          'Frederic Sorrieu\'s Utopian Vision & The French Revolution as Catalyst',
-      'sub_topics': [
-        'Analysis of print "The Dream of Worldwide Democratic and Social Republics"',
-        'Measures introduced by French revolutionaries to create collective identity (la patrie, le citoyen)',
-        'Civil Code of 1804 (Napoleonic Code) - privileges abolished, equality before law',
-        'Mixed reactions of conquered territories to Napoleonic rule',
-      ],
-      'teacher_username': 'steacher1',
-      'teacher_name': 'Pooja Joshi (TGT Social Science)',
-      'planned_date': '2026-11-08',
-      'target_completion_date': '2026-11-12',
-      'total_periods': 4,
-      'current_period': 1,
-      'academic_term': 'Term 2 (Pre-Board 2026-27)',
-      'pedagogy_method': 'Visual Source-Based Historical Inquiry',
-      'blooms_taxonomy': 'Understanding & Analyzing',
-      'specific_learning_outcomes': [
-        'Decode symbols and metaphors in 19th century nationalist paintings and allegories.',
-        'Assess both progressive reforms and autocratic drawbacks of the Napoleonic Code.',
-        'Construct a timeline of European nationalism from 1789 to 1848.',
-      ],
-      'five_e_model': {
-        'engage':
-            'Display high-resolution image of Frederic Sorrieu\'s 1848 print on smart screen; ask students to spot the Statue of Liberty and the shattered crowns.',
-        'explore':
-            'Give 4 source excerpts from 1789 decrees; students identify 3 reforms that forged a collective national identity.',
-        'explain':
-            'Synthesize concepts on board: unified currency, standardized weights, national tricolor flag, metric system adoption.',
-        'elaborate':
-            'Compare how people in Holland and Switzerland initially hailed Napoleon as a harbinger of liberty, but later revolted due to taxation & censorship.',
-        'evaluate': '5-Minute MCQ & Assertion-Reason formative check.',
-      },
-      'tlm_resources': [
-        {
-          'name': 'NCERT India and the Contemporary World II',
-          'type': 'Textbook',
-          'url': ''
-        },
-        {
-          'name': 'High-Res Digital Slide: Frederic Sorrieu 1848 Print',
-          'type': 'Smart Classroom',
-          'url': ''
-        },
-        {
-          'name': 'Map of Europe in 1815 after Congress of Vienna',
-          'type': 'Map & Atlas',
-          'url': ''
-        },
-      ],
-      'classwork_summary':
-          'Source study of Fig. 1; tabulated pros and cons of Napoleonic Code 1804.',
-      'homework_assigned':
-          'Answer Question 1 & 2 from NCERT exercises; draw concept map of French revolutionary symbols.',
-      'exit_ticket_quiz':
-          'List two reasons why the Napoleonic Code was opposed by the middle class in conquered territories.',
-      'inclusive_strategies': {
-        'slower_learners':
-            'Provide bulleted summary card for Napoleonic Code points.',
-        'gifted_students':
-            'Examine the contradiction between political freedom and economic modernization under Napoleon.',
-      },
-      'status': 'Under Review',
-      'approval_audit': {
-        'approved_by': '',
-        'approved_at': '',
-        'rubric_rating': 0,
-        'hod_remarks': 'Awaiting Principal review on upcoming weekly cycle.',
-      },
-      'reflection': {
-        'is_recorded': false,
-        'taught_on': '',
-        'concept_mastery_pct': 0.0,
-        'what_went_well': '',
-        'learning_gaps': '',
-        'remedial_action': '',
-        'struggling_students': [],
-      },
-    },
-    {
-      'id': 'LP-2026-CS-01',
-      'plan_code': 'CBSE/10/CS/CH03/01',
-      'class_id': 'cls-10a',
-      'class_name': 'Class 10-A',
-      'subject': 'Computer Applications',
-      'chapter_no': 'Chapter 3',
-      'chapter_title': 'HTML5 & CSS3 Web Form Design',
-      'topic': 'Building Accessible HTML5 Web Forms & CSS Flexbox Grid Layouts',
-      'sub_topics': [
-        'Form controls: text, email, number, date, radio, checkbox, submit',
-        'Input validation attributes: required, pattern, min, max',
-        'CSS box model and display: flex properties (justify-content, align-items)',
-        'Responsive mobile-first styling principles',
-      ],
-      'teacher_username': 'steacher1',
-      'teacher_name': 'Siddharth Verma (PGT Computer Science)',
-      'planned_date': '2026-11-09',
-      'target_completion_date': '2026-11-13',
-      'total_periods': 3,
-      'current_period': 1,
-      'academic_term': 'Term 2 (Pre-Board 2026-27)',
-      'pedagogy_method': 'Project-Based Coding & Hands-on Lab Sandbox',
-      'blooms_taxonomy': 'Creating & Applying',
-      'specific_learning_outcomes': [
-        'Write clean, semantic HTML5 code for student admission or feedback forms.',
-        'Apply modern CSS Flexbox to align inputs and buttons seamlessly without tables.',
-        'Validate form submissions using native HTML5 constraint validation.',
-      ],
-      'five_e_model': {
-        'engage':
-            'Show a broken web form with misaligned labels vs a modern sleek form; ask what makes the UI user-friendly.',
-        'explore':
-            'In Computer Lab, students open VS Code and code a 4-field registration form without CSS.',
-        'explain':
-            'Demonstrate <form>, <input type="...">, <label for="...">, and display: flex on parent container.',
-        'elaborate':
-            'Build an authentic School Library Book Request Form with live CSS hover styling.',
-        'evaluate':
-            'Live code walkthrough: check if form triggers browser validation on invalid email or empty required fields.',
-      },
-      'tlm_resources': [
-        {
-          'name': 'CBSE Computer Applications Class 10 Textbook (Code 165)',
-          'type': 'Textbook',
-          'url': ''
-        },
-        {
-          'name':
-              'Computer Lab 32-node networked Ubuntu/Windows terminals with VS Code & Chrome DevTools',
-          'type': 'Computer Lab',
-          'url': ''
-        },
-        {
-          'name': 'Interactive Live CodePen Sandbox Playground',
-          'type': 'Digital Tool',
-          'url': 'https://codepen.io'
-        },
-      ],
-      'classwork_summary':
-          'Coded standard student bio-data form; debugged HTML closing tag errors.',
-      'homework_assigned':
-          'Design a "School Event Registration" HTML web page and submit zipped file on portal.',
-      'exit_ticket_quiz':
-          'What is the purpose of the "for" attribute in an HTML <label> tag?',
-      'inclusive_strategies': {
-        'slower_learners':
-            'Pair slower typists with peer mentors; provide boilerplate starter code template.',
-        'gifted_students':
-            'Add custom CSS pseudo-classes :focus, :valid, and :invalid for dynamic green/red border feedback.',
-      },
-      'status': 'Approved',
-      'approval_audit': {
-        'approved_by': 'Dr. K. S. Rawat (Principal)',
-        'approved_at': '2026-11-04 16:45',
-        'rubric_rating': 5,
-        'hod_remarks': 'High practical relevance. Approved for lab session.',
-      },
-      'reflection': {
-        'is_recorded': false,
-        'taught_on': '',
-        'concept_mastery_pct': 0.0,
-        'what_went_well': '',
-        'learning_gaps': '',
-        'remedial_action': '',
-        'struggling_students': [],
-      },
-    },
-  ];
+  static final List<Map<String, dynamic>> _defaultEnterpriseLessonPlans = [];
 
-  static final Map<String, Map<String, List<Map<String, dynamic>>>>
-      _defaultCurriculumSyllabusUnits = {
-    'cls-10a': {
-      'Mathematics': [
-        {
-          'unit_no': 'Ch 1',
-          'title': 'Real Numbers',
-          'hours_est': 8,
-          'hours_taught': 8,
-          'weightage': 6,
-          'status': 'Completed',
-          'learning_outcome':
-              'Euclid lemma, fundamental theorem of arithmetic, irrationality proofs'
-        },
-        {
-          'unit_no': 'Ch 2',
-          'title': 'Polynomials',
-          'hours_est': 8,
-          'hours_taught': 8,
-          'weightage': 5,
-          'status': 'Completed',
-          'learning_outcome':
-              'Geometric meaning of zeroes, relationship between zeroes & coefficients'
-        },
-        {
-          'unit_no': 'Ch 3',
-          'title': 'Linear Equations in 2 Variables',
-          'hours_est': 12,
-          'hours_taught': 12,
-          'weightage': 8,
-          'status': 'Completed',
-          'learning_outcome':
-              'Graphical method, substitution, elimination, consistency criteria'
-        },
-        {
-          'unit_no': 'Ch 4',
-          'title': 'Quadratic Equations',
-          'hours_est': 10,
-          'hours_taught': 8,
-          'weightage': 8,
-          'status': 'In Progress',
-          'learning_outcome':
-              'Factorisation, quadratic formula, discriminant & nature of roots'
-        },
-        {
-          'unit_no': 'Ch 5',
-          'title': 'Arithmetic Progressions (AP)',
-          'hours_est': 10,
-          'hours_taught': 10,
-          'weightage': 7,
-          'status': 'Completed',
-          'learning_outcome':
-              'nth term derivation, sum of first n terms application problems'
-        },
-        {
-          'unit_no': 'Ch 6',
-          'title': 'Triangles',
-          'hours_est': 14,
-          'hours_taught': 14,
-          'weightage': 9,
-          'status': 'Completed',
-          'learning_outcome':
-              'Basic proportionality theorem (BPT) proof & similarity criteria'
-        },
-        {
-          'unit_no': 'Ch 7',
-          'title': 'Coordinate Geometry',
-          'hours_est': 8,
-          'hours_taught': 8,
-          'weightage': 6,
-          'status': 'Completed',
-          'learning_outcome':
-              'Distance formula, section formula (internal division)'
-        },
-        {
-          'unit_no': 'Ch 8',
-          'title': 'Introduction to Trigonometry',
-          'hours_est': 10,
-          'hours_taught': 10,
-          'weightage': 8,
-          'status': 'Completed',
-          'learning_outcome':
-              'Trig ratios of acute angles, standard values (0°, 30°, 45°, 60°, 90°)'
-        },
-        {
-          'unit_no': 'Ch 9',
-          'title': 'Some Applications of Trigonometry',
-          'hours_est': 8,
-          'hours_taught': 5,
-          'weightage': 6,
-          'status': 'In Progress',
-          'learning_outcome':
-              'Heights and distances, angles of elevation and depression'
-        },
-        {
-          'unit_no': 'Ch 10',
-          'title': 'Circles',
-          'hours_est': 8,
-          'hours_taught': 3,
-          'weightage': 6,
-          'status': 'Planned',
-          'learning_outcome':
-              'Tangents at any point, lengths of tangents from external point'
-        },
-        {
-          'unit_no': 'Ch 12',
-          'title': 'Surface Areas and Volumes',
-          'hours_est': 12,
-          'hours_taught': 0,
-          'weightage': 9,
-          'status': 'Planned',
-          'learning_outcome':
-              'Combinations of solids: cubes, cuboids, spheres, cylinders, cones'
-        },
-        {
-          'unit_no': 'Ch 13',
-          'title': 'Statistics',
-          'hours_est': 10,
-          'hours_taught': 0,
-          'weightage': 8,
-          'status': 'Planned',
-          'learning_outcome':
-              'Mean (assumed mean), median, mode of grouped frequency distributions'
-        },
-      ],
-      'Science': [
-        {
-          'unit_no': 'Ch 1',
-          'title': 'Chemical Reactions & Equations',
-          'hours_est': 10,
-          'hours_taught': 10,
-          'weightage': 6,
-          'status': 'Completed',
-          'learning_outcome':
-              'Types of reactions, oxidation-reduction, corrosion, rancidity'
-        },
-        {
-          'unit_no': 'Ch 2',
-          'title': 'Acids, Bases and Salts',
-          'hours_est': 10,
-          'hours_taught': 10,
-          'weightage': 7,
-          'status': 'Completed',
-          'learning_outcome':
-              'pH scale importance, preparation of bleaching powder, baking soda, POP'
-        },
-        {
-          'unit_no': 'Ch 3',
-          'title': 'Metals and Non-metals',
-          'hours_est': 12,
-          'hours_taught': 12,
-          'weightage': 8,
-          'status': 'Completed',
-          'learning_outcome':
-              'Reactivity series, ionic bond properties, metallurgy basic concepts'
-        },
-        {
-          'unit_no': 'Ch 4',
-          'title': 'Carbon and its Compounds',
-          'hours_est': 14,
-          'hours_taught': 9,
-          'weightage': 9,
-          'status': 'In Progress',
-          'learning_outcome':
-              'Covalent bonding, homologous series, functional groups, soap micelles'
-        },
-        {
-          'unit_no': 'Ch 6',
-          'title': 'Life Processes',
-          'hours_est': 14,
-          'hours_taught': 14,
-          'weightage': 9,
-          'status': 'Completed',
-          'learning_outcome':
-              'Nutrition, respiration, double circulation, human excretory system'
-        },
-        {
-          'unit_no': 'Ch 7',
-          'title': 'Control and Coordination',
-          'hours_est': 10,
-          'hours_taught': 10,
-          'weightage': 6,
-          'status': 'Completed',
-          'learning_outcome':
-              'Neuron structure, reflex arc, human brain, phytohormones'
-        },
-        {
-          'unit_no': 'Ch 8',
-          'title': 'How do Organisms Reproduce?',
-          'hours_est': 10,
-          'hours_taught': 10,
-          'weightage': 7,
-          'status': 'Completed',
-          'learning_outcome':
-              'Asexual modes, flower anatomy, male & female reproductive systems'
-        },
-        {
-          'unit_no': 'Ch 9',
-          'title': 'Heredity and Evolution',
-          'hours_est': 8,
-          'hours_taught': 8,
-          'weightage': 5,
-          'status': 'Completed',
-          'learning_outcome':
-              'Mendel laws of inheritance, monohybrid & dihybrid cross, sex determination'
-        },
-        {
-          'unit_no': 'Ch 10',
-          'title': 'Light - Reflection and Refraction',
-          'hours_est': 12,
-          'hours_taught': 12,
-          'weightage': 9,
-          'status': 'Completed',
-          'learning_outcome':
-              'Mirror and lens formulas, ray diagrams, refractive index, power of lens'
-        },
-        {
-          'unit_no': 'Ch 11',
-          'title': 'Human Eye & Colourful World',
-          'hours_est': 8,
-          'hours_taught': 4,
-          'weightage': 5,
-          'status': 'In Progress',
-          'learning_outcome':
-              'Defects of vision (myopia, hypermetropia), prism dispersion, scattering'
-        },
-        {
-          'unit_no': 'Ch 12',
-          'title': 'Electricity',
-          'hours_est': 12,
-          'hours_taught': 0,
-          'weightage': 8,
-          'status': 'Planned',
-          'learning_outcome':
-              'Ohm law, series-parallel combinations, Joule heating effect, electric power'
-        },
-        {
-          'unit_no': 'Ch 13',
-          'title': 'Magnetic Effects of Electric Current',
-          'hours_est': 10,
-          'hours_taught': 0,
-          'weightage': 6,
-          'status': 'Planned',
-          'learning_outcome':
-              'Right-hand thumb rule, solenoid, Fleming left-hand rule, domestic circuits'
-        },
-      ],
-      'English': [
-        {
-          'unit_no': 'Ch 1',
-          'title': 'A Letter to God (First Flight)',
-          'hours_est': 6,
-          'hours_taught': 6,
-          'weightage': 6,
-          'status': 'Completed',
-          'learning_outcome': 'Theme of faith, dramatic irony, character sketch'
-        },
-        {
-          'unit_no': 'Ch 2',
-          'title': 'Nelson Mandela: Long Walk to Freedom',
-          'hours_est': 6,
-          'hours_taught': 6,
-          'weightage': 6,
-          'status': 'Completed',
-          'learning_outcome':
-              'Courage, apartheid struggle, ideals of democratic transition'
-        },
-        {
-          'unit_no': 'Ch 3',
-          'title': 'Two Stories About Flying',
-          'hours_est': 6,
-          'hours_taught': 6,
-          'weightage': 5,
-          'status': 'Completed',
-          'learning_outcome':
-              'Conquering inner fear, mystery in black aeroplane'
-        },
-        {
-          'unit_no': 'Ch 4',
-          'title': 'From the Diary of Anne Frank',
-          'hours_est': 6,
-          'hours_taught': 6,
-          'weightage': 6,
-          'status': 'Completed',
-          'learning_outcome':
-              'Confessional diary writing, adolescence introspection'
-        },
-        {
-          'unit_no': 'Ch 7',
-          'title': 'Glimpses of India',
-          'hours_est': 8,
-          'hours_taught': 5,
-          'weightage': 6,
-          'status': 'In Progress',
-          'learning_outcome':
-              'Cultural geography of Goa, Coorg coffee, Assam tea estates'
-        },
-        {
-          'unit_no': 'Grammar',
-          'title': 'Tenses, Modals & Determiners',
-          'hours_est': 10,
-          'hours_taught': 10,
-          'weightage': 10,
-          'status': 'Completed',
-          'learning_outcome':
-              'Error correction, gap filling, subject-verb concord'
-        },
-        {
-          'unit_no': 'Writing',
-          'title': 'Formal Letter & Analytical Paragraph',
-          'hours_est': 10,
-          'hours_taught': 8,
-          'weightage': 10,
-          'status': 'In Progress',
-          'learning_outcome':
-              'Data chart analysis, complaint letters, letters to editor'
-        },
-      ],
-      'Social Science': [
-        {
-          'unit_no': 'Hist 1',
-          'title': 'The Rise of Nationalism in Europe',
-          'hours_est': 10,
-          'hours_taught': 7,
-          'weightage': 8,
-          'status': 'In Progress',
-          'learning_outcome':
-              'Sorrieu vision, French revolution, Napoleonic code, German unification'
-        },
-        {
-          'unit_no': 'Hist 2',
-          'title': 'Nationalism in India',
-          'hours_est': 10,
-          'hours_taught': 10,
-          'weightage': 8,
-          'status': 'Completed',
-          'learning_outcome':
-              'Non-cooperation, Civil disobedience, Salt march, differing strands'
-        },
-        {
-          'unit_no': 'Geo 1',
-          'title': 'Resources and Development',
-          'hours_est': 8,
-          'hours_taught': 8,
-          'weightage': 5,
-          'status': 'Completed',
-          'learning_outcome':
-              'Resource planning, soil erosion, sustainable development Rio summit'
-        },
-        {
-          'unit_no': 'Geo 4',
-          'title': 'Agriculture',
-          'hours_est': 8,
-          'hours_taught': 8,
-          'weightage': 6,
-          'status': 'Completed',
-          'learning_outcome':
-              'Kharif, Rabi, Zaid crops, technological & institutional reforms'
-        },
-        {
-          'unit_no': 'Pol 1',
-          'title': 'Power Sharing',
-          'hours_est': 6,
-          'hours_taught': 6,
-          'weightage': 5,
-          'status': 'Completed',
-          'learning_outcome':
-              'Belgium vs Sri Lanka model, horizontal vs vertical power sharing'
-        },
-        {
-          'unit_no': 'Pol 2',
-          'title': 'Federalism',
-          'hours_est': 6,
-          'hours_taught': 6,
-          'weightage': 5,
-          'status': 'Completed',
-          'learning_outcome':
-              'Union, State, Concurrent lists, linguistic states, 1992 decentralisation'
-        },
-        {
-          'unit_no': 'Eco 1',
-          'title': 'Development',
-          'hours_est': 6,
-          'hours_taught': 6,
-          'weightage': 5,
-          'status': 'Completed',
-          'learning_outcome':
-              'Per capita income, HDI criteria, infant mortality rate, sustainability'
-        },
-        {
-          'unit_no': 'Eco 2',
-          'title': 'Sectors of the Indian Economy',
-          'hours_est': 8,
-          'hours_taught': 8,
-          'weightage': 6,
-          'status': 'Completed',
-          'learning_outcome':
-              'Primary, secondary, tertiary GDP shares, disguised unemployment, MGNREGA'
-        },
-      ],
-      'Computer Applications': [
-        {
-          'unit_no': 'Unit 1',
-          'title': 'Internet Basics & Protocols',
-          'hours_est': 8,
-          'hours_taught': 8,
-          'weightage': 8,
-          'status': 'Completed',
-          'learning_outcome':
-              'TCP/IP, HTTP, HTTPS, FTP, DNS, URL breakdown, ISP'
-        },
-        {
-          'unit_no': 'Unit 2',
-          'title': 'HTML5 Formatting & Images',
-          'hours_est': 10,
-          'hours_taught': 10,
-          'weightage': 10,
-          'status': 'Completed',
-          'learning_outcome':
-              'Heading tags, paragraph, lists, anchor links, tables, img'
-        },
-        {
-          'unit_no': 'Unit 3',
-          'title': 'HTML5 Web Forms & Controls',
-          'hours_est': 10,
-          'hours_taught': 8,
-          'weightage': 12,
-          'status': 'In Progress',
-          'learning_outcome':
-              'Form validation, text inputs, radio, checkboxes, dropdowns, submit'
-        },
-        {
-          'unit_no': 'Unit 4',
-          'title': 'CSS3 Styling & Box Model',
-          'hours_est': 12,
-          'hours_taught': 8,
-          'weightage': 12,
-          'status': 'In Progress',
-          'learning_outcome':
-              'Inline/internal/external CSS, selectors, flexbox, border, padding, margin'
-        },
-        {
-          'unit_no': 'Unit 5',
-          'title': 'Cyber Ethics & Intellectual Property',
-          'hours_est': 8,
-          'hours_taught': 0,
-          'weightage': 8,
-          'status': 'Planned',
-          'learning_outcome':
-              'Digital footprints, copyright, plagiarism, software licensing, cybersecurity'
-        },
-      ],
-    },
-  };
+  static final Map<String, Map<String, List<Map<String, dynamic>>>> _defaultCurriculumSyllabusUnits = {};
 
   /// Fetch all rich enterprise lesson plans matching filters
   Future<List<Map<String, dynamic>>> getEnterpriseLessonPlans({
@@ -3705,11 +2920,31 @@ class SchoolService {
     String? subject,
     String? status,
   }) async {
-    if (_enterpriseLessonPlansStore.isEmpty) {
-      _enterpriseLessonPlansStore.addAll(_defaultEnterpriseLessonPlans);
+    final rows = await _supabase.from('school_circulars').select()
+        .eq('institute_code', 'SHIV-SCH').eq('category', 'LessonPlan');
+    final plans = <Map<String, dynamic>>[];
+    for (final row in List<Map<String, dynamic>>.from(rows)) {
+      final content = row['content']?.toString() ?? '';
+      if (!content.contains('LESSON_PLAN_RECORD')) continue;
+      final fields = <String, String>{};
+      for (final token in content.split('|')) {
+        final colon = token.indexOf(':');
+        if (colon > 0) fields[token.substring(0, colon).trim()] = token.substring(colon + 1).trim();
+      }
+      plans.add({
+        'id': row['id'],
+        'class_id': fields['Class'] ?? '',
+        'subject': fields['Subject'] ?? '',
+        'teacher_username': row['published_by']?.toString() ?? '',
+        'teacher_name': fields['Teacher'] ?? row['published_by']?.toString() ?? '',
+        'chapter_title': fields['Chapter'] ?? '',
+        'topic': fields['Topic'] ?? '',
+        'planned_date': fields['PlannedDate'] ?? '',
+        'status': fields['Status'] ?? 'Under Review',
+        'objective': fields['Objective'] ?? '',
+      });
     }
-
-    return _enterpriseLessonPlansStore.where((plan) {
+    return plans.where((plan) {
       final pClass = (plan['class_id'] ?? '').toString();
       final pSubject = (plan['subject'] ?? '').toString();
       final pStatus = (plan['status'] ?? '').toString();
@@ -3739,48 +2974,35 @@ class SchoolService {
   /// Create or edit an enterprise lesson plan
   Future<Map<String, dynamic>> saveEnterpriseLessonPlan(
       Map<String, dynamic> planData) async {
-    if (_enterpriseLessonPlansStore.isEmpty) {
-      _enterpriseLessonPlansStore.addAll(_defaultEnterpriseLessonPlans);
+    final username = await AuthService().getCurrentUsername() ?? '';
+    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(feature: 'timetable', requiredPermission: 'edit', username: username);
+    if (role != 'admin' && role != 'sadmin' && role != 'superadmin') {
+      throw Exception('Only school administrators can manage the syllabus tracker.');
     }
-
-    final id = planData['id']?.toString() ??
-        'LP-2026-${DateTime.now().millisecondsSinceEpoch}';
-    final index = _enterpriseLessonPlansStore.indexWhere((p) => p['id'] == id);
 
     final updated = {
       ...planData,
-      'id': id,
-      'plan_code': planData['plan_code'] ??
-          'CBSE/10/${(planData['subject'] ?? 'GEN').toString().substring(0, 3).toUpperCase()}/${DateTime.now().millisecondsSinceEpoch % 1000}',
-      'status': planData['status'] ?? 'Approved',
+      'status': planData['status'] ?? 'Under Review',
+      'teacher_username': username,
     };
+    final structured =
+        'LESSON_PLAN_RECORD | Class: ${updated['class_id'] ?? ''} | Subject: ${updated['subject'] ?? ''} | '
+        'Teacher: ${updated['teacher_name'] ?? username} | Chapter: ${updated['chapter_title'] ?? ''} | Topic: ${updated['topic'] ?? ''} | '
+        'PlannedDate: ${updated['planned_date'] ?? ''} | Status: ${updated['status']} | Objective: ${updated['objective'] ?? ''} | '
+        'Resources: ${updated['resources'] ?? ''}';
 
-    if (index >= 0) {
-      _enterpriseLessonPlansStore[index] = updated;
-    } else {
-      _enterpriseLessonPlansStore.insert(0, updated);
-    }
-
-    // Attempt backup sync into school_circulars
-    try {
-      final structured =
-          'LESSON_PLAN_RECORD | Class: ${updated['class_id']} | Subject: ${updated['subject']} | '
-          'Teacher: ${updated['teacher_name']} | Chapter: ${updated['chapter_title']} | Topic: ${updated['topic']} | '
-          'PlannedDate: ${updated['planned_date']} | Status: ${updated['status']} | Objective: ${updated['objective'] ?? ''} | '
-          'Resources: NCERT Text, Digital Smart Board';
-
-      await _supabase.from('school_circulars').insert({
+    final response = await _supabase.from('school_circulars').insert({
         'institute_code': 'SHIV-SCH',
         'title':
-            'Lesson Plan: ${updated['subject']} (${updated['chapter_title']})',
+            'Lesson Plan: ${updated['subject'] ?? ''} (${updated['chapter_title'] ?? ''})',
         'content': structured,
         'category': 'LessonPlan',
         'target_audience': 'all',
-        'published_by': updated['teacher_username'] ?? 'teacher',
-      });
-    } catch (_) {}
+        'published_by': username,
+      }).select('id').single();
 
-    return updated;
+    return {...updated, 'id': response['id']};
   }
 
   /// Update approval or workflow status for a lesson plan (Principal / HOD scrutiny)
@@ -3791,30 +3013,30 @@ class SchoolService {
     String? remarks,
     int? rubricRating,
   }) async {
-    if (_enterpriseLessonPlansStore.isEmpty) {
-      _enterpriseLessonPlansStore.addAll(_defaultEnterpriseLessonPlans);
+    final username = await AuthService().getCurrentUsername() ?? '';
+    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(
+      feature: 'timetable',
+      requiredPermission: role == 'principal' ? 'approve' : 'edit',
+      username: username,
+    );
+    if (!{'admin', 'sadmin', 'superadmin', 'principal'}.contains(role)) {
+      throw Exception('Only school leadership can approve lesson plans.');
     }
-
-    final index = _enterpriseLessonPlansStore.indexWhere((p) => p['id'] == id);
-    if (index >= 0) {
-      final existing = _enterpriseLessonPlansStore[index];
-      final audit = Map<String, dynamic>.from(existing['approval_audit'] ?? {});
-      if (approverName != null) audit['approved_by'] = approverName;
-      if (remarks != null) audit['hod_remarks'] = remarks;
-      if (rubricRating != null) audit['rubric_rating'] = rubricRating;
-      audit['approved_at'] = DateTime.now()
-          .toIso8601String()
-          .substring(0, 16)
-          .replaceAll('T', ' ');
-
-      _enterpriseLessonPlansStore[index] = {
-        ...existing,
-        'status': status,
-        'approval_audit': audit,
-      };
-      return true;
-    }
-    return false;
+    final row = await _supabase.from('school_circulars').select('content')
+        .eq('id', id).eq('category', 'LessonPlan').maybeSingle();
+    if (row == null) return false;
+    final original = row['content']?.toString() ?? '';
+    final withStatus = original.replaceFirst(RegExp(r'Status: [^|]*'), 'Status: $status');
+    final audit = [
+      if (approverName != null && approverName.isNotEmpty) 'ApprovedBy: $approverName',
+      if (remarks != null && remarks.isNotEmpty) 'Remarks: $remarks',
+      if (rubricRating != null) 'RubricRating: $rubricRating',
+      'ReviewedAt: ${DateTime.now().toIso8601String()}',
+    ].join(' | ');
+    await _supabase.from('school_circulars')
+        .update({'content': '$withStatus | $audit'}).eq('id', id).eq('category', 'LessonPlan');
+    return true;
   }
 
   /// Record post-lesson teaching reflection & remedial interventions (Teacher Diary)
@@ -3860,9 +3082,8 @@ class SchoolService {
     required String classId,
     required String subject,
   }) async {
-    final classUnits = _defaultCurriculumSyllabusUnits[classId] ??
-        _defaultCurriculumSyllabusUnits['cls-10a']!;
-    return classUnits[subject] ?? classUnits['Mathematics'] ?? [];
+    final classUnits = _defaultCurriculumSyllabusUnits[classId] ?? {};
+    return classUnits[subject] ?? [];
   }
 
   /// Pacing velocity & syllabus health summary
@@ -3888,11 +3109,10 @@ class SchoolService {
         }
       }
     }
-    avgMastery = ratedCount > 0 ? (avgMastery / ratedCount) : 88.4;
+    avgMastery = ratedCount > 0 ? (avgMastery / ratedCount) : 0.0;
 
     // Calculate overall curriculum chapters completed across Class 10
-    final classMap = _defaultCurriculumSyllabusUnits[classId] ??
-        _defaultCurriculumSyllabusUnits['cls-10a']!;
+    final classMap = _defaultCurriculumSyllabusUnits[classId] ?? {};
     int totalChapters = 0;
     int completedChapters = 0;
     for (final subjectList in classMap.values) {
@@ -3902,22 +3122,23 @@ class SchoolService {
     }
 
     final double syllabusPct =
-        totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 78.5;
-    final bool onTrack = syllabusPct >= 70.0;
+        totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0.0;
+    final bool onTrack = totalPlans > 0 && syllabusPct >= 70.0;
 
     return {
       'total_plans': totalPlans,
       'taught_count': taughtCount,
       'in_progress_count': inProgressCount,
       'under_review_count': underReviewCount,
-      'remedial_sessions_count': 4,
+      'remedial_sessions_count': 0,
       'syllabus_percentage': syllabusPct,
       'average_concept_mastery': avgMastery,
+      'has_data': totalPlans > 0,
       'pacing_label': onTrack
           ? 'On Track • Pre-Board Ready'
           : 'Lagging Alert • Action Required',
       'is_on_track': onTrack,
-      'term_exam_countdown_days': 24,
+      'term_exam_countdown_days': null,
     };
   }
 
@@ -3940,27 +3161,15 @@ class SchoolService {
   }) async {
     return saveEnterpriseLessonPlan({
       'class_id': classId,
-      'class_name': classId.contains('10') ? 'Class 10-A' : 'Class 9-A',
       'subject': subject,
       'chapter_title': chapter,
       'topic': topic,
       'teacher_username': teacherUsername,
-      'teacher_name': 'Teacher ($teacherUsername)',
+      'teacher_name': teacherUsername,
       'planned_date': plannedDate,
-      'status': 'Approved',
+      'status': 'Under Review',
       'objective': objective,
       'resources': resources,
-      'blooms_taxonomy': 'Applying',
-      'pedagogy_method': 'Inquiry-Based Learning',
-      'specific_learning_outcomes': [objective],
-      'five_e_model': {
-        'engage':
-            'Opening classroom discussion on practical applications of $topic.',
-        'explore': 'Hands-on problem solving in pairs with guided hints.',
-        'explain': 'Formal concept derivation on smartboard.',
-        'elaborate': 'Higher order thinking application problems.',
-        'evaluate': 'Exit slip 2-question quiz.',
-      },
     });
   }
 
@@ -3973,16 +3182,19 @@ class SchoolService {
     final plans = await getEnterpriseLessonPlans(classId: classId);
     final totalUnits = plans.length;
     final taughtUnits = plans.where((p) => p['status'] == 'Taught').length;
-    final coveragePct =
-        (pacing['syllabus_percentage'] as num?)?.toDouble() ?? 80.0;
-    final isLagging = !pacing['is_on_track'];
+    final hasData = pacing['has_data'] == true;
+    final coveragePct = (pacing['syllabus_percentage'] as num?)?.toDouble() ?? 0.0;
+    final isLagging = hasData && !pacing['is_on_track'];
 
     return {
       'totalUnits': totalUnits,
       'taughtUnits': taughtUnits,
       'coveragePct': coveragePct,
       'isLagging': isLagging,
-      'laggingAlert': isLagging
+      'hasData': hasData,
+      'laggingAlert': !hasData
+          ? 'No syllabus plans have been recorded for this class.'
+          : isLagging
           ? 'Syllabus coverage is lagging behind target schedule (< 70% completed).'
           : 'Syllabus coverage is currently on schedule for pre-board exams.',
     };

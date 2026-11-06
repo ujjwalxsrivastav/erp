@@ -107,6 +107,9 @@ import '../features/school/marks/marks_entry_screen.dart';
 import '../features/school/marks/report_card_screen.dart';
 import '../features/school/marks/student_report_card_screen.dart';
 import '../features/school/timetable/school_timetable_screen.dart';
+import '../features/school/timetable/student_timetable_screen.dart';
+import '../features/school/timetable/admin_timetable_screen.dart';
+import '../features/school/timetable/teacher_timetable_screen.dart';
 import '../features/school/circulars/circulars_screen.dart';
 import '../features/school/transport/transport_screen.dart';
 import '../features/school/transport/student_transport_screen.dart';
@@ -254,8 +257,8 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/homework-add-teacher': {
     'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin'
   },
-  '/school/timetable-admin': _schoolAdminRoles,
-  '/school/timetable-teacher': _schoolStaffRoles,
+  '/school/timetable-admin': {'admin', 'sadmin', 'principal', 'superadmin'},
+  '/school/timetable-teacher': {'teacher', 'steacher', 'class_teacher'},
   '/school/timetable-student': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/leave-approvals': _schoolStaffRoles,
   '/school/discipline-staff': _schoolStaffRoles,
@@ -625,13 +628,13 @@ final router = GoRouter(
         builder: (context, state) => const TeacherAddHomeworkScreen()),
     GoRoute(
         path: '/school/timetable-admin',
-        builder: (context, state) => const SchoolTimetableScreen()),
+        builder: (context, state) => const AdminTimetableScreen()),
     GoRoute(
         path: '/school/timetable-teacher',
-        builder: (context, state) => const SchoolTimetableScreen()),
+        builder: (context, state) => const TeacherTimetableScreen()),
     GoRoute(
         path: '/school/timetable-student',
-        builder: (context, state) => const SchoolTimetableScreen()),
+        builder: (context, state) => const StudentTimetableScreen()),
     GoRoute(
         path: '/school/leave-approvals',
         builder: (context, state) => const StudentLeaveScreen()),
