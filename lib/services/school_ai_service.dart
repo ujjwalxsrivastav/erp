@@ -27,7 +27,8 @@ class SchoolAiService {
     const fromEnv = String.fromEnvironment('GEMINI_API_KEY');
     if (fromEnv.isNotEmpty) return fromEnv;
     try {
-      final key = dotenv.maybeGet('GEMINI_API_KEY') ?? dotenv.env['GEMINI_API_KEY'];
+      final key =
+          dotenv.maybeGet('GEMINI_API_KEY') ?? dotenv.env['GEMINI_API_KEY'];
       if (key != null && key.isNotEmpty) return key;
     } catch (_) {}
     return '';
@@ -75,23 +76,26 @@ class SchoolAiService {
     // 2. Try Groq first via HTTP client
     if (groqApiKey.isNotEmpty) {
       try {
-        final uri = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
-        final response = await http.post(
-          uri,
-          headers: {
-            'Authorization': 'Bearer $groqApiKey',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'model': 'llama-3.3-70b-versatile',
-            'messages': [
-              {'role': 'system', 'content': systemPrompt},
-              {'role': 'user', 'content': userPrompt},
-            ],
-            'temperature': 0.6,
-            'max_tokens': 1200,
-          }),
-        ).timeout(const Duration(seconds: 12));
+        final uri =
+            Uri.parse('https://api.groq.com/openai/v1/chat/completions');
+        final response = await http
+            .post(
+              uri,
+              headers: {
+                'Authorization': 'Bearer $groqApiKey',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({
+                'model': 'llama-3.3-70b-versatile',
+                'messages': [
+                  {'role': 'system', 'content': systemPrompt},
+                  {'role': 'user', 'content': userPrompt},
+                ],
+                'temperature': 0.6,
+                'max_tokens': 1200,
+              }),
+            )
+            .timeout(const Duration(seconds: 12));
 
         if (response.statusCode == 200) {
           final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -107,24 +111,27 @@ class SchoolAiService {
     // 3. Fallback to Gemini if Groq failed or returned empty
     if (result.trim().isEmpty && geminiApiKey.isNotEmpty) {
       try {
-        final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$geminiApiKey');
-        final response = await http.post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'contents': [
-              {
-                'parts': [
-                  {'text': '$systemPrompt\n\nUser Request: $userPrompt'}
-                ]
-              }
-            ],
-            'generationConfig': {
-              'temperature': 0.6,
-              'maxOutputTokens': 1200,
-            }
-          }),
-        ).timeout(const Duration(seconds: 12));
+        final uri = Uri.parse(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$geminiApiKey');
+        final response = await http
+            .post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'contents': [
+                  {
+                    'parts': [
+                      {'text': '$systemPrompt\n\nUser Request: $userPrompt'}
+                    ]
+                  }
+                ],
+                'generationConfig': {
+                  'temperature': 0.6,
+                  'maxOutputTokens': 1200,
+                }
+              }),
+            )
+            .timeout(const Duration(seconds: 12));
 
         if (response.statusCode == 200) {
           final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -159,7 +166,8 @@ class SchoolAiService {
       username: username,
       role: role,
       feature: feature,
-      promptSnippet: userPrompt.length > 100 ? userPrompt.substring(0, 100) : userPrompt,
+      promptSnippet:
+          userPrompt.length > 100 ? userPrompt.substring(0, 100) : userPrompt,
       modelUsed: modelUsed,
     );
 
@@ -180,8 +188,10 @@ class SchoolAiService {
       return _resolveInstitutionalKnowledge(userPrompt, role);
     } else if (feature == 'remarks') {
       final sName = contextData?['student_name'] ?? 'The student';
-      final marks = (contextData?['marks_percentage'] as num?)?.toDouble() ?? 80.0;
-      final att = (contextData?['attendance_percentage'] as num?)?.toDouble() ?? 90.0;
+      final marks =
+          (contextData?['marks_percentage'] as num?)?.toDouble() ?? 80.0;
+      final att =
+          (contextData?['attendance_percentage'] as num?)?.toDouble() ?? 90.0;
       final obs = contextData?['behavioural_notes']?.toString() ?? '';
 
       return '[AI draft — teacher approval pending] $sName has demonstrated commendable academic commitment this term, securing ${marks.toStringAsFixed(1)}% scholastic proficiency with an exceptional ${att.toStringAsFixed(1)}% attendance record. ${obs.isNotEmpty ? obs : "Exhibits positive class participation and collaborative teamwork."} With sustained focus on analytical application questions, further excellence is assured.';
@@ -236,7 +246,13 @@ Q8. Case-Based Study: Read the provided clinical experimental data and deduce th
     final q = query.toLowerCase();
 
     // 1. Payroll, salary, PF, ESI, LOP
-    if (q.contains('pf') || q.contains('salary') || q.contains('payroll') || q.contains('esi') || q.contains('lop') || q.contains('loss of pay') || q.contains('deduction')) {
+    if (q.contains('pf') ||
+        q.contains('salary') ||
+        q.contains('payroll') ||
+        q.contains('esi') ||
+        q.contains('lop') ||
+        q.contains('loss of pay') ||
+        q.contains('deduction')) {
       return '''• **Staff Payroll & Statutory Deductions (Shivalik International School)**:
 - **Salary Disbursement**: Processed within the first week of every calendar month.
 - **Provident Fund (PF)**: Statutory 12% deduction on Basic Pay.
@@ -248,7 +264,12 @@ Q8. Case-Based Study: Read the provided clinical experimental data and deduce th
     }
 
     // 2. Hostel, Gate Pass, Curfew
-    if (q.contains('hostel') || q.contains('gate pass') || q.contains('warden') || q.contains('curfew') || q.contains('in-time') || q.contains('out-time')) {
+    if (q.contains('hostel') ||
+        q.contains('gate pass') ||
+        q.contains('warden') ||
+        q.contains('curfew') ||
+        q.contains('in-time') ||
+        q.contains('out-time')) {
       return '''• **Living Suite & Hostel Gate Pass Workflow**:
 - **Application**: The boarding student submits a gate pass request with destination and reason via the Student Portal.
 - **Parent Authorization**: An instant digital notification is dispatched to the registered Parent Portal for consent.
@@ -258,7 +279,12 @@ Q8. Case-Based Study: Read the provided clinical experimental data and deduce th
     }
 
     // 3. Library, Books, Overdue fines
-    if (q.contains('library') || q.contains('book') || q.contains('fine') || q.contains('overdue') || q.contains('e-book') || q.contains('ebook')) {
+    if (q.contains('library') ||
+        q.contains('book') ||
+        q.contains('fine') ||
+        q.contains('overdue') ||
+        q.contains('e-book') ||
+        q.contains('ebook')) {
       return '''• **Campus Library & E-Book Policy**:
 - **Overdue Fine**: Statutory ₹5.00 per day for books kept past the 14-day borrowing period.
 - **Ledger Settlement**: Outstanding library fines auto-post to the student fee ledger for integrated clearance.
@@ -267,7 +293,12 @@ Q8. Case-Based Study: Read the provided clinical experimental data and deduce th
     }
 
     // 4. Cafeteria, Canteen, Food, Wallet
-    if (q.contains('cafeteria') || q.contains('canteen') || q.contains('food') || q.contains('menu') || q.contains('wallet') || q.contains('meal')) {
+    if (q.contains('cafeteria') ||
+        q.contains('canteen') ||
+        q.contains('food') ||
+        q.contains('menu') ||
+        q.contains('wallet') ||
+        q.contains('meal')) {
       return '''• **Campus Cafeteria & Cashless Dining**:
 - **Dietary Standards**: 100% vegetarian, balanced nutritious meals prepared under institutional dietitian guidelines.
 - **Cashless System**: All cafeteria counters operate on student RFID smart identity cards linked to student wallet balances. Cash is strictly prohibited.
@@ -275,7 +306,11 @@ Q8. Case-Based Study: Read the provided clinical experimental data and deduce th
     }
 
     // 5. Discipline, Conduct, Suspension
-    if (q.contains('discipline') || q.contains('suspension') || q.contains('inquiry') || q.contains('rule') || q.contains('conduct')) {
+    if (q.contains('discipline') ||
+        q.contains('suspension') ||
+        q.contains('inquiry') ||
+        q.contains('rule') ||
+        q.contains('conduct')) {
       return '''• **Student Code of Conduct & Disciplinary Protocols**:
 - **Severity Classification**:
   - *Low*: Minor disruption; resolved via teacher counseling.
@@ -286,7 +321,11 @@ Q8. Case-Based Study: Read the provided clinical experimental data and deduce th
     }
 
     // 6. Fees, dues, payments, receipts
-    if (q.contains('fee') || q.contains('due') || q.contains('payment') || q.contains('receipt') || q.contains('installment')) {
+    if (q.contains('fee') ||
+        q.contains('due') ||
+        q.contains('payment') ||
+        q.contains('receipt') ||
+        q.contains('installment')) {
       return '''• **School Fees & Official Receipts**:
 - **Payment Schedule**: 4 quarterly installments due on the 10th of April, July, October, and January.
 - **Digital Payment Desk**: Secure instant payments via UPI, Cards, and Net Banking directly in the Fee Desk.
@@ -295,7 +334,12 @@ Q8. Case-Based Study: Read the provided clinical experimental data and deduce th
     }
 
     // 7. Academic Calendar, Exams, Holidays, PTM
-    if (q.contains('calendar') || q.contains('exam') || q.contains('holiday') || q.contains('ptm') || q.contains('vacation') || q.contains('date')) {
+    if (q.contains('calendar') ||
+        q.contains('exam') ||
+        q.contains('holiday') ||
+        q.contains('ptm') ||
+        q.contains('vacation') ||
+        q.contains('date')) {
       return '''• **CBSE Academic Session 2026-27 Schedule**:
 - **Academic Commencement**: April 1, 2026
 - **Periodic Assessment / UT 1**: May 11 – May 16, 2026
@@ -311,7 +355,10 @@ Q8. Case-Based Study: Read the provided clinical experimental data and deduce th
     }
 
     // 8. Timetable, School hours, timings
-    if (q.contains('timetable') || q.contains('timing') || q.contains('hour') || q.contains('period')) {
+    if (q.contains('timetable') ||
+        q.contains('timing') ||
+        q.contains('hour') ||
+        q.contains('period')) {
       return '''• **Institutional School Timings (Monday to Friday)**:
 - **Arrival & Assembly**: 07:50 AM – 08:15 AM
 - **Periods 1 to 4**: 08:15 AM – 11:00 AM (40 mins each)
@@ -388,7 +435,9 @@ Teacher Behavioural Observations: ${behaviouralNotes ?? "Consistently discipline
       'student_name': studentName,
       'exam_id': examId,
       'class_id': classId,
-      'draft_remark': rawOutput.startsWith('[AI draft') ? rawOutput : '[AI draft — teacher approval pending] $rawOutput',
+      'draft_remark': rawOutput.startsWith('[AI draft')
+          ? rawOutput
+          : '[AI draft — teacher approval pending] $rawOutput',
       'status': 'draft_pending_approval',
       'teacher_notes': behaviouralNotes ?? '',
       'created_at': DateTime.now().toIso8601String(),
@@ -415,7 +464,8 @@ Teacher Behavioural Observations: ${behaviouralNotes ?? "Consistently discipline
     String? editedRemark,
     required bool approve,
   }) async {
-    final status = approve ? (editedRemark != null ? 'edited' : 'approved') : 'rejected';
+    final status =
+        approve ? (editedRemark != null ? 'edited' : 'approved') : 'rejected';
     final updates = {
       'status': status,
       if (editedRemark != null) 'draft_remark': editedRemark,
@@ -424,7 +474,10 @@ Teacher Behavioural Observations: ${behaviouralNotes ?? "Consistently discipline
     };
 
     try {
-      await _supabase.from('school_ai_remarks').update(updates).eq('id', remarkId);
+      await _supabase
+          .from('school_ai_remarks')
+          .update(updates)
+          .eq('id', remarkId);
     } catch (_) {
       await _supabase.from('school_circulars').insert({
         'title': 'AI Remark Decision: $remarkId -> $status',
@@ -499,7 +552,9 @@ Difficulty Distribution: $difficultyMix
       'subject': subject,
       'total_marks': totalMarks,
       'difficulty_mix': {'easy': 40, 'medium': 40, 'hard': 20},
-      'content': rawPaper.startsWith('[AI draft') ? rawPaper : '[AI draft — teacher approval pending]\n\n$rawPaper',
+      'content': rawPaper.startsWith('[AI draft')
+          ? rawPaper
+          : '[AI draft — teacher approval pending]\n\n$rawPaper',
       'status': 'draft_pending_approval',
       'created_by': teacherUsername,
       'created_at': DateTime.now().toIso8601String(),
@@ -569,7 +624,9 @@ Student's Work Summary: $studentSubmissionSummary
       'assignment_id': assignmentTitle,
       'student_username': studentName.toLowerCase().replaceAll(' ', '_'),
       'student_name': studentName,
-      'draft_feedback': feedback.startsWith('[AI draft') ? feedback : '[AI draft — teacher approval pending] $feedback',
+      'draft_feedback': feedback.startsWith('[AI draft')
+          ? feedback
+          : '[AI draft — teacher approval pending] $feedback',
       'status': 'draft_pending_approval',
       'created_by': teacherUsername,
       'created_at': DateTime.now().toIso8601String(),
@@ -599,20 +656,15 @@ Student's Work Summary: $studentSubmissionSummary
     required String userRole,
     required String username,
   }) async {
+    final isStudent = userRole.toLowerCase() == 'student';
     final systemPrompt = '''
-You are the Shivalik International School Institutional AI Assistant. You possess authoritative real-time knowledge across all school modules:
-- Payroll: Disbursed by the 1st week of the month; PF rate is 12%, ESI is 0.75%, PT is ₹200. Loss of Pay (LOP) is deducted strictly as (Gross / Days in Month * Unexcused Absent Days).
-- Living Suite: Hostels have 24/7 security. Gate passes require warden biometric authorization and dispatch instant alerts to parents. Infirmary clinic tracks vital signs, allergies, and visits. Cafeteria serves strictly vegetarian balanced menus with cashless RFID student wallets.
-- Alumni: Mentorship directory, reunion meets, and infrastructure giving interest forms (strictly no financial transactions).
-- Library: Standard overdue fine is ₹5 per day. Fines auto-post directly to the student fee ledger. Book reservations have a 3-day pickup claim window. Free digital e-books are sourced from NCERT and Project Gutenberg.
-- Discipline: Multi-tier inquiry protocol with severity classification (Low, Medium, High, Critical). Suspensions strictly role-gated to Principal/Sadmin.
-- Multi-School: Tenant isolation ensures strict cryptographic shielding between campuses.
-- Governance: Four-Eyes Principle ensures Makers cannot approve their own actions.
+You are the school's AI assistant. Answer only from verified information made
+available to you. Do not invent institutional facts, policies, fees, staff
+rules, deadlines, or student records. If verified information is unavailable,
+say so plainly and direct the user to the school office.
 
-Instructions:
-1. Provide accurate, concise, helpful, and courteous responses.
-2. Tailor answers based on the user's role ($userRole).
-3. If an action requires physical authorization, mention the responsible official (e.g., Warden, Principal, Librarian).
+The current user is a $userRole. ${isStudent ? 'Do not disclose staff, payroll, other-student, or administrative information.' : 'Do not disclose information outside the user\'s authorised scope.'}
+Keep replies concise, helpful, and respectful.
 ''';
 
     return await _callLlm(
@@ -635,31 +687,37 @@ Instructions:
     int totalChats = 0;
 
     try {
-      final remRes = await _supabase.from('school_ai_remarks').select('id, status');
+      final remRes =
+          await _supabase.from('school_ai_remarks').select('id, status');
       final remList = List<Map<String, dynamic>>.from(remRes);
       totalRemarks = remList.length;
-      approvedRemarks = remList.where((r) => r['status'] == 'approved' || r['status'] == 'edited').length;
+      approvedRemarks = remList
+          .where((r) => r['status'] == 'approved' || r['status'] == 'edited')
+          .length;
     } catch (_) {
       totalRemarks = 0;
       approvedRemarks = 0;
     }
 
     try {
-      final qpRes = await _supabase.from('school_ai_question_papers').select('id');
+      final qpRes =
+          await _supabase.from('school_ai_question_papers').select('id');
       totalPapers = List<Map<String, dynamic>>.from(qpRes).length;
     } catch (_) {
       totalPapers = 0;
     }
 
     try {
-      final logRes = await _supabase.from('school_ai_usage_log').select('id, feature');
+      final logRes =
+          await _supabase.from('school_ai_usage_log').select('id, feature');
       final logList = List<Map<String, dynamic>>.from(logRes);
       totalChats = logList.where((l) => l['feature'] == 'rag_chat').length;
     } catch (_) {
       totalChats = 0;
     }
 
-    final double approvalRate = totalRemarks > 0 ? (approvedRemarks / totalRemarks) * 100 : 0.0;
+    final double approvalRate =
+        totalRemarks > 0 ? (approvedRemarks / totalRemarks) * 100 : 0.0;
 
     return {
       'total_remarks_drafted': totalRemarks,
