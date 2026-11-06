@@ -200,8 +200,10 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/parent-dashboard': {'parent', 'sparent', ..._schoolAdminRoles},
 
   // Shared / Multi-role (views adapt based on role)
-  '/school/ai-tools': _allSchoolRoles,
-  '/school/chatbot': _allSchoolRoles,
+  // Parents do not have an AI view yet.  Do not route them through a child's
+  // context or expose the faculty desk.
+  '/school/ai-tools': {..._schoolStaffRoles, 'student', 'sstudent'},
+  '/school/chatbot': {..._schoolStaffRoles, 'student', 'sstudent'},
   '/school/homework': _allSchoolRoles,
   '/school/leave': _allSchoolRoles,
   '/school/report-card': _allSchoolRoles,
