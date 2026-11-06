@@ -4678,4 +4678,112 @@ class SchoolExportService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SUPER ENTERPRISE REPORT: SP-R07 (Inventory Stock, Depreciation & Audit)
+  // ---------------------------------------------------------------------------
+
+  /// SP-R07: Inventory Stock, Depreciation & Physical Audit Register
+  static Future<void> exportSchoolInventoryStockAuditExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> items,
+    required List<Map<String, dynamic>> audits,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    int totalQty = 0;
+    double totalOriginalCost = 0.0;
+    double totalDepreciatedValue = 0.0;
+    int lowStockCount = 0;
+
+    for (final it in items) {
+      totalQty += (it['quantity'] as num?)?.toInt() ?? 0;
+      totalOriginalCost += (it['total_original_cost'] as num?)?.toDouble() ?? 0.0;
+      totalDepreciatedValue += (it['total_depreciated_value'] as num?)?.toDouble() ?? 0.0;
+      if (it['is_low_stock'] == true) lowStockCount++;
+    }
+
+    summary.appendRow([TextCellValue('INSTITUTION:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('REPORT:'), TextCellValue('Asset Accounting, Depreciation & Physical Audit Register')]);
+    summary.appendRow([TextCellValue('REPORT CODE:'), TextCellValue('SP-R07')]);
+    summary.appendRow([TextCellValue('GENERATED AT:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('KEY METRIC'), TextCellValue('VALUE')]);
+    summary.appendRow([TextCellValue('Total Catalogued Items:'), IntCellValue(items.length)]);
+    summary.appendRow([TextCellValue('Total Physical Units in Stock:'), IntCellValue(totalQty)]);
+    summary.appendRow([TextCellValue('Total Original Acquisition Cost:'), DoubleCellValue(totalOriginalCost)]);
+    summary.appendRow([TextCellValue('Total Depreciated Book Value:'), DoubleCellValue(totalDepreciatedValue)]);
+    summary.appendRow([TextCellValue('Statutory Depreciation Standard:'), TextCellValue('10.0% Straight-Line per Annum')]);
+    summary.appendRow([TextCellValue('Critical Reorder / Low-Stock Alerts:'), IntCellValue(lowStockCount)]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Item Code'),
+      TextCellValue('Item Description'),
+      TextCellValue('Category'),
+      TextCellValue('Quantity'),
+      TextCellValue('Unit'),
+      TextCellValue('Location / Room'),
+      TextCellValue('Condition'),
+      TextCellValue('Purchase Date'),
+      TextCellValue('Age (Years)'),
+      TextCellValue('Unit Cost (₹)'),
+      TextCellValue('Current Depreciated Unit (₹)'),
+      TextCellValue('Total Original Cost (₹)'),
+      TextCellValue('Total Depreciated Book Value (₹)'),
+      TextCellValue('Stock Status'),
+    ]);
+
+    for (int i = 0; i < items.length; i++) {
+      final it = items[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(it['item_code']?.toString() ?? '-'),
+        TextCellValue(it['name']?.toString() ?? '-'),
+        TextCellValue(it['category']?.toString() ?? '-'),
+        IntCellValue((it['quantity'] as num?)?.toInt() ?? 1),
+        TextCellValue(it['unit']?.toString() ?? 'Units'),
+        TextCellValue(it['location_room']?.toString() ?? '-'),
+        TextCellValue(it['condition']?.toString() ?? 'Good'),
+        TextCellValue(it['purchase_date']?.toString() ?? '-'),
+        DoubleCellValue((it['age_years'] as num?)?.toDouble() ?? 1.0),
+        DoubleCellValue((it['unit_cost'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue((it['current_unit_value'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue((it['total_original_cost'] as num?)?.toDouble() ?? 0.0),
+        DoubleCellValue((it['total_depreciated_value'] as num?)?.toDouble() ?? 0.0),
+        TextCellValue(it['is_low_stock'] == true ? 'LOW STOCK ALERT' : 'OPTIMAL'),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('${items.length} ITEMS'),
+      TextCellValue(''),
+      TextCellValue(''),
+      IntCellValue(totalQty),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('GRAND TOTALS'),
+      DoubleCellValue(totalOriginalCost),
+      DoubleCellValue(totalDepreciatedValue),
+      TextCellValue('AUDITED'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R07_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }

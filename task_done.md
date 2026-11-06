@@ -1,9 +1,35 @@
-- **Current Step in Execution Plan:** `Step SP5: Inventory / Assets (Item 5)`
-- **Status:** **Step SP4 (Alumni) is 100% complete and verified on live Supabase!** (1) Created `database/school_alumni_setup.sql` with `school_alumni_profiles`, `school_alumni_events`, `school_alumni_rsvps`, and `school_alumni_donation_interests` with multi-school RLS; (2) Built `SchoolAlumniService` with directory management, event coordination, RSVP tracking, transparent cause pledge expressions (strictly NO monetary collection per owner direction), and alumni circular broadcasts; (3) Added `SP-R06` (Alumni Engagement & Community Network Register) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolAlumniScreen` with 3 segmented command tabs, 4 KPI tiles, `fl_chart` graduation year representation bar chart, RSVP confirmation modal, cause pledge interest modal, and broadcast modal; (5) Wired route `/school/alumni`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP5: Inventory / Assets (Item 5)**.
+- **Current Step in Execution Plan:** `Step SP6: Activities (Item 6)`
+- **Status:** **Step SP5 (Inventory / Assets) is 100% complete and verified on live Supabase!** (1) Created `database/school_inventory_setup.sql` with `school_inventory_items`, `school_inventory_issues`, `school_inventory_maintenance`, and `school_inventory_audits` with multi-school RLS; (2) Built `SchoolInventoryService` with asset catalogue, straight-line 10% depreciation calculation, loan issue & return workflow, scheduled maintenance, and annual physical audit reconciliation; (3) Added `SP-R07` (Inventory Stock, Depreciation & Physical Audit Register) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolInventoryScreen` with 3 segmented command tabs, 4 KPI tiles, `fl_chart` category valuation bar chart, add asset modal, issue loan modal, return inspection modal, maintenance modal, and physical audit reconciliation modal; (5) Wired route `/school/inventory`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP6: Activities (Item 6)**.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP5: Inventory / Assets (Item 5)
+- [x] **Database & Schema Setup (`database/school_inventory_setup.sql`):**
+  - Created schema for 4 inventory tables: `school_inventory_items`, `school_inventory_issues`, `school_inventory_maintenance`, and `school_inventory_audits`.
+  - Configured Row Level Security and institutional isolation with `institute_id` multi-school isolation.
+- [x] **Inventory & Asset Service (`lib/services/school_inventory_service.dart`):**
+  - Built capital assets catalog: categories (Lab Equipment, IT & Computing, Furniture, Sports Goods, Classroom Supplies), location tracking, reorder thresholds, and zero-mock physical seed data.
+  - Implemented statutory straight-line 10% depreciation algorithm calculating book value based on elapsed asset age.
+  - Built issue & return desk: asset loans to faculty/students, expected return dates, and return condition inspections (Good/Fair/Damaged).
+  - Built maintenance & servicing logs tracking vendor details, repair descriptions, and servicing expenditure.
+  - Built annual physical audit reconciliation calculating variance between recorded system quantity and physical count.
+- [x] **Reports Engine & Excel Exports (`lib/services/school_export_service.dart`):**
+  - Added `exportSchoolInventoryStockAuditExcel` (`SP-R07`): Dual-sheet summary (total valuation, depreciated book value, low-stock alerts) + asset inventory data with totals row and `School_SP_R07_<date>.xlsx` naming.
+- [x] **Enterprise UI Screen (`lib/features/school/inventory/school_inventory_screen.dart`):**
+  - Built 3-tab segmented interface: Assets & Stock, Issue & Return Desk, Maintenance & Physical Audit.
+  - Added 4 top KPI tiles: Book Valuation (Depreciated vs Original), Stocked Units, Active Loans, Low Stock Alerts.
+  - Integrated `fl_chart` BarChart visualization for depreciated asset value across institutional categories.
+  - Built interactive modals for cataloguing new assets, issuing equipment loans, accepting return into store, scheduling maintenance, and conducting physical audits.
+- [x] **Router Integration (`lib/routes/app_router.dart`):**
+  - Registered route `/school/inventory` pointing to `SchoolInventoryScreen`.
+- [x] **Automated Verification:**
+  - `dart analyze lib/services/school_inventory_service.dart lib/features/school/inventory/school_inventory_screen.dart lib/services/school_export_service.dart lib/routes/app_router.dart`: 0 errors, 0 warnings.
+  - Verified live Supabase round-trip for full asset lifecycle (purchase/stock -> issue -> return -> audit) with 100% success.
+  - Zero modifications to College ERP files.
+
+---
 
 ### [COMPLETED] Step SP4: Alumni (Item 4)
 - [x] **Database & Schema Setup (`database/school_alumni_setup.sql`):**
