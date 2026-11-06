@@ -25,6 +25,11 @@
       - Added floating action buttons (`FloatingActionButton.extended`) for instant 1-tap access to the AI Chatbot on Admin, Teacher, Student, and Parent dashboards.
       - Added **"AI Assistant & Policy Chatbot (SP11)"** and all Super Enterprise Deep Dive modules (`Permissions & Governance`, `Hostel/Infirmary/Cafeteria`, `Staff Payroll`, `Inventory & Assets`, `Activities & Clubs`, `Discipline`, `Alumni`, `Library Deep`) directly to navigation drawers.
       - Added AI Chatbot to the Principal Quick Actions bottom sheet.
+  16. **PostgREST 404 Hardening & Master Runtime DDL Script:**
+      - Hardened `lib/services/school_service.dart` against PostgREST 404 errors by adding `_missingTables` availability caching and graceful legacy fallback across `school_quizzes`, `school_quiz_attempts`, `school_student_queries`, `school_teacher_messages`, `school_parent_teacher_messages`, `school_ptm_bookings`, and `school_parent_grievances`.
+      - Updated `database/school_runtime_fix_setup.sql` to include complete DDL definitions, indexes, RLS disable, and permissions for all 11 runtime tables (`school_student_leaves`, `school_notifications`, `school_student_goals`, `school_quizzes`, `school_quiz_attempts`, `school_student_queries`, `school_teacher_messages`, `school_parent_teacher_messages`, `school_parent_preferences`, `school_ptm_bookings`, `school_parent_grievances`).
+      - Verified static analysis clean (`dart analyze lib/services/school_service.dart`: 0 errors, 0 warnings).
+      - Zero modifications to College ERP files (`lib/features/college/`).
 
 ---
 

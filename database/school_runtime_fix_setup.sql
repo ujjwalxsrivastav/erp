@@ -149,7 +149,94 @@ CREATE TABLE IF NOT EXISTS public.school_student_queries (
 ALTER TABLE public.school_student_queries DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.school_student_queries TO anon, authenticated, service_role;
 
--- 7. Seed initial sample notifications for demonstration
+-- 7. Table: school_teacher_messages
+CREATE TABLE IF NOT EXISTS public.school_teacher_messages (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id UUID,
+    teacher_id   TEXT NOT NULL,
+    teacher_name TEXT,
+    class_id     TEXT NOT NULL,
+    class_name   TEXT,
+    subject      TEXT NOT NULL,
+    body         TEXT NOT NULL,
+    priority     TEXT DEFAULT 'normal',
+    created_at   TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.school_teacher_messages DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_teacher_messages TO anon, authenticated, service_role;
+
+-- 8. Table: school_parent_teacher_messages
+CREATE TABLE IF NOT EXISTS public.school_parent_teacher_messages (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id    UUID,
+    parent_username TEXT NOT NULL,
+    teacher_id      TEXT NOT NULL,
+    teacher_name    TEXT,
+    subject         TEXT NOT NULL,
+    body            TEXT NOT NULL,
+    is_read         BOOLEAN DEFAULT false,
+    created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.school_parent_teacher_messages DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_parent_teacher_messages TO anon, authenticated, service_role;
+
+-- 9. Table: school_parent_preferences
+CREATE TABLE IF NOT EXISTS public.school_parent_preferences (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    parent_username TEXT NOT NULL UNIQUE,
+    sms_alerts      BOOLEAN DEFAULT true,
+    email_digest    BOOLEAN DEFAULT true,
+    push_updates    BOOLEAN DEFAULT true,
+    language        TEXT DEFAULT 'en',
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.school_parent_preferences DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_parent_preferences TO anon, authenticated, service_role;
+
+-- 10. Table: school_ptm_bookings
+CREATE TABLE IF NOT EXISTS public.school_ptm_bookings (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id    UUID,
+    parent_username TEXT NOT NULL,
+    student_id      TEXT NOT NULL,
+    student_name    TEXT,
+    teacher_id      TEXT NOT NULL,
+    teacher_name    TEXT,
+    date            TEXT NOT NULL,
+    time_slot       TEXT NOT NULL,
+    agenda          TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'confirmed',
+    created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.school_ptm_bookings DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_ptm_bookings TO anon, authenticated, service_role;
+
+-- 11. Table: school_parent_grievances
+CREATE TABLE IF NOT EXISTS public.school_parent_grievances (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id    UUID,
+    ticket_no       TEXT NOT NULL UNIQUE,
+    parent_username TEXT NOT NULL,
+    student_id      TEXT NOT NULL,
+    student_name    TEXT,
+    category        TEXT NOT NULL,
+    subject         TEXT NOT NULL,
+    description     TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'submitted',
+    admin_reply     TEXT,
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.school_parent_grievances DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_parent_grievances TO anon, authenticated, service_role;
+
+-- 12. Seed initial sample notifications for demonstration
 INSERT INTO public.school_notifications (user_id, title, message, body, type, created_at)
 VALUES
     ('parent1', 'Attendance Recorded', 'Daily attendance has been marked Present for your ward.', 'Attendance status is updated.', 'success', now() - interval '2 hours'),

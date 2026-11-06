@@ -7476,51 +7476,61 @@ class SchoolService {
     final messages = <Map<String, dynamic>>[];
 
     // 1. Try fetching from school_teacher_messages
-    try {
-      var query = _supabase.from('school_teacher_messages').select();
-      if (classId != null && classId.isNotEmpty) {
-        query = query.or('class_id.eq.$classId,class_id.eq.all');
+    if (!_missingTables.contains('school_teacher_messages')) {
+      try {
+        var query = _supabase.from('school_teacher_messages').select();
+        if (classId != null && classId.isNotEmpty) {
+          query = query.or('class_id.eq.$classId,class_id.eq.all');
+        }
+        final resp = await query.order('created_at', ascending: false).limit(20);
+        for (final m in resp) {
+          messages.add({
+            'id': m['id']?.toString() ?? '',
+            'type': 'class_announcement',
+            'source': 'Teacher Broadcast',
+            'sender': m['teacher_name'] ?? m['teacher_id'] ?? 'Class Faculty',
+            'subject': m['subject'] ?? 'Notice',
+            'body': m['body'] ?? '',
+            'priority': m['priority'] ?? 'normal',
+            'created_at': m['created_at']?.toString() ?? '',
+            'is_read': false,
+          });
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_teacher_messages');
+        }
       }
-      final resp = await query.order('created_at', ascending: false).limit(20);
-      for (final m in resp) {
-        messages.add({
-          'id': m['id']?.toString() ?? '',
-          'type': 'class_announcement',
-          'source': 'Teacher Broadcast',
-          'sender': m['teacher_name'] ?? m['teacher_id'] ?? 'Class Faculty',
-          'subject': m['subject'] ?? 'Notice',
-          'body': m['body'] ?? '',
-          'priority': m['priority'] ?? 'normal',
-          'created_at': m['created_at']?.toString() ?? '',
-          'is_read': false,
-        });
-      }
-    } catch (_) {
-      // Table might not exist yet; gracefully handled below
     }
 
     // 2. Try fetching from school_parent_teacher_messages (1:1 threads)
-    try {
-      final resp = await _supabase
-          .from('school_parent_teacher_messages')
-          .select()
-          .eq('parent_username', parentUsername)
-          .order('created_at', ascending: false)
-          .limit(20);
-      for (final m in resp) {
-        messages.add({
-          'id': m['id']?.toString() ?? '',
-          'type': 'teacher_message',
-          'source': 'Direct Teacher Thread',
-          'sender': m['teacher_name'] ?? m['teacher_id'] ?? 'Class Teacher',
-          'subject': m['subject'] ?? 'Direct Message',
-          'body': m['body'] ?? '',
-          'priority': 'normal',
-          'created_at': m['created_at']?.toString() ?? '',
-          'is_read': m['is_read'] == true,
-        });
+    if (!_missingTables.contains('school_parent_teacher_messages')) {
+      try {
+        final resp = await _supabase
+            .from('school_parent_teacher_messages')
+            .select()
+            .eq('parent_username', parentUsername)
+            .order('created_at', ascending: false)
+            .limit(20);
+        for (final m in resp) {
+          messages.add({
+            'id': m['id']?.toString() ?? '',
+            'type': 'teacher_message',
+            'source': 'Direct Teacher Thread',
+            'sender': m['teacher_name'] ?? m['teacher_id'] ?? 'Class Teacher',
+            'subject': m['subject'] ?? 'Direct Message',
+            'body': m['body'] ?? '',
+            'priority': 'normal',
+            'created_at': m['created_at']?.toString() ?? '',
+            'is_read': m['is_read'] == true,
+          });
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_parent_teacher_messages');
+        }
       }
-    } catch (_) {}
+    }
 
     // 3. Include relevant Parents / All circulars and Class Notices from school_circulars
     try {
@@ -8454,21 +8464,27 @@ class SchoolService {
   }) async {
     // 1. Try insert into dedicated school_ptm_bookings table
     String? bookingId;
-    try {
-      final res = await _supabase.from('school_ptm_bookings').insert({
-        'parent_username': parentUsername,
-        'student_id': studentId ?? parentUsername,
-        'student_name': studentName,
-        'teacher_id': teacherId ?? teacherName,
-        'teacher_name': teacherName,
-        'date': date,
-        'time_slot': timeSlot,
-        'agenda': agenda,
-        'status': 'confirmed',
-        'created_at': DateTime.now().toIso8601String(),
-      }).select().single();
-      bookingId = res['id']?.toString();
-    } catch (_) {}
+    if (!_missingTables.contains('school_ptm_bookings')) {
+      try {
+        final res = await _supabase.from('school_ptm_bookings').insert({
+          'parent_username': parentUsername,
+          'student_id': studentId ?? parentUsername,
+          'student_name': studentName,
+          'teacher_id': teacherId ?? teacherName,
+          'teacher_name': teacherName,
+          'date': date,
+          'time_slot': timeSlot,
+          'agenda': agenda,
+          'status': 'confirmed',
+          'created_at': DateTime.now().toIso8601String(),
+        }).select().single();
+        bookingId = res['id']?.toString();
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_ptm_bookings');
+        }
+      }
+    }
 
     // 2. Also write to school_circulars for backward compatibility and admin tools
     final structured =
@@ -8504,12 +8520,18 @@ class SchoolService {
 
   Future<bool> cancelPtmBooking({required String bookingId}) async {
     try {
-      try {
-        await _supabase
-            .from('school_ptm_bookings')
-            .update({'status': 'cancelled'})
-            .eq('id', bookingId);
-      } catch (_) {}
+      if (!_missingTables.contains('school_ptm_bookings')) {
+        try {
+          await _supabase
+              .from('school_ptm_bookings')
+              .update({'status': 'cancelled'})
+              .eq('id', bookingId);
+        } catch (e) {
+          if (_isTableMissingError(e)) {
+            _missingTables.add('school_ptm_bookings');
+          }
+        }
+      }
 
       try {
         final row = await _supabase.from('school_circulars').select().eq('id', bookingId).single();
@@ -8529,28 +8551,34 @@ class SchoolService {
     final seenIds = <String>{};
 
     // 1. Try school_ptm_bookings
-    try {
-      var query = _supabase.from('school_ptm_bookings').select();
-      if (parentUsername != null && parentUsername.isNotEmpty) {
-        query = query.eq('parent_username', parentUsername);
+    if (!_missingTables.contains('school_ptm_bookings')) {
+      try {
+        var query = _supabase.from('school_ptm_bookings').select();
+        if (parentUsername != null && parentUsername.isNotEmpty) {
+          query = query.eq('parent_username', parentUsername);
+        }
+        final rows = await query.order('created_at', ascending: false);
+        for (final r in rows) {
+          final bId = r['id']?.toString() ?? '';
+          if (bId.isNotEmpty) seenIds.add(bId);
+          list.add({
+            'id': bId,
+            'parent': r['parent_username']?.toString() ?? '',
+            'student': r['student_name']?.toString() ?? '',
+            'teacher': r['teacher_name']?.toString() ?? '',
+            'date': r['date']?.toString() ?? '',
+            'time_slot': r['time_slot']?.toString() ?? '',
+            'agenda': r['agenda']?.toString() ?? '',
+            'status': r['status']?.toString() ?? 'Confirmed',
+            'created_at': r['created_at']?.toString() ?? '',
+          });
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_ptm_bookings');
+        }
       }
-      final rows = await query.order('created_at', ascending: false);
-      for (final r in rows) {
-        final bId = r['id']?.toString() ?? '';
-        if (bId.isNotEmpty) seenIds.add(bId);
-        list.add({
-          'id': bId,
-          'parent': r['parent_username']?.toString() ?? '',
-          'student': r['student_name']?.toString() ?? '',
-          'teacher': r['teacher_name']?.toString() ?? '',
-          'date': r['date']?.toString() ?? '',
-          'time_slot': r['time_slot']?.toString() ?? '',
-          'agenda': r['agenda']?.toString() ?? '',
-          'status': r['status']?.toString() ?? 'Confirmed',
-          'created_at': r['created_at']?.toString() ?? '',
-        });
-      }
-    } catch (_) {}
+    }
 
     // 2. Union with legacy school_circulars
     try {
@@ -8609,21 +8637,27 @@ class SchoolService {
 
     // 1. Try dedicated table school_parent_grievances
     String? grievanceId;
-    try {
-      final res = await _supabase.from('school_parent_grievances').insert({
-        'ticket_no': ticketNo,
-        'parent_username': parentUsername,
-        'student_id': studentId ?? parentUsername,
-        'student_name': studentName,
-        'category': category,
-        'subject': subject,
-        'description': description,
-        'status': 'submitted',
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      }).select().single();
-      grievanceId = res['id']?.toString();
-    } catch (_) {}
+    if (!_missingTables.contains('school_parent_grievances')) {
+      try {
+        final res = await _supabase.from('school_parent_grievances').insert({
+          'ticket_no': ticketNo,
+          'parent_username': parentUsername,
+          'student_id': studentId ?? parentUsername,
+          'student_name': studentName,
+          'category': category,
+          'subject': subject,
+          'description': description,
+          'status': 'submitted',
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        }).select().single();
+        grievanceId = res['id']?.toString();
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_parent_grievances');
+        }
+      }
+    }
 
     // 2. Also write to school_circulars for backward compatibility
     final structured =
@@ -8662,29 +8696,35 @@ class SchoolService {
     final seenTickets = <String>{};
 
     // 1. Try dedicated table school_parent_grievances
-    try {
-      var query = _supabase.from('school_parent_grievances').select();
-      if (parentUsername != null && parentUsername.isNotEmpty) {
-        query = query.eq('parent_username', parentUsername);
+    if (!_missingTables.contains('school_parent_grievances')) {
+      try {
+        var query = _supabase.from('school_parent_grievances').select();
+        if (parentUsername != null && parentUsername.isNotEmpty) {
+          query = query.eq('parent_username', parentUsername);
+        }
+        final rows = await query.order('created_at', ascending: false);
+        for (final r in rows) {
+          final tNo = r['ticket_no']?.toString() ?? '';
+          if (tNo.isNotEmpty) seenTickets.add(tNo);
+          list.add({
+            'id': r['id']?.toString() ?? '',
+            'ticket_no': tNo,
+            'parent': r['parent_username']?.toString() ?? '',
+            'student': r['student_name']?.toString() ?? '',
+            'category': r['category']?.toString() ?? 'General',
+            'subject': r['subject']?.toString() ?? '',
+            'description': r['description']?.toString() ?? '',
+            'status': r['status']?.toString() ?? 'Submitted',
+            'admin_reply': r['admin_reply']?.toString() ?? '',
+            'created_at': r['created_at']?.toString() ?? '',
+          });
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_parent_grievances');
+        }
       }
-      final rows = await query.order('created_at', ascending: false);
-      for (final r in rows) {
-        final tNo = r['ticket_no']?.toString() ?? '';
-        if (tNo.isNotEmpty) seenTickets.add(tNo);
-        list.add({
-          'id': r['id']?.toString() ?? '',
-          'ticket_no': tNo,
-          'parent': r['parent_username']?.toString() ?? '',
-          'student': r['student_name']?.toString() ?? '',
-          'category': r['category']?.toString() ?? 'General',
-          'subject': r['subject']?.toString() ?? '',
-          'description': r['description']?.toString() ?? '',
-          'status': r['status']?.toString() ?? 'Submitted',
-          'admin_reply': r['admin_reply']?.toString() ?? '',
-          'created_at': r['created_at']?.toString() ?? '',
-        });
-      }
-    } catch (_) {}
+    }
 
     // 2. Union with legacy school_circulars
     try {
@@ -8732,12 +8772,18 @@ class SchoolService {
 
   Future<bool> reopenParentComplaint({required String complaintId}) async {
     try {
-      try {
-        await _supabase
-            .from('school_parent_grievances')
-            .update({'status': 'reopened', 'updated_at': DateTime.now().toIso8601String()})
-            .eq('id', complaintId);
-      } catch (_) {}
+      if (!_missingTables.contains('school_parent_grievances')) {
+        try {
+          await _supabase
+              .from('school_parent_grievances')
+              .update({'status': 'reopened', 'updated_at': DateTime.now().toIso8601String()})
+              .eq('id', complaintId);
+        } catch (e) {
+          if (_isTableMissingError(e)) {
+            _missingTables.add('school_parent_grievances');
+          }
+        }
+      }
 
       try {
         final row = await _supabase.from('school_circulars').select().eq('id', complaintId).single();
@@ -8843,16 +8889,22 @@ class SchoolService {
   /// N4: Get active online quizzes for student class cohort
   Future<List<Map<String, dynamic>>> getOnlineQuizzes({required String classId}) async {
     // 1. Try school_quizzes table
-    try {
-      final response = await _supabase
-          .from('school_quizzes')
-          .select()
-          .eq('class_id', classId)
-          .order('created_at', ascending: false);
-      if ((response as List).isNotEmpty) {
-        return List<Map<String, dynamic>>.from(response);
+    if (!_missingTables.contains('school_quizzes')) {
+      try {
+        final response = await _supabase
+            .from('school_quizzes')
+            .select()
+            .eq('class_id', classId)
+            .order('created_at', ascending: false);
+        if ((response as List).isNotEmpty) {
+          return List<Map<String, dynamic>>.from(response);
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_quizzes');
+        }
       }
-    } catch (_) {}
+    }
 
     // 2. Resilient fallback to school_circulars category Quiz
     try {
@@ -8919,10 +8971,16 @@ class SchoolService {
     };
 
     // 1. Try school_quizzes table
-    try {
-      await _supabase.from('school_quizzes').insert(payload);
-      return true;
-    } catch (_) {}
+    if (!_missingTables.contains('school_quizzes')) {
+      try {
+        await _supabase.from('school_quizzes').insert(payload);
+        return true;
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_quizzes');
+        }
+      }
+    }
 
     // 2. Resilient fallback to school_circulars
     try {
@@ -8963,10 +9021,16 @@ class SchoolService {
     };
 
     // 1. Try school_quiz_attempts table
-    try {
-      await _supabase.from('school_quiz_attempts').insert(payload);
-      return true;
-    } catch (_) {}
+    if (!_missingTables.contains('school_quiz_attempts')) {
+      try {
+        await _supabase.from('school_quiz_attempts').insert(payload);
+        return true;
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_quiz_attempts');
+        }
+      }
+    }
 
     // 2. Resilient fallback to school_circulars
     try {
@@ -9000,16 +9064,22 @@ class SchoolService {
   /// N4: Get past quiz attempts for a student
   Future<List<Map<String, dynamic>>> getStudentQuizAttempts({required String studentUsername}) async {
     // 1. Try school_quiz_attempts table
-    try {
-      final response = await _supabase
-          .from('school_quiz_attempts')
-          .select()
-          .eq('student_id', studentUsername)
-          .order('attempted_at', ascending: false);
-      if ((response as List).isNotEmpty) {
-        return List<Map<String, dynamic>>.from(response);
+    if (!_missingTables.contains('school_quiz_attempts')) {
+      try {
+        final response = await _supabase
+            .from('school_quiz_attempts')
+            .select()
+            .eq('student_id', studentUsername)
+            .order('attempted_at', ascending: false);
+        if ((response as List).isNotEmpty) {
+          return List<Map<String, dynamic>>.from(response);
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_quiz_attempts');
+        }
       }
-    } catch (_) {}
+    }
 
     // 2. Resilient fallback from school_circulars category QuizAttempt
     try {
@@ -9263,10 +9333,16 @@ class SchoolService {
       'created_at': DateTime.now().toIso8601String(),
     };
 
-    try {
-      await _supabase.from('school_student_queries').insert(payload);
-      return true;
-    } catch (_) {}
+    if (!_missingTables.contains('school_student_queries')) {
+      try {
+        await _supabase.from('school_student_queries').insert(payload);
+        return true;
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_student_queries');
+        }
+      }
+    }
 
     try {
       await _supabase.from('school_circulars').insert({
@@ -9285,16 +9361,22 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getStudentQueries({required String studentUsername}) async {
-    try {
-      final response = await _supabase
-          .from('school_student_queries')
-          .select()
-          .eq('student_id', studentUsername)
-          .order('created_at', ascending: false);
-      if ((response as List).isNotEmpty) {
-        return List<Map<String, dynamic>>.from(response);
+    if (!_missingTables.contains('school_student_queries')) {
+      try {
+        final response = await _supabase
+            .from('school_student_queries')
+            .select()
+            .eq('student_id', studentUsername)
+            .order('created_at', ascending: false);
+        if ((response as List).isNotEmpty) {
+          return List<Map<String, dynamic>>.from(response);
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_student_queries');
+        }
       }
-    } catch (_) {}
+    }
 
     try {
       final response = await _supabase
