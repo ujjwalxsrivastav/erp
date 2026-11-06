@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'supabase_service.dart';
 import 'school_service.dart';
+import 'auth_service.dart';
 
 class SchoolCalendarService {
   static final SchoolCalendarService _instance = SchoolCalendarService._internal();
@@ -12,6 +13,128 @@ class SchoolCalendarService {
   SchoolCalendarService._internal();
 
   final SupabaseClient _supabase = SupabaseService.client;
+  final _auth = AuthService();
+
+  Future<(String, String)> _verifiedCalendarActor() async {
+    final username = await _auth.getCurrentUsername() ?? '';
+    if (username.isEmpty) throw Exception('Sign in to manage the academic calendar.');
+    final role = (await _auth.getLiveUserRole(username) ?? '').toLowerCase();
+    final normalized = role == 'sadmin' ? 'admin' : role;
+    if (!{'admin', 'sadmin', 'principal', 'superadmin'}.contains(normalized)) {
+      throw Exception('Only school leadership can manage academic calendar events.');
+    }
+    return (username, normalized);
+  }
+
+  /// Read only the calendar events this signed-in role and learner scope may see.
+  Future<List<Map<String, dynamic>>> getEventsForScope({
+    String academicYear = '2026-2027',
+    String? category,
+    String? targetAudience,
+    String? studentUsername,
+  }) async {
+    final username = await _auth.getCurrentUsername() ?? '';
+    if (username.isEmpty) throw Exception('Sign in to view the school calendar.');
+    final live = (await _auth.getLiveUserRole(username) ?? '').toLowerCase();
+    final role = live == 'sstudent' ? 'student' : live == 'sparent' ? 'parent' : live == 'steacher' ? 'teacher' : live == 'sadmin' ? 'admin' : live;
+    const allowed = {'student', 'parent', 'teacher', 'class_teacher', 'admin', 'principal', 'superadmin', 'librarian', 'warden', 'nurse', 'accountant'};
+    if (!allowed.contains(role)) throw Exception('This role cannot view the school calendar.');
+    if ({'admin', 'principal', 'superadmin'}.contains(role)) {
+      return getAcademicEvents(academicYear: academicYear, category: category, targetAudience: targetAudience);
+    }
+
+    final classes = <String>{};
+    if (role == 'student' || role == 'parent') {
+      final target = role == 'student' ? username : (studentUsername ?? '');
+      if (target.isEmpty) return [];
+      if (role == 'student' && target != username) throw Exception('Students can only view their own class calendar.');
+      if (role == 'parent') {
+        final link = await _supabase.from('parent_student_links').select('student_username').eq('parent_username', username).eq('student_username', target).maybeSingle();
+        if (link == null) throw Exception('This student is not linked to your account.');
+      }
+      final student = await _supabase.from('school_students').select('class_id,class_name,section').eq('username', target).maybeSingle();
+      if (student != null) {
+        for (final key in [student['class_id'], student['class_name'], student['section']]) {
+          final value = key?.toString().trim() ?? '';
+          if (value.isNotEmpty) classes.add(value);
+        }
+        final name = student['class_name']?.toString() ?? '';
+        final section = student['section']?.toString() ?? '';
+        if (name.isNotEmpty && section.isNotEmpty) classes.add('$name-$section');
+      }
+    } else if (role == 'teacher' || role == 'class_teacher') {
+      final own = await _supabase.from('school_classes').select('id,name,section').eq('class_teacher_id', username);
+      for (final row in List<Map<String, dynamic>>.from(own)) {
+        for (final key in [row['id'], row['name']]) {
+          final value = key?.toString().trim() ?? '';
+          if (value.isNotEmpty) classes.add(value);
+        }
+        final name = row['name']?.toString() ?? '';
+        final section = row['section']?.toString() ?? '';
+        if (name.isNotEmpty && section.isNotEmpty) classes.add('$name-$section');
+      }
+      final mappings = await _supabase.from('school_teacher_classes').select('class_id').eq('teacher_username', username);
+      for (final mapping in List<Map<String, dynamic>>.from(mappings)) {
+        final id = mapping['class_id']?.toString() ?? '';
+        if (id.isEmpty) continue;
+        classes.add(id);
+        final row = await _supabase.from('school_classes').select('name,section').eq('id', id).maybeSingle();
+        if (row != null) {
+          final name = row['name']?.toString() ?? '';
+          final section = row['section']?.toString() ?? '';
+          if (name.isNotEmpty) classes.add(name);
+          if (name.isNotEmpty && section.isNotEmpty) classes.add('$name-$section');
+        }
+      }
+    }
+
+    final audience = role == 'student' ? 'students' : role == 'parent' ? 'parents' : (role == 'teacher' || role == 'class_teacher') ? 'teachers' : '';
+    final allowedAudiences = audience.isEmpty ? const ['all'] : const ['all'];
+    final requestedAudience = targetAudience ?? 'all';
+    final targets = requestedAudience == 'all' ? (audience.isEmpty ? allowedAudiences : ['all', audience]) : (requestedAudience == audience ? [requestedAudience] : const <String>[]);
+    if (targets.isEmpty) return [];
+
+    final rows = <String, Map<String, dynamic>>{};
+    Future<void> addQuery({List<String>? classValues}) async {
+      var query = _supabase.from('school_academic_calendar').select()
+          .eq('academic_year', academicYear).eq('is_published', true).inFilter('target_audience', targets);
+      if (category != null && category.isNotEmpty && category != 'All') query = query.eq('category', category);
+      if (classValues != null) query = query.contains('applicable_classes', classValues);
+      final response = await query.order('start_date', ascending: true);
+      for (final row in List<Map<String, dynamic>>.from(response)) {
+        rows[row['id']?.toString() ?? '${row['title']}|${row['start_date']}'] = row;
+      }
+    }
+
+    if (!SchoolService.isTableMissing('school_academic_calendar')) {
+      try {
+        await addQuery(classValues: ['All']);
+        for (final classValue in classes) {
+          await addQuery(classValues: [classValue]);
+        }
+      } catch (e) {
+        if (e.toString().contains('404') || e.toString().contains('does not exist')) SchoolService.markTableMissing('school_academic_calendar');
+        else rethrow;
+      }
+    }
+    if (SchoolService.isTableMissing('school_academic_calendar') || rows.isEmpty) {
+      final fallback = await _supabase.from('school_circulars').select()
+          .eq('category', 'AcademicCalendarEvent').inFilter('target_audience', targets)
+          .order('published_at', ascending: true);
+      for (final circular in List<Map<String, dynamic>>.from(fallback)) {
+        try {
+          final decoded = jsonDecode(circular['content']?.toString() ?? '{}');
+          if (decoded is! Map<String, dynamic> || decoded['academic_year'] != academicYear) continue;
+          if (category != null && category.isNotEmpty && category != 'All' && decoded['category'] != category) continue;
+          final applicable = List<String>.from(decoded['applicable_classes'] ?? const ['All']);
+          if (!applicable.contains('All') && !applicable.any(classes.contains)) continue;
+          final id = circular['id']?.toString() ?? '';
+          rows[id.isEmpty ? '${decoded['title']}|${decoded['start_date']}' : id] = {'id': circular['id'], ...decoded};
+        } catch (_) {}
+      }
+    }
+    return rows.values.toList()..sort((a, b) => (a['start_date']?.toString() ?? '').compareTo(b['start_date']?.toString() ?? ''));
+  }
 
   static const List<String> categories = [
     'Academic',
@@ -71,390 +194,6 @@ class SchoolCalendarService {
     }
   }
 
-  /// Baseline statutory CBSE Academic Calendar events for session 2026-2027
-  static final List<Map<String, dynamic>> baselineEvents = [
-    {
-      'id': 'cal-01',
-      'academic_year': '2026-2027',
-      'term': 'Term 1',
-      'title': 'Academic Session 2026-27 Commences',
-      'description': 'Orientation assembly and commencement of regular classroom instructions.',
-      'category': 'Academic',
-      'start_date': '2026-04-01',
-      'end_date': '2026-04-01',
-      'start_time': '08:00 AM',
-      'end_time': '02:00 PM',
-      'is_all_day': true,
-      'is_holiday': false,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Main Campus',
-      'color_code': '#10B981',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-02',
-      'academic_year': '2026-2027',
-      'term': 'Term 1',
-      'title': 'Dr. B.R. Ambedkar Jayanti',
-      'description': 'Gazetted Holiday on account of Ambedkar Jayanti.',
-      'category': 'Holiday',
-      'start_date': '2026-04-14',
-      'end_date': '2026-04-14',
-      'start_time': null,
-      'end_time': null,
-      'is_all_day': true,
-      'is_holiday': true,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Campus Closed',
-      'color_code': '#EF4444',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-03',
-      'academic_year': '2026-2027',
-      'term': 'Term 1',
-      'title': 'Periodic Assessment / Unit Test 1',
-      'description': 'Formal assessment cycle for Term 1 core curriculum subjects.',
-      'category': 'Examination',
-      'start_date': '2026-05-11',
-      'end_date': '2026-05-16',
-      'start_time': '08:30 AM',
-      'end_time': '11:30 AM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'students',
-      'applicable_classes': ['Class 6-A', 'Class 7-A', 'Class 8-A', 'Class 9-A', 'Class 10-A'],
-      'venue': 'Examination Halls A & B',
-      'color_code': '#8B5CF6',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-04',
-      'academic_year': '2026-2027',
-      'term': 'Term 1',
-      'title': 'Summer Vacation (Students & Staff)',
-      'description': 'Annual summer vacation for junior and middle schools. Remedial tutorials for board batches.',
-      'category': 'Holiday',
-      'start_date': '2026-05-25',
-      'end_date': '2026-06-30',
-      'start_time': null,
-      'end_time': null,
-      'is_all_day': true,
-      'is_holiday': true,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Campus Closed',
-      'color_code': '#F59E0B',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-05',
-      'academic_year': '2026-2027',
-      'term': 'Term 1',
-      'title': 'School Reopens Post Summer Break',
-      'description': 'Resumption of academic schedule and club activities.',
-      'category': 'Academic',
-      'start_date': '2026-07-01',
-      'end_date': '2026-07-01',
-      'start_time': '08:00 AM',
-      'end_time': '02:00 PM',
-      'is_all_day': true,
-      'is_holiday': false,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Main Campus',
-      'color_code': '#10B981',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-06',
-      'academic_year': '2026-2027',
-      'term': 'Term 1',
-      'title': 'Term 1 Parent-Teacher Meeting (PTM 1)',
-      'description': 'Review of Unit Test 1 academic progress and attendance counseling.',
-      'category': 'PTM',
-      'start_date': '2026-07-18',
-      'end_date': '2026-07-18',
-      'start_time': '08:30 AM',
-      'end_time': '01:00 PM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'parents',
-      'applicable_classes': ['All'],
-      'venue': 'Respective Classrooms',
-      'color_code': '#EC4899',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-07',
-      'academic_year': '2026-2027',
-      'term': 'Term 1',
-      'title': 'Independence Day Celebrations & Investiture',
-      'description': 'Patriotic flag hoisting, march past, and Student Council badge investiture ceremony.',
-      'category': 'Co-Curricular',
-      'start_date': '2026-08-15',
-      'end_date': '2026-08-15',
-      'start_time': '08:00 AM',
-      'end_time': '11:00 AM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'School Ground & Auditorium',
-      'color_code': '#3B82F6',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-08',
-      'academic_year': '2026-2027',
-      'term': 'Term 1',
-      'title': 'Teachers Day & Faculty Recognition',
-      'description': 'Special assembly honoring faculty, followed by teacher-leadership workshop.',
-      'category': 'Co-Curricular',
-      'start_date': '2026-09-05',
-      'end_date': '2026-09-05',
-      'start_time': '09:00 AM',
-      'end_time': '01:30 PM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Auditorium',
-      'color_code': '#06B6D4',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-09',
-      'academic_year': '2026-2027',
-      'term': 'Term 1',
-      'title': 'Half Yearly / Mid-Term Examinations',
-      'description': 'Comprehensive Term 1 examinations across all scholastic subjects.',
-      'category': 'Examination',
-      'start_date': '2026-09-14',
-      'end_date': '2026-09-26',
-      'start_time': '08:30 AM',
-      'end_time': '12:00 PM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'students',
-      'applicable_classes': ['All'],
-      'venue': 'Designated Examination Blocks',
-      'color_code': '#8B5CF6',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-10',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Mahatma Gandhi Jayanti',
-      'description': 'National holiday on account of Gandhi Jayanti.',
-      'category': 'Holiday',
-      'start_date': '2026-10-02',
-      'end_date': '2026-10-02',
-      'start_time': null,
-      'end_time': null,
-      'is_all_day': true,
-      'is_holiday': true,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Campus Closed',
-      'color_code': '#EF4444',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-11',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Mid-Term Report Card & PTM (PTM 2)',
-      'description': 'Distribution of Term 1 Holistic Progress Cards and faculty-parent consultations.',
-      'category': 'PTM',
-      'start_date': '2026-10-10',
-      'end_date': '2026-10-10',
-      'start_time': '08:30 AM',
-      'end_time': '01:30 PM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'parents',
-      'applicable_classes': ['All'],
-      'venue': 'School Campus',
-      'color_code': '#EC4899',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-12',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Autumn / Dussehra Break',
-      'description': 'Dussehra and autumn festival vacation.',
-      'category': 'Holiday',
-      'start_date': '2026-10-19',
-      'end_date': '2026-10-23',
-      'start_time': null,
-      'end_time': null,
-      'is_all_day': true,
-      'is_holiday': true,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Campus Closed',
-      'color_code': '#F59E0B',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-13',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Childrens Day & Annual Sports Meet',
-      'description': 'Inter-house athletic meet, track & field finals, and cultural stalls.',
-      'category': 'Co-Curricular',
-      'start_date': '2026-11-14',
-      'end_date': '2026-11-15',
-      'start_time': '08:00 AM',
-      'end_time': '04:00 PM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Main Sports Complex',
-      'color_code': '#3B82F6',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-14',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Periodic Assessment / Unit Test 2',
-      'description': 'Formative evaluation for Term 2 syllabus topics.',
-      'category': 'Examination',
-      'start_date': '2026-12-07',
-      'end_date': '2026-12-12',
-      'start_time': '08:30 AM',
-      'end_time': '11:30 AM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'students',
-      'applicable_classes': ['All'],
-      'venue': 'Examination Halls',
-      'color_code': '#8B5CF6',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-15',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Winter Vacation',
-      'description': 'Scheduled winter vacation. Campus maintenance and faculty curriculum workshops.',
-      'category': 'Holiday',
-      'start_date': '2026-12-25',
-      'end_date': '2027-01-05',
-      'start_time': null,
-      'end_time': null,
-      'is_all_day': true,
-      'is_holiday': true,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Campus Closed',
-      'color_code': '#F59E0B',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-16',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Class 10 & 12 Pre-Board Examinations',
-      'description': 'Full-syllabus mock board exams adhering to CBSE official blueprints and marking schemes.',
-      'category': 'Examination',
-      'start_date': '2027-01-15',
-      'end_date': '2027-01-28',
-      'start_time': '09:00 AM',
-      'end_time': '12:30 PM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'students',
-      'applicable_classes': ['Class 10-A', 'Class 10-B', 'Class 12-A'],
-      'venue': 'Senior Examination Hall',
-      'color_code': '#8B5CF6',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-17',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Republic Day Celebrations',
-      'description': 'Ceremonial parade, cultural presentations, and felicitation of student achievers.',
-      'category': 'Co-Curricular',
-      'start_date': '2027-01-26',
-      'end_date': '2027-01-26',
-      'start_time': '08:00 AM',
-      'end_time': '11:00 AM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'all',
-      'applicable_classes': ['All'],
-      'venue': 'Campus Grounds',
-      'color_code': '#3B82F6',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-18',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Annual Final Examinations 2026-27',
-      'description': 'Final academic examinations for promotion to subsequent class cohorts.',
-      'category': 'Examination',
-      'start_date': '2027-02-15',
-      'end_date': '2027-03-10',
-      'start_time': '08:30 AM',
-      'end_time': '12:00 PM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'students',
-      'applicable_classes': ['All'],
-      'venue': 'Designated Examination Blocks',
-      'color_code': '#8B5CF6',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-19',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'Annual PTM & Final Result Declaration',
-      'description': 'Declaration of annual promotion results and distribution of CBSE HPC report cards.',
-      'category': 'PTM',
-      'start_date': '2027-03-20',
-      'end_date': '2027-03-20',
-      'start_time': '08:30 AM',
-      'end_time': '02:00 PM',
-      'is_all_day': false,
-      'is_holiday': false,
-      'target_audience': 'parents',
-      'applicable_classes': ['All'],
-      'venue': 'Classrooms & Auditorium',
-      'color_code': '#EC4899',
-      'is_published': true,
-    },
-    {
-      'id': 'cal-20',
-      'academic_year': '2026-2027',
-      'term': 'Term 2',
-      'title': 'New Session Transition & Faculty Planning',
-      'description': 'Faculty curriculum workshop, book distribution, and new session planning.',
-      'category': 'Administrative',
-      'start_date': '2027-03-25',
-      'end_date': '2027-03-31',
-      'start_time': '09:00 AM',
-      'end_time': '03:00 PM',
-      'is_all_day': true,
-      'is_holiday': false,
-      'target_audience': 'teachers',
-      'applicable_classes': ['All'],
-      'venue': 'Academic Blocks',
-      'color_code': '#10B981',
-      'is_published': true,
-    },
-  ];
-
   /// Get academic events with filtering & resilient fallbacks
   Future<List<Map<String, dynamic>>> getAcademicEvents({
     String academicYear = '2026-2027',
@@ -462,75 +201,45 @@ class SchoolCalendarService {
     String? targetAudience,
     String? term,
   }) async {
-    // 1. Try dedicated table school_academic_calendar
+    await _verifiedCalendarActor();
     if (!SchoolService.isTableMissing('school_academic_calendar')) {
       try {
-        var query = _supabase
-            .from('school_academic_calendar')
-            .select()
-            .eq('academic_year', academicYear);
-
-        if (category != null && category.isNotEmpty && category != 'All') {
-          query = query.eq('category', category);
-        }
+        var query = _supabase.from('school_academic_calendar').select().eq('academic_year', academicYear);
+        if (category != null && category.isNotEmpty && category != 'All') query = query.eq('category', category);
         if (targetAudience != null && targetAudience.isNotEmpty && targetAudience != 'all') {
           query = query.or('target_audience.eq.$targetAudience,target_audience.eq.all');
         }
-        if (term != null && term.isNotEmpty && term != 'All') {
-          query = query.eq('term', term);
-        }
-
+        if (term != null && term.isNotEmpty && term != 'All') query = query.eq('term', term);
         final response = await query.order('start_date', ascending: true);
-        if ((response as List).isNotEmpty) {
-          return List<Map<String, dynamic>>.from(response);
-        }
+        if ((response as List).isNotEmpty) return List<Map<String, dynamic>>.from(response);
       } catch (e) {
         if (e.toString().contains('404') || e.toString().contains('does not exist')) {
           SchoolService.markTableMissing('school_academic_calendar');
+        } else {
+          rethrow;
         }
       }
     }
-
-    // 2. Resilient fallback to school_circulars
     try {
-      final response = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'AcademicCalendarEvent')
-          .order('published_at', ascending: true);
-
+      final response = await _supabase.from('school_circulars').select()
+          .eq('category', 'AcademicCalendarEvent').order('published_at', ascending: true);
       final list = <Map<String, dynamic>>[];
       for (final row in response) {
         try {
-          final content = row['content']?.toString() ?? '{}';
-          final decoded = jsonDecode(content);
-          if (decoded is Map<String, dynamic>) {
-            if (academicYear.isEmpty || decoded['academic_year'] == academicYear) {
-              if (category == null || category == 'All' || decoded['category'] == category) {
-                list.add({
-                  'id': row['id'],
-                  ...decoded,
-                });
-              }
-            }
-          }
+          final decoded = jsonDecode(row['content']?.toString() ?? '{}');
+          if (decoded is! Map<String, dynamic>) continue;
+          if (decoded['academic_year'] != academicYear) continue;
+          if (category != null && category != 'All' && decoded['category'] != category) continue;
+          if (targetAudience != null && targetAudience != 'all' && decoded['target_audience'] != 'all' && decoded['target_audience'] != targetAudience) continue;
+          if (term != null && term != 'All' && decoded['term'] != term) continue;
+          list.add({'id': row['id'], ...decoded});
         } catch (_) {}
       }
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // 3. Fallback to baseline statutory events so calendar is always rich & operational
-    return baselineEvents.where((e) {
-      if (e['academic_year'] != academicYear) return false;
-      if (category != null && category != 'All' && e['category'] != category) return false;
-      if (targetAudience != null && targetAudience != 'all') {
-        if (e['target_audience'] != 'all' && e['target_audience'] != targetAudience) return false;
-      }
-      if (term != null && term != 'All' && e['term'] != term) return false;
-      return true;
-    }).toList();
+      return list;
+    } catch (_) {
+      return [];
+    }
   }
-
   /// Create a new academic calendar event
   Future<bool> createAcademicEvent({
     required String title,
@@ -550,6 +259,7 @@ class SchoolCalendarService {
     String? createdBy,
     String academicYear = '2026-2027',
   }) async {
+    final (actor, _) = await _verifiedCalendarActor();
     final payload = {
       'academic_year': academicYear,
       'term': term,
@@ -567,7 +277,7 @@ class SchoolCalendarService {
       'venue': venue,
       'color_code': colorCode ?? _getHexColor(getCategoryColor(category)),
       'is_published': true,
-      'created_by': createdBy ?? 'sadmin1',
+      'created_by': actor,
       'created_at': DateTime.now().toIso8601String(),
     };
 
@@ -593,7 +303,7 @@ class SchoolCalendarService {
         'content': jsonEncode(payload),
         'category': 'AcademicCalendarEvent',
         'target_audience': targetAudience,
-        'published_by': createdBy ?? 'sadmin1',
+        'published_by': actor,
         'published_at': DateTime.now().toIso8601String(),
       });
       saved = true;
@@ -607,15 +317,29 @@ class SchoolCalendarService {
     required String eventId,
     required Map<String, dynamic> updates,
   }) async {
+    final (actor, role) = await _verifiedCalendarActor();
+    final existing = await _supabase.from('school_academic_calendar').select('category').eq('id', eventId).maybeSingle();
+    if (existing == null) throw Exception('Calendar event not found.');
+    if (role == 'principal' && (existing['category'] == 'Holiday' || updates['category'] == 'Holiday')) {
+      throw Exception('A principal cannot edit a Holiday calendar entry without an sadmin co-confirmation flow.');
+    }
+    final auditedUpdates = {...updates};
     try {
       if (!SchoolService.isTableMissing('school_academic_calendar')) {
         await _supabase
             .from('school_academic_calendar')
             .update({
-              ...updates,
+              ...auditedUpdates,
               'updated_at': DateTime.now().toIso8601String(),
             })
             .eq('id', eventId);
+        await _supabase.from('school_audit_log').insert({
+          'actor_username': actor,
+          'action': 'update_academic_calendar_event',
+          'entity_type': 'school_academic_calendar',
+          'entity_id': eventId,
+          'new_value': auditedUpdates,
+        });
         return true;
       }
     } catch (_) {}
@@ -623,7 +347,7 @@ class SchoolCalendarService {
     try {
       await _supabase
           .from('school_circulars')
-          .update({'content': jsonEncode(updates)})
+          .update({'content': jsonEncode(auditedUpdates)})
           .eq('id', eventId);
       return true;
     } catch (_) {
@@ -633,6 +357,20 @@ class SchoolCalendarService {
 
   /// Delete an event from academic calendar
   Future<bool> deleteAcademicEvent(String eventId) async {
+    final (actor, role) = await _verifiedCalendarActor();
+    final existing = await _supabase.from('school_academic_calendar').select('category,title').eq('id', eventId).maybeSingle();
+    if (existing == null) throw Exception('Calendar event not found.');
+    if (role == 'principal' && existing['category'] == 'Holiday') {
+      throw Exception('A principal cannot delete a Holiday calendar entry without an sadmin co-confirmation flow.');
+    }
+    await _supabase.from('school_audit_log').insert({
+      'actor_username': actor,
+      'action': 'delete_academic_calendar_event',
+      'entity_type': 'school_academic_calendar',
+      'entity_id': eventId,
+      'details': 'Deleted ${existing['title']}',
+      'created_at': DateTime.now().toIso8601String(),
+    });
     try {
       if (!SchoolService.isTableMissing('school_academic_calendar')) {
         await _supabase

@@ -3,6 +3,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
 import '../../../services/school_calendar_service.dart';
 import '../../../services/school_export_service.dart';
+import 'calendar_components.dart';
 
 class SchoolAcademicCalendarScreen extends StatefulWidget {
   const SchoolAcademicCalendarScreen({super.key});
@@ -19,16 +20,20 @@ class _SchoolAcademicCalendarScreenState
 
   late TabController _tabController;
   bool _isLoading = true;
-  String _selectedYear = '2026-2027';
+  String? _loadError;
+  late String _selectedYear;
   String _selectedCategory = 'All';
   String _selectedAudience = 'all';
-  String _instituteName = 'School of Excellence';
+  String _instituteName = '';
+  String _role = '';
+  List<Map<String, dynamic>> _children = [];
+  String? _selectedChildUsername;
 
   List<Map<String, dynamic>> _events = [];
   Map<String, dynamic> _metrics = {};
 
   // Month grid navigation state
-  DateTime _focusedMonth = DateTime(2026, 4, 1);
+  late DateTime _focusedMonth;
   DateTime? _selectedDay;
 
   bool _canManage = false;
@@ -36,9 +41,12 @@ class _SchoolAcademicCalendarScreenState
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _selectedYear = now.month >= 4 ? '${now.year}-${now.year + 1}' : '${now.year - 1}-${now.year}';
+    _focusedMonth = DateTime(now.year, now.month, 1);
+    _selectedDay = DateTime(now.year, now.month, now.day);
     _tabController = TabController(length: 4, vsync: this);
-    _checkPermissions();
-    _loadCalendarData();
+    _checkPermissions().then((_) => _loadCalendarData());
   }
 
   @override
@@ -48,28 +56,39 @@ class _SchoolAcademicCalendarScreenState
   }
 
   Future<void> _checkPermissions() async {
-    final rawRole = await AuthService().getCurrentUserRole();
-    final role = (rawRole ?? '').toLowerCase();
+    final username = await AuthService().getCurrentUsername() ?? '';
+    final role = username.isEmpty ? '' : (await AuthService().getLiveUserRole(username) ?? '').toLowerCase();
+    final normalizedRole = role == 'sadmin' ? 'admin' : role;
+    List<Map<String, dynamic>> children = [];
+    if (normalizedRole == 'parent' && username.isNotEmpty) {
+      children = await SchoolService().getParentChildren(username);
+    }
+    if (!mounted) return;
     setState(() {
-      _canManage = role == 'admin' ||
-          role == 'sadmin' ||
-          role == 'principal' ||
-          role == 'superadmin';
+      _role = normalizedRole;
+      _canManage = {'admin', 'principal', 'superadmin'}.contains(normalizedRole);
+      _children = children;
+      if (children.isNotEmpty) {
+        _selectedChildUsername = children.first['username']?.toString() ?? children.first['id']?.toString();
+      }
     });
   }
-
   Future<void> _loadCalendarData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     try {
       final name = await SchoolService().getSchoolInstituteName();
       if (name != null && name.isNotEmpty) {
         _instituteName = name;
       }
 
-      final events = await _calendarService.getAcademicEvents(
+      final events = await _calendarService.getEventsForScope(
         academicYear: _selectedYear,
         category: _selectedCategory,
-        targetAudience: _selectedAudience,
+        targetAudience: _canManage ? _selectedAudience : null,
+        studentUsername: _selectedChildUsername,
       );
 
       final metrics = _calendarService.calculateMetrics(events);
@@ -83,12 +102,16 @@ class _SchoolAcademicCalendarScreenState
             _selectedDay =
                 DateTime.parse(events.first['start_date'].toString());
           } catch (_) {
-            _selectedDay = DateTime(2026, 4, 1);
+            _selectedDay = DateTime.now();
           }
         }
       });
     } catch (_) {
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadError = 'Calendar could not be loaded. Check your connection and retry.';
+      });
     }
   }
 
@@ -100,8 +123,24 @@ class _SchoolAcademicCalendarScreenState
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFF0F766E)))
-          : Column(
+          : _loadError != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_loadError!),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _loadCalendarData,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
               children: [
+                if (_role == 'parent') _buildChildPicker(),
                 _buildMetricsRibbon(),
                 _buildFilterChipsBar(),
                 _buildTabBar(),
@@ -185,12 +224,7 @@ class _SchoolAcademicCalendarScreenState
             icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
             style: const TextStyle(
                 color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-            items: const [
-              DropdownMenuItem(
-                  value: '2026-2027', child: Text('2026-2027 (Active)')),
-              DropdownMenuItem(
-                  value: '2025-2026', child: Text('2025-2026 (Archived)')),
-            ],
+            items: [_selectedYear, _previousAcademicYear].toSet().map((year) => DropdownMenuItem(value: year, child: Text(year == _selectedYear ? '$year (Active)' : '$year (Archived)'))).toList(),
             onChanged: (val) {
               if (val != null) {
                 setState(() => _selectedYear = val);
@@ -249,9 +283,33 @@ class _SchoolAcademicCalendarScreenState
     );
   }
 
+  String get _previousAcademicYear {
+    final startYear = int.tryParse(_selectedYear.split('-').first) ?? DateTime.now().year;
+    return '${startYear - 1}-${startYear}';
+  }
+
+  Widget _buildChildPicker() {
+    if (_children.isEmpty) return const ListTile(title: Text('No linked students found.'));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: DropdownButtonFormField<String>(
+        initialValue: _selectedChildUsername,
+        decoration: const InputDecoration(labelText: 'Calendar for child', border: OutlineInputBorder()),
+        items: _children.map((child) {
+          final username = child['username']?.toString() ?? child['id']?.toString() ?? '';
+          final name = child['name']?.toString() ?? child['student_name']?.toString() ?? username;
+          return DropdownMenuItem(value: username, child: Text(name));
+        }).where((item) => item.value?.isNotEmpty == true).toList(),
+        onChanged: (value) {
+          setState(() => _selectedChildUsername = value);
+          _loadCalendarData();
+        },
+      ),
+    );
+  }
   Widget _buildMetricsRibbon() {
     final total = _metrics['total_events'] ?? _events.length;
-    final workingDays = _metrics['working_instructional_days'] ?? 215;
+    final workingDays = _metrics['working_instructional_days'] ?? '—';
     final exams = _metrics['examinations'] ?? 0;
     final holidays = _metrics['holidays'] ?? 0;
     final upcoming = _metrics['upcoming_next_30_days'] ?? 0;
@@ -387,7 +445,7 @@ class _SchoolAcademicCalendarScreenState
             const SizedBox(width: 12),
             Container(width: 1, height: 24, color: Colors.grey.shade300),
             const SizedBox(width: 12),
-            ...SchoolCalendarService.audiences.map((aud) {
+            if (_canManage) ...SchoolCalendarService.audiences.map((aud) {
               final isSelected = _selectedAudience == aud;
               return Padding(
                 padding: const EdgeInsets.only(right: 6),
@@ -511,8 +569,9 @@ class _SchoolAcademicCalendarScreenState
                       ),
                       onPressed: () {
                         setState(() {
-                          _focusedMonth = DateTime(2026, 4, 1);
-                          _selectedDay = DateTime(2026, 4, 1);
+                          final now = DateTime.now();
+                          _focusedMonth = DateTime(now.year, now.month, 1);
+                          _selectedDay = now;
                         });
                       },
                       child: const Text('Session Start',
@@ -688,54 +747,12 @@ class _SchoolAcademicCalendarScreenState
 
           // Selected Day Event Detail Card
           if (_selectedDay != null) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.event_available,
-                              color: Color(0xFF0F766E), size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Events for ${_selectedDay!.day} ${_getMonthName(_selectedDay!.month)} ${_selectedDay!.year}',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '${selectedDayEvents.length} scheduled',
-                        style:
-                            const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 20),
-                  if (selectedDayEvents.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Center(
-                        child: Text(
-                          'No special events or exams scheduled for this date. Regular academic day.',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                      ),
-                    )
-                  else
-                    ...selectedDayEvents.map((e) => _buildEventCard(e)),
-                ],
-              ),
+            EventDaySheet(
+              title: 'Events for ${_selectedDay!.day} ${_getMonthName(_selectedDay!.month)} ${_selectedDay!.year}',
+              count: selectedDayEvents.length,
+              children: selectedDayEvents.isEmpty
+                  ? [const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Center(child: Text('No special events or exams scheduled for this date.', style: TextStyle(color: Colors.grey, fontSize: 13))))]
+                  : selectedDayEvents.map((e) => _buildEventCard(e)).toList(),
             ),
           ],
         ],
@@ -955,8 +972,7 @@ class _SchoolAcademicCalendarScreenState
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.beach_access,
-                          color: Colors.red, size: 20),
+                      const Icon(Icons.beach_access, color: Colors.red, size: 20),
                       Text(
                         '$dayCount d',
                         style: const TextStyle(
@@ -1172,12 +1188,12 @@ class _SchoolAcademicCalendarScreenState
   void _showAddEventDialog() {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
-    final venueCtrl = TextEditingController(text: 'Main Campus');
+    final venueCtrl = TextEditingController();
     String category = 'Academic';
     String term = 'Term 1';
     String audience = 'all';
-    DateTime startDate = DateTime(2026, 4, 15);
-    DateTime endDate = DateTime(2026, 4, 15);
+    DateTime startDate = DateTime.now();
+    DateTime endDate = DateTime.now();
     bool isAllDay = true;
     bool isHoliday = false;
 

@@ -138,6 +138,8 @@ import '../features/school/ai/faculty_ai_screen.dart';
 import '../features/school/ai/student_ai_screen.dart';
 import '../features/school/notifications/notifications_screen.dart';
 import '../features/school/calendar/school_academic_calendar_screen.dart';
+import '../features/school/calendar/admin_calendar_screen.dart';
+import '../features/school/calendar/student_calendar_screen.dart';
 import '../features/school/admin/school_masters_screen.dart';
 import '../services/auth_service.dart';
 
@@ -270,7 +272,10 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/ai-tools-faculty': _schoolStaffRoles,
   '/school/ai-student': {'student', 'sstudent'},
   '/school/calendar-admin': _schoolAdminRoles,
-  '/school/calendar-student': _allSchoolRoles,
+  '/school/calendar-student': {
+    'student', 'sstudent', 'parent', 'sparent', 'teacher', 'steacher', 'class_teacher',
+    'librarian', 'warden', 'nurse', 'accountant'
+  },
   '/school/circulars-staff': _schoolStaffRoles,
   '/school/circulars-student': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/notifications': _allSchoolRoles,
@@ -667,10 +672,10 @@ final router = GoRouter(
         builder: (context, state) => const StudentAiScreen()),
     GoRoute(
         path: '/school/calendar-admin',
-        builder: (context, state) => const SchoolAcademicCalendarScreen()),
+        builder: (context, state) => const AdminCalendarScreen()),
     GoRoute(
         path: '/school/calendar-student',
-        builder: (context, state) => const SchoolAcademicCalendarScreen()),
+        builder: (context, state) => const StudentCalendarScreen()),
     GoRoute(
         path: '/school/circulars-staff',
         builder: (context, state) => const CircularsScreen()),
