@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../services/school_discipline_service.dart';
 import '../../../services/school_export_service.dart';
+import '../../../services/auth_service.dart';
 
 class SchoolDisciplineScreen extends StatefulWidget {
   const SchoolDisciplineScreen({super.key});
@@ -15,6 +16,7 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
   late TabController _tabController;
 
   bool _isLoading = true;
+  String _role = '';
   String? _errorMessage;
 
   List<Map<String, dynamic>> _incidents = [];
@@ -50,6 +52,8 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
     });
 
     try {
+      final username = await AuthService().getCurrentUsername() ?? '';
+      _role = (await AuthService().getLiveUserRole(username) ?? '').toLowerCase();
       final incidents = await _disciplineService.getIncidents(
         category: _selectedCategory,
         severity: _selectedSeverity,
@@ -102,12 +106,14 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
           ),
         ),
         actions: [
-          IconButton(
+          if (_isLeadership)
+            IconButton(
             tooltip: 'Export Excel (SP-R09)',
             icon: const Icon(Icons.file_download_outlined, color: Colors.white),
             onPressed: _exportExcel,
           ),
-          IconButton(
+          if (_canReport)
+            IconButton(
             tooltip: 'Report Incident',
             icon: const Icon(Icons.add_alert_outlined, color: Colors.white),
             onPressed: _showReportIncidentModal,
@@ -135,6 +141,9 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
       body: _buildBody(ink),
     );
   }
+
+  bool get _isLeadership => {'admin', 'sadmin', 'principal', 'superadmin'}.contains(_role);
+  bool get _canReport => _isLeadership || {'teacher', 'steacher', 'class_teacher', 'warden'}.contains(_role);
 
   Widget _buildBody(Color ink) {
     if (_isLoading) {
@@ -343,7 +352,7 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text('Logged Incident Cases', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-            ElevatedButton.icon(
+            if (_canReport) ElevatedButton.icon(
               onPressed: _showReportIncidentModal,
               icon: const Icon(Icons.add, size: 14),
               label: const Text('Log Incident'),
@@ -363,14 +372,13 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
   }
 
   Widget _buildIncidentCategoryChart() {
-    final catCounts = <String, int>{
-      'Late': 1,
-      'Disruption': 1,
-      'Misconduct': 1,
-      'Property': 0,
-      'Academic': 0,
-    };
+    final catCounts = <String, int>{};
+    for (final incident in _incidents) {
+      final category = incident['category']?.toString() ?? 'Other';
+      catCounts[category] = (catCounts[category] ?? 0) + 1;
+    }
     final labels = catCounts.keys.toList();
+    final maxCount = catCounts.values.fold<int>(0, (max, count) => count > max ? count : max);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -395,7 +403,7 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 5,
+                maxY: (maxCount + 1).toDouble(),
                 barTouchData: BarTouchData(enabled: true),
                 titlesData: FlTitlesData(
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -542,7 +550,7 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (status != 'Resolved') ...[
+              if (status != 'Resolved' && _role != 'warden') ...[
                 OutlinedButton.icon(
                   onPressed: () => _showRecordInquiryModal(inc),
                   icon: const Icon(Icons.find_in_page_outlined, size: 12),
@@ -553,7 +561,8 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
                   ),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton.icon(
+                if (_isLeadership)
+                  ElevatedButton.icon(
                   onPressed: () => _showTakeActionModal(inc),
                   icon: const Icon(Icons.gavel_outlined, size: 12),
                   label: const Text('Take Action', style: TextStyle(fontSize: 11)),
@@ -643,9 +652,8 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
   // ==========================================
 
   void _showReportIncidentModal() {
-    final nameCtrl = TextEditingController(text: 'Aarav Sharma');
-    final classCtrl = TextEditingController(text: '10-A');
-    final roomCtrl = TextEditingController(text: 'Classroom 102');
+    final studentIdCtrl = TextEditingController();
+    final roomCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     String category = 'Classroom Disruption';
     String severity = 'Medium';
@@ -668,22 +676,9 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
             children: [
               const Text('Report Disciplinary Incident', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(labelText: 'Student Name *', border: OutlineInputBorder()),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: classCtrl,
-                      decoration: const InputDecoration(labelText: 'Class & Section', border: OutlineInputBorder()),
-                    ),
-                  ),
-                ],
+              TextField(
+                controller: studentIdCtrl,
+                decoration: const InputDecoration(labelText: 'Student ID or username *', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 10),
               Row(
@@ -733,17 +728,20 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: () async {
-                    if (nameCtrl.text.trim().isEmpty || descCtrl.text.trim().isEmpty) return;
+                    if (studentIdCtrl.text.trim().isEmpty || descCtrl.text.trim().isEmpty) return;
                     Navigator.pop(ctx);
-                    await _disciplineService.reportIncident({
-                      'student_name': nameCtrl.text.trim(),
-                      'class_section': classCtrl.text.trim(),
-                      'location': roomCtrl.text.trim(),
-                      'category': category,
-                      'severity': severity,
-                      'description': descCtrl.text.trim(),
-                    });
-                    _loadData();
+                    try {
+                      await _disciplineService.reportIncident({
+                        'student_id': studentIdCtrl.text.trim(),
+                        'location': roomCtrl.text.trim(),
+                        'category': category,
+                        'severity': severity,
+                        'description': descCtrl.text.trim(),
+                      });
+                      _loadData();
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Incident was not saved: $e')));
+                    }
                   },
                   child: const Text('File Incident Report'),
                 ),
@@ -756,8 +754,9 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
   }
 
   void _showRecordInquiryModal(Map<String, dynamic> inc) {
-    final findingsCtrl = TextEditingController(text: 'Interrogated witnesses; student admitted responsibility and showed remorse.');
-    final studentStmtCtrl = TextEditingController(text: 'I acknowledge the disruption and will not repeat this behavior.');
+    final findingsCtrl = TextEditingController();
+    final studentStmtCtrl = TextEditingController();
+    final teacherStmtCtrl = TextEditingController();
 
     showModalBottomSheet(
       context: context,
@@ -783,6 +782,12 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
             ),
             const SizedBox(height: 10),
             TextField(
+              controller: teacherStmtCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Teacher Statement *', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            TextField(
               controller: findingsCtrl,
               maxLines: 2,
               decoration: const InputDecoration(labelText: 'Investigation Findings *', border: OutlineInputBorder()),
@@ -798,11 +803,13 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: () async {
+                  if (findingsCtrl.text.trim().isEmpty || studentStmtCtrl.text.trim().isEmpty || teacherStmtCtrl.text.trim().isEmpty) return;
                   Navigator.pop(ctx);
                   await _disciplineService.recordInquiry(
                     incidentId: inc['id']?.toString() ?? 'inc',
                     findings: findingsCtrl.text.trim(),
                     studentStatement: studentStmtCtrl.text.trim(),
+                    teacherStatement: teacherStmtCtrl.text.trim(),
                   );
                   _loadData();
                 },
@@ -816,9 +823,9 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
   }
 
   void _showTakeActionModal(Map<String, dynamic> inc) {
-    final notesCtrl = TextEditingController(text: 'Formal parent conference conducted with class teacher and student counselor.');
+    final notesCtrl = TextEditingController();
     String actionType = 'Parent Conference';
-    bool notifyParent = true;
+    bool notifyParent = _isLeadership;
 
     showModalBottomSheet(
       context: context,
@@ -875,10 +882,11 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: () async {
+                    if (notesCtrl.text.trim().isEmpty) return;
                     Navigator.pop(ctx);
                     await _disciplineService.recordDisciplinaryAction(
                       incidentId: inc['id']?.toString() ?? 'inc',
-                      studentId: inc['student_id']?.toString() ?? 'sstudent1',
+                      studentId: inc['student_id']?.toString() ?? '',
                       studentName: inc['student_name']?.toString() ?? 'Student',
                       actionType: actionType,
                       actionNotes: notesCtrl.text.trim(),
@@ -886,7 +894,7 @@ class _SchoolDisciplineScreenState extends State<SchoolDisciplineScreen> with Si
                     if (notifyParent) {
                       await _disciplineService.sendDisciplineParentNotice(
                         incidentId: inc['id']?.toString() ?? 'inc',
-                        studentId: inc['student_id']?.toString() ?? 'sstudent1',
+                        studentId: inc['student_id']?.toString() ?? '',
                         noticeTitle: 'Discipline Notice: $actionType for ${inc['student_name']}',
                         noticeBody: notesCtrl.text.trim(),
                         scheduledMeetingDate: DateTime.now().add(const Duration(days: 3)),

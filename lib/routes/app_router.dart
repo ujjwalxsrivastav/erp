@@ -128,6 +128,8 @@ import '../features/school/alumni/school_alumni_screen.dart';
 import '../features/school/inventory/school_inventory_screen.dart';
 import '../features/school/activities/school_activities_screen.dart';
 import '../features/school/discipline/school_discipline_screen.dart';
+import '../features/school/discipline/staff_discipline_screen.dart';
+import '../features/school/discipline/student_discipline_screen.dart';
 import '../features/school/admin/school_multi_admin_screen.dart';
 import '../features/school/library/school_library_deep_screen.dart';
 import '../features/school/admin/school_permission_matrix_screen.dart';
@@ -262,7 +264,7 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/timetable-student': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/leave-student': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/leave-approvals': {'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'},
-  '/school/discipline-staff': _schoolStaffRoles,
+  '/school/discipline-staff': {..._schoolStaffRoles, 'warden'},
   '/school/discipline-notices': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/ai-tools-faculty': _schoolStaffRoles,
   '/school/ai-student': {'student', 'sstudent'},
@@ -388,7 +390,7 @@ final router = GoRouter(
           case '/school/leave':
             return isStaff ? '/school/leave-approvals' : null;
           case '/school/discipline':
-            return isStaff
+            return (isStaff || normalizedRole == 'warden')
                 ? '/school/discipline-staff'
                 : (isLearner ? '/school/discipline-notices' : null);
           case '/school/ai-tools':
@@ -645,10 +647,10 @@ final router = GoRouter(
         builder: (context, state) => const StudentLeaveScreen(approvalsOnly: true)),
     GoRoute(
         path: '/school/discipline-staff',
-        builder: (context, state) => const SchoolDisciplineScreen()),
+        builder: (context, state) => const StaffDisciplineScreen()),
     GoRoute(
         path: '/school/discipline-notices',
-        builder: (context, state) => const SchoolDisciplineScreen()),
+        builder: (context, state) => const StudentDisciplineScreen()),
     GoRoute(
         path: '/school/ai-tools-faculty',
         builder: (context, state) => const SchoolAiAssistantScreen()),
