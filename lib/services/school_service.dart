@@ -2272,14 +2272,29 @@ class SchoolService {
     try {
       final response = await _supabase
           .from('school_timetable')
-          .select('class_id, class_name, subject')
+          .select('class_id, subject')
           .eq('teacher_username', username);
       final list = List<Map<String, dynamic>>.from(response);
       if (list.isNotEmpty) {
+        final allClasses = await getSchoolClasses();
+        final classMap = {
+          for (final c in allClasses)
+            c['id']?.toString() ?? '': c['name']?.toString() ?? ''
+        };
+
         final seen = <dynamic>{};
         final unique = <Map<String, dynamic>>[];
         for (final row in list) {
-          if (seen.add(row['class_id'])) unique.add(row);
+          final cid = row['class_id']?.toString() ?? '';
+          if (cid.isNotEmpty && seen.add(cid)) {
+            final cName = classMap[cid] ?? cid;
+            unique.add({
+              'class_id': cid,
+              'class_name': cName,
+              'name': cName,
+              'subject': row['subject'],
+            });
+          }
         }
         return unique;
       }

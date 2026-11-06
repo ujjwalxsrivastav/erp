@@ -628,6 +628,9 @@ GRANT ALL ON public.school_staff_leaves TO anon, authenticated, service_role;
 ALTER TABLE IF EXISTS public.school_student_goals DROP CONSTRAINT IF EXISTS uq_school_student_goal;
 ALTER TABLE IF EXISTS public.school_student_goals ADD CONSTRAINT uq_school_student_goal UNIQUE (student_id, subject);
 
+-- Ensure school_timetable has class_name column if queried directly
+ALTER TABLE IF EXISTS public.school_timetable ADD COLUMN IF NOT EXISTS class_name TEXT;
+
 SELECT 'School ERP runtime tables successfully created and verified!' AS status;
 
 

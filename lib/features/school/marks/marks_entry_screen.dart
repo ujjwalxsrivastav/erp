@@ -79,6 +79,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   String? _errorMessage;
   String _searchQuery = '';
 
+  // Dedicated scroll controllers per tab (prevents ScrollController multi-attach assertion on Flutter Web)
+  final ScrollController _scholasticScrollController = ScrollController();
+  final ScrollController _coScholasticScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -541,6 +545,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
   @override
   void dispose() {
+    _scholasticScrollController.dispose();
+    _coScholasticScrollController.dispose();
     for (final c in _marksControllers.values) {
       c.dispose();
     }
@@ -1055,6 +1061,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     }
 
     return ListView.builder(
+      controller: _scholasticScrollController,
+      primary: false,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       itemCount: list.length,
       itemBuilder: (context, index) {
@@ -1373,6 +1381,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   // ──────────────────────────────────────────────
   Widget _buildCoScholasticTab() {
     return ListView(
+      controller: _coScholasticScrollController,
+      primary: false,
       padding: const EdgeInsets.all(16),
       children: [
         // Guidance Banner
@@ -1684,6 +1694,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   // ──────────────────────────────────────────────
   Widget _buildLoadingSkeleton() {
     return ListView.builder(
+      primary: false,
       padding: const EdgeInsets.all(16),
       itemCount: 8,
       itemBuilder: (ctx, i) => Container(
