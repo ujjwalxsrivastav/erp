@@ -631,6 +631,27 @@ ALTER TABLE IF EXISTS public.school_student_goals ADD CONSTRAINT uq_school_stude
 -- Ensure school_timetable has class_name column if queried directly
 ALTER TABLE IF EXISTS public.school_timetable ADD COLUMN IF NOT EXISTS class_name TEXT;
 
+-- Ensure school_exams table exists for any direct exam queries
+CREATE TABLE IF NOT EXISTS public.school_exams (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_code TEXT,
+    class_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    exam_name TEXT,
+    exam_date DATE NOT NULL,
+    start_time TEXT,
+    end_time TEXT,
+    duration TEXT DEFAULT '2.5 Hours',
+    max_marks INT DEFAULT 80,
+    passing_marks INT DEFAULT 27,
+    room_no TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_school_exams_class_date ON public.school_exams (class_id, exam_date);
+ALTER TABLE IF EXISTS public.school_exams DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_exams TO anon, authenticated, service_role;
+
 SELECT 'School ERP runtime tables successfully created and verified!' AS status;
 
 
