@@ -597,6 +597,37 @@ CREATE TABLE IF NOT EXISTS public.school_discipline_parent_notices (
 ALTER TABLE IF EXISTS public.school_discipline_parent_notices DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.school_discipline_parent_notices TO anon, authenticated, service_role;
 
+-- 14. Faculty Leaves Table (D16)
+CREATE TABLE IF NOT EXISTS public.school_staff_leaves (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id      TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    teacher_username  TEXT NOT NULL,
+    teacher_name      TEXT NOT NULL,
+    leave_type        TEXT NOT NULL DEFAULT 'Casual Leave',
+    start_date        DATE NOT NULL,
+    end_date          DATE NOT NULL,
+    total_days        INTEGER NOT NULL DEFAULT 1,
+    reason            TEXT NOT NULL,
+    status            TEXT NOT NULL DEFAULT 'Pending'
+                      CHECK (status IN ('Pending', 'Approved', 'Rejected', 'Cancelled')),
+    reviewed_by       TEXT,
+    reviewer_name     TEXT,
+    review_remarks    TEXT,
+    reviewed_at       TIMESTAMPTZ,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_school_staff_leaves_teacher ON public.school_staff_leaves (teacher_username);
+CREATE INDEX IF NOT EXISTS idx_school_staff_leaves_status ON public.school_staff_leaves (status);
+
+ALTER TABLE IF EXISTS public.school_staff_leaves DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_staff_leaves TO anon, authenticated, service_role;
+
+-- Ensure unique constraint on student goals for upsert support (D19)
+ALTER TABLE IF EXISTS public.school_student_goals DROP CONSTRAINT IF EXISTS uq_school_student_goal;
+ALTER TABLE IF EXISTS public.school_student_goals ADD CONSTRAINT uq_school_student_goal UNIQUE (student_id, subject);
+
 SELECT 'School ERP runtime tables successfully created and verified!' AS status;
 
 

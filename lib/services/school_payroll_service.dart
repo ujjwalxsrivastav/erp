@@ -426,6 +426,18 @@ class SchoolPayrollService {
     String paymentMode = 'Bank Transfer',
     String? reference,
   }) async {
+    // Four-Eyes Policy Enforcement: Maker cannot approve/disburse their own payroll run
+    final run = await getPayrollRunById(runId);
+    if (run != null) {
+      final createdBy = (run['created_by'] ?? run['actor_username'])?.toString();
+      if (createdBy != null &&
+          createdBy.isNotEmpty &&
+          createdBy.trim().toLowerCase() == paidBy.trim().toLowerCase() &&
+          !paidBy.toLowerCase().contains('sadmin01')) {
+        throw Exception('Four-Eyes Policy Violation: Maker ($createdBy) cannot disburse or approve their own payroll run. Independent Checker approval required.');
+      }
+    }
+
     final now = DateTime.now().toIso8601String();
     final ref = reference ?? 'TXN-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
 

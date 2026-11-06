@@ -713,7 +713,7 @@ class SchoolService {
     }
   }
 
-  /// 11. Faculty Leave Desk (N6)
+  /// 11. Faculty Leave Desk (N6 & D16)
   Future<bool> applyTeacherLeave({
     required String teacherUsername,
     required String teacherName,
@@ -722,6 +722,30 @@ class SchoolService {
     required String endDate,
     required String reason,
   }) async {
+    final payload = {
+      'teacher_username': teacherUsername,
+      'teacher_name': teacherName,
+      'leave_type': leaveType,
+      'start_date': startDate,
+      'end_date': endDate,
+      'total_days': _leaveDayCount(startDate, endDate),
+      'reason': reason,
+      'status': 'Pending',
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    if (!_missingTables.contains('school_staff_leaves')) {
+      try {
+        await _supabase.from('school_staff_leaves').insert(payload);
+        return true;
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_staff_leaves');
+        }
+      }
+    }
+
     try {
       final content = 'TEACHER_LEAVE_APPLICATION | TeacherUsername: $teacherUsername | TeacherName: $teacherName | '
           'StartDate: $startDate | EndDate: $endDate | Type: $leaveType | Reason: $reason | Status: Pending';
@@ -741,6 +765,22 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getTeacherLeaves(String teacherUsername) async {
+    if (!_missingTables.contains('school_staff_leaves')) {
+      try {
+        var query = _supabase.from('school_staff_leaves').select();
+        if (teacherUsername.isNotEmpty) {
+          query = query.eq('teacher_username', teacherUsername);
+        }
+        final res = await query.order('created_at', ascending: false);
+        final list = List<Map<String, dynamic>>.from(res as List);
+        if (list.isNotEmpty) return list;
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_staff_leaves');
+        }
+      }
+    }
+
     try {
       final response = await _supabase
           .from('school_circulars')
@@ -787,6 +827,36 @@ class SchoolService {
     required String reviewedBy,
     String? remarks,
   }) async {
+    final now = DateTime.now().toIso8601String();
+    final normalised = (status.toLowerCase() == 'approved') ? 'Approved' : 'Rejected';
+
+    if (!_missingTables.contains('school_staff_leaves')) {
+      try {
+        final res = await _supabase.from('school_staff_leaves').update({
+          'status': normalised,
+          'reviewed_by': reviewedBy,
+          'reviewer_name': reviewedBy,
+          'review_remarks': remarks ?? '',
+          'reviewed_at': now,
+          'updated_at': now,
+        }).eq('id', circularId).select();
+        if ((res as List).isNotEmpty) {
+          await logAuditEvent(
+            actorUsername: reviewedBy,
+            action: 'Faculty Leave $normalised',
+            entityType: 'TeacherLeave',
+            entityId: circularId,
+            details: remarks,
+          );
+          return true;
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_staff_leaves');
+        }
+      }
+    }
+
     try {
       final row = await _supabase.from('school_circulars').select().eq('id', circularId).single();
       final content = row['content']?.toString() ?? '';
@@ -3463,10 +3533,19 @@ class SchoolService {
   }
 
   Future<bool> createHomework(Map<String, dynamic> data) async {
+    int totalCount = 0;
+    try {
+      final cid = data['class_id']?.toString() ?? '';
+      if (cid.isNotEmpty) {
+        final students = await getStudentsInClass(cid);
+        totalCount = students.length;
+      }
+    } catch (_) {}
+
     final entry = {
       'id': 'hw-${DateTime.now().millisecondsSinceEpoch}',
       'submission_count': 0,
-      'total_students': 24,
+      'total_students': totalCount > 0 ? totalCount : 30,
       'status': 'pending',
       ...data,
     };
@@ -4205,7 +4284,7 @@ class SchoolService {
       totalObtained += ((m['marks_obtained'] ?? m['obtained'] ?? 0) as num).toInt();
       totalMax += ((m['total_marks'] ?? m['total'] ?? 100) as num).toInt();
     }
-    final pct = totalMax > 0 ? (totalObtained / totalMax) * 100 : 86.5;
+    final pct = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0.0;
     final overallGradeInfo = calculateCbseGrade(pct);
 
     // 5. Co-Scholastic Assessment (3-point scale: A, B, C)
@@ -8297,6 +8376,13 @@ class SchoolService {
           'reviewed_by': reviewedBy,
         });
       }
+      await logAuditEvent(
+        actorUsername: reviewedBy,
+        action: 'Student Leave $normalised',
+        entityType: 'StudentLeave',
+        entityId: leaveId,
+        details: remarks,
+      );
       return true;
     } catch (_) {
       return _reviewLegacyStudentLeave(
@@ -8470,6 +8556,16 @@ class SchoolService {
           'created_at': DateTime.now().toIso8601String(),
         }).select().single();
         bookingId = res['id']?.toString();
+        return {
+          'id': bookingId,
+          'parent': parentUsername,
+          'student': studentName,
+          'teacher': teacherName,
+          'date': date,
+          'time_slot': timeSlot,
+          'agenda': agenda,
+          'status': 'Confirmed',
+        };
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_ptm_bookings');
@@ -8477,7 +8573,7 @@ class SchoolService {
       }
     }
 
-    // 2. Also write to school_circulars for backward compatibility and admin tools
+    // 2. Resilient fallback to school_circulars only if dedicated table is unavailable
     final structured =
         'PTM_SLOT_BOOKING | Parent: $parentUsername | Student: $studentName | '
         'Teacher: $teacherName | Date: $date | Time: $timeSlot | Agenda: $agenda | Status: Confirmed';
@@ -8643,6 +8739,16 @@ class SchoolService {
           'updated_at': DateTime.now().toIso8601String(),
         }).select().single();
         grievanceId = res['id']?.toString();
+        return {
+          'id': grievanceId,
+          'ticket_no': ticketNo,
+          'parent': parentUsername,
+          'student': studentName,
+          'category': category,
+          'subject': subject,
+          'description': description,
+          'status': 'Submitted',
+        };
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_parent_grievances');
@@ -8650,7 +8756,7 @@ class SchoolService {
       }
     }
 
-    // 2. Also write to school_circulars for backward compatibility
+    // 2. Resilient fallback to school_circulars only if table missing
     final structured =
         'PARENT_COMPLAINT | Ticket: $ticketNo | Parent: $parentUsername | Student: $studentName | '
         'Category: $category | Subject: $subject | Description: $description | Status: Open';
@@ -8794,6 +8900,21 @@ class SchoolService {
     required String resolutionNotes,
   }) async {
     try {
+      if (!_missingTables.contains('school_parent_grievances')) {
+        try {
+          await _supabase.from('school_parent_grievances').update({
+            'status': 'resolved',
+            'admin_reply': resolutionNotes,
+            'updated_at': DateTime.now().toIso8601String(),
+          }).eq('id', complaintId);
+          return true;
+        } catch (e) {
+          if (_isTableMissingError(e)) {
+            _missingTables.add('school_parent_grievances');
+          }
+        }
+      }
+
       final row = await _supabase.from('school_circulars').select().eq('id', complaintId).single();
       final content = row['content']?.toString() ?? '';
       final updatedContent = content.replaceAll(
@@ -8879,7 +9000,6 @@ class SchoolService {
 
   /// N4: Get active online quizzes for student class cohort
   Future<List<Map<String, dynamic>>> getOnlineQuizzes({required String classId}) async {
-    // 1. Try school_quizzes table
     if (!_missingTables.contains('school_quizzes')) {
       try {
         final response = await _supabase
@@ -8887,54 +9007,14 @@ class SchoolService {
             .select()
             .eq('class_id', classId)
             .order('created_at', ascending: false);
-        if ((response as List).isNotEmpty) {
-          return List<Map<String, dynamic>>.from(response);
-        }
+        return List<Map<String, dynamic>>.from(response as List);
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_quizzes');
         }
       }
     }
-
-    // 2. Resilient fallback to school_circulars category Quiz
-    try {
-      final response = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'Quiz')
-          .order('published_at', ascending: false);
-
-      final list = <Map<String, dynamic>>[];
-      for (final row in response) {
-        final content = row['content']?.toString() ?? '';
-        try {
-          final decoded = jsonDecode(content);
-          if (decoded is Map<String, dynamic>) {
-            final targetClass = decoded['class_id']?.toString() ?? '';
-            if (targetClass.isEmpty || targetClass == classId || targetClass == 'All') {
-              final rawQuestions = decoded['questions'] as List? ?? [];
-              list.add({
-                'id': row['id'],
-                'class_id': targetClass.isNotEmpty ? targetClass : classId,
-                'class_name': decoded['class_name'] ?? classId,
-                'subject': decoded['subject'] ?? 'General',
-                'title': decoded['title'] ?? row['title'] ?? 'Assessment Quiz',
-                'duration_minutes': decoded['duration_minutes'] ?? 15,
-                'total_questions': rawQuestions.length,
-                'weightage_percent': decoded['weightage_percent'] ?? 10,
-                'questions': rawQuestions,
-                'created_by': decoded['created_by'] ?? row['published_by'] ?? 'Faculty',
-                'created_at': row['published_at'],
-              });
-            }
-          }
-        } catch (_) {}
-      }
-      return list;
-    } catch (_) {
-      return [];
-    }
+    return [];
   }
 
   /// N4: Publish an online practice/assessment quiz
@@ -8961,7 +9041,6 @@ class SchoolService {
       'created_at': DateTime.now().toIso8601String(),
     };
 
-    // 1. Try school_quizzes table
     if (!_missingTables.contains('school_quizzes')) {
       try {
         await _supabase.from('school_quizzes').insert(payload);
@@ -8972,22 +9051,7 @@ class SchoolService {
         }
       }
     }
-
-    // 2. Resilient fallback to school_circulars
-    try {
-      await _supabase.from('school_circulars').insert({
-        'institute_code': 'SHIV-SCH',
-        'title': 'Quiz:  • ',
-        'content': jsonEncode(payload),
-        'category': 'Quiz',
-        'target_audience': 'students',
-        'published_by': createdBy,
-        'published_at': DateTime.now().toIso8601String(),
-      });
-      return true;
-    } catch (_) {
-      return false;
-    }
+    return false;
   }
 
   /// N4: Submit quiz attempt & score
@@ -9011,7 +9075,6 @@ class SchoolService {
       'attempted_at': DateTime.now().toIso8601String(),
     };
 
-    // 1. Try school_quiz_attempts table
     if (!_missingTables.contains('school_quiz_attempts')) {
       try {
         await _supabase.from('school_quiz_attempts').insert(payload);
@@ -9022,39 +9085,11 @@ class SchoolService {
         }
       }
     }
-
-    // 2. Resilient fallback to school_circulars
-    try {
-      final record = {
-        'quiz_id': quizId,
-        'quiz_title': quizTitle ?? 'Assessment Quiz',
-        'subject': subject ?? 'General',
-        'student_username': studentUsername,
-        'student_name': studentName ?? studentUsername,
-        'score': score,
-        'total': total,
-        'percentage': total > 0 ? (score / total) * 100 : 0.0,
-        'answers': answers,
-        'attempted_at': DateTime.now().toIso8601String(),
-      };
-      await _supabase.from('school_circulars').insert({
-        'institute_code': 'SHIV-SCH',
-        'title': 'QUIZ_ATTEMPT:  ()',
-        'content': jsonEncode(record),
-        'category': 'QuizAttempt',
-        'target_audience': 'students',
-        'published_by': studentUsername,
-        'published_at': DateTime.now().toIso8601String(),
-      });
-      return true;
-    } catch (_) {
-      return false;
-    }
+    return false;
   }
 
   /// N4: Get past quiz attempts for a student
   Future<List<Map<String, dynamic>>> getStudentQuizAttempts({required String studentUsername}) async {
-    // 1. Try school_quiz_attempts table
     if (!_missingTables.contains('school_quiz_attempts')) {
       try {
         final response = await _supabase
@@ -9062,52 +9097,14 @@ class SchoolService {
             .select()
             .eq('student_id', studentUsername)
             .order('attempted_at', ascending: false);
-        if ((response as List).isNotEmpty) {
-          return List<Map<String, dynamic>>.from(response);
-        }
+        return List<Map<String, dynamic>>.from(response as List);
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_quiz_attempts');
         }
       }
     }
-
-    // 2. Resilient fallback from school_circulars category QuizAttempt
-    try {
-      final response = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'QuizAttempt')
-          .eq('published_by', studentUsername)
-          .order('published_at', ascending: false);
-
-      final list = <Map<String, dynamic>>[];
-      for (final row in response) {
-        try {
-          final content = row['content']?.toString() ?? '{}';
-          final decoded = jsonDecode(content);
-          if (decoded is Map<String, dynamic>) {
-            final score = (decoded['score'] as num?)?.toDouble() ?? 0.0;
-            final total = (decoded['total'] as num?)?.toDouble() ?? 10.0;
-            final pct = total > 0 ? (score / total) * 100 : 0.0;
-            list.add({
-              'id': row['id'],
-              'quiz_id': decoded['quiz_id']?.toString() ?? '',
-              'quiz_title': decoded['quiz_title'] ?? 'Assessment Quiz',
-              'subject': decoded['subject'] ?? 'General',
-              'student_id': decoded['student_username'] ?? studentUsername,
-              'score': score,
-              'total': total,
-              'percentage': pct,
-              'attempted_at': decoded['attempted_at'] ?? row['published_at'],
-            });
-          }
-        } catch (_) {}
-      }
-      return list;
-    } catch (_) {
-      return [];
-    }
+    return [];
   }
 
   // ===== N6: STUDENT TARGET GOALS =====
@@ -9120,42 +9117,14 @@ class SchoolService {
             .select()
             .eq('student_id', studentUsername)
             .order('subject', ascending: true);
-        if ((response as List).isNotEmpty) {
-          return List<Map<String, dynamic>>.from(response);
-        }
+        return List<Map<String, dynamic>>.from(response as List);
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_student_goals');
         }
       }
     }
-
-    try {
-      final response = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'StudentGoal')
-          .eq('published_by', studentUsername);
-      final list = <Map<String, dynamic>>[];
-      for (final row in response) {
-        try {
-          final content = row['content']?.toString() ?? '{}';
-          final decoded = jsonDecode(content);
-          if (decoded is Map<String, dynamic>) {
-            list.add({
-              'id': row['id'],
-              'student_id': studentUsername,
-              'subject': decoded['subject'] ?? 'General',
-              'target_percent': (decoded['target_percent'] as num?)?.toDouble() ?? 85.0,
-              'updated_at': row['published_at'],
-            });
-          }
-        } catch (_) {}
-      }
-      return list;
-    } catch (_) {
-      return [];
-    }
+    return [];
   }
 
   Future<bool> setStudentGoal({
@@ -9179,21 +9148,7 @@ class SchoolService {
         }
       }
     }
-
-    try {
-      await _supabase.from('school_circulars').insert({
-        'institute_code': 'SHIV-SCH',
-        'title': 'GOAL: ' + subject + ' (' + studentUsername + ')',
-        'content': jsonEncode(payload),
-        'category': 'StudentGoal',
-        'target_audience': 'students',
-        'published_by': studentUsername,
-        'published_at': DateTime.now().toIso8601String(),
-      });
-      return true;
-    } catch (_) {
-      return false;
-    }
+    return false;
   }
 
   // ===== N10: STUDENT NOTIFICATIONS CENTER =====
@@ -9334,21 +9289,7 @@ class SchoolService {
         }
       }
     }
-
-    try {
-      await _supabase.from('school_circulars').insert({
-        'institute_code': 'SHIV-SCH',
-        'title': 'DOUBT: ' + subject + ' (' + studentName + ')',
-        'content': jsonEncode(payload),
-        'category': 'StudentQuery',
-        'target_audience': 'teachers',
-        'published_by': studentUsername,
-        'published_at': DateTime.now().toIso8601String(),
-      });
-      return true;
-    } catch (_) {
-      return false;
-    }
+    return false;
   }
 
   Future<List<Map<String, dynamic>>> getStudentQueries({required String studentUsername}) async {
@@ -9359,49 +9300,14 @@ class SchoolService {
             .select()
             .eq('student_id', studentUsername)
             .order('created_at', ascending: false);
-        if ((response as List).isNotEmpty) {
-          return List<Map<String, dynamic>>.from(response);
-        }
+        return List<Map<String, dynamic>>.from(response as List);
       } catch (e) {
         if (_isTableMissingError(e)) {
           _missingTables.add('school_student_queries');
         }
       }
     }
-
-    try {
-      final response = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'StudentQuery')
-          .eq('published_by', studentUsername)
-          .order('published_at', ascending: false);
-
-      final list = <Map<String, dynamic>>[];
-      for (final row in response) {
-        try {
-          final content = row['content']?.toString() ?? '{}';
-          final decoded = jsonDecode(content);
-          if (decoded is Map<String, dynamic>) {
-            list.add({
-              'id': row['id'],
-              'student_id': decoded['student_id'] ?? studentUsername,
-              'student_name': decoded['student_name'] ?? studentUsername,
-              'teacher_name': decoded['teacher_name'] ?? 'Subject Teacher',
-              'subject': decoded['subject'] ?? 'General',
-              'message': decoded['message'] ?? '',
-              'reply': decoded['reply'],
-              'status': decoded['status'] ?? 'pending',
-              'created_at': decoded['created_at'] ?? row['published_at'],
-              'replied_at': decoded['replied_at'],
-            });
-          }
-        } catch (_) {}
-      }
-      return list;
-    } catch (_) {
-      return [];
-    }
+    return [];
   }
 
   // ===== STEP 11: CERTIFICATES, LIBRARY, AND REPORTING WORKFLOWS =====
@@ -9757,6 +9663,25 @@ class SchoolService {
 
   /// N4: Fetch Recent Administrative Audit Trail
   Future<List<Map<String, dynamic>>> getAuditLog({int limit = 50}) async {
+    try {
+      final rows = await _supabase
+          .from('school_audit_log')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(limit);
+      if ((rows as List).isNotEmpty) {
+        return (rows as List).map((r) => {
+          'id': r['id']?.toString() ?? '',
+          'published_at': r['created_at']?.toString() ?? '',
+          'actor_username': r['actor_username']?.toString() ?? 'sadmin1',
+          'action': r['action']?.toString() ?? 'Action Executed',
+          'entity_type': r['entity']?.toString() ?? '',
+          'entity_id': r['entity_id']?.toString() ?? '',
+          'details': jsonEncode(r['new_value'] ?? {}),
+        }).toList();
+      }
+    } catch (_) {}
+
     try {
       final rows = await _supabase
           .from('school_circulars')
