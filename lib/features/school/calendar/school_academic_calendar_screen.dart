@@ -1117,7 +1117,7 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: category,
+                              initialValue: category,
                               decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                               items: SchoolCalendarService.categories
                                   .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -1135,7 +1135,7 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                           const SizedBox(width: 10),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: term,
+                              initialValue: term,
                               decoration: const InputDecoration(labelText: 'Term', border: OutlineInputBorder()),
                               items: SchoolCalendarService.terms
                                   .map((t) => DropdownMenuItem(value: t, child: Text(t)))
@@ -1203,7 +1203,7 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: audience,
+                              initialValue: audience,
                               decoration: const InputDecoration(labelText: 'Target Audience', border: OutlineInputBorder()),
                               items: SchoolCalendarService.audiences
                                   .map((a) => DropdownMenuItem(value: a, child: Text(a.toUpperCase())))

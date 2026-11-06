@@ -73,7 +73,7 @@ class _SchoolPermissionMatrixScreenState extends State<SchoolPermissionMatrixScr
     try {
       await SchoolExportService.exportSchoolPermissionAuditExcel(
         context: context,
-        instituteName: 'Shiv Nadar School (SHIV-SCH)',
+        instituteName: 'Shivalik International School (SHIV-SCH)',
         matrix: _matrix,
         marksLocks: _marksLocks,
         makerCheckerRequests: _makerCheckerRequests,
