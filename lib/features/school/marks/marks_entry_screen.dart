@@ -19,6 +19,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   bool _isStaff = false;
   bool _isAdminRole = false;
   bool _isTeacherRole = false;
+  bool _isMarksLocked = false;
   bool _isInitialising = true;
 
   // Selected parameters
@@ -40,8 +41,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
   // Scholastic Controllers
   final Map<String, TextEditingController> _marksControllers = {};
+  final Map<String, TextEditingController> _internalMarksControllers = {};
   final Map<String, TextEditingController> _remarksControllers = {};
   int _maxMarks = 80;
+  int _internalMaxMarks = 20;
   final _maxMarksController = TextEditingController(text: '80');
 
   // Co-Scholastic & Narrative Controllers (for Class Teachers & Admins)
@@ -59,12 +62,16 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   static String _normalizePromotionVerdict(String? raw) {
     if (raw == null || raw.trim().isEmpty) return 'Promoted';
     final s = raw.trim().toLowerCase();
-    if (s.contains('grace') || s.contains('concession')) return 'Promoted with Grace';
-    if (s.contains('compartment') || s.contains('retest')) return 'Eligible for Compartment';
-    if (s.contains('detained') || s.contains('failed') || s.contains('repeat')) return 'Detained';
+    if (s.contains('grace') || s.contains('concession'))
+      return 'Promoted with Grace';
+    if (s.contains('compartment') || s.contains('retest'))
+      return 'Eligible for Compartment';
+    if (s.contains('detained') || s.contains('failed') || s.contains('repeat'))
+      return 'Detained';
     if (s.contains('promoted') || s.contains('pass')) return 'Promoted';
     return 'Promoted';
   }
+
   final Map<String, String> _coScholasticGrades = {
     'Work Education': 'A',
     'Art Education': 'A',
@@ -135,7 +142,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       // A teacher with no assigned class must see an empty state. Falling
       // back to the school-wide roster would expose every class.
       final classes = isTeacher
-          ? await _schoolService.getTeacherAllAssignedClasses(username)
+          ? await _schoolService.getClassTeacherClasses(username)
           : await _schoolService.getSchoolClasses();
 
       if (!mounted) return;
@@ -148,7 +155,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         _isInitialising = false;
         if (classes.isEmpty) {
           _errorMessage = isTeacher
-              ? 'No classes are assigned to this teacher account yet.'
+              ? 'Only a class teacher can enter and submit marks. No class is assigned to this account yet.'
               : 'No school classes are available.';
         }
       });
@@ -178,31 +185,6 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
     try {
       var subjects = await _schoolService.getSchoolSubjects(classId: classId);
-      if (_isTeacherRole) {
-        final assigned = await _schoolService.getMarksForAllottedSubjects(
-          teacherUsername: await _authService.getCurrentUsername() ?? '',
-        );
-        final className = _selectedClass?['name']?.toString() ?? '';
-        final allowedSubjects = assigned
-            .where((assignment) =>
-                assignment['class_id']?.toString() == classId ||
-                (assignment['class_name']?.toString().isNotEmpty ?? false) &&
-                    assignment['class_name']?.toString() == className)
-            .map((assignment) =>
-                assignment['subject']?.toString().trim().toLowerCase() ?? '')
-            .where((subject) => subject.isNotEmpty)
-            .toSet();
-        subjects = subjects.where((subject) {
-          final name = (subject['name'] ?? subject['subject'] ?? '')
-              .toString()
-              .trim()
-              .toLowerCase();
-          return allowedSubjects.contains(name);
-        }).toList();
-        if (subjects.isEmpty) {
-          _errorMessage = 'No subjects are assigned to you for this class yet.';
-        }
-      }
       final students = await _schoolService.getStudentsInClass(classId,
           className: className);
 
@@ -212,15 +194,20 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       for (final c in _marksControllers.values) {
         c.dispose();
       }
+      for (final c in _internalMarksControllers.values) {
+        c.dispose();
+      }
       for (final c in _remarksControllers.values) {
         c.dispose();
       }
       _marksControllers.clear();
+      _internalMarksControllers.clear();
       _remarksControllers.clear();
 
       for (final s in students) {
         final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
         _marksControllers[sid] = TextEditingController();
+        _internalMarksControllers[sid] = TextEditingController(text: '0');
         _remarksControllers[sid] = TextEditingController();
       }
 
@@ -264,7 +251,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
       for (final m in existing) {
         final sid = m['student_id']?.toString() ?? '';
-        final obtained = m['marks_obtained']?.toString() ??
+        final obtained = m['theory_marks']?.toString() ??
+            m['marks_obtained']?.toString() ??
             m['obtained_marks']?.toString() ??
             m['marks']?.toString() ??
             '';
@@ -272,6 +260,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
         if (_marksControllers.containsKey(sid)) {
           _marksControllers[sid]!.text = obtained;
+        }
+        if (_internalMarksControllers.containsKey(sid)) {
+          _internalMarksControllers[sid]!.text =
+              m['internal_marks']?.toString() ?? '0';
         }
         if (_remarksControllers.containsKey(sid)) {
           _remarksControllers[sid]!.text = remark;
@@ -289,6 +281,11 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           }
         }
       }
+      _isMarksLocked = await _schoolService.permissions.isMarksLocked(
+        examId: _selectedExam,
+        classId: classId,
+        subject: subject,
+      );
       setState(() {});
     } catch (_) {}
   }
@@ -312,8 +309,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       setState(() {
         _teacherRemarkController.text =
             meta['teacher_remark']?.toString() ?? '';
-        _selectedPromotionVerdict = _normalizePromotionVerdict(
-            meta['promotion_verdict']?.toString());
+        _selectedPromotionVerdict =
+            _normalizePromotionVerdict(meta['promotion_verdict']?.toString());
 
         for (final item in coScholastic) {
           final area = item['area']?.toString() ?? '';
@@ -350,14 +347,23 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     for (final s in _students) {
       final sid = s['username']?.toString() ?? s['id']?.toString() ?? '';
       final text = _marksControllers[sid]?.text.trim() ?? '';
-      if (text.isEmpty) continue;
+      final internalText = _internalMarksControllers[sid]?.text.trim() ?? '0';
+      if (text.isEmpty && (internalText.isEmpty || internalText == '0'))
+        continue;
 
-      final val = double.tryParse(text);
-      if (val == null || val < 0 || val > _maxMarks) {
+      final val = double.tryParse(text.isEmpty ? '0' : text);
+      final internal =
+          double.tryParse(internalText.isEmpty ? '0' : internalText);
+      if (val == null ||
+          val < 0 ||
+          val > _maxMarks ||
+          internal == null ||
+          internal < 0 ||
+          internal > _internalMaxMarks) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Invalid mark for ${s['name'] ?? sid}. Marks must be between 0 and $_maxMarks.'),
+                'Invalid marks for ${s['name'] ?? sid}. Theory: 0–$_maxMarks; internal assessment: 0–$_internalMaxMarks.'),
             backgroundColor: const Color(0xFFEF4444),
             behavior: SnackBarBehavior.floating,
           ),
@@ -375,8 +381,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         'section': _selectedClass?['section'] ?? '',
         'subject': subject,
         'exam_type': _selectedExam,
-        'marks_obtained': val,
-        'total_marks': _maxMarks.toDouble(),
+        'theory_marks': val,
+        'internal_marks': internal,
+        'marks_obtained': val + internal,
+        'total_marks': (_maxMarks + _internalMaxMarks).toDouble(),
         if (remark.isNotEmpty) 'remarks': remark,
         'created_at': DateTime.now().toIso8601String(),
       });
@@ -414,6 +422,25 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     setState(() => _isSavingMarks = false);
 
     if (ok) {
+      if (_isTeacherRole) {
+        final submitted = await _schoolService.submitClassTeacherMarks(
+          examId: _selectedExam,
+          classId: classId,
+          subject: subject,
+        );
+        if (!submitted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text(
+                      'Marks were saved, but could not be submitted and locked.'),
+                  backgroundColor: Color(0xFFF59E0B)),
+            );
+          }
+          return;
+        }
+        _isMarksLocked = true;
+      }
       final avg = marksList.fold<double>(
               0.0, (acc, m) => acc + (m['marks_obtained'] as double)) /
           marksList.length;
@@ -426,7 +453,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Saved marks for ${marksList.length} students! Class Average: ${avg.toStringAsFixed(1)} / $_maxMarks',
+                  '${_isTeacherRole ? 'Submitted and locked' : 'Saved'} marks for ${marksList.length} students! Class Average: ${avg.toStringAsFixed(1)} / ${_maxMarks + _internalMaxMarks}',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
@@ -517,8 +544,12 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   // CALCULATIONS & HELPERS
   // ──────────────────────────────────────────────
   double get _computedClassAverage {
-    final values = _marksControllers.values
-        .map((c) => double.tryParse(c.text.trim()))
+    final values = _marksControllers.entries
+        .map((entry) =>
+            (double.tryParse(entry.value.text.trim()) ?? 0) +
+            (double.tryParse(
+                    _internalMarksControllers[entry.key]?.text.trim() ?? '') ??
+                0))
         .whereType<double>()
         .toList();
     if (values.isEmpty) return 0.0;
@@ -548,6 +579,9 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     _scholasticScrollController.dispose();
     _coScholasticScrollController.dispose();
     for (final c in _marksControllers.values) {
+      c.dispose();
+    }
+    for (final c in _internalMarksControllers.values) {
       c.dispose();
     }
     for (final c in _remarksControllers.values) {
@@ -787,6 +821,19 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             ],
           ),
           const SizedBox(height: 10),
+          if (_isTeacherRole && _isMarksLocked)
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                    'Submitted to administration — marks are locked for teachers.',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFB45309))),
+              ),
+            ),
           Row(
             children: [
               // Max Marks Config
@@ -811,6 +858,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                       height: 28,
                       child: TextField(
                         controller: _maxMarksController,
+                        readOnly: _isTeacherRole && _isMarksLocked,
                         keyboardType: TextInputType.number,
                         style: const TextStyle(
                             fontSize: 12.5,
@@ -1081,7 +1129,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         student['username']?.toString() ??
         'Student';
     final ctrl = _marksControllers[sid] ?? TextEditingController();
+    final internalCtrl =
+        _internalMarksControllers[sid] ?? TextEditingController(text: '0');
     final remarkCtrl = _remarksControllers[sid] ?? TextEditingController();
+    final readOnly = _isTeacherRole && _isMarksLocked;
 
     final markVal = double.tryParse(ctrl.text.trim());
     final pct =
@@ -1189,7 +1240,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
           const SizedBox(width: 12),
 
-          // Marks Input Field
+          // Theory marks input
           Container(
             width: 72,
             height: 36,
@@ -1200,6 +1251,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             ),
             child: TextField(
               controller: ctrl,
+              readOnly: readOnly,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.center,
@@ -1224,6 +1276,38 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   color: Color(0xFF64748B))),
 
           const SizedBox(width: 8),
+          // Internal assessment is captured separately and rolled into the
+          // submitted total for the report card.
+          Container(
+            width: 52,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFCBD5E1)),
+            ),
+            child: TextField(
+              controller: internalCtrl,
+              readOnly: readOnly,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+                hintText: 'IA',
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          Text('/$_internalMaxMarks',
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B))),
+
+          const SizedBox(width: 8),
           // Remark toggle button
           IconButton(
             icon: Icon(
@@ -1236,7 +1320,9 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                   : const Color(0xFF94A3B8),
             ),
             tooltip: 'Add remark',
-            onPressed: () => _showStudentRemarkSheet(sid, name, remarkCtrl),
+            onPressed: readOnly
+                ? null
+                : () => _showStudentRemarkSheet(sid, name, remarkCtrl),
           ),
         ],
       ),
@@ -1350,7 +1436,9 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
               ),
             ),
             ElevatedButton.icon(
-              onPressed: _isSavingMarks ? null : _saveMarks,
+              onPressed: _isSavingMarks || (_isTeacherRole && _isMarksLocked)
+                  ? null
+                  : _saveMarks,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0F172A),
                 foregroundColor: Colors.white,
@@ -1367,7 +1455,13 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                           color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.cloud_upload_outlined, size: 18),
               label: Text(
-                  _isSavingMarks ? 'Saving Marks…' : 'Save & Publish Marks',
+                  _isSavingMarks
+                      ? 'Saving Marks…'
+                      : _isTeacherRole
+                          ? (_isMarksLocked
+                              ? 'Submitted to Admin'
+                              : 'Submit Marks to Admin')
+                          : 'Save Changes',
                   style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
@@ -1451,8 +1545,10 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<Map<String, dynamic>>(
                     value: () {
-                      if (_selectedStudentForNarrative == null || _students.isEmpty) return null;
-                      final sId = _selectedStudentForNarrative!['id'] ?? _selectedStudentForNarrative!['username'];
+                      if (_selectedStudentForNarrative == null ||
+                          _students.isEmpty) return null;
+                      final sId = _selectedStudentForNarrative!['id'] ??
+                          _selectedStudentForNarrative!['username'];
                       try {
                         return _students.firstWhere(
                           (s) => (s['id'] ?? s['username']) == sId,
@@ -1614,7 +1710,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: _promotionVerdictOptions.contains(_selectedPromotionVerdict)
+                    value: _promotionVerdictOptions
+                            .contains(_selectedPromotionVerdict)
                         ? _selectedPromotionVerdict
                         : _normalizePromotionVerdict(_selectedPromotionVerdict),
                     isExpanded: true,

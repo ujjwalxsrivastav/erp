@@ -30,8 +30,13 @@ CREATE TABLE IF NOT EXISTS school_marks_locks (
     unlock_reason TEXT,
     deadline TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(institute_id, exam_id, class_id, subject)
 );
+
+-- Backward compatible for databases created before updated_at was tracked.
+ALTER TABLE school_marks_locks
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 3. MAKER-CHECKER SENSITIVE ACTION REQUESTS
 CREATE TABLE IF NOT EXISTS school_maker_checker_requests (

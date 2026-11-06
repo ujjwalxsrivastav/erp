@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/report_card_pdf.dart';
+import 'student_report_card_screen.dart';
 
 class ReportCardScreen extends StatefulWidget {
   const ReportCardScreen({super.key});
@@ -47,7 +48,13 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
     setState(() => _isLoading = true);
     try {
       _currentUsername = await _authService.getCurrentUsername() ?? '';
-      _userRole = await _authService.getCurrentUserRole() ?? 'student';
+      final rawRole = await _authService.getCurrentUserRole() ?? 'student';
+      _userRole = switch (rawRole.toLowerCase().trim()) {
+        'sstudent' => 'student',
+        'sparent' => 'parent',
+        'sadmin' => 'admin',
+        final role => role,
+      };
       _isAdmin = _userRole == 'admin' || _userRole == 'sadmin';
       _isStaff = _userRole != 'student' && _userRole != 'parent';
       _examSessions = await _schoolService.getExamSessions();
@@ -210,6 +217,11 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Student dashboard links use this shared route.  Send students to the
+    // purpose-built read-only card rather than rendering staff controls.
+    if (!_isLoading && _userRole == 'student') {
+      return const StudentReportCardScreen();
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -259,7 +271,7 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
       onRefresh: _loadCard,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
         children: [
           if (_isStaff) ...[
             _buildStaffPickers(),
@@ -435,6 +447,24 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'ACADEMIC SNAPSHOT',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.7,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -446,30 +476,38 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
                             fontWeight: FontWeight.bold),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Flexible(
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.white.withValues(alpha: 0.22),
                       child: Text(
-                        _className,
+                        _studentName.isEmpty
+                            ? '?'
+                            : _studentName[0].toUpperCase(),
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _studentName,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  _studentName,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold),
-                ),
                 const SizedBox(height: 4),
                 Text(
-                  'CBSE Affiliated · Session ${SchoolService.reportCardAcademicYear} · $_selectedExam Examination',
+                  '$_className · Session ${SchoolService.reportCardAcademicYear} · $_selectedExam',
                   style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 12),
@@ -578,17 +616,32 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
   }
 
   Widget _buildSummaryMetrics() {
-    return Row(
-      children: [
-        _metricTile('Attendance', '${_attendance.toStringAsFixed(1)}%',
-            Icons.check_circle_outline, const Color(0xFF0F766E)),
-        const SizedBox(width: 10),
-        _metricTile('Subjects Passed', '$_subjectsPassed/${_marks.length}',
-            Icons.fact_check_outlined, const Color(0xFF2563EB)),
-        const SizedBox(width: 10),
-        _metricTile('Grade Point', '${_analytics['grade_point'] ?? '-'}',
-            Icons.star_border_rounded, const Color(0xFF7C3AED)),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 420;
+        final tiles = [
+          _metricTile('Attendance', '${_attendance.toStringAsFixed(1)}%',
+              Icons.check_circle_outline, const Color(0xFF0F766E)),
+          _metricTile('Subjects Passed', '$_subjectsPassed/${_marks.length}',
+              Icons.fact_check_outlined, const Color(0xFF2563EB)),
+          _metricTile('Grade Point', '${_analytics['grade_point'] ?? '-'}',
+              Icons.star_border_rounded, const Color(0xFF7C3AED)),
+        ];
+        if (!compact) {
+          return Row(children: [
+            Expanded(child: tiles[0]),
+            const SizedBox(width: 10),
+            Expanded(child: tiles[1]),
+            const SizedBox(width: 10),
+            Expanded(child: tiles[2]),
+          ]);
+        }
+        return Wrap(spacing: 10, runSpacing: 10, children: [
+          SizedBox(width: (constraints.maxWidth - 10) / 2, child: tiles[0]),
+          SizedBox(width: (constraints.maxWidth - 10) / 2, child: tiles[1]),
+          SizedBox(width: (constraints.maxWidth - 10) / 2, child: tiles[2]),
+        ]);
+      },
     );
   }
 
@@ -820,6 +873,8 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
     final pct = total > 0 ? (obtained / total) * 100 : 0.0;
     final gradeInfo = SchoolService.calculateCbseGrade(pct);
     final grade = m['grade']?.toString() ?? gradeInfo['grade'];
+    final theory = m['theory_marks'];
+    final internal = m['internal_marks'];
 
     Color gradeColor;
     if (grade == 'A1' || grade == 'A2') {
@@ -845,6 +900,17 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
         children: [
           Row(
             children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: gradeColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.auto_stories_rounded,
+                    color: gradeColor, size: 19),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -856,7 +922,7 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
                             color: Color(0xFF1E293B))),
                     const SizedBox(height: 2),
                     Text(
-                      'Score: $obtained/$total  •  ${pct.toStringAsFixed(0)}%  •  GP: ${gradeInfo['point']}',
+                      'Score $obtained/$total  ·  ${pct.toStringAsFixed(0)}%  ·  GP ${gradeInfo['point']}',
                       style: const TextStyle(
                           fontSize: 12, color: Color(0xFF64748B)),
                     ),
@@ -879,6 +945,19 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
             ],
           ),
           const SizedBox(height: 8),
+          if (theory != null || internal != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: Wrap(
+                spacing: 6,
+                children: [
+                  if (theory != null)
+                    _componentPill('Theory', theory.toString()),
+                  if (internal != null)
+                    _componentPill('Internal assessment', internal.toString()),
+                ],
+              ),
+            ),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
@@ -892,6 +971,19 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
       ),
     );
   }
+
+  Widget _componentPill(String label, String value) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Text('$label  $value',
+            style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF475569))),
+      );
 
   Widget _buildCoScholasticSection() {
     return Card(
