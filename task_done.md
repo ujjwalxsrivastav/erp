@@ -19,6 +19,12 @@
       - Silenced Chromium `[DOM] Password field is not contained in a form:` warning by wrapping `login_screen.dart` in `AutofillGroup` with proper `autofillHints`.
       - Resolved `NotInitializedError` on auth session persistence: `SecurityConfig.sessionSecret` now checks `dotenv.isInitialized` before calling `dotenv.get()`, with fallback to `String.fromEnvironment()`. Added `dotenv.testLoad(fileInput: '')` fallback in `main.dart` for web builds.
       - Full release build passing (`flutter build web --release --base-href /erp/` in 75.9s).
+  15. **Global AI Chatbot & Deep-Dive Module Navigation Integration:**
+      - Added direct `/school/chatbot` and `/school/ai-tools?tab=chatbot` deep routing in `app_router.dart`.
+      - Integrated prominent **"AI Chatbot"** and **"AI Studio"** gradient pill buttons in AppBars across Admin, Teacher, and Parent dashboards.
+      - Added floating action buttons (`FloatingActionButton.extended`) for instant 1-tap access to the AI Chatbot on Admin, Teacher, Student, and Parent dashboards.
+      - Added **"AI Assistant & Policy Chatbot (SP11)"** and all Super Enterprise Deep Dive modules (`Permissions & Governance`, `Hostel/Infirmary/Cafeteria`, `Staff Payroll`, `Inventory & Assets`, `Activities & Clubs`, `Discipline`, `Alumni`, `Library Deep`) directly to navigation drawers.
+      - Added AI Chatbot to the Principal Quick Actions bottom sheet.
 
 ---
 

@@ -303,6 +303,49 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           ],
         ),
         actions: [
+          // AI Assistant & Chatbot Studio
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => context.push('/school/ai-tools'),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 15),
+                      SizedBox(width: 5),
+                      Text(
+                        'AI Studio',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
           Stack(
             alignment: Alignment.center,
             children: [
@@ -343,6 +386,18 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         ],
       ),
       drawer: _buildDrawer(),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'teacher_ai_tools_fab',
+        onPressed: () => context.push('/school/ai-tools'),
+        backgroundColor: const Color(0xFF7C3AED),
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Colors.white),
+        label: const Text(
+          'AI Assistant & Chatbot',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.3),
+        ),
+      ),
       body: _isLoading
           ? _buildLoadingSkeleton()
           : _errorMessage != null
@@ -3571,6 +3626,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   _buildDrawerTile(Icons.people_alt_rounded, 'My Students Roster', () {
                     Navigator.pop(context);
                     _loadStudents();
+                  }),
+                  _buildDrawerTile(Icons.auto_awesome_rounded, 'AI Studio & Question Paper Generator (SP11)', () {
+                    Navigator.pop(context);
+                    context.push('/school/ai-tools');
                   }),
                   _buildDrawerTile(Icons.analytics_rounded, 'My Reports & Analytics', () {
                     Navigator.pop(context);

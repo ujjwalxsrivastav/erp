@@ -3,7 +3,8 @@ import '../../../services/school_ai_service.dart';
 import '../../../services/school_export_service.dart';
 
 class SchoolAiAssistantScreen extends StatefulWidget {
-  const SchoolAiAssistantScreen({super.key});
+  final int initialTab;
+  const SchoolAiAssistantScreen({super.key, this.initialTab = 0});
 
   @override
   State<SchoolAiAssistantScreen> createState() => _SchoolAiAssistantScreenState();
@@ -46,7 +47,11 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 3),
+    );
     _loadData();
     _chatMessages.add({
       'sender': 'assistant',

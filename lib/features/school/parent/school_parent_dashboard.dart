@@ -205,6 +205,18 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
       backgroundColor: _bg,
       appBar: _buildExecutiveAppBar(),
       drawer: _buildSidebar(),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'parent_ai_chatbot_fab',
+        onPressed: () => context.push('/school/ai-tools?tab=chatbot'),
+        backgroundColor: const Color(0xFF7C3AED),
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Colors.white),
+        label: const Text(
+          'School AI Assistant',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.3),
+        ),
+      ),
       body: _isLoading
           ? _buildLoadingState()
           : _errorMessage != null
@@ -338,6 +350,49 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
         ],
       ),
       actions: [
+        // AI Assistant & Chatbot Studio
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => context.push('/school/ai-tools?tab=chatbot'),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 15),
+                    SizedBox(width: 5),
+                    Text(
+                      'AI Assistant',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
         Container(
           margin: const EdgeInsets.symmetric(vertical: 12),
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
@@ -6396,6 +6451,10 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
                 children: [
                   _buildDrawerSectionHeader('CORE & COMMUNICATION'),
                   _buildDrawerTile(Icons.dashboard_rounded, 'Dashboard Home', () => Navigator.pop(context), isActive: true),
+                  _buildDrawerTile(Icons.auto_awesome_rounded, 'Ask School AI Chatbot (SP11)', () {
+                    Navigator.pop(context);
+                    context.push('/school/ai-tools?tab=chatbot');
+                  }),
                   _buildDrawerTile(Icons.chat_bubble_outline_rounded, 'Messages & Teacher Inbox', () {
                     Navigator.pop(context);
                     _showMessagesInboxModal();

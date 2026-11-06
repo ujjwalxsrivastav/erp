@@ -386,7 +386,22 @@ final router = GoRouter(
     ),
     GoRoute(
       path: '/school/ai-tools',
-      builder: (context, state) => const SchoolAiAssistantScreen(),
+      builder: (context, state) {
+        final tabParam = state.uri.queryParameters['tab'];
+        int initialTab = 0;
+        if (tabParam == 'chatbot' || tabParam == '3') {
+          initialTab = 3;
+        } else if (tabParam == 'questions' || tabParam == '1') {
+          initialTab = 1;
+        } else if (tabParam == 'feedback' || tabParam == '2') {
+          initialTab = 2;
+        }
+        return SchoolAiAssistantScreen(initialTab: initialTab);
+      },
+    ),
+    GoRoute(
+      path: '/school/chatbot',
+      builder: (context, state) => const SchoolAiAssistantScreen(initialTab: 3),
     ),
 
     // ===== SCHOOL - PARENT =====

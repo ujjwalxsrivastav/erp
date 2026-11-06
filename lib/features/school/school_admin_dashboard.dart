@@ -241,16 +241,35 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       drawer: _buildDrawer(context),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showQuickActionSheet(context),
-        backgroundColor: const Color(0xFF0F172A),
-        foregroundColor: Colors.white,
-        elevation: 3,
-        icon: const Icon(Icons.bolt_rounded, size: 20, color: Color(0xFF60A5FA)),
-        label: const Text(
-          'Quick Action',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, letterSpacing: 0.3),
-        ),
+      floatingActionButton: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'admin_ai_chatbot_fab',
+            onPressed: () => context.push('/school/ai-tools?tab=chatbot'),
+            backgroundColor: const Color(0xFF7C3AED),
+            foregroundColor: Colors.white,
+            elevation: 4,
+            icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Colors.white),
+            label: const Text(
+              'AI Chatbot',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.3),
+            ),
+          ),
+          const SizedBox(width: 10),
+          FloatingActionButton.extended(
+            heroTag: 'admin_quick_action_fab',
+            onPressed: () => _showQuickActionSheet(context),
+            backgroundColor: const Color(0xFF0F172A),
+            foregroundColor: Colors.white,
+            elevation: 3,
+            icon: const Icon(Icons.bolt_rounded, size: 20, color: Color(0xFF60A5FA)),
+            label: const Text(
+              'Quick Action',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, letterSpacing: 0.3),
+            ),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(
@@ -347,6 +366,49 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
         ),
       ),
       actions: [
+        // AI Assistant & Chatbot Studio
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.35),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => context.push('/school/ai-tools?tab=chatbot'),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 15),
+                    SizedBox(width: 5),
+                    Text(
+                      'AI Chatbot',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
         IconButton(
           icon: const Icon(Icons.search_rounded, color: Colors.white),
           tooltip: 'Universal Search (N12)',
@@ -3793,6 +3855,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   ),
                   const SizedBox(height: 14),
                   _buildQuickActionRow(
+                    icon: Icons.auto_awesome_rounded,
+                    iconColor: const Color(0xFF7C3AED),
+                    title: 'Institutional AI Assistant & Chatbot (SP11)',
+                    subtitle: 'Draft remarks, generate 40/40/20 exam blueprints, or query institutional policies',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.push('/school/ai-tools');
+                    },
+                  ),
+                  _buildQuickActionRow(
                     icon: Icons.menu_book_rounded,
                     iconColor: const Color(0xFF4338CA),
                     title: 'Scrutinize NEP 2020 Lesson Plans',
@@ -5624,6 +5696,48 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   _buildDrawerItem(Icons.people_alt_rounded, 'Staff Directory & Oversight (N3)', () {
                     Navigator.pop(context);
                     _showStaffOversightModal(context);
+                  }),
+                  _buildDrawerCategory('AI & INSTITUTIONAL INTELLIGENCE'),
+                  _buildDrawerItem(Icons.auto_awesome_rounded, 'AI Assistant & Policy Chatbot (SP11)', () {
+                    Navigator.pop(context);
+                    context.go('/school/ai-tools');
+                  }),
+                  _buildDrawerItem(Icons.security_rounded, 'Permission Matrix & Marks Lock (SP10)', () {
+                    Navigator.pop(context);
+                    context.go('/school/permissions');
+                  }),
+                  _buildDrawerItem(Icons.domain_rounded, 'Multi-School Superadmin (SP8)', () {
+                    Navigator.pop(context);
+                    context.go('/school/multi-admin');
+                  }),
+                  _buildDrawerCategory('CAMPUS LIFE & ENTERPRISE SUITE'),
+                  _buildDrawerItem(Icons.hotel_rounded, 'Hostel, Infirmary & Cafeteria (SP3)', () {
+                    Navigator.pop(context);
+                    context.go('/school/living');
+                  }),
+                  _buildDrawerItem(Icons.account_balance_wallet_rounded, 'Staff Payroll & Salaries (SP2)', () {
+                    Navigator.pop(context);
+                    context.go('/school/payroll');
+                  }),
+                  _buildDrawerItem(Icons.inventory_2_rounded, 'Asset & Inventory Registry (SP5)', () {
+                    Navigator.pop(context);
+                    context.go('/school/inventory');
+                  }),
+                  _buildDrawerItem(Icons.sports_soccer_rounded, 'Activities, Clubs & Sports (SP6)', () {
+                    Navigator.pop(context);
+                    context.go('/school/activities');
+                  }),
+                  _buildDrawerItem(Icons.gavel_rounded, 'Discipline & Inquiry Board (SP7)', () {
+                    Navigator.pop(context);
+                    context.go('/school/discipline');
+                  }),
+                  _buildDrawerItem(Icons.school_rounded, 'Alumni & Giving Network (SP4)', () {
+                    Navigator.pop(context);
+                    context.go('/school/alumni');
+                  }),
+                  _buildDrawerItem(Icons.local_library_rounded, 'Library Deep & E-Books (SP9)', () {
+                    Navigator.pop(context);
+                    context.go('/school/library-deep');
                   }),
                   _buildDrawerCategory('FINANCE & OPERATIONS'),
                   _buildDrawerItem(Icons.payment_rounded, 'Fee Accounts & Cashier Desk', () => context.go('/school/fees')),

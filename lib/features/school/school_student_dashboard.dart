@@ -375,6 +375,18 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
         return Scaffold(
           backgroundColor: _bg,
           drawer: isWide ? null : _buildSidebar(context),
+          floatingActionButton: FloatingActionButton.extended(
+            heroTag: 'student_ai_chatbot_fab',
+            onPressed: () => context.push('/school/ai-tools?tab=chatbot'),
+            backgroundColor: const Color(0xFF7C3AED),
+            foregroundColor: Colors.white,
+            elevation: 4,
+            icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Colors.white),
+            label: const Text(
+              'Ask AI Chatbot',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.3),
+            ),
+          ),
           body: _isLoading
               ? _buildLoadingSkeleton(isWide)
               : _errorMessage != null
@@ -1724,6 +1736,11 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
               _buildDrawerItem(Icons.dashboard_rounded, 'Dashboard', () {
                 if (isDrawer) Navigator.pop(context);
               }, isActive: true),
+              _buildDrawerCategory('AI INSTITUTIONAL INTELLIGENCE'),
+              _buildDrawerItem(Icons.auto_awesome_rounded, 'Ask School AI Chatbot (SP11)', () {
+                if (isDrawer) Navigator.pop(context);
+                context.push('/school/ai-tools?tab=chatbot');
+              }),
               _buildDrawerCategory('ACADEMIC SERVICES'),
               _buildDrawerItem(Icons.calendar_month_rounded, 'Timetable', () => context.go('/school/timetable')),
               _buildDrawerItem(Icons.assignment_rounded, 'Homework', () => context.go('/school/homework')),
