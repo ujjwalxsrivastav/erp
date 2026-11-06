@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'school_payroll_service.dart';
+import 'auth_service.dart';
 
 class SchoolDisciplineService {
   static final SchoolDisciplineService _instance = SchoolDisciplineService._internal();
@@ -36,50 +36,18 @@ class SchoolDisciplineService {
         query = query.eq('student_id', studentId);
       }
       final res = await query.order('incident_date', ascending: false);
-      final list = List<Map<String, dynamic>>.from(res);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    try {
-      final res = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'DisciplineIncident')
-          .order('published_at', ascending: false);
-      final list = <Map<String, dynamic>>[];
-      for (final r in res) {
-        try {
-          final c = jsonDecode(r['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          c['id'] = r['id'];
-          list.add(c);
-        } catch (_) {}
-      }
-      if (list.isNotEmpty) {
-        var filtered = list;
-        if (category != null && category != 'All') {
-          filtered = filtered.where((i) => i['category'] == category).toList();
-        }
-        if (severity != null && severity != 'All') {
-          filtered = filtered.where((i) => i['severity'] == severity).toList();
-        }
-        if (status != null && status != 'All') {
-          filtered = filtered.where((i) => i['status'] == status).toList();
-        }
-        if (studentId != null) {
-          filtered = filtered.where((i) => i['student_id'] == studentId).toList();
-        }
-        return filtered;
-      }
-    } catch (_) {}
-
-    return [];
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<Map<String, dynamic>> reportIncident(Map<String, dynamic> data) async {
+    final actor = await AuthService().getCurrentUsername() ?? 'faculty';
     final payload = {
       'institute_id': 'SHIV-SCH',
       'incident_number': 'INC-2026-${(100 + (DateTime.now().millisecondsSinceEpoch % 900))}',
-      'student_id': data['student_id'] ?? 'sstudent1',
+      'student_id': data['student_id'] ?? 'student',
       'student_name': data['student_name'] ?? 'Student',
       'class_section': data['class_section'] ?? '10-A',
       'incident_date': data['incident_date'] ?? DateTime.now().toIso8601String(),
@@ -87,10 +55,10 @@ class SchoolDisciplineService {
       'category': data['category'] ?? 'Classroom Disruption',
       'severity': data['severity'] ?? 'Medium',
       'description': data['description'] ?? 'Incident reported by faculty.',
-      'reported_by_id': data['reported_by_id'] ?? 'steacher1',
-      'reported_by_name': data['reported_by_name'] ?? 'Ms. Sunita Sharma',
+      'reported_by_id': data['reported_by_id'] ?? actor,
+      'reported_by_name': data['reported_by_name'] ?? 'Reporting Faculty',
       'reported_by_role': data['reported_by_role'] ?? 'teacher',
-      'witnesses': data['witnesses'] ?? 'Class Prefect',
+      'witnesses': data['witnesses'] ?? 'Prefect / Staff',
       'status': 'Reported',
       'created_at': DateTime.now().toIso8601String(),
     };
@@ -98,7 +66,7 @@ class SchoolDisciplineService {
     try {
       final res = await _supabase.from('school_discipline_incidents').insert(payload).select().single();
       await _payroll.logAudit(
-        actorUsername: 'steacher1',
+        actorUsername: actor,
         action: 'report_incident',
         entity: 'school_discipline_incidents',
         entityId: res['id']?.toString() ?? 'incident',
@@ -106,15 +74,7 @@ class SchoolDisciplineService {
       );
       return Map<String, dynamic>.from(res);
     } catch (_) {
-      final circ = await _supabase.from('school_circulars').insert({
-        'title': 'Discipline Incident: ${payload['incident_number']} (${payload['student_name']})',
-        'content': jsonEncode(payload),
-        'category': 'DisciplineIncident',
-        'target_audience': 'Admin',
-        'published_at': DateTime.now().toIso8601String(),
-      }).select().maybeSingle();
-
-      payload['id'] = circ?['id'] ?? 'inc-${DateTime.now().millisecondsSinceEpoch}';
+      payload['id'] = 'inc-${DateTime.now().millisecondsSinceEpoch}';
       return payload;
     }
   }
@@ -130,6 +90,7 @@ class SchoolDisciplineService {
     String? teacherStatement,
     String officerName = 'Principal / Disciplinary Committee',
   }) async {
+    final actor = await AuthService().getCurrentUsername() ?? 'sadmin';
     final payload = {
       'institute_id': 'SHIV-SCH',
       'incident_id': incidentId,
@@ -137,7 +98,7 @@ class SchoolDisciplineService {
       'officer_name': officerName,
       'officer_role': 'Discipline Officer',
       'student_statement': studentStatement ?? 'Student cooperated and provided clarification.',
-      'teacher_statement': teacherStatement ?? 'Teacher confirmed classroom disruption sequence.',
+      'teacher_statement': teacherStatement ?? 'Teacher confirmed incident sequence.',
       'findings': findings,
       'created_at': DateTime.now().toIso8601String(),
     };
@@ -150,7 +111,7 @@ class SchoolDisciplineService {
           .eq('id', incidentId);
 
       await _payroll.logAudit(
-        actorUsername: 'sadmin1',
+        actorUsername: actor,
         action: 'record_inquiry',
         entity: 'school_discipline_inquiries',
         entityId: res['id']?.toString() ?? 'inq',
@@ -158,15 +119,7 @@ class SchoolDisciplineService {
       );
       return Map<String, dynamic>.from(res);
     } catch (_) {
-      final circ = await _supabase.from('school_circulars').insert({
-        'title': 'Discipline Inquiry: Incident $incidentId',
-        'content': jsonEncode(payload),
-        'category': 'DisciplineInquiry',
-        'target_audience': 'Admin',
-        'published_at': DateTime.now().toIso8601String(),
-      }).select().maybeSingle();
-
-      payload['id'] = circ?['id'] ?? 'inq-${DateTime.now().millisecondsSinceEpoch}';
+      payload['id'] = 'inq-${DateTime.now().millisecondsSinceEpoch}';
       return payload;
     }
   }
@@ -182,7 +135,6 @@ class SchoolDisciplineService {
     required String actionType,
     required String actionNotes,
     String authorizedById = 'sadmin1',
-    String authorizedByName = 'Principal Office',
     String authorizedRole = 'principal',
     int durationDays = 0,
   }) async {
@@ -201,7 +153,6 @@ class SchoolDisciplineService {
       'action_type': actionType,
       'action_date': DateTime.now().toIso8601String().split('T')[0],
       'authorized_by_id': authorizedById,
-      'authorized_by_name': authorizedByName,
       'authorized_by_role': authorizedRole,
       'duration_days': durationDays,
       'action_notes': actionNotes,
@@ -226,15 +177,7 @@ class SchoolDisciplineService {
       );
       return Map<String, dynamic>.from(res);
     } catch (_) {
-      final circ = await _supabase.from('school_circulars').insert({
-        'title': 'Discipline Action: $actionType for $studentName',
-        'content': jsonEncode(payload),
-        'category': 'DisciplineAction',
-        'target_audience': 'Admin',
-        'published_at': DateTime.now().toIso8601String(),
-      }).select().maybeSingle();
-
-      payload['id'] = circ?['id'] ?? 'act-${DateTime.now().millisecondsSinceEpoch}';
+      payload['id'] = 'act-${DateTime.now().millisecondsSinceEpoch}';
       return payload;
     }
   }
@@ -250,6 +193,7 @@ class SchoolDisciplineService {
     required String noticeBody,
     DateTime? scheduledMeetingDate,
   }) async {
+    final actor = await AuthService().getCurrentUsername() ?? 'admin';
     final payload = {
       'institute_id': 'SHIV-SCH',
       'incident_id': incidentId,
@@ -264,7 +208,7 @@ class SchoolDisciplineService {
     try {
       final res = await _supabase.from('school_discipline_parent_notices').insert(payload).select().single();
       await _payroll.logAudit(
-        actorUsername: 'sadmin1',
+        actorUsername: actor,
         action: 'send_parent_discipline_notice',
         entity: 'school_discipline_parent_notices',
         entityId: res['id']?.toString() ?? 'notice',
@@ -272,15 +216,7 @@ class SchoolDisciplineService {
       );
       return Map<String, dynamic>.from(res);
     } catch (_) {
-      final circ = await _supabase.from('school_circulars').insert({
-        'title': 'Discipline Parent Notice: $noticeTitle ($studentId)',
-        'content': jsonEncode(payload),
-        'category': 'DisciplineParentNotice',
-        'target_audience': 'Parents',
-        'published_at': DateTime.now().toIso8601String(),
-      }).select().maybeSingle();
-
-      payload['id'] = circ?['id'] ?? 'pn-${DateTime.now().millisecondsSinceEpoch}';
+      payload['id'] = 'pn-${DateTime.now().millisecondsSinceEpoch}';
       return payload;
     }
   }
@@ -292,27 +228,7 @@ class SchoolDisciplineService {
           .select()
           .eq('student_id', studentId)
           .order('sent_at', ascending: false);
-      final list = List<Map<String, dynamic>>.from(res);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    try {
-      final res = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'DisciplineParentNotice')
-          .order('published_at', ascending: false);
-      final list = <Map<String, dynamic>>[];
-      for (final r in res) {
-        try {
-          final c = jsonDecode(r['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          if (c['student_id'] == studentId) {
-            c['id'] = r['id'];
-            list.add(c);
-          }
-        } catch (_) {}
-      }
-      return list;
+      return List<Map<String, dynamic>>.from(res);
     } catch (_) {
       return [];
     }

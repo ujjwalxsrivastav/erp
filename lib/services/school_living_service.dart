@@ -308,26 +308,7 @@ class SchoolLivingService {
       final list = List<Map<String, dynamic>>.from(res);
       if (list.isNotEmpty) return list;
     } catch (_) {}
-
-    // Fallback
-    try {
-      final res = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'InfirmaryVisit')
-          .order('published_at', ascending: false)
-          .limit(limit);
-      final list = <Map<String, dynamic>>[];
-      for (final r in res) {
-        try {
-          final c = jsonDecode(r['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          if (studentId == null || c['student_id'] == studentId) list.add(c);
-        } catch (_) {}
-      }
-      return list;
-    } catch (_) {
-      return [];
-    }
+    return [];
   }
 
   Future<Map<String, dynamic>> logInfirmaryVisit({
@@ -367,15 +348,7 @@ class SchoolLivingService {
 
     try {
       await _supabase.from('school_infirmary_visits').insert(payload);
-    } catch (_) {
-      await _supabase.from('school_circulars').insert({
-        'title': 'Clinic Visit $visitId ($studentName)',
-        'content': jsonEncode(payload),
-        'category': 'InfirmaryVisit',
-        'target_audience': 'Parent',
-        'published_at': DateTime.now().toIso8601String(),
-      });
-    }
+    } catch (_) {}
 
     await _payrollService.logAudit(
       actorUsername: handledBy,
@@ -414,12 +387,10 @@ class SchoolLivingService {
         query = query.eq('meal_type', mealType);
       }
       final res = await query.order('meal_type');
-      final list = List<Map<String, dynamic>>.from(res);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Resilient Baseline Menus
-    return _generateDefaultMenus(dayOfWeek ?? 'Monday');
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<Map<String, dynamic>>> getCanteenOrders({
@@ -432,26 +403,7 @@ class SchoolLivingService {
         query = query.eq('student_id', studentId);
       }
       final res = await query.order('order_time', ascending: false).limit(limit);
-      final list = List<Map<String, dynamic>>.from(res);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Fallback
-    try {
-      final res = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'CanteenOrder')
-          .order('published_at', ascending: false)
-          .limit(limit);
-      final list = <Map<String, dynamic>>[];
-      for (final r in res) {
-        try {
-          final c = jsonDecode(r['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          if (studentId == null || c['student_id'] == studentId) list.add(c);
-        } catch (_) {}
-      }
-      return list;
+      return List<Map<String, dynamic>>.from(res);
     } catch (_) {
       return [];
     }
@@ -476,42 +428,28 @@ class SchoolLivingService {
       'order_time': DateTime.now().toIso8601String(),
     };
 
-    // Deduct from wallet
+    // Deduct from wallet with balance validation
     try {
       final sResp = await _supabase
           .from('school_students')
           .select('wallet_balance')
           .eq('username', studentId)
           .maybeSingle();
-      final curBal = (sResp?['wallet_balance'] as num?)?.toDouble() ?? 250.0;
-      final newBal = (curBal >= totalAmount) ? (curBal - totalAmount) : 0.0;
+      final curBal = (sResp?['wallet_balance'] as num?)?.toDouble() ?? 0.0;
+      if (curBal < totalAmount) {
+        throw Exception(
+            'Insufficient RFID canteen wallet balance (₹${curBal.toStringAsFixed(2)} available, ₹${totalAmount.toStringAsFixed(2)} required).');
+      }
+      final newBal = curBal - totalAmount;
       await _supabase.from('school_students').update({'wallet_balance': newBal}).eq('username', studentId);
-    } catch (_) {}
+    } catch (e) {
+      if (e.toString().contains('Insufficient RFID')) rethrow;
+    }
 
     try {
       await _supabase.from('school_canteen_orders').insert(payload);
-    } catch (_) {
-      await _supabase.from('school_circulars').insert({
-        'title': 'Canteen Order $orderId ($studentName)',
-        'content': jsonEncode(payload),
-        'category': 'CanteenOrder',
-        'target_audience': 'Student',
-        'published_at': DateTime.now().toIso8601String(),
-      });
-    }
+    } catch (_) {}
 
     return payload;
-  }
-
-  List<Map<String, dynamic>> _generateDefaultMenus(String day) {
-    return [
-      {'id': 'MN-01', 'day_of_week': day, 'meal_type': 'Breakfast', 'item_name': 'Aloo Paratha with Curd & Pickle', 'category': 'Veg', 'price': 40.0, 'is_available': true},
-      {'id': 'MN-02', 'day_of_week': day, 'meal_type': 'Breakfast', 'item_name': 'Fresh Poha with Lemon & Peanuts', 'category': 'Veg', 'price': 30.0, 'is_available': true},
-      {'id': 'MN-03', 'day_of_week': day, 'meal_type': 'Lunch', 'item_name': 'Special Thali: Dal Makhani, Shahi Paneer, Jeera Rice, 3 Rotis, Salad', 'category': 'Veg', 'price': 85.0, 'is_available': true},
-      {'id': 'MN-04', 'day_of_week': day, 'meal_type': 'Lunch', 'item_name': 'Rajma Chawal Bowl with Mint Chutney', 'category': 'Veg', 'price': 60.0, 'is_available': true},
-      {'id': 'MN-05', 'day_of_week': day, 'meal_type': 'Snacks', 'item_name': 'Grilled Vegetable Cheese Sandwich', 'category': 'Veg', 'price': 45.0, 'is_available': true},
-      {'id': 'MN-06', 'day_of_week': day, 'meal_type': 'Snacks', 'item_name': 'Fresh Fruit Juice (Orange / Mixed)', 'category': 'Veg', 'price': 35.0, 'is_available': true},
-      {'id': 'MN-07', 'day_of_week': day, 'meal_type': 'Dinner', 'item_name': 'Nutritious Mixed Veg Curry, Tawa Rotis & Moong Dal Khichdi', 'category': 'Veg', 'price': 75.0, 'is_available': true},
-    ];
   }
 }

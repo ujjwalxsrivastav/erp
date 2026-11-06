@@ -442,6 +442,161 @@ CREATE TABLE IF NOT EXISTS public.school_hostel_attendance (
 ALTER TABLE IF EXISTS public.school_hostel_attendance DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.school_hostel_attendance TO anon, authenticated, service_role;
 
+-- 12. Infirmary & Cafeteria Tables (D6, D7)
+CREATE TABLE IF NOT EXISTS public.school_infirmary_records (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    student_id TEXT NOT NULL UNIQUE,
+    student_name TEXT NOT NULL,
+    class_name TEXT NOT NULL,
+    blood_group TEXT DEFAULT 'B+',
+    allergies TEXT DEFAULT 'None Reported',
+    chronic_conditions TEXT DEFAULT 'None Reported',
+    dietary_restrictions TEXT DEFAULT 'None',
+    emergency_contact_name TEXT,
+    emergency_contact_phone TEXT,
+    medical_insurance_policy TEXT DEFAULT 'Standard Institutional Coverage',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE IF EXISTS public.school_infirmary_records DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_infirmary_records TO anon, authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS public.school_infirmary_visits (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    class_name TEXT NOT NULL,
+    visit_time TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    symptoms TEXT NOT NULL,
+    diagnosis TEXT NOT NULL,
+    treatment TEXT NOT NULL,
+    medicine_given TEXT DEFAULT 'Paracetamol / Rest',
+    dosage TEXT DEFAULT 'Single Dose',
+    temperature NUMERIC(4, 1) DEFAULT 98.6,
+    admitted_to_bed BOOLEAN NOT NULL DEFAULT false,
+    parent_notified BOOLEAN NOT NULL DEFAULT true,
+    status TEXT NOT NULL DEFAULT 'Discharged',
+    handled_by TEXT NOT NULL DEFAULT 'Campus Nurse',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE IF EXISTS public.school_infirmary_visits DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_infirmary_visits TO anon, authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS public.school_medicine_stock (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'Analgesic',
+    unit TEXT NOT NULL DEFAULT 'Tablets',
+    quantity INTEGER NOT NULL DEFAULT 100,
+    minimum_alert_level INTEGER NOT NULL DEFAULT 20,
+    expiry_date DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE IF EXISTS public.school_medicine_stock DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_medicine_stock TO anon, authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS public.school_cafeteria_menus (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    day_of_week TEXT NOT NULL,
+    meal_type TEXT NOT NULL,
+    item_name TEXT NOT NULL,
+    description TEXT,
+    category TEXT NOT NULL DEFAULT 'Veg',
+    price NUMERIC(8, 2) NOT NULL DEFAULT 50.00,
+    is_available BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE IF EXISTS public.school_cafeteria_menus DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_cafeteria_menus TO anon, authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS public.school_canteen_orders (
+    id TEXT PRIMARY KEY,
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    total_amount NUMERIC(8, 2) NOT NULL,
+    paid_from_wallet BOOLEAN NOT NULL DEFAULT true,
+    status TEXT NOT NULL DEFAULT 'Completed',
+    order_time TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE IF EXISTS public.school_canteen_orders DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_canteen_orders TO anon, authenticated, service_role;
+
+-- 13. Discipline Suite Tables (D9)
+CREATE TABLE IF NOT EXISTS public.school_discipline_incidents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    incident_number TEXT NOT NULL UNIQUE,
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    class_section TEXT NOT NULL,
+    incident_date TIMESTAMPTZ DEFAULT NOW(),
+    location TEXT NOT NULL,
+    category TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('Low', 'Medium', 'High', 'Critical')),
+    description TEXT NOT NULL,
+    reported_by_id TEXT NOT NULL,
+    reported_by_name TEXT NOT NULL,
+    reported_by_role TEXT NOT NULL,
+    witnesses TEXT,
+    status TEXT NOT NULL DEFAULT 'Reported' CHECK (status IN ('Reported', 'Inquiring', 'Action Pending', 'Resolved', 'Dismissed')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE IF EXISTS public.school_discipline_incidents DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_discipline_incidents TO anon, authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS public.school_discipline_inquiries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    incident_id UUID,
+    inquiry_date TIMESTAMPTZ DEFAULT NOW(),
+    officer_name TEXT NOT NULL,
+    officer_role TEXT NOT NULL,
+    student_statement TEXT,
+    teacher_statement TEXT,
+    findings TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE IF EXISTS public.school_discipline_inquiries DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_discipline_inquiries TO anon, authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS public.school_discipline_actions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    incident_id UUID,
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    action_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    authorized_by_id TEXT NOT NULL,
+    authorized_by_role TEXT NOT NULL,
+    duration_days INTEGER DEFAULT 0,
+    action_notes TEXT,
+    status TEXT NOT NULL DEFAULT 'Active',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE IF EXISTS public.school_discipline_actions DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_discipline_actions TO anon, authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS public.school_discipline_parent_notices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    institute_id TEXT NOT NULL DEFAULT 'SHIV-SCH',
+    incident_id UUID,
+    student_id TEXT NOT NULL,
+    notice_title TEXT NOT NULL,
+    notice_body TEXT NOT NULL,
+    scheduled_meeting_date TIMESTAMPTZ,
+    parent_read BOOLEAN DEFAULT FALSE,
+    parent_read_at TIMESTAMPTZ,
+    sent_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE IF EXISTS public.school_discipline_parent_notices DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_discipline_parent_notices TO anon, authenticated, service_role;
+
 SELECT 'School ERP runtime tables successfully created and verified!' AS status;
 
 
