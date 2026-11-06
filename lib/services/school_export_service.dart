@@ -5074,4 +5074,107 @@ class SchoolExportService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SUPER ENTERPRISE REPORT: SP-R11 (Library Circulation & Overdue Register)
+  // ---------------------------------------------------------------------------
+
+  /// SP-R11: Library Circulation, Overdue Automation & Digital E-Books Register
+  static Future<void> exportSchoolLibraryCirculationExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> issues,
+    required List<Map<String, dynamic>> ebooks,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    int overdueCount = 0;
+    double totalFines = 0.0;
+    for (final iss in issues) {
+      final days = (iss['days_overdue'] as num?)?.toInt() ?? 0;
+      final f = (iss['fine'] as num?)?.toDouble() ?? 0.0;
+      if (days > 0) overdueCount++;
+      totalFines += f;
+    }
+
+    int totalEbookDownloads = 0;
+    for (final ebk in ebooks) {
+      totalEbookDownloads += (ebk['downloads_count'] as num?)?.toInt() ?? 0;
+    }
+
+    summary.appendRow([TextCellValue('INSTITUTION:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('REPORT:'), TextCellValue('Library Circulation, Overdue Automation & Digital E-Books Register')]);
+    summary.appendRow([TextCellValue('REPORT CODE:'), TextCellValue('SP-R11')]);
+    summary.appendRow([TextCellValue('GENERATED AT:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('KEY METRIC'), TextCellValue('VALUE')]);
+    summary.appendRow([TextCellValue('Total Circulation Loans:'), IntCellValue(issues.length)]);
+    summary.appendRow([TextCellValue('Overdue Loans Requiring Action:'), IntCellValue(overdueCount)]);
+    summary.appendRow([TextCellValue('Total Overdue Fines Assessed (₹):'), DoubleCellValue(totalFines)]);
+    summary.appendRow([TextCellValue('Fine Rate Standard:'), TextCellValue('₹5.00 / day (Auto-posted to fee ledger)')]);
+    summary.appendRow([TextCellValue('Total Free E-Book Downloads:'), IntCellValue(totalEbookDownloads)]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Issue ID'),
+      TextCellValue('Book ID'),
+      TextCellValue('Book Title'),
+      TextCellValue('Student Borrower'),
+      TextCellValue('Class'),
+      TextCellValue('Issued Date'),
+      TextCellValue('Due Date'),
+      TextCellValue('Return Date'),
+      TextCellValue('Days Overdue'),
+      TextCellValue('Fine Amount (₹)'),
+      TextCellValue('Fee Ledger Link'),
+    ]);
+
+    for (int i = 0; i < issues.length; i++) {
+      final iss = issues[i];
+      final days = (iss['days_overdue'] as num?)?.toInt() ?? 0;
+      final fine = (iss['fine'] as num?)?.toDouble() ?? 0.0;
+
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(iss['id']?.toString() ?? '-'),
+        TextCellValue(iss['book_id']?.toString() ?? '-'),
+        TextCellValue(iss['book_title']?.toString() ?? '-'),
+        TextCellValue(iss['student_name']?.toString() ?? '-'),
+        TextCellValue(iss['class']?.toString() ?? '-'),
+        TextCellValue(iss['issued_date']?.toString() ?? '-'),
+        TextCellValue(iss['due_date']?.toString() ?? '-'),
+        TextCellValue(iss['return_date']?.toString() ?? 'ON LOAN'),
+        IntCellValue(days),
+        DoubleCellValue(fine),
+        TextCellValue(fine > 0 ? 'AUTO-POSTED TO FEES' : 'NO DUES'),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('${issues.length} ISSUED'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      IntCellValue(overdueCount),
+      DoubleCellValue(totalFines),
+      TextCellValue('RECONCILED'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R11_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }

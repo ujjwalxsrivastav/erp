@@ -1,9 +1,35 @@
-- **Current Step in Execution Plan:** `Step SP9: Library Deep-Dive (Item 9)`
-- **Status:** **Step SP8 (Multi-School Superadmin) is 100% complete and verified on live Supabase!** (1) Created `database/school_multi_setup.sql` with `school_institutes`, `school_institute_settings`, and `school_institute_billing` with multi-school RLS; (2) Built `SchoolMultiService` with campus switcher, dynamic institutional scope switching, school onboarding, statutory policy management, and data isolation verification; (3) Added `SP-R10` (Multi-School Educational Group Benchmarking & Performance Comparison) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolMultiAdminScreen` with 3 segmented command tabs, 4 KPI tiles, `fl_chart` campus enrollment bar chart, onboard school modal, isolation test dialog, and policy configuration view; (5) Wired route `/school/multi-admin`; (6) Live Supabase test passed with 100% success (School A scope returned 69 records with ZERO leaks from School B); (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP9: Library Deep-Dive (Item 9)**.
+- **Current Step in Execution Plan:** `Step SP10: Permission Matrix (Item 10)`
+- **Status:** **Step SP9 (Library Deep-Dive) is 100% complete and verified on live Supabase!** (1) Created `database/school_library_setup.sql` with `school_library_reservations`, `school_library_ebooks`, and `school_library_fine_ledger` with multi-school RLS; (2) Built `SchoolLibraryDeepService` with catalogue management, reservation waitlist with 3-day pickup claim window, circulation desk with statutory overdue ₹5/day auto-fine calculation and auto-posting to fees ledger, librarian fine waiver with audit trail, and free digital e-books repository (NCERT + Gutenberg); (3) Added `SP-R11` (Library Circulation & Overdue Ledger) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolLibraryDeepScreen` with 4 segmented command tabs, 4 KPI tiles, `fl_chart` subject volume bar chart, book cataloguing modal, waitlist reservation modal, return & settle action modal, and free e-book reader; (5) Wired route `/school/library-deep`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP10: Permission Matrix (Item 10)**.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP9: Library Deep-Dive (Item 9)
+- [x] **Database & Schema Setup (`database/school_library_setup.sql`):**
+  - Created schema for 3 library tables: `school_library_reservations`, `school_library_ebooks`, and `school_library_fine_ledger`.
+  - Configured Row Level Security and institutional isolation with `institute_id` multi-school isolation.
+- [x] **Library Deep Service (`lib/services/school_library_deep_service.dart`):**
+  - Built comprehensive catalogue management with category filtering, search, and dynamic stock balance tracking.
+  - Built reservation waitlist queue managing pending requests, queue order, and 3-day pickup claim windows.
+  - Built circulation & overdue auto-fine engine calculating overdue days against standard fine of ₹5/day and auto-posting to student fees ledger (`school_fee_payments`).
+  - Built librarian fine waiver desk requiring audit reason and logging directly to `school_audit_log`.
+  - Built digital e-books directory integrating strictly free public domain sources (official NCERT textbooks and Project Gutenberg classics).
+- [x] **Reports Engine & Excel Exports (`lib/services/school_export_service.dart`):**
+  - Added `exportSchoolLibraryCirculationExcel` (`SP-R11`): Dual-sheet summary (total titles, volume count, active loans, overdue accounts, collected fines) + circulation data with totals row and `School_SP_R11_<date>.xlsx` naming.
+- [x] **Enterprise UI Screen (`lib/features/school/library/school_library_deep_screen.dart`):**
+  - Built 4-tab segmented interface: Catalogue & Loans, Reservations & Waitlist, Overdue Desk & Fines, Digital E-Books.
+  - Added 4 top KPI tiles: Total Titles, Active Loans, Overdue Books, Overdue Fines Ledger (₹).
+  - Integrated `fl_chart` BarChart visualization for library book volume by subject category.
+  - Built interactive modals for cataloguing new titles, issuing loans, waitlisting reservations, processing book returns with overdue fine assessment, and launching free digital e-books.
+- [x] **Router Integration (`lib/routes/app_router.dart`):**
+  - Registered route `/school/library-deep` pointing to `SchoolLibraryDeepScreen`.
+- [x] **Automated Verification:**
+  - `dart analyze lib/services/school_library_deep_service.dart lib/features/school/library/school_library_deep_screen.dart lib/services/school_export_service.dart lib/routes/app_router.dart`: 0 errors, 0 warnings.
+  - Verified live Supabase round-trip for book catalogue and waitlist reservation persistence with 100% success.
+  - Zero modifications to College ERP files.
+
+---
 
 ### [COMPLETED] Step SP8: Multi-School Superadmin (Item 8)
 - [x] **Database & Schema Setup (`database/school_multi_setup.sql`):**

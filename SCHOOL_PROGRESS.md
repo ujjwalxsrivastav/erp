@@ -33,6 +33,7 @@
 
 ## 2. Step Verification & Checkpoint History
 
+- **CHECKPOINT: Step SP9 complete** — Library Deep-Dive module with `database/school_library_setup.sql`, `SchoolLibraryDeepService`, waitlist reservations with 3-day pickup claim windows, statutory ₹5/day overdue fine auto-posting to fees ledger, librarian fine waiver with audit trail, free NCERT and Gutenberg e-books repository, `SchoolLibraryDeepScreen` with 4 segmented command tabs, report SP-R11, and live Supabase verification — 2026-11-06 08:08 IST
 - **CHECKPOINT: Step SP8 complete** — Multi-School Superadmin module with `database/school_multi_setup.sql`, `SchoolMultiService`, campus switcher, `SchoolMultiAdminScreen` with 3 segmented tabs, report SP-R10, and live Supabase isolation test passing (School A scope returned 69 records with ZERO leaks from School B) — 2026-11-06 08:01 IST
 - **CHECKPOINT: Step SP7 complete** — Discipline module with `database/school_discipline_setup.sql`, `SchoolDisciplineService`, role-gated suspension, `SchoolDisciplineScreen` with 3 segmented tabs, report SP-R09, and live Supabase full-cycle verification (report -> inquiry -> action -> parent notice) — 2026-11-06 07:57 IST
 - **CHECKPOINT: Step SP6 complete** — Activities, Clubs & Sports module with `database/school_activities_setup.sql`, `SchoolActivitiesService`, `SchoolActivitiesScreen` with 3 segmented tabs, report SP-R08, and live Supabase full-cycle verification (event + club + membership + competition + certificate) — 2026-11-06 07:53 IST

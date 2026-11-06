@@ -120,6 +120,7 @@ import '../features/school/inventory/school_inventory_screen.dart';
 import '../features/school/activities/school_activities_screen.dart';
 import '../features/school/discipline/school_discipline_screen.dart';
 import '../features/school/admin/school_multi_admin_screen.dart';
+import '../features/school/library/school_library_deep_screen.dart';
 import '../services/auth_service.dart';
 
 final router = GoRouter(
@@ -372,6 +373,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/multi-admin',
       builder: (context, state) => const SchoolMultiAdminScreen(),
+    ),
+    GoRoute(
+      path: '/school/library-deep',
+      builder: (context, state) => const SchoolLibraryDeepScreen(),
     ),
 
     // ===== SCHOOL - PARENT =====
