@@ -45,13 +45,25 @@ class SchoolAiService {
     required String username,
     required String role,
   }) async {
-    // 1. Check daily quota
+    // 1. Check daily quota (in-memory + database)
     final today = DateTime.now().toIso8601String().substring(0, 10);
     final quotaKey = '${username}_$today';
-    final currentUsage = _dailyUsageCount[quotaKey] ?? 0;
+    int currentUsage = _dailyUsageCount[quotaKey] ?? 0;
+
+    try {
+      final res = await _supabase
+          .from('school_ai_usage_log')
+          .select('id')
+          .eq('user_username', username)
+          .gte('created_at', '${today}T00:00:00');
+      final dbCount = List.from(res).length;
+      if (dbCount > currentUsage) currentUsage = dbCount;
+    } catch (_) {}
 
     if (currentUsage >= maxDailyCallsPerUser) {
-      throw Exception('Daily AI quota ($maxDailyCallsPerUser calls/day) reached. Quota resets at midnight to protect system bandwidth.');
+      throw SchoolAiException(
+        'Daily AI quota ($maxDailyCallsPerUser queries/day) reached for $username. Quota resets at midnight.',
+      );
     }
 
     String result = '';
@@ -132,10 +144,11 @@ class SchoolAiService {
       } catch (_) {}
     }
 
-    // 4. Guaranteed deterministic fallback if both offline
+    // 4. Strict error if providers fail or API keys unconfigured (R3: Zero fabrication)
     if (result.trim().isEmpty) {
-      modelUsed = 'deterministic-offline-fallback';
-      result = _generateOfflineResponse(feature, userPrompt);
+      throw SchoolAiException(
+        'AI services are currently unavailable. Please configure API keys (GROQ_API_KEY / GEMINI_API_KEY) or contact administrator.',
+      );
     }
 
     // 5. Update quota count
@@ -401,7 +414,7 @@ Student's Work Summary: $studentSubmissionSummary
     required String username,
   }) async {
     final systemPrompt = '''
-You are the Shiv Nadar School Institutional AI Assistant. You possess authoritative real-time knowledge across all school modules:
+You are the Shivalik International School Institutional AI Assistant. You possess authoritative real-time knowledge across all school modules:
 - Payroll: Disbursed by the 1st week of the month; PF rate is 12%, ESI is 0.75%, PT is ₹200. Loss of Pay (LOP) is deducted strictly as (Gross / Days in Month * Unexcused Absent Days).
 - Living Suite: Hostels have 24/7 security. Gate passes require warden biometric authorization and dispatch instant alerts to parents. Infirmary clinic tracks vital signs, allergies, and visits. Cafeteria serves strictly vegetarian balanced menus with cashless RFID student wallets.
 - Alumni: Mentorship directory, reunion meets, and infrastructure giving interest forms (strictly no financial transactions).
@@ -441,15 +454,15 @@ Instructions:
       totalRemarks = remList.length;
       approvedRemarks = remList.where((r) => r['status'] == 'approved' || r['status'] == 'edited').length;
     } catch (_) {
-      totalRemarks = 38;
-      approvedRemarks = 34;
+      totalRemarks = 0;
+      approvedRemarks = 0;
     }
 
     try {
       final qpRes = await _supabase.from('school_ai_question_papers').select('id');
       totalPapers = List<Map<String, dynamic>>.from(qpRes).length;
     } catch (_) {
-      totalPapers = 12;
+      totalPapers = 0;
     }
 
     try {
@@ -457,10 +470,10 @@ Instructions:
       final logList = List<Map<String, dynamic>>.from(logRes);
       totalChats = logList.where((l) => l['feature'] == 'rag_chat').length;
     } catch (_) {
-      totalChats = 56;
+      totalChats = 0;
     }
 
-    final double approvalRate = totalRemarks > 0 ? (approvedRemarks / totalRemarks) * 100 : 92.5;
+    final double approvalRate = totalRemarks > 0 ? (approvedRemarks / totalRemarks) * 100 : 0.0;
 
     return {
       'total_remarks_drafted': totalRemarks,
@@ -498,30 +511,12 @@ Instructions:
       // Non-blocking fallback
     }
   }
+}
 
-  String _generateOfflineResponse(String feature, String userPrompt) {
-    if (feature == 'remarks') {
-      return '[AI draft — teacher approval pending] Aarav demonstrates commendable intellectual curiosity and exemplary discipline across all scholastic subjects. He participates enthusiastically in peer discussions and consistently submits assignments on time. With continued dedication to analytical problem solving, he will achieve exceptional academic outcomes.';
-    } else if (feature == 'question_paper') {
-      return '''
-[AI draft — teacher approval pending]
+class SchoolAiException implements Exception {
+  final String message;
+  const SchoolAiException(this.message);
 
-SECTION A: OBJECTIVE QUESTIONS (1 Mark Each)
-1. Which of the following organelles is known as the powerhouse of the cell? [1 Mark - Easy]
-   a) Ribosome  b) Mitochondria  c) Golgi Apparatus  d) Lysosome
-2. State the SI unit of electric potential difference. [1 Mark - Easy]
-
-SECTION B: SHORT ANSWER QUESTIONS (3 Marks Each)
-3. Explain the law of conservation of momentum with a real-life illustration. [3 Marks - Medium]
-4. Differentiate between autotrophic and heterotrophic modes of nutrition with examples. [3 Marks - Medium]
-
-SECTION C: LONG ANSWER / ANALYTICAL QUESTIONS (5 Marks Each)
-5. Derive the lens formula for a convex lens forming a real image. Draw a neat ray diagram. [5 Marks - Hard]
-''';
-    } else if (feature == 'feedback') {
-      return '[AI draft — teacher approval pending] Outstanding effort on this assignment! Your conceptual understanding of cellular respiration is thorough and well-articulated. Review the net ATP yield calculations in the Krebs cycle stage to ensure complete accuracy on exam questions.';
-    } else {
-      return 'Shiv Nadar School Knowledge Base: Institutional services are operating normally. Hostel gate passes require warden clearance; library overdue fines are assessed at ₹5/day; and monthly staff payroll is locked under dual-authorization maker-checker compliance.';
-    }
-  }
+  @override
+  String toString() => message;
 }

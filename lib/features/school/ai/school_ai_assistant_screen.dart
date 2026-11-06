@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../services/school_ai_service.dart';
 import '../../../services/school_export_service.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/supabase_service.dart';
 
 class SchoolAiAssistantScreen extends StatefulWidget {
   final int initialTab;
@@ -14,9 +16,13 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final SchoolAiService _aiService = SchoolAiService();
+  final AuthService _authService = AuthService();
 
   bool _isLoading = true;
   String? _errorMessage;
+
+  String _currentUsername = 'admin';
+  String _currentRole = 'teacher';
 
   Map<String, dynamic> _stats = {};
   List<Map<String, dynamic>> _remarks = [];
@@ -55,7 +61,7 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
     _loadData();
     _chatMessages.add({
       'sender': 'assistant',
-      'text': 'Hello! I am your Shiv Nadar School Institutional AI Assistant. Ask me anything about school policies, payroll, hostel allocations, cafeteria menus, library overdue fines, or student discipline rules.',
+      'text': 'Hello! I am your Shivalik International School Institutional AI Assistant. Ask me anything about school policies, payroll, hostel allocations, cafeteria menus, library overdue fines, or student discipline rules.',
     });
   }
 
@@ -83,44 +89,48 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
     });
 
     try {
+      final uname = await _authService.getCurrentUsername() ?? 'admin';
+      final role = await _authService.getCurrentUserRole() ?? 'teacher';
+
       final stats = await _aiService.getAiStats();
+
+      // Live queries from runtime tables (R5)
+      List<Map<String, dynamic>> remarks = [];
+      List<Map<String, dynamic>> papers = [];
+      List<Map<String, dynamic>> feedbacks = [];
+
+      try {
+        final remRes = await SupabaseService.client
+            .from('school_ai_remarks')
+            .select()
+            .order('created_at', ascending: false);
+        remarks = List<Map<String, dynamic>>.from(remRes);
+      } catch (_) {}
+
+      try {
+        final qpRes = await SupabaseService.client
+            .from('school_ai_question_papers')
+            .select()
+            .order('created_at', ascending: false);
+        papers = List<Map<String, dynamic>>.from(qpRes);
+      } catch (_) {}
+
+      try {
+        final fbRes = await SupabaseService.client
+            .from('school_ai_feedback')
+            .select()
+            .order('created_at', ascending: false);
+        feedbacks = List<Map<String, dynamic>>.from(fbRes);
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
+          _currentUsername = uname;
+          _currentRole = role;
           _stats = stats;
-          _remarks = [
-            {
-              'id': 'REM-101',
-              'student_name': 'Aarav Sharma',
-              'student_username': 'sstudent1',
-              'class_id': 'Class 10-A',
-              'exam_id': 'EXAM-MID-2026',
-              'draft_remark': '[AI draft — teacher approval pending] Aarav consistently exhibits keen intellectual curiosity and strong conceptual mastery in STEM disciplines. His collaborative spirit and punctuality set a commendable benchmark for his peers.',
-              'status': 'draft_pending_approval',
-              'created_at': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
-            },
-            {
-              'id': 'REM-102',
-              'student_name': 'Ananya Verma',
-              'student_username': 'sstudent2',
-              'class_id': 'Class 10-A',
-              'exam_id': 'EXAM-MID-2026',
-              'draft_remark': '[AI draft — teacher approval pending] Ananya demonstrates commendable perseverance and analytical depth. With increased active participation in classroom discussions, she will further elevate her academic trajectory.',
-              'status': 'approved',
-              'approved_by': 'steacher1',
-              'created_at': DateTime.now().subtract(const Duration(hours: 5)).toIso8601String(),
-            },
-          ];
-          _questionPapers = [
-            {
-              'id': 'QP-201',
-              'subject': 'Mathematics',
-              'class_id': 'Class 10-A',
-              'total_marks': 50,
-              'status': 'approved',
-              'created_by': 'steacher1',
-              'created_at': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
-            },
-          ];
+          _remarks = remarks;
+          _questionPapers = papers;
+          _feedbacks = feedbacks;
           _isLoading = false;
         });
       }
@@ -136,35 +146,22 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
 
   Future<void> _exportChatExcel() async {
     try {
-      final usageLogs = [
-        {
-          'id': 'LOG-1',
-          'user_username': 'steacher1',
-          'user_role': 'teacher',
-          'feature': 'rag_chat',
-          'prompt_snippet': 'What is staff loss of pay calculation formula?',
-          'tokens_used': 120,
-          'model_used': 'groq/llama-3.3-70b',
-          'created_at': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
-        },
-        {
-          'id': 'LOG-2',
-          'user_username': 'sparent1',
-          'user_role': 'parent',
-          'feature': 'rag_chat',
-          'prompt_snippet': 'Hostel gate pass and emergency clinic protocol?',
-          'tokens_used': 95,
-          'model_used': 'groq/llama-3.3-70b',
-          'created_at': DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
-        },
-      ];
+      final res = await SupabaseService.client
+          .from('school_ai_usage_log')
+          .select()
+          .order('created_at', ascending: false);
+      final usageLogs = List<Map<String, dynamic>>.from(res);
+
+      if (!mounted) return;
       await SchoolExportService.exportSchoolChatbotUsageExcel(
         context: context,
-        instituteName: 'Shiv Nadar School (SHIV-SCH)',
+        instituteName: 'Shivalik International School (SHIV-SCH)',
         usageLogs: usageLogs,
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export error: $e')));
+      }
     }
   }
 
@@ -172,13 +169,15 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
     try {
       await SchoolExportService.exportSchoolAiUsageExcel(
         context: context,
-        instituteName: 'Shiv Nadar School (SHIV-SCH)',
+        instituteName: 'Shivalik International School (SHIV-SCH)',
         aiStats: _stats,
         remarksList: _remarks,
         questionPapers: _questionPapers,
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export error: $e')));
+      }
     }
   }
 
@@ -198,7 +197,7 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
         marksPercentage: marks,
         attendancePercentage: att,
         behaviouralNotes: _notesCtrl.text.trim(),
-        teacherUsername: 'steacher1',
+        teacherUsername: _currentUsername,
       );
 
       setState(() {
@@ -233,7 +232,7 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
         subject: sub,
         chapters: chs,
         totalMarks: marks,
-        teacherUsername: 'steacher1',
+        teacherUsername: _currentUsername,
       );
 
       setState(() {
@@ -325,8 +324,8 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
     try {
       final answer = await _aiService.askRagAssistant(
         question: query,
-        userRole: 'teacher',
-        username: 'steacher1',
+        userRole: _currentRole,
+        username: _currentUsername,
       );
 
       if (mounted) {
@@ -825,7 +824,7 @@ class _SchoolAiAssistantScreenState extends State<SchoolAiAssistantScreen>
                         studentSubmissionSummary: 'Accurate hypothesis and diagram; minor calculation error in net oxygen volume output.',
                         score: 18.0,
                         maxScore: 20.0,
-                        teacherUsername: 'steacher1',
+                        teacherUsername: _currentUsername,
                       );
                       setState(() => _feedbacks.insert(0, fb));
                       ScaffoldMessenger.of(context).showSnackBar(
