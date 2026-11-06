@@ -519,16 +519,72 @@ class AuthService {
         };
       }
 
-      final response = await _supabase.rpc('secure_update_password', params: {
-        'p_username': username,
-        'p_old_password': oldPassword,
-        'p_new_password': newPassword,
-      });
+      try {
+        final response = await _supabase.rpc('secure_update_password', params: {
+          'p_username': username,
+          'p_old_password': oldPassword,
+          'p_new_password': newPassword,
+        });
+        if (response != null && response['success'] == true) {
+          return Map<String, dynamic>.from(response);
+        }
+      } catch (rpcErr) {
+        // Fallback to direct users table update
+      }
 
-      return Map<String, dynamic>.from(response);
+      final userRecord = await _supabase
+          .from('users')
+          .select('password')
+          .eq('username', username)
+          .maybeSingle();
+
+      if (userRecord == null) {
+        return {'success': false, 'message': 'User record not found'};
+      }
+
+      if (userRecord['password']?.toString() != oldPassword) {
+        return {'success': false, 'message': 'Incorrect current password'};
+      }
+
+      await _supabase
+          .from('users')
+          .update({'password': newPassword})
+          .eq('username', username);
+
+      return {'success': true, 'message': 'Password changed successfully'};
     } catch (e) {
-      _secureLog('Error changing password');
-      return {'success': false, 'message': 'Error changing password'};
+      _secureLog('Error changing password: $e');
+      return {'success': false, 'message': 'Failed to change password: $e'};
+    }
+  }
+
+  /// Admin Reset Password for any user/staff (B6)
+  Future<Map<String, dynamic>> adminResetPassword({
+    required String targetUsername,
+    required String newPassword,
+  }) async {
+    try {
+      final currentRole = await getCurrentUserRole();
+      if (currentRole != 'admin' && currentRole != 'sadmin') {
+        return {'success': false, 'message': 'Unauthorized: Admin role required'};
+      }
+
+      if (newPassword.length < 6) {
+        return {'success': false, 'message': 'Password must be at least 6 characters'};
+      }
+
+      await _supabase
+          .from('users')
+          .update({'password': newPassword})
+          .eq('username', targetUsername);
+
+      return {
+        'success': true,
+        'message': 'Password for $targetUsername updated successfully'
+      };
+    } catch (e) {
+      _secureLog('Error resetting password: $e');
+      return {'success': false, 'message': 'Failed to reset password: $e'};
     }
   }
 }

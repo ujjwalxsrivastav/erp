@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../../../services/auth_service.dart';
 import '../services/user_management_service.dart';
 
 /// Admin — Manage Users.
@@ -168,6 +169,89 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           backgroundColor: AppTheme.error,
         ),
       );
+    }
+  }
+
+  Future<void> _resetPassword(Map<String, dynamic> user) async {
+    final username = (user['username'] ?? '').toString();
+    final name = (user['display_name'] ?? '').toString();
+    final newPassCtrl = TextEditingController();
+    bool obscure = true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          title: Text('Reset Password for $username'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (name.isNotEmpty) ...[
+                Text('User: $name', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 10),
+              ],
+              TextField(
+                controller: newPassCtrl,
+                obscureText: obscure,
+                decoration: InputDecoration(
+                  labelText: 'New Password (min 6 chars)',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setDState(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.adminPrimary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                if (newPassCtrl.text.trim().length < 6) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Password must be at least 6 characters')),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('Set New Password'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final res = await AuthService().adminResetPassword(
+        targetUsername: username,
+        newPassword: newPassCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      if (res['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res['message'] ?? 'Password updated!'),
+            backgroundColor: AppTheme.success,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res['message'] ?? 'Failed to reset password'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
     }
   }
 
@@ -538,6 +622,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 ],
               ],
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.lock_reset_rounded,
+                color: AppTheme.adminPrimary),
+            tooltip: 'Reset Password',
+            onPressed: () => _resetPassword(user),
           ),
           IconButton(
             icon: const Icon(Icons.swap_horiz_rounded,
