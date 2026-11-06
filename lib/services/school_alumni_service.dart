@@ -71,8 +71,8 @@ class SchoolAlumniService {
       }
     } catch (_) {}
 
-    // Seed authentic distinguished alumni roster for Shivalik Academy
-    return _getSeedAlumniProfiles(search: search, passingYear: passingYear);
+    // Return empty list if no profiles found
+    return [];
   }
 
   Future<Map<String, dynamic>> registerAlumniProfile(Map<String, dynamic> data) async {
@@ -159,7 +159,7 @@ class SchoolAlumniService {
       if (list.isNotEmpty) return list;
     } catch (_) {}
 
-    return _getSeedAlumniEvents();
+    return [];
   }
 
   Future<Map<String, dynamic>> createAlumniEvent(Map<String, dynamic> event) async {
@@ -355,28 +355,7 @@ class SchoolAlumniService {
       if (list.isNotEmpty) return list;
     } catch (_) {}
 
-    return [
-      {
-        'id': 'don-seed-01',
-        'alumni_name': 'Rohan Mehrotra',
-        'alumni_email': 'rohan.m@alumni.org',
-        'cause_area': 'STEM & Robotics Lab',
-        'pledge_amount_estimate': 50000.0,
-        'message': 'Keen to support our school AI lab setup for junior innovators.',
-        'status': 'Contacted',
-        'created_at': DateTime.now().subtract(const Duration(days: 4)).toIso8601String(),
-      },
-      {
-        'id': 'don-seed-02',
-        'alumni_name': 'Dr. Priya Negi',
-        'alumni_email': 'priya.negi@alumni.org',
-        'cause_area': 'Student Scholarship',
-        'pledge_amount_estimate': 25000.0,
-        'message': 'Annual merit-cum-means scholarship for girls in secondary school.',
-        'status': 'Pledge Confirmed',
-        'created_at': DateTime.now().subtract(const Duration(days: 12)).toIso8601String(),
-      },
-    ];
+    return [];
   }
 
   // ==========================================
@@ -409,170 +388,5 @@ class SchoolAlumniService {
       newValue: payload,
     );
     return res ?? payload;
-  }
-
-  // ==========================================
-  // SEED GENERATORS (Zero-Mock Fallback Pattern)
-  // ==========================================
-
-  List<Map<String, dynamic>> _getSeedAlumniProfiles({String? search, int? passingYear}) {
-    final list = [
-      {
-        'id': 'alm-01',
-        'full_name': 'Rohan Mehrotra',
-        'passing_year': 2018,
-        'batch_name': 'Class of 2018',
-        'last_class_section': '12-A',
-        'current_status': 'Employed',
-        'organization_college': 'Google India (Bangalore)',
-        'designation_degree': 'Senior Software Engineer (IIT Delhi, B.Tech CSE)',
-        'city': 'Bengaluru',
-        'country': 'India',
-        'email': 'rohan.mehrotra@alumni.org',
-        'phone': '+91 98765 43210',
-        'linkedin_url': 'linkedin.com/in/rohanm-tech',
-        'is_verified': true,
-        'willing_to_mentor': true,
-      },
-      {
-        'id': 'alm-02',
-        'full_name': 'Dr. Priya Negi',
-        'passing_year': 2019,
-        'batch_name': 'Class of 2019',
-        'last_class_section': '12-B',
-        'current_status': 'Employed',
-        'organization_college': 'AIIMS Rishikesh',
-        'designation_degree': 'Resident Doctor (MBBS, Gold Medalist)',
-        'city': 'Rishikesh',
-        'country': 'India',
-        'email': 'priya.negi@alumni.org',
-        'phone': '+91 98112 34567',
-        'linkedin_url': 'linkedin.com/in/drpriyanegi',
-        'is_verified': true,
-        'willing_to_mentor': true,
-      },
-      {
-        'id': 'alm-03',
-        'full_name': 'Vikramaditya Rawat',
-        'passing_year': 2020,
-        'batch_name': 'Class of 2020',
-        'last_class_section': '12-A',
-        'current_status': 'Civil Services',
-        'organization_college': 'Govt of Uttarakhand (IAS Trainee)',
-        'designation_degree': 'UPSC CSE Rank 48 (St. Stephen’s College)',
-        'city': 'Dehradun',
-        'country': 'India',
-        'email': 'vikram.rawat@alumni.org',
-        'phone': '+91 94120 55443',
-        'linkedin_url': 'linkedin.com/in/vikram-rawat-ias',
-        'is_verified': true,
-        'willing_to_mentor': true,
-      },
-      {
-        'id': 'alm-04',
-        'full_name': 'Ananya Joshi',
-        'passing_year': 2021,
-        'batch_name': 'Class of 2021',
-        'last_class_section': '12-C',
-        'current_status': 'Entrepreneur',
-        'organization_college': 'Himalayan Organic Teas (Founder & CEO)',
-        'designation_degree': 'Forbes 30 Under 30 Asia Nominee (SRCC B.Com)',
-        'city': 'Dehradun',
-        'country': 'India',
-        'email': 'ananya.joshi@alumni.org',
-        'phone': '+91 97600 11223',
-        'linkedin_url': 'linkedin.com/in/ananyajoshi-eco',
-        'is_verified': true,
-        'willing_to_mentor': false,
-      },
-      {
-        'id': 'alm-05',
-        'full_name': 'Aditya Kapoor',
-        'passing_year': 2022,
-        'batch_name': 'Class of 2022',
-        'last_class_section': '12-A',
-        'current_status': 'Higher Education',
-        'organization_college': 'University of Oxford (Rhodes Scholar)',
-        'designation_degree': 'M.Sc Quantum Computing & Physics',
-        'city': 'Oxford',
-        'country': 'United Kingdom',
-        'email': 'aditya.kapoor@alumni.org',
-        'phone': '+44 7700 900123',
-        'linkedin_url': 'linkedin.com/in/adityakapoor-quantum',
-        'is_verified': true,
-        'willing_to_mentor': true,
-      },
-      {
-        'id': 'alm-06',
-        'full_name': 'Sneha Bhatt',
-        'passing_year': 2023,
-        'batch_name': 'Class of 2023',
-        'last_class_section': '12-B',
-        'current_status': 'Higher Education',
-        'organization_college': 'National Law School of India University (NLSIU)',
-        'designation_degree': 'B.A. LL.B. (Hons.) 2nd Year',
-        'city': 'Bengaluru',
-        'country': 'India',
-        'email': 'sneha.bhatt@alumni.org',
-        'phone': '+91 99971 88221',
-        'linkedin_url': 'linkedin.com/in/snehabhatt-law',
-        'is_verified': true,
-        'willing_to_mentor': true,
-      },
-    ];
-
-    var filtered = list;
-    if (passingYear != null) {
-      filtered = filtered.where((a) => a['passing_year'] == passingYear).toList();
-    }
-    if (search != null && search.trim().isNotEmpty) {
-      final s = search.toLowerCase();
-      filtered = filtered.where((a) =>
-          (a['full_name']?.toString().toLowerCase().contains(s) ?? false) ||
-          (a['organization_college']?.toString().toLowerCase().contains(s) ?? false) ||
-          (a['designation_degree']?.toString().toLowerCase().contains(s) ?? false) ||
-          (a['batch_name']?.toString().toLowerCase().contains(s) ?? false)
-      ).toList();
-    }
-    return filtered;
-  }
-
-  List<Map<String, dynamic>> _getSeedAlumniEvents() {
-    return [
-      {
-        'id': 'evt-01',
-        'title': 'Grand Decennial Alumni Reunion 2026',
-        'event_type': 'Reunion',
-        'event_date': DateTime.now().add(const Duration(days: 28)).toIso8601String(),
-        'venue': 'Shivalik Academy Green Amphitheatre',
-        'mode': 'In-Person',
-        'description': 'Relive golden memories! Welcome back all batches from 2015 to 2024 for a day of campus nostalgia, sports revival, and gala dinner.',
-        'target_batches': ['All'],
-        'rsvp_count': 142,
-      },
-      {
-        'id': 'evt-02',
-        'title': 'Alumni Tech & Innovation Summit: AI & Deep Tech',
-        'event_type': 'Guest Lecture',
-        'event_date': DateTime.now().add(const Duration(days: 14)).toIso8601String(),
-        'venue': 'T.N. Memorial Auditorium & Zoom Webinar',
-        'mode': 'Hybrid',
-        'meeting_link': 'https://meet.google.com/xyz-alumni-tech',
-        'description': 'Keynote lectures by our alumni currently in Google, Microsoft, and AI research labs for students of Classes 10–12.',
-        'target_batches': ['2018', '2019', '2020', '2021'],
-        'rsvp_count': 86,
-      },
-      {
-        'id': 'evt-03',
-        'title': 'Civil Services Mentorship Circle (UPSC & Judiciary)',
-        'event_type': 'Career Mentorship',
-        'event_date': DateTime.now().add(const Duration(days: 42)).toIso8601String(),
-        'venue': 'Senior Seminar Hall (Block C)',
-        'mode': 'In-Person',
-        'description': 'Exclusive strategy session by IAS & IPS alumni guiding aspiring civil servants on essay writing, ethics, and interview preparation.',
-        'target_batches': ['2018', '2019', '2020'],
-        'rsvp_count': 39,
-      },
-    ];
   }
 }

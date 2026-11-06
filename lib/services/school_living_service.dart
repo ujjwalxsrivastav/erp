@@ -25,29 +25,10 @@ class SchoolLivingService {
           .select()
           .eq('institute_id', instituteId)
           .order('name');
-      final list = List<Map<String, dynamic>>.from(res);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Resilient fallback from school_circulars
-    try {
-      final res = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'HostelMaster')
-          .order('published_at', ascending: false);
-      final list = <Map<String, dynamic>>[];
-      for (final r in res) {
-        try {
-          final c = jsonDecode(r['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          if (c.isNotEmpty) list.add(c);
-        } catch (_) {}
-      }
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Seed default baseline hostels
-    return await _seedInitialHostels(instituteId);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<Map<String, dynamic>>> getHostelRooms(String hostelId) async {
@@ -57,28 +38,10 @@ class SchoolLivingService {
           .select()
           .eq('hostel_id', hostelId)
           .order('room_number');
-      final list = List<Map<String, dynamic>>.from(res);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Resilient fallback
-    try {
-      final res = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'HostelRoom')
-          .order('published_at', ascending: false);
-      final list = <Map<String, dynamic>>[];
-      for (final r in res) {
-        try {
-          final c = jsonDecode(r['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          if (c['hostel_id'] == hostelId) list.add(c);
-        } catch (_) {}
-      }
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    return _generateDefaultRooms(hostelId);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<Map<String, dynamic>>> getHostelAllocations({
@@ -94,28 +57,7 @@ class SchoolLivingService {
         query = query.eq('student_id', studentId);
       }
       final res = await query.order('created_at', ascending: false);
-      final list = List<Map<String, dynamic>>.from(res);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Fallback
-    try {
-      final res = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'HostelAllocation')
-          .order('published_at', ascending: false);
-      final list = <Map<String, dynamic>>[];
-      for (final r in res) {
-        try {
-          final c = jsonDecode(r['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          if ((hostelId == null || c['hostel_id'] == hostelId) &&
-              (studentId == null || c['student_id'] == studentId)) {
-            list.add(c);
-          }
-        } catch (_) {}
-      }
-      return list;
+      return List<Map<String, dynamic>>.from(res);
     } catch (_) {
       return [];
     }
@@ -185,29 +127,7 @@ class SchoolLivingService {
         query = query.eq('status', status);
       }
       final res = await query.order('out_time', ascending: false);
-      final list = List<Map<String, dynamic>>.from(res);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Fallback
-    try {
-      final res = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'GatePass')
-          .order('published_at', ascending: false);
-      final list = <Map<String, dynamic>>[];
-      for (final r in res) {
-        try {
-          final c = jsonDecode(r['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          if ((hostelId == null || c['hostel_id'] == hostelId) &&
-              (studentId == null || c['student_id'] == studentId) &&
-              (status == null || c['status'] == status)) {
-            list.add(c);
-          }
-        } catch (_) {}
-      }
-      return list;
+      return List<Map<String, dynamic>>.from(res);
     } catch (_) {
       return [];
     }
@@ -326,60 +246,6 @@ class SchoolLivingService {
     };
   }
 
-  Future<List<Map<String, dynamic>>> _seedInitialHostels(String instituteId) async {
-    final list = [
-      {
-        'id': 'HST-BOYS-01',
-        'institute_id': instituteId,
-        'name': 'Himalayan Boys Residence',
-        'gender': 'Boys',
-        'capacity': 120,
-        'warden_name': 'Kailash Negi',
-        'warden_contact': '+91 98765-11223',
-      },
-      {
-        'id': 'HST-GIRLS-01',
-        'institute_id': instituteId,
-        'name': 'Shivalik Girls Residence',
-        'gender': 'Girls',
-        'capacity': 100,
-        'warden_name': 'Meenakshi Rawat',
-        'warden_contact': '+91 98765-44556',
-      },
-    ];
-
-    for (final h in list) {
-      try {
-        await _supabase.from('school_hostels').upsert(h);
-      } catch (_) {
-        await _supabase.from('school_circulars').insert({
-          'title': 'Hostel: ${h['name']}',
-          'content': jsonEncode(h),
-          'category': 'HostelMaster',
-          'target_audience': 'Admin',
-          'published_at': DateTime.now().toIso8601String(),
-        });
-      }
-    }
-    return list;
-  }
-
-  List<Map<String, dynamic>> _generateDefaultRooms(String hostelId) {
-    final rooms = <Map<String, dynamic>>[];
-    for (int i = 1; i <= 10; i++) {
-      rooms.add({
-        'id': 'RM-$hostelId-${100 + i}',
-        'hostel_id': hostelId,
-        'room_number': '${100 + i}',
-        'floor': 1,
-        'capacity': 3,
-        'occupied': i <= 3 ? 3 : (i <= 7 ? 2 : 0),
-        'status': i <= 3 ? 'Full' : 'Available',
-      });
-    }
-    return rooms;
-  }
-
   // ===========================================================================
   // 2. INFIRMARY OPERATIONS (S3.2 - Sensitive Health Records)
   // ===========================================================================
@@ -395,34 +261,7 @@ class SchoolLivingService {
       if (res != null) return Map<String, dynamic>.from(res);
     } catch (_) {}
 
-    // Fallback search in circulars
-    try {
-      final res = await _supabase
-          .from('school_circulars')
-          .select()
-          .eq('category', 'InfirmaryRecord')
-          .order('published_at', ascending: false);
-      for (final r in res) {
-        try {
-          final c = jsonDecode(r['content']?.toString() ?? '{}') as Map<String, dynamic>;
-          if ((c['student_id']?.toString().toLowerCase() ?? '') == cleanId) return c;
-        } catch (_) {}
-      }
-    } catch (_) {}
-
-    // Safe baseline profile derived from student master
-    return {
-      'student_id': studentId,
-      'student_name': 'Student',
-      'class_name': 'Class 10-A',
-      'blood_group': 'B+',
-      'allergies': 'None Reported',
-      'chronic_conditions': 'None Reported',
-      'dietary_restrictions': 'Vegetarian',
-      'emergency_contact_name': 'Parent / Guardian',
-      'emergency_contact_phone': '+91 9876543210',
-      'medical_insurance_policy': 'Institutional Group Cover (Policy #SHIV-MED-2026)',
-    };
+    return <String, dynamic>{};
   }
 
   Future<void> saveStudentHealthRecord(Map<String, dynamic> record, {String? actorUsername}) async {
@@ -563,19 +402,10 @@ class SchoolLivingService {
           .from('school_medicine_stock')
           .select()
           .order('name');
-      final list = List<Map<String, dynamic>>.from(res);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Resilient Baseline Stock
-    return [
-      {'id': 'MED-01', 'name': 'Paracetamol 500mg', 'category': 'Analgesic', 'unit': 'Tablets', 'quantity': 180, 'minimum_alert_level': 30, 'expiry_date': '2027-08-31'},
-      {'id': 'MED-02', 'name': 'Cetirizine 10mg', 'category': 'Antihistamine', 'unit': 'Tablets', 'quantity': 95, 'minimum_alert_level': 20, 'expiry_date': '2027-05-31'},
-      {'id': 'MED-03', 'name': 'ORS Electrolyte Sachets', 'category': 'Hydration', 'unit': 'Packets', 'quantity': 60, 'minimum_alert_level': 25, 'expiry_date': '2028-01-31'},
-      {'id': 'MED-04', 'name': 'Betadine Antiseptic Solution', 'category': 'Antiseptic', 'unit': 'Bottles (100ml)', 'quantity': 12, 'minimum_alert_level': 5, 'expiry_date': '2027-11-30'},
-      {'id': 'MED-05', 'name': 'Sterile Gauze Bandages', 'category': 'First Aid', 'unit': 'Rolls', 'quantity': 45, 'minimum_alert_level': 15, 'expiry_date': '2029-12-31'},
-      {'id': 'MED-06', 'name': 'Volini Pain Relief Gel', 'category': 'Topical Analgesic', 'unit': 'Tubes', 'quantity': 18, 'minimum_alert_level': 8, 'expiry_date': '2026-12-31'},
-    ];
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
   }
 
   // ===========================================================================

@@ -5439,108 +5439,7 @@ class SchoolExportService {
     final summary = excel['Summary'];
     final data = excel['Pipeline History'];
 
-    final runs = deployRuns ?? [
-      {
-        'run_id': '19114298101',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': 'a045d60',
-        'commit_title': 'super: SP1 — Deploy pipeline fix and hardening',
-        'status': 'SUCCESS',
-        'duration_seconds': 112,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T07:15:00Z',
-      },
-      {
-        'run_id': '19114389102',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': '8e2b142',
-        'commit_title': 'super: SP2 — School payroll run and statutory deductions',
-        'status': 'SUCCESS',
-        'duration_seconds': 108,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T07:29:00Z',
-      },
-      {
-        'run_id': '19114490103',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': 'e24d655',
-        'commit_title': 'super: SP3 — Hostel, infirmary and cafeteria suite',
-        'status': 'SUCCESS',
-        'duration_seconds': 114,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T07:38:00Z',
-      },
-      {
-        'run_id': '19114592104',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': '8edfbac',
-        'commit_title': 'super: SP4 — Alumni directory, events and engagement',
-        'status': 'SUCCESS',
-        'duration_seconds': 105,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T07:45:00Z',
-      },
-      {
-        'run_id': '19114693105',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': 'eeeadd2',
-        'commit_title': 'super: SP5 — Inventory and assets accounting',
-        'status': 'SUCCESS',
-        'duration_seconds': 110,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T07:49:00Z',
-      },
-      {
-        'run_id': '19114794106',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': 'dd12ceb',
-        'commit_title': 'super: SP6 — Activities, clubs and sports suite',
-        'status': 'SUCCESS',
-        'duration_seconds': 116,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T07:53:00Z',
-      },
-      {
-        'run_id': '19114895107',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': '3dbe99a',
-        'commit_title': 'super: SP7 — Discipline and incident management',
-        'status': 'SUCCESS',
-        'duration_seconds': 109,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T07:57:00Z',
-      },
-      {
-        'run_id': '19114996108',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': '3a547ea',
-        'commit_title': 'super: SP8 — Multi-school superadmin and data isolation',
-        'status': 'SUCCESS',
-        'duration_seconds': 115,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T08:01:00Z',
-      },
-      {
-        'run_id': '19115097109',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': '6a12699',
-        'commit_title': 'super: SP9 — Library deep-dive, waitlist reservations and free e-books',
-        'status': 'SUCCESS',
-        'duration_seconds': 113,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T08:08:00Z',
-      },
-      {
-        'run_id': '19115198110',
-        'workflow': 'Deploy to GitHub Pages',
-        'commit_hash': 'a8ab9e6',
-        'commit_title': 'super: SP10 — Enterprise permission matrix and marks lock',
-        'status': 'SUCCESS',
-        'duration_seconds': 118,
-        'trigger': 'push (main)',
-        'date': '2026-11-06T08:12:00Z',
-      },
-    ];
+    final runs = deployRuns ?? <Map<String, dynamic>>[];
 
     final int totalRuns = runs.length;
     final int successCount = runs.where((r) => r['status'] == 'SUCCESS').length;
@@ -5548,7 +5447,7 @@ class SchoolExportService {
     for (final r in runs) {
       totalDuration += (r['duration_seconds'] as num?)?.toInt() ?? 0;
     }
-    final avgDuration = totalRuns > 0 ? (totalDuration / totalRuns).round() : 110;
+    final avgDuration = totalRuns > 0 ? (totalDuration / totalRuns).round() : 0;
 
     summary.appendRow([TextCellValue('INSTITUTION:'), TextCellValue(instituteName)]);
     summary.appendRow([TextCellValue('REPORT:'), TextCellValue('CI/CD Pipeline Telemetry & Deploy Health Register')]);
@@ -5558,9 +5457,9 @@ class SchoolExportService {
     summary.appendRow([TextCellValue('KEY PIPELINE METRIC'), TextCellValue('VALUE')]);
     summary.appendRow([TextCellValue('Total Deployment Runs:'), IntCellValue(totalRuns)]);
     summary.appendRow([TextCellValue('Successful Deployments:'), IntCellValue(successCount)]);
-    summary.appendRow([TextCellValue('Deployment Success Rate:'), TextCellValue('${((successCount / totalRuns) * 100).toStringAsFixed(1)}%')]);
-    summary.appendRow([TextCellValue('Average Pipeline Duration:'), TextCellValue('${avgDuration}s (~${(avgDuration / 60).toStringAsFixed(1)} min)')]);
-    summary.appendRow([TextCellValue('Pipeline Hardening Status:'), TextCellValue('RESOLVED (Removed .env asset; dart-define configured; analyze fail-fast)')]);
+    summary.appendRow([TextCellValue('Deployment Success Rate:'), TextCellValue(totalRuns > 0 ? '${((successCount / totalRuns) * 100).toStringAsFixed(1)}%' : '0.0%')]);
+    summary.appendRow([TextCellValue('Average Pipeline Duration:'), TextCellValue('${avgDuration}s')]);
+    summary.appendRow([TextCellValue('Pipeline Hardening Status:'), TextCellValue('Configured (GitHub Actions runner telemetry)')]);
 
     data.appendRow([
       TextCellValue('S.No'),

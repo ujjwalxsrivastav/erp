@@ -1546,17 +1546,7 @@ class SchoolService {
           .maybeSingle();
       return response;
     } catch (_) {
-      return {
-        'id': 'SCH-01',
-        'username': username,
-        'name': 'Aarav Sharma',
-        'class_id': 'cls-10a',
-        'class_name': 'Class 10-A',
-        'roll_number': '01',
-        'admission_no': 'ADM202601',
-        'parent_name': 'Rajesh Sharma',
-        'contact': '9876543210',
-      };
+      return null;
     }
   }
 
@@ -1568,21 +1558,10 @@ class SchoolService {
         query = query.eq('institute_id', instituteId);
       }
       final response = await query.order('name');
-      final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    // Fallback standard school classes if table empty or DB query fails
-    return [
-      {'id': 'cls-6a', 'name': 'Class 6-A', 'grade': '6', 'section': 'A'},
-      {'id': 'cls-7a', 'name': 'Class 7-A', 'grade': '7', 'section': 'A'},
-      {'id': 'cls-8a', 'name': 'Class 8-A', 'grade': '8', 'section': 'A'},
-      {'id': 'cls-9a', 'name': 'Class 9-A', 'grade': '9', 'section': 'A'},
-      {'id': 'cls-10a', 'name': 'Class 10-A', 'grade': '10', 'section': 'A'},
-      {'id': 'cls-10b', 'name': 'Class 10-B', 'grade': '10', 'section': 'B'},
-      {'id': 'cls-11a', 'name': 'Class 11-Science', 'grade': '11', 'section': 'A'},
-      {'id': 'cls-12a', 'name': 'Class 12-Science', 'grade': '12', 'section': 'A'},
-    ];
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      return [];
+    }
   }
 
   String _compactClassKey(String value) =>
@@ -4636,17 +4615,6 @@ class SchoolService {
       }
     }
 
-    if (students.isEmpty) {
-      students.addAll([
-        {'username': 'sstudent1', 'name': 'Aarav Sharma', 'class_name': 'Class 10-A', 'roll_number': '01'},
-        {'username': 'student2', 'name': 'Priya Patel', 'class_name': 'Class 10-A', 'roll_number': '02'},
-        {'username': 'student3', 'name': 'Rohan Gupta', 'class_name': 'Class 10-A', 'roll_number': '03'},
-        {'username': 'student4', 'name': 'Sneha Singh', 'class_name': 'Class 10-A', 'roll_number': '04'},
-        {'username': 'student5', 'name': 'Vikram Kumar', 'class_name': 'Class 10-A', 'roll_number': '05'},
-        {'username': 'student6', 'name': 'Ananya Verma', 'class_name': 'Class 10-A', 'roll_number': '06'},
-      ]);
-    }
-
     final heads = await getSchoolFeeHeads();
     final activeHeads = heads.where((h) => h['is_active'] != false).toList();
     final double baseMonthlyAmount = activeHeads.fold<double>(
@@ -5409,91 +5377,36 @@ class SchoolService {
 
   // ===== TRANSPORT ROSTER =====
   Future<List<Map<String, dynamic>>> getTransportRoster({String? routeId}) async {
-    final allStudents = [
-      {
-        'student_id': 'sstudent1',
-        'name': 'Aarav Sharma',
-        'class_name': 'Class 10-A',
-        'roll_number': '01',
-        'route_id': 'Route 1',
-        'pickup_stop': 'Jakhan Chowk',
-        'drop_stop': 'Jakhan Chowk',
-        'pickup_time': '07:20 AM',
-        'drop_time': '02:40 PM',
-        'parent_name': 'Rajesh Sharma',
-        'parent_phone': '9876543210',
-      },
-      {
-        'student_id': 'student2',
-        'name': 'Priya Patel',
-        'class_name': 'Class 10-A',
-        'roll_number': '02',
-        'route_id': 'Route 1',
-        'pickup_stop': 'Jakhan Chowk',
-        'drop_stop': 'Jakhan Chowk',
-        'pickup_time': '07:22 AM',
-        'drop_time': '02:42 PM',
-        'parent_name': 'Deepak Patel',
-        'parent_phone': '9876543211',
-      },
-      {
-        'student_id': 'student3',
-        'name': 'Rohan Gupta',
-        'class_name': 'Class 10-A',
-        'roll_number': '03',
-        'route_id': 'Route 1',
-        'pickup_stop': 'Clock Tower',
-        'drop_stop': 'Clock Tower',
-        'pickup_time': '07:35 AM',
-        'drop_time': '02:25 PM',
-        'parent_name': 'Sanjay Gupta',
-        'parent_phone': '9876543212',
-      },
-      {
-        'student_id': 'student4',
-        'name': 'Sneha Singh',
-        'class_name': 'Class 10-A',
-        'roll_number': '04',
-        'route_id': 'Route 1',
-        'pickup_stop': 'Rajpur Road',
-        'drop_stop': 'Rajpur Road',
-        'pickup_time': '07:15 AM',
-        'drop_time': '02:50 PM',
-        'parent_name': 'Manoj Singh',
-        'parent_phone': '9876543213',
-      },
-      {
-        'student_id': 'student5',
-        'name': 'Vikram Kumar',
-        'class_name': 'Class 10-A',
-        'roll_number': '05',
-        'route_id': 'Route 2',
-        'pickup_stop': 'Ballupur Chowk',
-        'drop_stop': 'Ballupur Chowk',
-        'pickup_time': '07:25 AM',
-        'drop_time': '02:35 PM',
-        'parent_name': 'Ashok Kumar',
-        'parent_phone': '9876543214',
-      },
-      {
-        'student_id': 'student6',
-        'name': 'Ananya Verma',
-        'class_name': 'Class 10-A',
-        'roll_number': '06',
-        'route_id': 'Route 2',
-        'pickup_stop': 'Kishan Nagar',
-        'drop_stop': 'Kishan Nagar',
-        'pickup_time': '07:35 AM',
-        'drop_time': '02:25 PM',
-        'parent_name': 'Sunil Verma',
-        'parent_phone': '9876543215',
-      },
-    ];
-
-    if (routeId != null && routeId.isNotEmpty && routeId != '__all__') {
-      return allStudents.where((s) => s['route_id'] == routeId).toList();
+    try {
+      final res = await _supabase
+          .from('school_students')
+          .select('username, name, class_name, roll_number, parent_name, parent_phone')
+          .order('name');
+      final list = List<Map<String, dynamic>>.from(res);
+      return list.map((s) {
+        final uname = s['username']?.toString() ?? '';
+        final sName = s['name']?.toString() ?? uname;
+        final cName = s['class_name']?.toString() ?? '';
+        final rNo = s['roll_number']?.toString() ?? '';
+        final pName = s['parent_name']?.toString() ?? '';
+        final pPhone = s['parent_phone']?.toString() ?? '';
+        return {
+          'student_id': uname,
+          'name': sName,
+          'class_name': cName,
+          'roll_number': rNo,
+          'route_id': routeId ?? 'Route 1',
+          'pickup_stop': 'Designated School Stop',
+          'drop_stop': 'Designated School Stop',
+          'pickup_time': '07:30 AM',
+          'drop_time': '02:30 PM',
+          'parent_name': pName,
+          'parent_phone': pPhone,
+        };
+      }).toList();
+    } catch (_) {
+      return [];
     }
-    return allStudents;
   }
 
   Future<Map<String, dynamic>> recordBusAttendance({
@@ -5871,310 +5784,11 @@ class SchoolService {
   }
 
   // ===== ADMISSIONS =====
-  static final List<Map<String, dynamic>> _defaultEnterpriseAdmissions = [
-    {
-      'id': 'ADM-2026-081',
-      'application_no': 'SIS/2026/081',
-      'applicant_name': 'Kavya Singhania',
-      'gender': 'Female',
-      'dob': '2016-04-18',
-      'blood_group': 'B+',
-      'nationality': 'Indian',
-      'religion': 'Hindu',
-      'category': 'General',
-      'aadhaar_no': '4512-8891-2304',
-      'grade_applying': 'Class 5',
-      'stream': 'N/A',
-      'second_language': 'Sanskrit',
-      'transport_required': true,
-      'transport_stop': 'Jakhan Chowk',
-      'previous_school': 'St. Joseph Academy, Dehradun',
-      'previous_board': 'CBSE',
-      'previous_grade': 'Class 4 (A+ Grade - 91.2%)',
-      'parent_name': 'Vikram Singhania',
-      'mother_name': 'Radhika Singhania',
-      'parent_phone': '9897123450',
-      'email': 'vikram.singhania@gmail.com',
-      'parent_occupation': 'Chartered Accountant',
-      'annual_income': '₹18,00,000 / year',
-      'address': 'Plot 42, Rajpur Road, Dehradun, UK',
-      'distance_km': 3.5,
-      'sibling_priority': true,
-      'sibling_name': 'Aarav Singhania (Class 8-A)',
-      'rte_quota': false,
-      'status': 'Offer Letter Issued',
-      'doc_status': 'Verified',
-      'documents': {
-        'birth_cert': true,
-        'student_aadhaar': true,
-        'parent_aadhaar': true,
-        'transfer_cert': true,
-        'previous_report_card': true,
-        'medical_fitness': true,
-        'rte_income_cert': false,
-      },
-      'test_status': 'Completed',
-      'test_score': 45,
-      'interaction_notes': 'Exceptional academic aptitude, clear mathematics fundamentals and fluent communication skills. Recommended for admission.',
-      'interaction_date': '2026-10-18',
-      'offer_date': '2026-10-22',
-      'offer_valid_till': '2026-11-15',
-      'fee_demanded': 35000.0,
-      'fee_paid': 0.0,
-      'date': '2026-10-14',
-    },
-    {
-      'id': 'ADM-2026-082',
-      'application_no': 'SIS/2026/082',
-      'applicant_name': 'Advait Joshi',
-      'gender': 'Male',
-      'dob': '2015-08-11',
-      'blood_group': 'O+',
-      'nationality': 'Indian',
-      'religion': 'Hindu',
-      'category': 'General',
-      'aadhaar_no': '7821-4402-9918',
-      'grade_applying': 'Class 6',
-      'stream': 'N/A',
-      'second_language': 'Hindi',
-      'transport_required': true,
-      'transport_stop': 'Clock Tower',
-      'previous_school': 'Brightlands School, Dehradun',
-      'previous_board': 'ICSE',
-      'previous_grade': 'Class 5 (87.5%)',
-      'parent_name': 'Mahesh Joshi',
-      'mother_name': 'Deepa Joshi',
-      'parent_phone': '9897100222',
-      'email': 'mahesh.joshi@outlook.com',
-      'parent_occupation': 'Civil Engineer (PWD Uttarakhand)',
-      'annual_income': '₹14,50,000 / year',
-      'address': '54 Canal Road, Kishan Nagar, Dehradun',
-      'distance_km': 5.2,
-      'sibling_priority': false,
-      'sibling_name': '',
-      'rte_quota': false,
-      'status': 'Interview Scheduled',
-      'doc_status': 'Verified',
-      'documents': {
-        'birth_cert': true,
-        'student_aadhaar': true,
-        'parent_aadhaar': true,
-        'transfer_cert': true,
-        'previous_report_card': true,
-        'medical_fitness': true,
-        'rte_income_cert': false,
-      },
-      'test_status': 'Scheduled',
-      'test_score': 0,
-      'interaction_notes': 'Interaction scheduled with Vice Principal for Saturday 11:30 AM.',
-      'interaction_date': '2026-11-08',
-      'offer_date': '',
-      'offer_valid_till': '',
-      'fee_demanded': 35000.0,
-      'fee_paid': 0.0,
-      'date': '2026-10-25',
-    },
-    {
-      'id': 'ADM-2026-083',
-      'application_no': 'SIS/2026/083',
-      'applicant_name': 'Aarohi Negi',
-      'gender': 'Female',
-      'dob': '2019-02-14',
-      'blood_group': 'A+',
-      'nationality': 'Indian',
-      'religion': 'Hindu',
-      'category': 'EWS / RTE Quota',
-      'aadhaar_no': '9012-3341-8890',
-      'grade_applying': 'Class 1',
-      'stream': 'N/A',
-      'second_language': 'Hindi',
-      'transport_required': false,
-      'transport_stop': 'Self Drop',
-      'previous_school': 'Anganwadi Center Jakhan',
-      'previous_board': 'State Early Ed',
-      'previous_grade': 'Pre-Primary',
-      'parent_name': 'Santosh Negi',
-      'mother_name': 'Kamla Negi',
-      'parent_phone': '9756112233',
-      'email': '',
-      'parent_occupation': 'Daily Wage Artisan',
-      'annual_income': '₹1,10,000 / year',
-      'address': 'Jakhan Basti, Near Forest Rest House, Dehradun',
-      'distance_km': 1.2,
-      'sibling_priority': false,
-      'sibling_name': '',
-      'rte_quota': true,
-      'status': 'Enrolled',
-      'doc_status': 'Verified',
-      'documents': {
-        'birth_cert': true,
-        'student_aadhaar': true,
-        'parent_aadhaar': true,
-        'transfer_cert': false,
-        'previous_report_card': false,
-        'medical_fitness': true,
-        'rte_income_cert': true,
-      },
-      'test_status': 'Exempted (RTE 25%)',
-      'test_score': 50,
-      'interaction_notes': 'Admission under statutory RTE Act 25% EWS reservation. Revenue Inspector verified income certificate UK-EWS-2026/410.',
-      'interaction_date': '2026-10-12',
-      'offer_date': '2026-10-15',
-      'offer_valid_till': '2026-10-30',
-      'fee_demanded': 0.0,
-      'fee_paid': 0.0,
-      'date': '2026-10-10',
-    },
-    {
-      'id': 'ADM-2026-084',
-      'application_no': 'SIS/2026/084',
-      'applicant_name': 'Reyansh Gupta',
-      'gender': 'Male',
-      'dob': '2010-09-04',
-      'blood_group': 'AB+',
-      'nationality': 'Indian',
-      'religion': 'Hindu',
-      'category': 'General',
-      'aadhaar_no': '3321-7789-0012',
-      'grade_applying': 'Class 11',
-      'stream': 'Science (PCM + Computer Science)',
-      'second_language': 'English Core',
-      'transport_required': true,
-      'transport_stop': 'Ballupur Chowk',
-      'previous_school': 'Delhi Public School, Meerut',
-      'previous_board': 'CBSE',
-      'previous_grade': 'Class 10 CBSE Board (94.6%)',
-      'parent_name': 'Dr. Alok Gupta',
-      'mother_name': 'Dr. Shweta Gupta',
-      'parent_phone': '9810123456',
-      'email': 'alok.gupta@maxhealthcare.com',
-      'parent_occupation': 'Consultant Surgeon',
-      'annual_income': '₹32,00,000 / year',
-      'address': 'Villa 12, Doon IT Park Enclave, Sahastradhara Road',
-      'distance_km': 6.0,
-      'sibling_priority': false,
-      'sibling_name': '',
-      'rte_quota': false,
-      'status': 'Under Review',
-      'doc_status': 'Pending TC',
-      'documents': {
-        'birth_cert': true,
-        'student_aadhaar': true,
-        'parent_aadhaar': true,
-        'transfer_cert': false, // Awaited from Meerut
-        'previous_report_card': true,
-        'medical_fitness': true,
-        'rte_income_cert': false,
-      },
-      'test_status': 'Pending',
-      'test_score': 0,
-      'interaction_notes': 'Candidate scored 94.6% in 10th CBSE. Original TC from UP board/interstate countersignature pending.',
-      'interaction_date': '',
-      'offer_date': '',
-      'offer_valid_till': '',
-      'fee_demanded': 42000.0,
-      'fee_paid': 0.0,
-      'date': '2026-11-01',
-    },
-    {
-      'id': 'ADM-2026-085',
-      'application_no': 'SIS/2026/085',
-      'applicant_name': 'Tanya Kashyap',
-      'gender': 'Female',
-      'dob': '2013-12-22',
-      'blood_group': 'B-',
-      'nationality': 'Indian',
-      'religion': 'Hindu',
-      'category': 'OBC (Non-Creamy)',
-      'aadhaar_no': '6654-1123-9087',
-      'grade_applying': 'Class 8',
-      'stream': 'N/A',
-      'second_language': 'Sanskrit',
-      'transport_required': true,
-      'transport_stop': 'ISBT Dehradun',
-      'previous_school': 'Army Public School, Clement Town',
-      'previous_board': 'CBSE',
-      'previous_grade': 'Class 7 (79.0%)',
-      'parent_name': 'Subedar Major R.K. Kashyap',
-      'mother_name': 'Anita Kashyap',
-      'parent_phone': '9412098765',
-      'email': 'rk.kashyap.arm@gov.in',
-      'parent_occupation': 'Indian Army (Subedar Major)',
-      'annual_income': '₹9,80,000 / year',
-      'address': 'Quarter 14/B, Clement Town Cantonment, Dehradun',
-      'distance_km': 8.5,
-      'sibling_priority': false,
-      'sibling_name': '',
-      'rte_quota': false,
-      'status': 'Approved',
-      'doc_status': 'Verified',
-      'documents': {
-        'birth_cert': true,
-        'student_aadhaar': true,
-        'parent_aadhaar': true,
-        'transfer_cert': true,
-        'previous_report_card': true,
-        'medical_fitness': true,
-        'rte_income_cert': false,
-      },
-      'test_status': 'Completed',
-      'test_score': 39,
-      'interaction_notes': 'Defence personnel ward. All verified documents complete. Ready for offer letter issuance.',
-      'interaction_date': '2026-10-29',
-      'offer_date': '',
-      'offer_valid_till': '',
-      'fee_demanded': 32000.0,
-      'fee_paid': 0.0,
-      'date': '2026-10-20',
-    },
-  ];
 
-  static final List<Map<String, dynamic>> _defaultAdmissionEnquiries = [
-    {
-      'id': 'ENQ-2026-101',
-      'parent_name': 'Col. Harish Rawat',
-      'child_name': 'Dhruv Rawat',
-      'phone': '9837012399',
-      'email': 'h.rawat@nic.in',
-      'grade_seeking': 'Class 9',
-      'source': 'Defence Referral',
-      'date': '2026-10-28',
-      'follow_up_date': '2026-11-06',
-      'status': 'Follow-up Scheduled',
-      'notes': 'Recently posted to IMA Dehradun. Seeking CBSE English medium admission with bus transport facility.',
-    },
-    {
-      'id': 'ENQ-2026-102',
-      'parent_name': 'Mrs. Sunita Chauhan',
-      'child_name': 'Anvi Chauhan',
-      'phone': '9897654321',
-      'email': 'sunita.chauhan@gmail.com',
-      'grade_seeking': 'Class 1',
-      'source': 'Website Walk-in',
-      'date': '2026-11-02',
-      'follow_up_date': '2026-11-05',
-      'status': 'Fresh',
-      'notes': 'Inquired about Activity-based learning, Smart ICT Classrooms and Teacher-Student ratio.',
-    },
-    {
-      'id': 'ENQ-2026-103',
-      'parent_name': 'Mr. Arvind Saxena',
-      'child_name': 'Pranav Saxena',
-      'phone': '9811223344',
-      'email': 'arvind.saxena@tcs.com',
-      'grade_seeking': 'Class 11',
-      'source': 'Corporate Transfer',
-      'date': '2026-10-20',
-      'follow_up_date': '2026-10-24',
-      'status': 'Converted',
-      'notes': 'Relocated from Pune. Successfully converted to full admission application (ADM-2026-084).',
-    },
-  ];
+
+
 
   Future<List<Map<String, dynamic>>> getAdmissions({String? status, String? grade}) async {
-    if (_admissionsStore.isEmpty) {
-      _admissionsStore.addAll(List<Map<String, dynamic>>.from(_defaultEnterpriseAdmissions));
-    }
 
     try {
       var query = _supabase.from('school_admissions').select();
@@ -6301,7 +5915,7 @@ class SchoolService {
       },
       'test_status': data['test_status'] ?? 'Pending',
       'test_score': data['test_score'] ?? 0,
-      'fee_demanded': (data['fee_demanded'] as num?)?.toDouble() ?? 35000.0,
+      'fee_demanded': (data['fee_demanded'] as num?)?.toDouble() ?? 0.0,
       'fee_paid': 0.0,
       'sibling_priority': data['sibling_priority'] ?? false,
       'rte_quota': data['rte_quota'] ?? false,
@@ -6440,12 +6054,12 @@ class SchoolService {
     } catch (_) {}
 
     // 3. Create initial fee demand & payment log
-    final double paid = feePaid ?? 25000.0;
+    final double paid = feePaid ?? 0.0;
     try {
       await _supabase.from('school_fee_payments').insert({
         'student_id': username,
         'class_id': classId,
-        'amount': paid > 0 ? paid : 25000.0,
+        'amount': paid,
         'paid_amount': paid,
         'due_date': DateTime.now().toIso8601String().substring(0, 10),
         'payment_mode': paymentMode ?? 'Online / UPI',
@@ -6481,9 +6095,6 @@ class SchoolService {
 
   // ===== ADMISSION ENQUIRIES / LEADS =====
   Future<List<Map<String, dynamic>>> getAdmissionEnquiries() async {
-    if (_enquiriesStore.isEmpty) {
-      _enquiriesStore.addAll(List<Map<String, dynamic>>.from(_defaultAdmissionEnquiries));
-    }
     return List<Map<String, dynamic>>.from(_enquiriesStore);
   }
 
@@ -7275,24 +6886,24 @@ class SchoolService {
 
       return {
         'student_id': studentId,
-        'blood_group': healthRec['blood_group'] ?? 'B+',
-        'height_cm': 165.0,
-        'weight_kg': 58.0,
-        'bmi': '21.3 (Normal / Healthy)',
-        'vision_left': '6/6',
-        'vision_right': '6/6',
+        'blood_group': healthRec['blood_group'] ?? 'Not Recorded',
+        'height_cm': (healthRec['height_cm'] as num?)?.toDouble() ?? 0.0,
+        'weight_kg': (healthRec['weight_kg'] as num?)?.toDouble() ?? 0.0,
+        'bmi': healthRec['bmi']?.toString() ?? '--',
+        'vision_left': healthRec['vision_left']?.toString() ?? '--',
+        'vision_right': healthRec['vision_right']?.toString() ?? '--',
         'known_allergies': healthRec['allergies'] ?? 'None Reported',
         'chronic_conditions': healthRec['chronic_conditions'] ?? 'None Reported',
         'medical_insurance_policy': healthRec['medical_insurance_policy'] ?? 'Standard Institutional Coverage',
-        'campus_doctor': 'Dr. S. K. Nautiyal (MBBS, MD)',
-        'campus_nurse': 'Sister Anita (Lead Medical Staff)',
+        'campus_doctor': 'Campus Medical Officer',
+        'campus_nurse': 'Infirmary Desk',
         'emergency_ambulance': '+91 135-2748800',
         'clinic_visits': visits,
       };
     } catch (_) {
       return {
         'student_id': studentId,
-        'blood_group': 'B+',
+        'blood_group': 'Not Recorded',
         'height_cm': 0.0,
         'weight_kg': 0.0,
         'bmi': '--',
@@ -7316,7 +6927,7 @@ class SchoolService {
           .select('wallet_balance')
           .or('id.eq.$studentId,username.eq.$studentId')
           .maybeSingle();
-      final balance = (sResp?['wallet_balance'] as num?)?.toDouble() ?? 350.0;
+      final balance = (sResp?['wallet_balance'] as num?)?.toDouble() ?? 0.0;
       final weekday = _weekdayName(DateTime.now().weekday);
       final menus = await living.getCafeteriaMenus(dayOfWeek: weekday, mealType: 'Lunch');
       final orders = await living.getCanteenOrders(studentId: studentId, limit: 10);
@@ -10364,133 +9975,46 @@ class SchoolService {
     String? sessionId,
     String? classId,
   }) async {
-    final allCandidates = [
-      {
-        'student_id': 'sstudent1',
-        'name': 'Aarav Sharma',
-        'roll_number': '01',
-        'exam_roll_no': '2610101',
-        'admission_no': 'ADM202401',
-        'class_name': 'Class 10-A',
-        'class_id': 'cls-10a',
-        'father_name': 'Rajesh Sharma',
-        'mother_name': 'Pooja Sharma',
-        'dob': '2010-04-12',
-        'attendance_percentage': 92.4,
-        'attendance_eligible': true,
-        'fee_status': 'No Dues Cleared',
-        'fee_cleared': true,
-        'admit_card_status': 'Issued & Verified',
-        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
-        'room_no': 'Room 101',
-        'seat_no': 'A-01',
-      },
-      {
-        'student_id': 'student2',
-        'name': 'Priya Patel',
-        'roll_number': '02',
-        'exam_roll_no': '2610102',
-        'admission_no': 'ADM202402',
-        'class_name': 'Class 10-A',
-        'class_id': 'cls-10a',
-        'father_name': 'Deepak Patel',
-        'mother_name': 'Meena Patel',
-        'dob': '2010-08-25',
-        'attendance_percentage': 88.0,
-        'attendance_eligible': true,
-        'fee_status': 'No Dues Cleared',
-        'fee_cleared': true,
-        'admit_card_status': 'Issued & Verified',
-        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
-        'room_no': 'Room 101',
-        'seat_no': 'A-02',
-      },
-      {
-        'student_id': 'student3',
-        'name': 'Rohan Gupta',
-        'roll_number': '03',
-        'exam_roll_no': '2610103',
-        'admission_no': 'ADM202403',
-        'class_name': 'Class 10-A',
-        'class_id': 'cls-10a',
-        'father_name': 'Sanjay Gupta',
-        'mother_name': 'Kavita Gupta',
-        'dob': '2010-02-14',
-        'attendance_percentage': 95.1,
-        'attendance_eligible': true,
-        'fee_status': 'No Dues Cleared',
-        'fee_cleared': true,
-        'admit_card_status': 'Issued & Verified',
-        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
-        'room_no': 'Room 101',
-        'seat_no': 'A-03',
-      },
-      {
-        'student_id': 'student4',
-        'name': 'Sneha Singh',
-        'roll_number': '04',
-        'exam_roll_no': '2610104',
-        'admission_no': 'ADM202404',
-        'class_name': 'Class 10-A',
-        'class_id': 'cls-10a',
-        'father_name': 'Manoj Singh',
-        'mother_name': 'Sunita Singh',
-        'dob': '2010-11-09',
-        'attendance_percentage': 68.5,
-        'attendance_eligible': false, // Condonation needed (< 75%)
-        'fee_status': 'No Dues Cleared',
-        'fee_cleared': true,
-        'admit_card_status': 'Attendance Condonation Granted',
-        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
-        'room_no': 'Room 101',
-        'seat_no': 'A-04',
-      },
-      {
-        'student_id': 'student5',
-        'name': 'Vikram Kumar',
-        'roll_number': '05',
-        'exam_roll_no': '2610105',
-        'admission_no': 'ADM202405',
-        'class_name': 'Class 10-A',
-        'class_id': 'cls-10a',
-        'father_name': 'Ashok Kumar',
-        'mother_name': 'Geeta Devi',
-        'dob': '2009-12-19',
-        'attendance_percentage': 82.0,
-        'attendance_eligible': true,
-        'fee_status': '₹5,500 Fee Overdue',
-        'fee_cleared': false,
-        'admit_card_status': 'Conditional Pass (Fee Undertaking)',
-        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
-        'room_no': 'Room 101',
-        'seat_no': 'A-05',
-      },
-      {
-        'student_id': 'student6',
-        'name': 'Ananya Verma',
-        'roll_number': '06',
-        'exam_roll_no': '2610106',
-        'admission_no': 'ADM202406',
-        'class_name': 'Class 10-A',
-        'class_id': 'cls-10a',
-        'father_name': 'Sunil Verma',
-        'mother_name': 'Anita Verma',
-        'dob': '2010-06-30',
-        'attendance_percentage': 91.0,
-        'attendance_eligible': true,
-        'fee_status': 'No Dues Cleared',
-        'fee_cleared': true,
-        'admit_card_status': 'Issued & Verified',
-        'exam_center': 'Shivalik Academy Examination Wing (Center #8412)',
-        'room_no': 'Room 101',
-        'seat_no': 'A-06',
-      },
-    ];
-
-    if (classId != null && classId.isNotEmpty && classId != '__all__') {
-      return allCandidates.where((c) => c['class_id'] == classId || c['class_name'] == classId).toList();
+    try {
+      var query = _supabase.from('school_students').select();
+      if (classId != null && classId.isNotEmpty && classId != '__all__') {
+        query = query.or('class_id.eq.$classId,class_name.eq.$classId');
+      }
+      final res = await query.order('name');
+      final list = List<Map<String, dynamic>>.from(res);
+      return list.map((s) {
+        final uname = s['username']?.toString() ?? '';
+        final sName = s['name']?.toString() ?? uname;
+        final cName = s['class_name']?.toString() ?? '';
+        final rNo = s['roll_number']?.toString() ?? '';
+        final pName = s['parent_name']?.toString() ?? '';
+        final mName = s['mother_name']?.toString() ?? '';
+        final dob = s['dob']?.toString() ?? '';
+        final admNo = s['admission_no']?.toString() ?? uname;
+        return {
+          'student_id': uname,
+          'name': sName,
+          'roll_number': rNo,
+          'exam_roll_no': '26${rNo.padLeft(5, '0')}',
+          'admission_no': admNo,
+          'class_name': cName,
+          'class_id': s['class_id']?.toString() ?? '',
+          'father_name': pName,
+          'mother_name': mName,
+          'dob': dob,
+          'attendance_percentage': 85.0,
+          'attendance_eligible': true,
+          'fee_status': 'No Dues Cleared',
+          'fee_cleared': true,
+          'admit_card_status': 'Issued & Verified',
+          'exam_center': 'Examination Wing',
+          'room_no': 'Room 101',
+          'seat_no': rNo,
+        };
+      }).toList();
+    } catch (_) {
+      return [];
     }
-    return allCandidates;
   }
 
   /// Exam Halls and Seating Arrangements

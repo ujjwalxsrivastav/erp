@@ -72,20 +72,7 @@ class SchoolDisciplineService {
       }
     } catch (_) {}
 
-    var seed = _getSeedIncidents();
-    if (category != null && category != 'All') {
-      seed = seed.where((i) => i['category'] == category).toList();
-    }
-    if (severity != null && severity != 'All') {
-      seed = seed.where((i) => i['severity'] == severity).toList();
-    }
-    if (status != null && status != 'All') {
-      seed = seed.where((i) => i['status'] == status).toList();
-    }
-    if (studentId != null) {
-      seed = seed.where((i) => i['student_id'] == studentId).toList();
-    }
-    return seed;
+    return [];
   }
 
   Future<Map<String, dynamic>> reportIncident(Map<String, dynamic> data) async {
@@ -329,65 +316,5 @@ class SchoolDisciplineService {
     } catch (_) {
       return [];
     }
-  }
-
-  // ==========================================
-  // SEED GENERATORS (Zero-Mock Fallback Pattern)
-  // ==========================================
-
-  List<Map<String, dynamic>> _getSeedIncidents() {
-    return [
-      {
-        'id': 'inc-01',
-        'incident_number': 'INC-2026-101',
-        'student_id': 'sstudent1',
-        'student_name': 'Aarav Sharma',
-        'class_section': '10-A',
-        'incident_date': DateTime.now().subtract(const Duration(days: 4)).toIso8601String(),
-        'location': 'Mathematics Classroom (Room 102)',
-        'category': 'Classroom Disruption',
-        'severity': 'Medium',
-        'description': 'Repeated mobile phone ringtone and talking back during calculus lecture.',
-        'reported_by_name': 'Ms. Sunita Sharma',
-        'reported_by_role': 'Class Teacher',
-        'status': 'Resolved',
-        'action_summary': 'Verbal Warning & Counselling with Student Counselor',
-        'parent_notified': true,
-      },
-      {
-        'id': 'inc-02',
-        'incident_number': 'INC-2026-102',
-        'student_id': 'sstudent4',
-        'student_name': 'Rohan Bisht',
-        'class_section': '10-A',
-        'incident_date': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
-        'location': 'Junior Basketball Court / Playground',
-        'category': 'Bullying / Misconduct',
-        'severity': 'High',
-        'description': 'Aggressive verbal exchange and shoving junior student following referee decision in inter-house match.',
-        'reported_by_name': 'Coach D. S. Negi',
-        'reported_by_role': 'Sports Coordinator',
-        'status': 'Action Taken',
-        'action_summary': 'Mandatory Parent Conference scheduled with Disciplinary Committee',
-        'parent_notified': true,
-      },
-      {
-        'id': 'inc-03',
-        'incident_number': 'INC-2026-103',
-        'student_id': 'sstudent2',
-        'student_name': 'Aryan Verma',
-        'class_section': '9-A',
-        'incident_date': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
-        'location': 'Main School Entrance Gate',
-        'category': 'Late / Punctuality',
-        'severity': 'Low',
-        'description': 'Third consecutive late arrival past 8:05 AM morning assembly bell without parental exemption slip.',
-        'reported_by_name': 'Mr. Rajesh Verma',
-        'reported_by_role': 'Discipline In-charge',
-        'status': 'Inquiring',
-        'action_summary': 'Under verification with bus transport coordinator',
-        'parent_notified': false,
-      },
-    ];
   }
 }

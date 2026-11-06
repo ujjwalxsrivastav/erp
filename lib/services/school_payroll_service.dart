@@ -87,8 +87,7 @@ class SchoolPayrollService {
       if (list.isNotEmpty) return list;
     } catch (_) {}
 
-    // Default Seed from live school teachers if no structures exist yet
-    return await _seedInitialSalaryStructures(instituteId);
+    return [];
   }
 
   Future<Map<String, dynamic>?> getSalaryStructureForEmployee(String employeeId) async {
@@ -170,82 +169,6 @@ class SchoolPayrollService {
       oldValue: existing,
       newValue: payload,
     );
-  }
-
-  Future<List<Map<String, dynamic>>> _seedInitialSalaryStructures(String instituteId) async {
-    final list = <Map<String, dynamic>>[];
-    try {
-      final teachers = await _supabase.from('school_teachers').select('username, name, subject');
-      for (final t in teachers) {
-        final uname = t['username']?.toString() ?? 'teacher';
-        final name = t['name']?.toString() ?? 'Teacher';
-        final basic = 28000.0;
-        final hra = 8400.0;
-        final travel = 2000.0;
-        final medical = 1500.0;
-        final special = 2500.0;
-        final gross = basic + hra + travel + medical + special;
-        final pf = basic * 0.12;
-        final esi = (gross <= 21000) ? (gross * 0.0075) : 0.0;
-        final pt = 200.0;
-
-        final item = {
-          'id': 'SAL-${uname.toUpperCase()}',
-          'institute_id': instituteId,
-          'employee_id': uname,
-          'employee_name': name,
-          'department': 'Academics',
-          'designation': '${t['subject'] ?? 'Subject'} Teacher',
-          'basic_pay': basic,
-          'hra': hra,
-          'travel_allowance': travel,
-          'medical_allowance': medical,
-          'special_allowance': special,
-          'other_allowances': 0.0,
-          'gross_salary': gross,
-          'provident_fund': pf,
-          'esi_deduction': esi,
-          'professional_tax': pt,
-          'income_tax': 500.0,
-          'other_deductions': 0.0,
-          'bank_name': 'State Bank of India',
-          'bank_account_no': '30981726351',
-          'ifsc_code': 'SBIN0002134',
-          'pan_number': 'BLRPS9182K',
-          'is_active': true,
-        };
-        list.add(item);
-      }
-    } catch (_) {}
-
-    // Add HR staff account adhering to 'shr01' pattern
-    list.add({
-      'id': 'SAL-SHR01',
-      'institute_id': instituteId,
-      'employee_id': 'shr01',
-      'employee_name': 'Pooja Saxena',
-      'department': 'Human Resources',
-      'designation': 'HR & Payroll Specialist',
-      'basic_pay': 32000.0,
-      'hra': 9600.0,
-      'travel_allowance': 2500.0,
-      'medical_allowance': 2000.0,
-      'special_allowance': 3000.0,
-      'other_allowances': 0.0,
-      'gross_salary': 49100.0,
-      'provident_fund': 3840.0,
-      'esi_deduction': 0.0,
-      'professional_tax': 200.0,
-      'income_tax': 1200.0,
-      'other_deductions': 0.0,
-      'bank_name': 'HDFC Bank',
-      'bank_account_no': '50100492817291',
-      'ifsc_code': 'HDFC0001824',
-      'pan_number': 'CPSPA8172L',
-      'is_active': true,
-    });
-
-    return list;
   }
 
   // ---------------------------------------------------------------------------

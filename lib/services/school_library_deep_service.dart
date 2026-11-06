@@ -113,7 +113,7 @@ class SchoolLibraryDeepService {
       }
     } catch (_) {}
 
-    return _getSeedIssues(overdueOnly: overdueOnly);
+    return [];
   }
 
   Future<Map<String, dynamic>> returnBookWithAutoFine({
@@ -281,19 +281,7 @@ class SchoolLibraryDeepService {
       if (list.isNotEmpty) return list;
     } catch (_) {}
 
-    return [
-      {
-        'id': 'resv-01',
-        'book_id': 'BK-002',
-        'book_title': 'Physics: Concepts and Principles (H.C. Verma)',
-        'student_id': 'sstudent1',
-        'student_name': 'Aarav Sharma',
-        'class_section': '10-A',
-        'status': 'Waitlisted (Position 1)',
-        'reserved_at': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
-        'expiry_date': DateTime.now().add(const Duration(days: 3)).toIso8601String(),
-      },
-    ];
+    return [];
   }
 
   Future<void> _fulfillTopWaitlistReservation(String bookId) async {
@@ -461,56 +449,6 @@ class SchoolLibraryDeepService {
       ).toList();
     }
     return filtered;
-  }
-
-  List<Map<String, dynamic>> _getSeedIssues({bool overdueOnly = false}) {
-    final now = DateTime.now();
-    final list = [
-      {
-        'id': 'ISS-001',
-        'book_id': 'BK-002',
-        'book_title': 'Physics: Concepts and Principles',
-        'student_id': 'sstudent1',
-        'student_name': 'Aarav Sharma',
-        'class': 'Class 10-A',
-        'issued_date': now.subtract(const Duration(days: 20)).toIso8601String().split('T')[0],
-        'due_date': now.subtract(const Duration(days: 6)).toIso8601String().split('T')[0],
-        'return_date': null,
-        'days_overdue': 6,
-        'fine': 30.0, // 6 days * ₹5
-      },
-      {
-        'id': 'ISS-002',
-        'book_id': 'BK-001',
-        'book_title': 'Mathematics Textbook for Class 10',
-        'student_id': 'sstudent3',
-        'student_name': 'Ananya Mehra',
-        'class': 'Class 10-A',
-        'issued_date': now.subtract(const Duration(days: 8)).toIso8601String().split('T')[0],
-        'due_date': now.add(const Duration(days: 6)).toIso8601String().split('T')[0],
-        'return_date': null,
-        'days_overdue': 0,
-        'fine': 0.0,
-      },
-      {
-        'id': 'ISS-003',
-        'book_id': 'BK-005',
-        'book_title': 'Computer Science with Python',
-        'student_id': 'sstudent4',
-        'student_name': 'Rohan Bisht',
-        'class': 'Class 10-A',
-        'issued_date': now.subtract(const Duration(days: 18)).toIso8601String().split('T')[0],
-        'due_date': now.subtract(const Duration(days: 4)).toIso8601String().split('T')[0],
-        'return_date': null,
-        'days_overdue': 4,
-        'fine': 20.0, // 4 days * ₹5
-      },
-    ];
-
-    if (overdueOnly) {
-      return list.where((i) => (i['days_overdue'] as int) > 0).toList();
-    }
-    return list;
   }
 
   List<Map<String, dynamic>> _getSeedEbooks() {
