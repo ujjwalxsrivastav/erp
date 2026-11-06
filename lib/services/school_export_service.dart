@@ -4877,4 +4877,106 @@ class SchoolExportService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SUPER ENTERPRISE REPORT: SP-R09 (Discipline Incidents & Inquiries Register)
+  // ---------------------------------------------------------------------------
+
+  /// SP-R09: Student Behavioural Conduct & Disciplinary Incidents Register
+  static Future<void> exportSchoolDisciplineRegisterExcel({
+    required BuildContext context,
+    required List<Map<String, dynamic>> incidents,
+    String instituteName = 'Shivalik International School',
+  }) async {
+    final excel = Excel.createExcel();
+    final summary = excel['Summary'];
+    final data = excel['Data'];
+
+    int criticalHighCount = 0;
+    int openCount = 0;
+    int resolvedCount = 0;
+    int parentNotifiedCount = 0;
+
+    for (final inc in incidents) {
+      final sev = (inc['severity'] ?? '').toString();
+      if (sev == 'High' || sev == 'Critical') criticalHighCount++;
+      final st = (inc['status'] ?? '').toString();
+      if (st == 'Reported' || st == 'Inquiring') openCount++;
+      if (st == 'Resolved') resolvedCount++;
+      if (inc['parent_notified'] == true) parentNotifiedCount++;
+    }
+
+    summary.appendRow([TextCellValue('INSTITUTION:'), TextCellValue(instituteName)]);
+    summary.appendRow([TextCellValue('REPORT:'), TextCellValue('Student Behavioural Conduct & Disciplinary Incidents Register')]);
+    summary.appendRow([TextCellValue('REPORT CODE:'), TextCellValue('SP-R09')]);
+    summary.appendRow([TextCellValue('GENERATED AT:'), TextCellValue(DateTime.now().toLocal().toString().split('.')[0])]);
+    summary.appendRow([TextCellValue('')]);
+    summary.appendRow([TextCellValue('KEY METRIC'), TextCellValue('VALUE')]);
+    summary.appendRow([TextCellValue('Total Logged Incidents:'), IntCellValue(incidents.length)]);
+    summary.appendRow([TextCellValue('High & Critical Severity Cases:'), IntCellValue(criticalHighCount)]);
+    summary.appendRow([TextCellValue('Active Inquiries Pending:'), IntCellValue(openCount)]);
+    summary.appendRow([TextCellValue('Fully Resolved Incidents:'), IntCellValue(resolvedCount)]);
+    summary.appendRow([TextCellValue('Parent Notifications Dispatched:'), IntCellValue(parentNotifiedCount)]);
+
+    data.appendRow([
+      TextCellValue('S.No'),
+      TextCellValue('Case Number'),
+      TextCellValue('Incident Date'),
+      TextCellValue('Student Name'),
+      TextCellValue('Class & Section'),
+      TextCellValue('Location'),
+      TextCellValue('Category'),
+      TextCellValue('Severity'),
+      TextCellValue('Case Status'),
+      TextCellValue('Incident Description'),
+      TextCellValue('Reported By'),
+      TextCellValue('Administrative Action'),
+      TextCellValue('Parent Notified'),
+    ]);
+
+    for (int i = 0; i < incidents.length; i++) {
+      final inc = incidents[i];
+      data.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(inc['incident_number']?.toString() ?? '-'),
+        TextCellValue((inc['incident_date']?.toString() ?? '').split('T')[0]),
+        TextCellValue(inc['student_name']?.toString() ?? '-'),
+        TextCellValue(inc['class_section']?.toString() ?? '-'),
+        TextCellValue(inc['location']?.toString() ?? 'Classroom'),
+        TextCellValue(inc['category']?.toString() ?? 'General'),
+        TextCellValue((inc['severity']?.toString() ?? 'Medium').toUpperCase()),
+        TextCellValue((inc['status']?.toString() ?? 'Reported').toUpperCase()),
+        TextCellValue(inc['description']?.toString() ?? '-'),
+        TextCellValue(inc['reported_by_name']?.toString() ?? '-'),
+        TextCellValue(inc['action_summary']?.toString() ?? (inc['status'] == 'Resolved' ? 'Completed' : 'Pending Inquiry')),
+        TextCellValue(inc['parent_notified'] == true ? 'YES' : 'NO'),
+      ]);
+    }
+
+    data.appendRow([
+      TextCellValue('TOTALS'),
+      TextCellValue('${incidents.length} CASES'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('$criticalHighCount CRITICAL/HIGH'),
+      TextCellValue('$resolvedCount RESOLVED'),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue('$parentNotifiedCount NOTIFIED'),
+    ]);
+
+    if (excel.sheets.containsKey('Sheet1')) excel.delete('Sheet1');
+    final bytes = excel.encode();
+    if (bytes != null) {
+      await downloadExcel(
+        context: context,
+        filename: 'School_SP_R09_${_studentDateSlug()}.xlsx',
+        bytes: bytes,
+      );
+    }
+  }
+
 }

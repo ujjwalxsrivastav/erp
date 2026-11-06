@@ -1,9 +1,34 @@
-- **Current Step in Execution Plan:** `Step SP7: Discipline (Item 7)`
-- **Status:** **Step SP6 (Activities, Clubs & Sports) is 100% complete and verified on live Supabase!** (1) Created `database/school_activities_setup.sql` with `school_activity_events`, `school_clubs`, `school_club_memberships`, `school_sports_teams`, and `school_activity_participations` with multi-school RLS; (2) Built `SchoolActivitiesService` with calendar of events, student societies management, athletic squad rosters, and competition honors with accredited certificate serial linkage; (3) Added `SP-R08` (Co-Curricular Activities, Clubs & Sports Accolades Register) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolActivitiesScreen` with 3 segmented command tabs, 4 KPI tiles, `fl_chart` domain participation bar chart, create event modal, register contestant modal, enroll club member modal, and award certificate modal; (5) Wired route `/school/activities`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP7: Discipline (Item 7)**.
+- **Current Step in Execution Plan:** `Step SP8: Multi-School Superadmin (Item 8)`
+- **Status:** **Step SP7 (Discipline) is 100% complete and verified on live Supabase!** (1) Created `database/school_discipline_setup.sql` with `school_discipline_incidents`, `school_discipline_inquiries`, `school_discipline_actions`, and `school_discipline_parent_notices` with multi-school RLS; (2) Built `SchoolDisciplineService` with incident reporting, fair inquiry workflow, role-gated administrative actions (suspension strictly restricted to principal/sadmin), and parent notice dispatch with read receipt audit; (3) Added `SP-R09` (Student Behavioural Conduct & Disciplinary Incidents Register) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolDisciplineScreen` with 3 segmented command tabs, 4 KPI tiles, `fl_chart` category breakdown bar chart, report incident modal, inquiry recording modal, and action enforcement modal; (5) Wired route `/school/discipline`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP8: Multi-School Superadmin (Item 8)**.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP7: Discipline (Item 7)
+- [x] **Database & Schema Setup (`database/school_discipline_setup.sql`):**
+  - Created schema for 4 discipline tables: `school_discipline_incidents`, `school_discipline_inquiries`, `school_discipline_actions`, and `school_discipline_parent_notices`.
+  - Configured Row Level Security and institutional isolation with `institute_id` multi-school isolation.
+- [x] **Discipline & Conduct Service (`lib/services/school_discipline_service.dart`):**
+  - Built incident case reporting: severity categories (Low, Medium, High, Critical), location, reporting faculty, and automatic case numbering (`INC-2026-XXX`).
+  - Built fair inquiry investigation desk: student perspectives, teacher statements, and official findings.
+  - Built role-gated administrative actions: Verbal Warning, Written Reprimand, Counselling, Parent Conference, Suspension (role-restricted to Principal/Sadmin), and Community Service.
+  - Built parent collaboration engine dispatching in-app notifications and scheduled meeting notices.
+- [x] **Reports Engine & Excel Exports (`lib/services/school_export_service.dart`):**
+  - Added `exportSchoolDisciplineRegisterExcel` (`SP-R09`): Dual-sheet summary (critical/high cases, open inquiries, parent notices dispatched) + incident case data with totals row and `School_SP_R09_<date>.xlsx` naming.
+- [x] **Enterprise UI Screen (`lib/features/school/discipline/school_discipline_screen.dart`):**
+  - Built 3-tab segmented interface: Case Register, Inquiry Desk, Actions & Notices.
+  - Added 4 top KPI tiles: Logged Cases, Open Inquiries, High/Critical Severity, Fully Resolved.
+  - Integrated `fl_chart` BarChart visualization for incident distribution across behavioral categories.
+  - Built interactive modals for filing incident reports, recording inquiry findings, enforcing corrective actions, and dispatching parent notices.
+- [x] **Router Integration (`lib/routes/app_router.dart`):**
+  - Registered route `/school/discipline` pointing to `SchoolDisciplineScreen`.
+- [x] **Automated Verification:**
+  - `dart analyze lib/services/school_discipline_service.dart lib/features/school/discipline/school_discipline_screen.dart lib/services/school_export_service.dart lib/routes/app_router.dart`: 0 errors, 0 warnings.
+  - Verified live Supabase round-trip for full discipline lifecycle (report -> inquiry -> action -> parent notice) with 100% success.
+  - Zero modifications to College ERP files.
+
+---
 
 ### [COMPLETED] Step SP6: Activities (Item 6)
 - [x] **Database & Schema Setup (`database/school_activities_setup.sql`):**

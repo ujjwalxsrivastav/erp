@@ -33,6 +33,7 @@
 
 ## 2. Step Verification & Checkpoint History
 
+- **CHECKPOINT: Step SP7 complete** — Discipline module with `database/school_discipline_setup.sql`, `SchoolDisciplineService`, role-gated suspension, `SchoolDisciplineScreen` with 3 segmented tabs, report SP-R09, and live Supabase full-cycle verification (report -> inquiry -> action -> parent notice) — 2026-11-06 07:57 IST
 - **CHECKPOINT: Step SP6 complete** — Activities, Clubs & Sports module with `database/school_activities_setup.sql`, `SchoolActivitiesService`, `SchoolActivitiesScreen` with 3 segmented tabs, report SP-R08, and live Supabase full-cycle verification (event + club + membership + competition + certificate) — 2026-11-06 07:53 IST
 - **CHECKPOINT: Step SP5 complete** — Inventory & Assets module with `database/school_inventory_setup.sql`, `SchoolInventoryService`, straight-line 10% depreciation, `SchoolInventoryScreen` with 3 segmented tabs, report SP-R07, and live Supabase full-cycle verification (stock -> issue -> return -> audit) — 2026-11-06 07:49 IST
 - **CHECKPOINT: Step SP4 complete** — Alumni module with `database/school_alumni_setup.sql`, `SchoolAlumniService`, `SchoolAlumniScreen` with 3 segmented tabs, report SP-R06, and live Supabase verification (events, RSVPs, circulars with 'Alumni' audience, cause pledges) — 2026-11-06 07:45 IST

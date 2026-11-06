@@ -118,6 +118,7 @@ import '../features/school/living/school_living_screen.dart';
 import '../features/school/alumni/school_alumni_screen.dart';
 import '../features/school/inventory/school_inventory_screen.dart';
 import '../features/school/activities/school_activities_screen.dart';
+import '../features/school/discipline/school_discipline_screen.dart';
 import '../services/auth_service.dart';
 
 final router = GoRouter(
@@ -362,6 +363,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/activities',
       builder: (context, state) => const SchoolActivitiesScreen(),
+    ),
+    GoRoute(
+      path: '/school/discipline',
+      builder: (context, state) => const SchoolDisciplineScreen(),
     ),
 
     // ===== SCHOOL - PARENT =====
