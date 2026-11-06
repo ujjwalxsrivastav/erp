@@ -5,6 +5,10 @@ import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
 import 'widgets/timetable_components.dart';
 
+/// School Timetable Screen with role-based access control:
+/// - Admin: Full CRUD access to edit/add/delete timetable slots + manage substitutions
+/// - Teacher: Read-only view of their assigned class timetables + substitution management
+/// - Student/Parent: Read-only view of their enrolled class timetable only
 class SchoolTimetableScreen extends StatefulWidget {
   final String? initialClassId;
   const SchoolTimetableScreen({super.key, this.initialClassId});
@@ -127,12 +131,17 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
     final canEdit = role == 'admin' || role == 'sadmin';
 
     // Synchronize tab controller length based on role
+    // Student: 1 tab (timetable only)
+    // Teacher: 2 tabs (timetable + substitution)
+    // Admin: 3 tabs (timetable + substitution + syllabus)
     final requiredLength = isStudent ? 1 : (isTeacher ? 2 : 3);
     if (_tabController.length != requiredLength) {
       _tabController.removeListener(_handleTabSelection);
       _tabController.dispose();
       _tabController = TabController(length: requiredLength, vsync: this);
       _tabController.addListener(_handleTabSelection);
+      // Reset to first tab after recreation
+      _tabController.index = 0;
     }
 
     setState(() {
@@ -224,9 +233,12 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
 
     try {
       final username = await _authService.getCurrentUsername() ?? '';
+      
+      // Admin gets all classes, teacher gets only their assigned classes
       final classes = _isTeacher
           ? await _service.getTeacherAllAssignedClasses(username)
           : await _service.getSchoolClasses();
+      
       _classes = classes.map((c) => <String, dynamic>{
         ...c,
         'id': c['class_id'] ?? c['id'],
@@ -257,17 +269,22 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
         (c) => (c['id']?.toString() ?? '') == _selectedClassId,
         orElse: () => <String, dynamic>{},
       );
+      
+      // Load timetable for selected class
       final entries = await _service.getTimetableForClass(
         _selectedClassId,
         day: _selectedDay,
         className: selected['name']?.toString(),
       );
+      
+      // For teachers, filter to show only their own periods
       final scopedEntries = _isTeacher
           ? entries.where((row) =>
               row['teacher_username']?.toString().toLowerCase() == username.toLowerCase()).toList()
           : entries;
 
-      _allTeachers = _isTeacher ? [] : await _service.getSchoolTeachersList();
+      // Only admin can see all teachers list for editing
+      _allTeachers = _canEdit ? await _service.getSchoolTeachersList() : [];
 
       if (mounted) {
         setState(() {
@@ -1061,6 +1078,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         color: _primary, size: 18),
                   ),
                   const SizedBox(width: 8),
+                  // Class selector - locked for students, selectable for teachers/admin
                   if (_isStudent)
                     Expanded(
                       child: Container(
@@ -1078,7 +1096,7 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'Enrolled Section: $_studentClassLabel',
+                                'Class: $_studentClassLabel',
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                     color: _ink,
@@ -1090,7 +1108,60 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         ),
                       ),
                     )
+                  else if (_isTeacher && _classes.length <= 1)
+                    // Teacher with only one class - show as locked
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _bg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _border),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.school_rounded,
+                                color: _primary, size: 13),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _selectedClassLabel.isNotEmpty
+                                    ? _selectedClassLabel
+                                    : 'My Class',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: _ink,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (_classes.isEmpty)
+                    // No classes available - show message
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _bg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _border),
+                        ),
+                        child: const Text(
+                          'No classes assigned',
+                          style: TextStyle(
+                              color: _muted,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12),
+                        ),
+                      ),
+                    )
                   else
+                    // Admin or teacher with multiple classes - show dropdown
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -1101,11 +1172,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _classes.any((c) =>
-                                    (c['id']?.toString() ?? '') ==
-                                    _selectedClassId)
+                            value: _selectedClassId.isNotEmpty && 
+                                   _classes.any((c) => (c['id']?.toString() ?? '') == _selectedClassId)
                                 ? _selectedClassId
-                                : null,
+                                : _classes.first['id']?.toString(),
                             hint: Text(
                                 _selectedClassLabel.isEmpty
                                     ? (_selectedClassId.isEmpty
@@ -1133,10 +1203,10 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               );
                             }).toList(),
                             onChanged: (v) {
-                              if (v != null) {
+                              if (v != null && v.isNotEmpty) {
                                 setState(() => _selectedClassId = v);
                                 _syncSelectedClassLabel();
-                                _loadClassesAndTimetable();
+                                _reloadTimetable();
                               }
                             },
                           ),
@@ -1159,7 +1229,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                           color: Color(0xFF475569)),
                     ),
                   ),
-                  if (_canEdit) ...[
+                  // Only admin can add slots
+                  if (_canEdit && !_isStudent && !_isTeacher) ...[
                     const SizedBox(width: 6),
                     IconButton(
                       icon: const Icon(Icons.add_circle_outline_rounded,
@@ -1236,7 +1307,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                               fontSize: 13,
                               color: _muted,
                               fontWeight: FontWeight.w500)),
-                      if (_canEdit) ...[
+                      // Only admin can add slots when empty
+                      if (_canEdit && !_isStudent && !_isTeacher) ...[
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
@@ -1347,7 +1419,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
                                   ),
                                 ),
                               ),
-                              if (_canEdit) ...[
+                              // Only admin can edit/delete slots
+                              if (_canEdit && !_isStudent && !_isTeacher) ...[
                                 const SizedBox(height: 6),
                                 Row(
                                   children: [
@@ -2019,6 +2092,15 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
       );
     }
 
+    // Safety check: ensure tab controller length matches the tabs we're rendering
+    final expectedTabCount = _isStudent ? 0 : (_isTeacher ? 2 : 3);
+    if (!_isStudent && _tabController.length != expectedTabCount) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: const Center(child: CircularProgressIndicator(color: _primary)),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
@@ -2072,7 +2154,8 @@ class _SchoolTimetableScreenState extends State<SchoolTimetableScreen>
             tooltip: 'Reload',
             onPressed: _reloadTimetable,
           ),
-          if (_canEdit)
+          // Only admin can add slots from app bar
+          if (_canEdit && !_isStudent && !_isTeacher)
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: TextButton.icon(

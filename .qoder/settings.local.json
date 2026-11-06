@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(wc -l /Users/sitanshunayan/Documents/klinixy/erp/lib/services/school_service.dart; grep -n \"getStudentMarks\\\\|getHolisticProgressCard\\\\|getStudentAttendancePercent\\\\|getClassPerformanceSummary\\\\|getAllSchoolStudents\\\\|calculateCbseGrade\\\\|class SchoolService\\\\|_supabase\\\\|Future<\" /Users/sitanshunayan/Documents/klinixy/erp/lib/services/school_service.dart | head -120)"
+      "Bash(wc -l /Users/sitanshunayan/Documents/klinixy/erp/lib/services/school_service.dart; grep -n \"getStudentMarks\\\\|getHolisticProgressCard\\\\|getStudentAttendancePercent\\\\|getClassPerformanceSummary\\\\|getAllSchoolStudents\\\\|calculateCbseGrade\\\\|class SchoolService\\\\|_supabase\\\\|Future<\" /Users/sitanshunayan/Documents/klinixy/erp/lib/services/school_service.dart | head -120)",
+      "Bash(git log --all --oneline --grep=\"timetable\" | head -20)",
+      "Bash(cd /Users/sitanshunayan/Documents/klinixy/erp && flutter analyze lib/features/school/timetable/school_timetable_screen.dart 2>&1 | head -50)",
+      "Bash(flutter analyze lib/features/school/timetable/school_timetable_screen.dart 2>&1 | grep -E \"error|warning\" | head -20)",
+      "Bash(git diff lib/features/school/timetable/school_timetable_screen.dart | head -100)",
+      "Bash(flutter analyze lib/features/school/timetable/school_timetable_screen.dart 2>&1 | grep -E \"error|warning\" | head -10)",
+      "Bash(flutter analyze lib/features/school/timetable/ 2>&1 | grep -E \"error|warning\" | head -20)"
     ]
   }
 }
