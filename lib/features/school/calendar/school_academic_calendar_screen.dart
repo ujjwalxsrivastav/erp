@@ -8,10 +8,12 @@ class SchoolAcademicCalendarScreen extends StatefulWidget {
   const SchoolAcademicCalendarScreen({super.key});
 
   @override
-  State<SchoolAcademicCalendarScreen> createState() => _SchoolAcademicCalendarScreenState();
+  State<SchoolAcademicCalendarScreen> createState() =>
+      _SchoolAcademicCalendarScreenState();
 }
 
-class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScreen>
+class _SchoolAcademicCalendarScreenState
+    extends State<SchoolAcademicCalendarScreen>
     with SingleTickerProviderStateMixin {
   final SchoolCalendarService _calendarService = SchoolCalendarService();
 
@@ -52,7 +54,6 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
       _canManage = role == 'admin' ||
           role == 'sadmin' ||
           role == 'principal' ||
-          role == 'teacher' ||
           role == 'superadmin';
     });
   }
@@ -79,7 +80,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
         _isLoading = false;
         if (_selectedDay == null && events.isNotEmpty) {
           try {
-            _selectedDay = DateTime.parse(events.first['start_date'].toString());
+            _selectedDay =
+                DateTime.parse(events.first['start_date'].toString());
           } catch (_) {
             _selectedDay = DateTime(2026, 4, 1);
           }
@@ -96,7 +98,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: _buildAppBar(),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F766E)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF0F766E)))
           : Column(
               children: [
                 _buildMetricsRibbon(),
@@ -122,7 +125,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text(
                 'Add Event',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             )
           : null,
@@ -149,7 +153,10 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                 ),
                 child: Text(
                   _selectedYear,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
                 ),
               ),
             ],
@@ -176,10 +183,13 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
             dropdownColor: const Color(0xFF115E59),
             value: _selectedYear,
             icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
             items: const [
-              DropdownMenuItem(value: '2026-2027', child: Text('2026-2027 (Active)')),
-              DropdownMenuItem(value: '2025-2026', child: Text('2025-2026 (Archived)')),
+              DropdownMenuItem(
+                  value: '2026-2027', child: Text('2026-2027 (Active)')),
+              DropdownMenuItem(
+                  value: '2025-2026', child: Text('2025-2026 (Archived)')),
             ],
             onChanged: (val) {
               if (val != null) {
@@ -214,7 +224,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
               value: 'excel',
               child: Row(
                 children: [
-                  Icon(Icons.table_chart_outlined, color: Color(0xFF0F766E), size: 18),
+                  Icon(Icons.table_chart_outlined,
+                      color: Color(0xFF0F766E), size: 18),
                   SizedBox(width: 10),
                   Text('Export Dual-Sheet Excel (.xlsx)'),
                 ],
@@ -224,7 +235,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
               value: 'ics',
               child: Row(
                 children: [
-                  Icon(Icons.calendar_today_outlined, color: Color(0xFF3B82F6), size: 18),
+                  Icon(Icons.calendar_today_outlined,
+                      color: Color(0xFF3B82F6), size: 18),
                   SizedBox(width: 10),
                   Text('Sync iCal / Google Calendar (.ics)'),
                 ],
@@ -318,7 +330,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
             children: [
               Text(
                 value,
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 16, color: color),
               ),
               Text(
                 label,
@@ -341,7 +354,10 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
           children: [
             const Text(
               'Filter: ',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black54),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: Colors.black54),
             ),
             const SizedBox(width: 6),
             ...['All', ...SchoolCalendarService.categories].map((cat) {
@@ -355,8 +371,10 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   checkmarkColor: const Color(0xFF0F766E),
                   labelStyle: TextStyle(
                     fontSize: 11,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? const Color(0xFF0F766E) : Colors.black87,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
+                    color:
+                        isSelected ? const Color(0xFF0F766E) : Colors.black87,
                   ),
                   onSelected: (selected) {
                     setState(() => _selectedCategory = cat);
@@ -378,8 +396,10 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   selectedColor: const Color(0xFF3B82F6).withOpacity(0.15),
                   labelStyle: TextStyle(
                     fontSize: 10,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? const Color(0xFF3B82F6) : Colors.black54,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
+                    color:
+                        isSelected ? const Color(0xFF3B82F6) : Colors.black54,
                   ),
                   onSelected: (selected) {
                     setState(() => _selectedAudience = aud);
@@ -409,9 +429,15 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
         labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
         tabs: const [
           Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Month Grid'),
-          Tab(icon: Icon(Icons.view_timeline_outlined, size: 18), text: 'Agenda'),
-          Tab(icon: Icon(Icons.stairs_outlined, size: 18), text: 'Term Milestones'),
-          Tab(icon: Icon(Icons.beach_access_outlined, size: 18), text: 'Holidays Register'),
+          Tab(
+              icon: Icon(Icons.view_timeline_outlined, size: 18),
+              text: 'Agenda'),
+          Tab(
+              icon: Icon(Icons.stairs_outlined, size: 18),
+              text: 'Term Milestones'),
+          Tab(
+              icon: Icon(Icons.beach_access_outlined, size: 18),
+              text: 'Holidays Register'),
         ],
       ),
     );
@@ -422,8 +448,10 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
   // ===========================================================================
 
   Widget _buildMonthGridView() {
-    final daysInMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0).day;
-    final firstWeekday = DateTime(_focusedMonth.year, _focusedMonth.month, 1).weekday; // 1 = Mon, 7 = Sun
+    final daysInMonth =
+        DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0).day;
+    final firstWeekday = DateTime(_focusedMonth.year, _focusedMonth.month, 1)
+        .weekday; // 1 = Mon, 7 = Sun
     final monthName = _getMonthName(_focusedMonth.month);
 
     final selectedDayEvents = _events.where((e) {
@@ -431,7 +459,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
       try {
         final start = DateTime.parse(e['start_date'].toString());
         final end = DateTime.parse(e['end_date'].toString());
-        final sel = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
+        final sel = DateTime(
+            _selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
         return !sel.isBefore(DateTime(start.year, start.month, start.day)) &&
             !sel.isAfter(DateTime(end.year, end.month, end.day));
       } catch (_) {
@@ -458,7 +487,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () {
                     setState(() {
-                      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1, 1);
+                      _focusedMonth = DateTime(
+                          _focusedMonth.year, _focusedMonth.month - 1, 1);
                     });
                   },
                 ),
@@ -466,12 +496,14 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   children: [
                     Text(
                       '$monthName ${_focusedMonth.year}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(width: 10),
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -481,7 +513,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                           _selectedDay = DateTime(2026, 4, 1);
                         });
                       },
-                      child: const Text('Session Start', style: TextStyle(fontSize: 11)),
+                      child: const Text('Session Start',
+                          style: TextStyle(fontSize: 11)),
                     ),
                   ],
                 ),
@@ -489,7 +522,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () {
                     setState(() {
-                      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 1);
+                      _focusedMonth = DateTime(
+                          _focusedMonth.year, _focusedMonth.month + 1, 1);
                     });
                   },
                 ),
@@ -506,7 +540,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
-              children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) {
+              children:
+                  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) {
                 return Expanded(
                   child: Center(
                     child: Text(
@@ -514,7 +549,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
-                        color: day == 'Sun' ? Colors.red.shade400 : Colors.black87,
+                        color:
+                            day == 'Sun' ? Colors.red.shade400 : Colors.black87,
                       ),
                     ),
                   ),
@@ -547,7 +583,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   return const SizedBox();
                 }
                 final dayNumber = index - (firstWeekday - 2);
-                final cellDate = DateTime(_focusedMonth.year, _focusedMonth.month, dayNumber);
+                final cellDate = DateTime(
+                    _focusedMonth.year, _focusedMonth.month, dayNumber);
                 final isSelected = _selectedDay != null &&
                     _selectedDay!.year == cellDate.year &&
                     _selectedDay!.month == cellDate.month &&
@@ -558,15 +595,19 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   try {
                     final start = DateTime.parse(e['start_date'].toString());
                     final end = DateTime.parse(e['end_date'].toString());
-                    return !cellDate.isBefore(DateTime(start.year, start.month, start.day)) &&
-                        !cellDate.isAfter(DateTime(end.year, end.month, end.day));
+                    return !cellDate.isBefore(
+                            DateTime(start.year, start.month, start.day)) &&
+                        !cellDate
+                            .isAfter(DateTime(end.year, end.month, end.day));
                   } catch (_) {
                     return false;
                   }
                 }).toList();
 
-                final isHoliday = dayEvents.any((e) => e['is_holiday'] == true || e['category'] == 'Holiday');
-                final isExam = dayEvents.any((e) => e['category'] == 'Examination');
+                final isHoliday = dayEvents.any((e) =>
+                    e['is_holiday'] == true || e['category'] == 'Holiday');
+                final isExam =
+                    dayEvents.any((e) => e['category'] == 'Examination');
                 final isSunday = cellDate.weekday == DateTime.sunday;
 
                 return InkWell(
@@ -601,7 +642,9 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                           '$dayNumber',
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: isSelected || dayEvents.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: isSelected || dayEvents.isNotEmpty
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                             color: isSelected
                                 ? Colors.white
                                 : (isSunday || isHoliday)
@@ -614,12 +657,16 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: dayEvents.take(3).map((e) {
-                              final cat = e['category']?.toString() ?? 'Academic';
-                              final dotColor = isSelected ? Colors.white : SchoolCalendarService.getCategoryColor(cat);
+                              final cat =
+                                  e['category']?.toString() ?? 'Academic';
+                              final dotColor = isSelected
+                                  ? Colors.white
+                                  : SchoolCalendarService.getCategoryColor(cat);
                               return Container(
                                 width: 5,
                                 height: 5,
-                                margin: const EdgeInsets.symmetric(horizontal: 1),
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 1),
                                 decoration: BoxDecoration(
                                   color: dotColor,
                                   shape: BoxShape.circle,
@@ -655,17 +702,20 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.event_available, color: Color(0xFF0F766E), size: 20),
+                          const Icon(Icons.event_available,
+                              color: Color(0xFF0F766E), size: 20),
                           const SizedBox(width: 8),
                           Text(
                             'Events for ${_selectedDay!.day} ${_getMonthName(_selectedDay!.month)} ${_selectedDay!.year}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14),
                           ),
                         ],
                       ),
                       Text(
                         '${selectedDayEvents.length} scheduled',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ],
                   ),
@@ -725,14 +775,18 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFF0F766E),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       monthKey,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -800,8 +854,10 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: accentColor.withOpacity(0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              border: Border(bottom: BorderSide(color: accentColor.withOpacity(0.2))),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(12)),
+              border: Border(
+                  bottom: BorderSide(color: accentColor.withOpacity(0.2))),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -811,13 +867,19 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   children: [
                     Text(
                       termTitle,
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: accentColor),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: accentColor),
                     ),
-                    Text(dateRange, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(dateRange,
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey)),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
@@ -825,7 +887,10 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   ),
                   child: Text(
                     '${events.length} Milestones',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentColor),
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: accentColor),
                   ),
                 ),
               ],
@@ -847,10 +912,13 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
   // ===========================================================================
 
   Widget _buildHolidayRegisterView() {
-    final holidays = _events.where((e) => e['is_holiday'] == true || e['category'] == 'Holiday').toList();
+    final holidays = _events
+        .where((e) => e['is_holiday'] == true || e['category'] == 'Holiday')
+        .toList();
 
     if (holidays.isEmpty) {
-      return const Center(child: Text('No holidays listed for this selection.'));
+      return const Center(
+          child: Text('No holidays listed for this selection.'));
     }
 
     return ListView.builder(
@@ -867,7 +935,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
 
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(
@@ -883,10 +952,14 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.beach_access, color: Colors.red, size: 20),
+                      const Icon(Icons.beach_access,
+                          color: Colors.red, size: 20),
                       Text(
                         '$dayCount d',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.red),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: Colors.red),
                       ),
                     ],
                   ),
@@ -898,32 +971,39 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                     children: [
                       Text(
                         h['title']?.toString() ?? 'Holiday',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                       const SizedBox(height: 3),
                       Text(
                         '${h['start_date']} to ${h['end_date']}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade700),
                       ),
                       if ((h['description']?.toString() ?? '').isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
                           h['description']?.toString() ?? '',
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                          style:
+                              const TextStyle(fontSize: 11, color: Colors.grey),
                         ),
                       ],
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.red.shade50,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
                     'OFFICIAL',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.red),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                        color: Colors.red),
                   ),
                 ),
               ],
@@ -975,18 +1055,23 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                     Expanded(
                       child: Text(
                         e['title']?.toString() ?? 'Untitled Event',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: color.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         cat,
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: color),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            color: color),
                       ),
                     ),
                   ],
@@ -994,36 +1079,46 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600),
+                    Icon(Icons.calendar_today,
+                        size: 12, color: Colors.grey.shade600),
                     const SizedBox(width: 4),
                     Text(
                       '${e['start_date']}${e['end_date'] != e['start_date'] ? ' to ${e['end_date']}' : ''}',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade700),
                     ),
                     const SizedBox(width: 10),
-                    Icon(Icons.access_time, size: 12, color: Colors.grey.shade600),
+                    Icon(Icons.access_time,
+                        size: 12, color: Colors.grey.shade600),
                     const SizedBox(width: 4),
                     Text(
-                      e['is_all_day'] == true ? 'All Day' : '${e['start_time']} - ${e['end_time']}',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                      e['is_all_day'] == true
+                          ? 'All Day'
+                          : '${e['start_time']} - ${e['end_time']}',
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade700),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(Icons.location_on_outlined, size: 12, color: Colors.grey.shade600),
+                    Icon(Icons.location_on_outlined,
+                        size: 12, color: Colors.grey.shade600),
                     const SizedBox(width: 4),
                     Text(
                       venue,
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade700),
                     ),
                     const SizedBox(width: 10),
-                    Icon(Icons.people_outline, size: 12, color: Colors.grey.shade600),
+                    Icon(Icons.people_outline,
+                        size: 12, color: Colors.grey.shade600),
                     const SizedBox(width: 4),
                     Text(
                       'Audience: $audience',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade700),
                     ),
                   ],
                 ),
@@ -1089,12 +1184,14 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
         return StatefulBuilder(
           builder: (dialogCtx, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               title: const Row(
                 children: [
                   Icon(Icons.event, color: Color(0xFF0F766E)),
                   SizedBox(width: 10),
-                  Text('Add Academic Calendar Event', style: TextStyle(fontSize: 16)),
+                  Text('Add Academic Calendar Event',
+                      style: TextStyle(fontSize: 16)),
                 ],
               ),
               content: SingleChildScrollView(
@@ -1108,7 +1205,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                         controller: titleCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Event Title *',
-                          hintText: 'e.g. Periodic Assessment 2 / Science Exhibition',
+                          hintText:
+                              'e.g. Periodic Assessment 2 / Science Exhibition',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -1118,9 +1216,12 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               initialValue: category,
-                              decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                              decoration: const InputDecoration(
+                                  labelText: 'Category',
+                                  border: OutlineInputBorder()),
                               items: SchoolCalendarService.categories
-                                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                                  .map((c) => DropdownMenuItem(
+                                      value: c, child: Text(c)))
                                   .toList(),
                               onChanged: (v) {
                                 if (v != null) {
@@ -1136,11 +1237,15 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               initialValue: term,
-                              decoration: const InputDecoration(labelText: 'Term', border: OutlineInputBorder()),
+                              decoration: const InputDecoration(
+                                  labelText: 'Term',
+                                  border: OutlineInputBorder()),
                               items: SchoolCalendarService.terms
-                                  .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                                  .map((t) => DropdownMenuItem(
+                                      value: t, child: Text(t)))
                                   .toList(),
-                              onChanged: (v) => setDialogState(() => term = v ?? term),
+                              onChanged: (v) =>
+                                  setDialogState(() => term = v ?? term),
                             ),
                           ),
                         ],
@@ -1160,7 +1265,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                                 if (d != null) {
                                   setDialogState(() {
                                     startDate = d;
-                                    if (endDate.isBefore(startDate)) endDate = startDate;
+                                    if (endDate.isBefore(startDate))
+                                      endDate = startDate;
                                   });
                                 }
                               },
@@ -1170,7 +1276,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                                   border: OutlineInputBorder(),
                                   prefixIcon: Icon(Icons.date_range, size: 18),
                                 ),
-                                child: Text('${startDate.toLocal()}'.split(' ')[0]),
+                                child: Text(
+                                    '${startDate.toLocal()}'.split(' ')[0]),
                               ),
                             ),
                           ),
@@ -1184,7 +1291,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                                   firstDate: startDate,
                                   lastDate: DateTime(2028),
                                 );
-                                if (d != null) setDialogState(() => endDate = d);
+                                if (d != null)
+                                  setDialogState(() => endDate = d);
                               },
                               child: InputDecorator(
                                 decoration: const InputDecoration(
@@ -1192,7 +1300,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                                   border: OutlineInputBorder(),
                                   prefixIcon: Icon(Icons.date_range, size: 18),
                                 ),
-                                child: Text('${endDate.toLocal()}'.split(' ')[0]),
+                                child:
+                                    Text('${endDate.toLocal()}'.split(' ')[0]),
                               ),
                             ),
                           ),
@@ -1204,11 +1313,15 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               initialValue: audience,
-                              decoration: const InputDecoration(labelText: 'Target Audience', border: OutlineInputBorder()),
+                              decoration: const InputDecoration(
+                                  labelText: 'Target Audience',
+                                  border: OutlineInputBorder()),
                               items: SchoolCalendarService.audiences
-                                  .map((a) => DropdownMenuItem(value: a, child: Text(a.toUpperCase())))
+                                  .map((a) => DropdownMenuItem(
+                                      value: a, child: Text(a.toUpperCase())))
                                   .toList(),
-                              onChanged: (v) => setDialogState(() => audience = v ?? audience),
+                              onChanged: (v) => setDialogState(
+                                  () => audience = v ?? audience),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -1228,13 +1341,15 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                         children: [
                           Checkbox(
                             value: isAllDay,
-                            onChanged: (v) => setDialogState(() => isAllDay = v ?? true),
+                            onChanged: (v) =>
+                                setDialogState(() => isAllDay = v ?? true),
                           ),
                           const Text('All Day Event'),
                           const SizedBox(width: 16),
                           Checkbox(
                             value: isHoliday,
-                            onChanged: (v) => setDialogState(() => isHoliday = v ?? false),
+                            onChanged: (v) =>
+                                setDialogState(() => isHoliday = v ?? false),
                           ),
                           const Text('Official Holiday'),
                         ],
@@ -1258,7 +1373,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F766E)),
                   onPressed: () async {
                     if (titleCtrl.text.trim().isEmpty) return;
                     Navigator.pop(ctx);
@@ -1277,7 +1393,8 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
                     );
                     _loadCalendarData();
                   },
-                  child: const Text('Publish Event', style: TextStyle(color: Colors.white)),
+                  child: const Text('Publish Event',
+                      style: TextStyle(color: Colors.white)),
                 ),
               ],
             );
@@ -1289,10 +1406,20 @@ class _SchoolAcademicCalendarScreenState extends State<SchoolAcademicCalendarScr
 
   String _getMonthName(int month) {
     const months = [
-      '', 'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      '',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
     ];
     return months[month];
   }
 }
-
