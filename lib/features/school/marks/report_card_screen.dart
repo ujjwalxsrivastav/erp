@@ -498,8 +498,8 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.2),
               shape: BoxShape.circle,
-              border:
-                  Border.all(color: Colors.white.withValues(alpha: 0.6), width: 3),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.6), width: 3),
             ),
             child: Center(
               child: Column(
@@ -610,8 +610,7 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
                 style: TextStyle(
                     fontSize: 15, fontWeight: FontWeight.bold, color: color)),
             Text(title,
-                style:
-                    const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
           ],
         ),
       ),
@@ -645,8 +644,8 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
                       color: Color(0xFF1E293B))),
               const Spacer(),
               Text(_selectedExam,
-                  style: const TextStyle(
-                      fontSize: 11, color: Color(0xFF64748B))),
+                  style:
+                      const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
             ],
           ),
           const SizedBox(height: 12),
@@ -948,10 +947,8 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
                           children: [
                             Text(cs['area']?.toString() ?? '',
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13)),
-                            if ((cs['descriptor']?.toString() ?? '')
-                                .isNotEmpty)
+                                    fontWeight: FontWeight.bold, fontSize: 13)),
+                            if ((cs['descriptor']?.toString() ?? '').isNotEmpty)
                               Text(cs['descriptor'].toString(),
                                   style: TextStyle(
                                       fontSize: 11,
@@ -1035,8 +1032,7 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
             items: items
                 .map((i) => DropdownMenuItem(
                     value: i,
-                    child:
-                        Text(itemLabel(i), overflow: TextOverflow.ellipsis)))
+                    child: Text(itemLabel(i), overflow: TextOverflow.ellipsis)))
                 .toList(),
             onChanged: onChanged,
           ),
@@ -1098,10 +1094,9 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
       final cards = <Map<String, dynamic>>[];
       for (final student in _students) {
         final username = (student['username'] ?? '').toString();
-        final studentId = (username.isNotEmpty
-                ? username
-                : student['id']?.toString() ?? '')
-            .trim();
+        final studentId =
+            (username.isNotEmpty ? username : student['id']?.toString() ?? '')
+                .trim();
         if (studentId.isEmpty) continue;
 
         final studentName = (student['name'] ?? username).toString();
@@ -1121,17 +1116,16 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
           studentId: studentId,
           examType: _selectedExam,
         );
-        final percentage =
-            (analytics['percentage'] as num?)?.toDouble() ?? 0;
+        final percentage = (analytics['percentage'] as num?)?.toDouble() ?? 0;
         final isPromoted = percentage >= 33 && attendance >= 75;
-        final teacherRemark =
-            (meta['teacher_remark']?.toString() ?? '').isNotEmpty
-                ? meta['teacher_remark'].toString()
-                : percentage >= 80
-                    ? 'Very good performance. Deep understanding of core subjects and high diligence.'
-                    : percentage >= 50
-                        ? 'Satisfactory. Regular revision and problem-solving practice recommended.'
-                        : 'Needs substantial improvement and dedicated parent-teacher counselling support.';
+        final teacherRemark = (meta['teacher_remark']?.toString() ?? '')
+                .isNotEmpty
+            ? meta['teacher_remark'].toString()
+            : percentage >= 80
+                ? 'Very good performance. Deep understanding of core subjects and high diligence.'
+                : percentage >= 50
+                    ? 'Satisfactory. Regular revision and problem-solving practice recommended.'
+                    : 'Needs substantial improvement and dedicated parent-teacher counselling support.';
         final promotionVerdict =
             (meta['promotion_verdict']?.toString() ?? '').isNotEmpty
                 ? meta['promotion_verdict'].toString()
@@ -1323,8 +1317,8 @@ class _GradePill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        style:
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }

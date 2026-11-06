@@ -95,26 +95,15 @@ import '../features/school/school_teacher_dashboard.dart';
 import '../features/school/school_admin_dashboard.dart';
 import '../features/school/parent/school_parent_dashboard.dart';
 import '../features/school/homework/homework_list_screen.dart';
-import '../features/school/homework/student_homework_screen.dart';
-import '../features/school/homework/teacher_homework_screen.dart';
-import '../features/school/homework/teacher_add_homework_screen.dart';
 import '../features/school/homework/add_homework_screen.dart';
 import '../features/school/leave/student_leave_screen.dart';
 import '../features/school/attendance/school_attendance_screen.dart';
-import '../features/school/attendance/student_attendance_screen.dart';
 import '../features/school/marks/marks_csv_upload_screen.dart';
 import '../features/school/marks/marks_entry_screen.dart';
 import '../features/school/marks/report_card_screen.dart';
-import '../features/school/marks/student_report_card_screen.dart';
 import '../features/school/timetable/school_timetable_screen.dart';
-import '../features/school/timetable/student_timetable_screen.dart';
-import '../features/school/timetable/admin_timetable_screen.dart';
-import '../features/school/timetable/teacher_timetable_screen.dart';
 import '../features/school/circulars/circulars_screen.dart';
-import '../features/school/circulars/staff_circulars_screen.dart';
-import '../features/school/circulars/student_circulars_screen.dart';
 import '../features/school/transport/transport_screen.dart';
-import '../features/school/transport/student_transport_screen.dart';
 import '../features/school/fee/school_fee_screen.dart';
 import '../features/school/admissions/admissions_screen.dart';
 import '../features/school/reports/school_reports_screen.dart';
@@ -130,72 +119,24 @@ import '../features/school/alumni/school_alumni_screen.dart';
 import '../features/school/inventory/school_inventory_screen.dart';
 import '../features/school/activities/school_activities_screen.dart';
 import '../features/school/discipline/school_discipline_screen.dart';
-import '../features/school/discipline/staff_discipline_screen.dart';
-import '../features/school/discipline/student_discipline_screen.dart';
 import '../features/school/admin/school_multi_admin_screen.dart';
 import '../features/school/library/school_library_deep_screen.dart';
 import '../features/school/admin/school_permission_matrix_screen.dart';
 import '../features/school/ai/school_ai_assistant_screen.dart';
-import '../features/school/ai/faculty_ai_screen.dart';
-import '../features/school/ai/student_ai_screen.dart';
-import '../features/school/notifications/notifications_screen.dart';
 import '../features/school/calendar/school_academic_calendar_screen.dart';
-import '../features/school/calendar/admin_calendar_screen.dart';
-import '../features/school/calendar/student_calendar_screen.dart';
 import '../features/school/admin/school_masters_screen.dart';
 import '../services/auth_service.dart';
 
 /// Route permission mappings for School ERP (Deny-by-default access control)
 const _schoolAdminRoles = {'admin', 'sadmin', 'principal', 'superadmin'};
-const _schoolStaffRoles = {
-  'admin',
-  'sadmin',
-  'principal',
-  'superadmin',
-  'teacher',
-  'steacher',
-  'class_teacher',
-};
-const _schoolAccountantRoles = {
-  'admin',
-  'sadmin',
-  'principal',
-  'superadmin',
-  'accountant'
-};
-const _schoolCircularStaffRoles = {
-  'admin',
-  'sadmin',
-  'principal',
-  'superadmin',
-  'teacher',
-  'steacher',
-  'class_teacher',
-  'librarian',
-  'warden',
-  'nurse',
-  'accountant',
-};
+const _schoolStaffRoles = {'admin', 'sadmin', 'principal', 'superadmin', 'teacher', 'steacher'};
+const _schoolAccountantRoles = {'admin', 'sadmin', 'principal', 'superadmin', 'accountant'};
 const _allSchoolRoles = {
-  'admin',
-  'sadmin',
-  'principal',
-  'superadmin',
-  'teacher',
-  'steacher',
-  'student',
-  'sstudent',
-  'parent',
-  'sparent',
-  'warden',
-  'nurse',
-  'conductor',
-  'driver',
-  'attendant',
-  'librarian',
-  'alumni',
-  'staff',
-  'accountant',
+  'admin', 'sadmin', 'principal', 'superadmin',
+  'teacher', 'steacher',
+  'student', 'sstudent',
+  'parent', 'sparent',
+  'warden', 'nurse', 'conductor', 'librarian', 'alumni', 'staff', 'accountant',
 };
 
 final Map<String, Set<String>> _schoolRoutePermissions = {
@@ -223,104 +164,30 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/my-payslips': {..._schoolStaffRoles, 'staff', 'accountant'},
 
   // Student specific
-  '/school/student-dashboard': {'student', 'sstudent'},
+  '/school/student-dashboard': {'student', 'sstudent', ..._schoolAdminRoles},
 
   // Parent specific
-  '/school/parent-dashboard': {'parent', 'sparent'},
+  '/school/parent-dashboard': {'parent', 'sparent', ..._schoolAdminRoles},
 
   // Shared / Multi-role (views adapt based on role)
-  // Parents do not have an AI view yet.  Do not route them through a child's
-  // context or expose the faculty desk.
-  '/school/ai-tools': {..._schoolStaffRoles, 'student', 'sstudent'},
-  '/school/chatbot': {..._schoolStaffRoles, 'student', 'sstudent'},
+  '/school/ai-tools': _allSchoolRoles,
+  '/school/chatbot': _allSchoolRoles,
   '/school/homework': _allSchoolRoles,
   '/school/leave': _allSchoolRoles,
   '/school/report-card': _allSchoolRoles,
   '/school/timetable': _allSchoolRoles,
   '/school/circulars': _allSchoolRoles,
   '/school/transport': {..._allSchoolRoles, 'conductor'},
-  '/school/fees': {
-    'parent',
-    'sparent',
-    'student',
-    'sstudent',
-    ..._schoolAccountantRoles
-  },
+  '/school/fees': {'parent', 'sparent', 'student', 'sstudent', ..._schoolAccountantRoles},
   '/school/library': {..._allSchoolRoles, 'librarian'},
   '/school/library-deep': {..._allSchoolRoles, 'librarian'},
   '/school/certificates': _allSchoolRoles,
   '/school/living': {..._allSchoolRoles, 'warden', 'nurse'},
   '/school/alumni': {..._allSchoolRoles, 'alumni'},
   '/school/activities': _allSchoolRoles,
+  '/school/chatbot': _allSchoolRoles,
   '/school/calendar': _allSchoolRoles,
   '/school/academic-calendar': _allSchoolRoles,
-
-  // Role-specific school views.  These are deliberately separate paths so a
-  // bookmarked legacy path cannot become an unguarded alternate entry point.
-  '/school/transport-admin': _schoolAdminRoles,
-  '/school/transport-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/attendance-teacher': _schoolStaffRoles,
-  '/school/attendance-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/marks-entry-teacher': _schoolStaffRoles,
-  '/school/marks-csv-admin': {'admin', 'sadmin', 'superadmin'},
-  '/school/report-card-staff': _schoolStaffRoles,
-  '/school/report-card-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/fees-admin': _schoolAccountantRoles,
-  '/school/fees-teacher': {'teacher', 'steacher'},
-  '/school/fees-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/library-librarian': {'librarian', ..._schoolAdminRoles},
-  '/school/library-student': _allSchoolRoles,
-  '/school/homework-teacher': {
-    'teacher',
-    'steacher',
-    'class_teacher',
-    'admin',
-    'sadmin',
-    'principal',
-    'superadmin'
-  },
-  '/school/homework-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/homework-add-teacher': {
-    'teacher',
-    'steacher',
-    'class_teacher',
-    'admin',
-    'sadmin'
-  },
-  '/school/timetable-admin': {'admin', 'sadmin', 'principal', 'superadmin'},
-  '/school/timetable-teacher': {'teacher', 'steacher', 'class_teacher'},
-  '/school/timetable-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/leave-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/leave-approvals': {
-    'teacher',
-    'steacher',
-    'class_teacher',
-    'admin',
-    'sadmin',
-    'principal',
-    'superadmin'
-  },
-  '/school/discipline-staff': {..._schoolStaffRoles, 'warden'},
-  '/school/discipline-notices': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/ai-tools-faculty': _schoolStaffRoles,
-  '/school/ai-student': {'student', 'sstudent'},
-  '/school/calendar-admin': _schoolAdminRoles,
-  '/school/calendar-student': {
-    'student',
-    'sstudent',
-    'parent',
-    'sparent',
-    'teacher',
-    'steacher',
-    'class_teacher',
-    'librarian',
-    'warden',
-    'nurse',
-    'accountant'
-  },
-  '/school/circulars-staff': _schoolCircularStaffRoles,
-  '/school/circulars-student': _allSchoolRoles,
-  '/school/notifications': _allSchoolRoles,
 };
 
 final router = GoRouter(
@@ -332,16 +199,10 @@ final router = GoRouter(
       final isLoggedIn = await authService.isLoggedIn();
       if (!isLoggedIn) return '/login';
 
-      final instType = (await authService.getCurrentInstituteType() ?? '')
-          .toLowerCase()
-          .trim();
-      final rawRole =
-          (await authService.getCurrentUserRole() ?? '').toLowerCase().trim();
+      final instType = (await authService.getCurrentInstituteType() ?? '').toLowerCase().trim();
+      final rawRole = (await authService.getCurrentUserRole() ?? '').toLowerCase().trim();
       final normalizedRole = rawRole.startsWith('s') &&
-              (rawRole == 'steacher' ||
-                  rawRole == 'sstudent' ||
-                  rawRole == 'sparent' ||
-                  rawRole == 'sadmin')
+              (rawRole == 'steacher' || rawRole == 'sstudent' || rawRole == 'sparent' || rawRole == 'sadmin')
           ? rawRole.substring(1)
           : rawRole;
 
@@ -350,18 +211,14 @@ final router = GoRouter(
         if (normalizedRole == 'teacher') return '/teacher-dashboard';
         if (normalizedRole == 'student') return '/student-dashboard';
         if (normalizedRole == 'parent') return '/parent-dashboard';
-        if (normalizedRole == 'admin' ||
-            normalizedRole == 'principal' ||
-            normalizedRole == 'superadmin') {
+        if (normalizedRole == 'admin' || normalizedRole == 'principal' || normalizedRole == 'superadmin') {
           return '/admin-dashboard';
         }
         return '/login';
       }
 
       String getHomeDashboard() {
-        if (normalizedRole == 'admin' ||
-            normalizedRole == 'principal' ||
-            normalizedRole == 'superadmin') {
+        if (normalizedRole == 'admin' || normalizedRole == 'principal' || normalizedRole == 'superadmin') {
           return '/school/admin-dashboard';
         } else if (normalizedRole == 'teacher') {
           return '/school/teacher-dashboard';
@@ -382,94 +239,6 @@ final router = GoRouter(
         return getHomeDashboard();
       }
 
-      final isAdmin = _schoolAdminRoles.contains(rawRole) ||
-          _schoolAdminRoles.contains(normalizedRole);
-      final isStaff = _schoolStaffRoles.contains(rawRole) ||
-          _schoolStaffRoles.contains(normalizedRole);
-      final isLearner =
-          normalizedRole == 'student' || normalizedRole == 'parent';
-
-      // Legacy URLs are aliases only.  Resolve them before permission checking
-      // rather than leaving an old broad route alongside the scoped routes.
-      String? legacyDestination() {
-        switch (path) {
-          case '/school/transport':
-            if (normalizedRole == 'driver' ||
-                normalizedRole == 'attendant' ||
-                normalizedRole == 'conductor') return '/conductor-dashboard';
-            return isAdmin
-                ? '/school/transport-admin'
-                : (isLearner ? '/school/transport-student' : null);
-          case '/school/attendance':
-            return isStaff
-                ? '/school/attendance-teacher'
-                : (isLearner ? '/school/attendance-student' : null);
-          case '/school/marks-entry':
-            return isStaff ? '/school/marks-entry-teacher' : null;
-          case '/school/marks/csv':
-            return isAdmin ? '/school/marks-csv-admin' : null;
-          case '/school/report-card':
-            return isStaff
-                ? '/school/report-card-staff'
-                : (isLearner ? '/school/report-card-student' : null);
-          case '/school/fees':
-            return isAdmin
-                ? '/school/fees-admin'
-                : (isStaff
-                    ? '/school/fees-teacher'
-                    : (isLearner ? '/school/fees-student' : null));
-          case '/school/library':
-          case '/school/library-deep':
-            return normalizedRole == 'librarian' || isAdmin
-                ? '/school/library-librarian'
-                : '/school/library-student';
-          case '/school/homework':
-            return isStaff
-                ? '/school/homework-teacher'
-                : (isLearner ? '/school/homework-student' : null);
-          case '/school/homework/add':
-            return isStaff ? '/school/homework-add-teacher' : null;
-          case '/school/timetable':
-            return isAdmin
-                ? '/school/timetable-admin'
-                : (isStaff
-                    ? '/school/timetable-teacher'
-                    : (isLearner ? '/school/timetable-student' : null));
-          case '/school/leave':
-            return isStaff ? '/school/leave-approvals' : null;
-          case '/school/discipline':
-            return (isStaff || normalizedRole == 'warden')
-                ? '/school/discipline-staff'
-                : (isLearner ? '/school/discipline-notices' : null);
-          case '/school/ai-tools':
-            return isStaff
-                ? '/school/ai-tools-faculty${state.uri.hasQuery ? '?${state.uri.query}' : ''}'
-                : (normalizedRole == 'student' ? '/school/ai-student' : null);
-          case '/school/chatbot':
-            return isStaff
-                ? '/school/ai-tools-faculty?tab=chatbot'
-                : (normalizedRole == 'student' ? '/school/ai-student' : null);
-          case '/school/calendar':
-          case '/school/academic-calendar':
-            return isAdmin
-                ? '/school/calendar-admin'
-                : '/school/calendar-student';
-          case '/school/circulars':
-            return (isStaff ||
-                    {'librarian', 'warden', 'nurse', 'accountant'}
-                        .contains(normalizedRole))
-                ? '/school/circulars-staff'
-                : (_allSchoolRoles.contains(normalizedRole)
-                    ? '/school/circulars-student'
-                    : null);
-          default:
-            return null;
-        }
-      }
-
-      final alias = legacyDestination();
-      if (alias != null) return alias;
-
       // Deny-by-default route check
       final allowedRoles = _schoolRoutePermissions[path];
       if (allowedRoles == null) {
@@ -477,8 +246,7 @@ final router = GoRouter(
         return (path == home) ? null : home;
       }
 
-      final hasAccess = allowedRoles.contains(rawRole) ||
-          allowedRoles.contains(normalizedRole);
+      final hasAccess = allowedRoles.contains(rawRole) || allowedRoles.contains(normalizedRole);
       if (!hasAccess) {
         final home = getHomeDashboard();
         return (path == home) ? null : home;
@@ -612,10 +380,6 @@ final router = GoRouter(
       builder: (context, state) => const StudentLeaveScreen(),
     ),
     GoRoute(
-      path: '/school/leave-student',
-      builder: (context, state) => const StudentLeaveScreen(),
-    ),
-    GoRoute(
       path: '/school/attendance',
       builder: (context, state) => const SchoolAttendanceScreen(),
     ),
@@ -635,110 +399,6 @@ final router = GoRouter(
       path: '/school/timetable',
       builder: (context, state) => const SchoolTimetableScreen(),
     ),
-
-    // Scoped role entry points.  The existing feature widgets retain their
-    // mature interaction flows while their public URLs are now role-specific;
-    // the redirect above prevents the legacy broad URLs from being used as an
-    // alternate entry point.
-    GoRoute(
-        path: '/school/transport-admin',
-        builder: (context, state) => const TransportScreen()),
-    GoRoute(
-        path: '/school/transport-student',
-        builder: (context, state) => const SchoolStudentTransportScreen()),
-    GoRoute(
-        path: '/school/attendance-teacher',
-        builder: (context, state) => const SchoolAttendanceScreen()),
-    GoRoute(
-        path: '/school/attendance-student',
-        builder: (context, state) => const StudentAttendanceScreen()),
-    GoRoute(
-        path: '/school/marks-entry-teacher',
-        builder: (context, state) => const MarksEntryScreen()),
-    GoRoute(
-        path: '/school/marks-csv-admin',
-        builder: (context, state) => const MarksCsvUploadScreen()),
-    GoRoute(
-        path: '/school/report-card-staff',
-        builder: (context, state) => const ReportCardScreen()),
-    GoRoute(
-        path: '/school/report-card-student',
-        builder: (context, state) => const StudentReportCardScreen()),
-    GoRoute(
-        path: '/school/fees-admin',
-        builder: (context, state) => const SchoolFeeScreen()),
-    GoRoute(
-        path: '/school/fees-teacher',
-        builder: (context, state) => const SchoolFeeScreen()),
-    GoRoute(
-        path: '/school/fees-student',
-        builder: (context, state) => const SchoolFeeScreen()),
-    GoRoute(
-        path: '/school/library-librarian',
-        builder: (context, state) => const SchoolLibraryDeepScreen()),
-    GoRoute(
-        path: '/school/library-student',
-        builder: (context, state) => const SchoolLibraryScreen()),
-    GoRoute(
-        path: '/school/homework-teacher',
-        builder: (context, state) => const TeacherHomeworkScreen()),
-    GoRoute(
-        path: '/school/homework-student',
-        builder: (context, state) => const StudentHomeworkScreen()),
-    GoRoute(
-        path: '/school/homework-add-teacher',
-        builder: (context, state) => const TeacherAddHomeworkScreen()),
-    GoRoute(
-        path: '/school/timetable-admin',
-        builder: (context, state) => const AdminTimetableScreen()),
-    GoRoute(
-        path: '/school/timetable-teacher',
-        builder: (context, state) => const TeacherTimetableScreen()),
-    GoRoute(
-        path: '/school/timetable-student',
-        builder: (context, state) => const StudentTimetableScreen()),
-    GoRoute(
-        path: '/school/leave-approvals',
-        builder: (context, state) =>
-            const StudentLeaveScreen(approvalsOnly: true)),
-    GoRoute(
-        path: '/school/discipline-staff',
-        builder: (context, state) => const StaffDisciplineScreen()),
-    GoRoute(
-        path: '/school/discipline-notices',
-        builder: (context, state) => const StudentDisciplineScreen()),
-    GoRoute(
-        path: '/school/ai-tools-faculty',
-        builder: (context, state) {
-          final tab = state.uri.queryParameters['tab'];
-          final initialTab = tab == 'chatbot' || tab == '3'
-              ? 3
-              : tab == 'questions' || tab == '1'
-                  ? 1
-                  : tab == 'feedback' || tab == '2'
-                      ? 2
-                      : 0;
-          return FacultyAiScreen(initialTab: initialTab);
-        }),
-    GoRoute(
-        path: '/school/ai-student',
-        builder: (context, state) => const StudentAiScreen()),
-    GoRoute(
-        path: '/school/calendar-admin',
-        builder: (context, state) => const AdminCalendarScreen()),
-    GoRoute(
-        path: '/school/calendar-student',
-        builder: (context, state) => const StudentCalendarScreen()),
-    GoRoute(
-      path: '/school/circulars-staff',
-      builder: (context, state) => const StaffCircularsScreen(),
-    ),
-    GoRoute(
-        path: '/school/circulars-student',
-        builder: (context, state) => const StudentCircularsScreen()),
-    GoRoute(
-        path: '/school/notifications',
-        builder: (context, state) => const NotificationsScreen()),
 
     // ===== SCHOOL - ADMIN =====
     GoRoute(
@@ -976,10 +636,8 @@ final router = GoRouter(
       path: '/student/transport',
       builder: (context, state) {
         final studentId = state.uri.queryParameters['studentId'] ?? '';
-        final studentName =
-            state.uri.queryParameters['studentName'] ?? 'Student';
-        return StudentTransportScreen(
-            studentId: studentId, studentName: studentName);
+        final studentName = state.uri.queryParameters['studentName'] ?? 'Student';
+        return StudentTransportScreen(studentId: studentId, studentName: studentName);
       },
     ),
     GoRoute(
@@ -1160,8 +818,8 @@ final router = GoRouter(
     GoRoute(
       path: '/admin/manage-users',
       builder: (context, state) => ManageUsersScreen(
-        initialInstitution:
-            state.uri.queryParameters['institution'] ?? 'school',
+        initialInstitution: state.uri.queryParameters['institution'] ??
+            'school',
       ),
     ),
     GoRoute(

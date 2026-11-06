@@ -80,7 +80,10 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
   Future<void> _init() async {
     // Results are administered by the school admin only.
     final role = await AuthService().getCurrentUserRole();
-    if (role != 'admin' && role != 'sadmin' && role != 'teacher' && role != 'steacher') {
+    if (role != 'admin' &&
+        role != 'sadmin' &&
+        role != 'teacher' &&
+        role != 'steacher') {
       if (mounted) {
         setState(() {
           _isRestricted = true;
@@ -214,7 +217,8 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
       return;
     }
 
-    final header = rows.first.map((c) => _normalise(c?.toString() ?? '')).toList();
+    final header =
+        rows.first.map((c) => _normalise(c?.toString() ?? '')).toList();
     final studentCol = _columnIndex(header, [
       'studentusername',
       'username',
@@ -285,9 +289,8 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
         errors.add('Row $rowNumber: "$obtainedText" is not a valid mark.');
         continue;
       }
-      final total = totalText.isEmpty
-          ? 100.0
-          : (double.tryParse(totalText) ?? 0.0);
+      final total =
+          totalText.isEmpty ? 100.0 : (double.tryParse(totalText) ?? 0.0);
       if (total <= 0) {
         errors.add('Row $rowNumber: total marks must be greater than 0.');
         continue;
@@ -407,7 +410,8 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
   }
 
   Future<void> _copyTemplate() async {
-    const template = 'student_username,student_name,subject,marks_obtained,total_marks\n'
+    const template =
+        'student_username,student_name,subject,marks_obtained,total_marks\n'
         'sstudent1,Aarav Sharma,Mathematics,92,100';
     await Clipboard.setData(const ClipboardData(text: template));
     if (!mounted) return;
@@ -497,8 +501,7 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _green,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor:
-                            _green.withValues(alpha: 0.5),
+                        disabledBackgroundColor: _green.withValues(alpha: 0.5),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -636,9 +639,8 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            initialValue: _examSessions.contains(_selectedExam)
-                ? _selectedExam
-                : null,
+            initialValue:
+                _examSessions.contains(_selectedExam) ? _selectedExam : null,
             decoration: InputDecoration(
               labelText: 'Result for',
               helperText: 'Exam session shown on the student report card',
@@ -880,7 +882,8 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
                       'They now appear on the students’ report cards.',
               style: TextStyle(
                 fontSize: 12,
-                color: failed ? const Color(0xFF991B1B) : const Color(0xFF065F46),
+                color:
+                    failed ? const Color(0xFF991B1B) : const Color(0xFF065F46),
                 height: 1.35,
               ),
             ),

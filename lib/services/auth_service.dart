@@ -29,6 +29,57 @@ class AuthService {
 
   AuthService._internal();
 
+  /// Resolves the landing dashboard from the verified account role and
+  /// institute type. Keep login, splash restore, and route-guard fallbacks in
+  /// sync so legacy school roles cannot be sent to a college or admin portal.
+  static String dashboardRouteForRole({
+    required String role,
+    required String instituteType,
+    String? username,
+  }) {
+    final rawRole = role.trim().toLowerCase();
+    final normalizedRole = switch (rawRole) {
+      'steacher' => 'teacher',
+      'sstudent' => 'student',
+      'sparent' => 'parent',
+      'sadmin' => 'admin',
+      _ => rawRole,
+    };
+    final isSchool = instituteType.trim().toLowerCase() == 'school';
+
+    if (isSchool) {
+      return switch (normalizedRole) {
+        'teacher' || 'class_teacher' => '/school/teacher-dashboard',
+        'student' => '/school/student-dashboard',
+        'parent' => '/school/parent-dashboard',
+        'admin' || 'principal' || 'superadmin' => '/school/admin-dashboard',
+        'driver' || 'attendant' || 'conductor' => '/conductor-dashboard',
+        'warden' => '/warden-dashboard',
+        _ => '/login',
+      };
+    }
+
+    return switch (normalizedRole) {
+      'teacher' || 'class_teacher' => '/teacher-dashboard',
+      'student' => '/student-dashboard',
+      'parent' => '/parent-dashboard',
+      'admin' || 'principal' || 'superadmin' => '/admin-dashboard',
+      'hr' => '/hr-dashboard',
+      'hod' => '/hod-dashboard',
+      'admissiondean' =>
+        '/leads/dean?username=${Uri.encodeQueryComponent(username ?? '')}',
+      'counsellor' =>
+        '/leads/counsellor?username=${Uri.encodeQueryComponent(username ?? '')}',
+      'temp_student' =>
+        '/temp-student-dashboard?tempId=${Uri.encodeQueryComponent(username ?? '')}',
+      'warden' => '/warden-dashboard',
+      'transport_officer' || 'transportofficer' => '/transport-dashboard',
+      'conductor' || 'driver' || 'attendant' => '/conductor-dashboard',
+      'accountant' => '/accountant-dashboard',
+      _ => '/login',
+    };
+  }
+
   // Lazy access to prevent accessing before Supabase is initialized
   SupabaseClient get _supabase => Supabase.instance.client;
 
@@ -238,7 +289,8 @@ class AuthService {
         await _addSecurityDelay(startTime);
 
         if (result['success'] == true) {
-          final actualUsername = result['username'] as String? ?? sanitizedUsername;
+          final actualUsername =
+              result['username'] as String? ?? sanitizedUsername;
           final role = result['role'] as String;
 
           // Resolve institute_type from database
@@ -250,19 +302,23 @@ class AuthService {
                 .eq('username', actualUsername)
                 .maybeSingle();
 
-            if (userRecord != null &&
-                userRecord['institute_type'] != null) {
+            if (userRecord != null && userRecord['institute_type'] != null) {
               instituteType = userRecord['institute_type'] as String;
-            } else if (actualUsername.startsWith('s') || role == 'parent' || role == 'sadmin') {
+            } else if (actualUsername.startsWith('s') ||
+                role == 'parent' ||
+                role == 'sadmin') {
               instituteType = 'school';
             }
           } catch (_) {
-            if (actualUsername.startsWith('s') || role == 'parent' || role == 'sadmin') {
+            if (actualUsername.startsWith('s') ||
+                role == 'parent' ||
+                role == 'sadmin') {
               instituteType = 'school';
             }
           }
 
-          await _saveSecureSession(actualUsername, role, instituteType: instituteType);
+          await _saveSecureSession(actualUsername, role,
+              instituteType: instituteType);
 
           return {
             'success': true,
@@ -282,8 +338,9 @@ class AuthService {
         }
       } catch (rpcError) {
         // Fallback to direct query if RPC is not deployed yet
-        _secureLog('RPC login error or not configured: $rpcError. Trying direct query...');
-        
+        _secureLog(
+            'RPC login error or not configured: $rpcError. Trying direct query...');
+
         final userQuery = await _supabase
             .from('users')
             .select('username, password, role, institute_type')
@@ -295,9 +352,14 @@ class AuthService {
         if (userQuery != null && userQuery['password'] == password) {
           final role = userQuery['role'] as String;
           final instituteType = (userQuery['institute_type'] as String?) ??
-              (sanitizedUsername.startsWith('s') || role == 'parent' || role == 'sadmin' ? 'school' : 'college');
+              (sanitizedUsername.startsWith('s') ||
+                      role == 'parent' ||
+                      role == 'sadmin'
+                  ? 'school'
+                  : 'college');
 
-          await _saveSecureSession(sanitizedUsername, role, instituteType: instituteType);
+          await _saveSecureSession(sanitizedUsername, role,
+              instituteType: instituteType);
 
           return {
             'success': true,
@@ -317,7 +379,8 @@ class AuthService {
     } catch (e, stack) {
       if (kDebugMode) {
         debugPrint('[AUTH] Login error — ${e.runtimeType}: $e');
-        debugPrint('[AUTH] Stack: ${stack.toString().split('\n').take(4).join('\n')}');
+        debugPrint(
+            '[AUTH] Stack: ${stack.toString().split('\n').take(4).join('\n')}');
       }
 
       await _addSecurityDelay(startTime);
@@ -548,8 +611,7 @@ class AuthService {
 
       await _supabase
           .from('users')
-          .update({'password': newPassword})
-          .eq('username', username);
+          .update({'password': newPassword}).eq('username', username);
 
       return {'success': true, 'message': 'Password changed successfully'};
     } catch (e) {
@@ -566,17 +628,22 @@ class AuthService {
     try {
       final currentRole = await getCurrentUserRole();
       if (currentRole != 'admin' && currentRole != 'sadmin') {
-        return {'success': false, 'message': 'Unauthorized: Admin role required'};
+        return {
+          'success': false,
+          'message': 'Unauthorized: Admin role required'
+        };
       }
 
       if (newPassword.length < 6) {
-        return {'success': false, 'message': 'Password must be at least 6 characters'};
+        return {
+          'success': false,
+          'message': 'Password must be at least 6 characters'
+        };
       }
 
       await _supabase
           .from('users')
-          .update({'password': newPassword})
-          .eq('username', targetUsername);
+          .update({'password': newPassword}).eq('username', targetUsername);
 
       return {
         'success': true,

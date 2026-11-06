@@ -69,73 +69,12 @@ class _LoginScreenState extends State<LoginScreen>
       if (result['success']) {
         final role = result['role'] as String;
         final instituteType = result['institute_type'] as String? ?? 'college';
-        final isSchool = instituteType == 'school';
-
-        if (role == 'sadmin') {
-          context.go('/school/admin-dashboard');
-          return;
-        }
-
-        if (isSchool) {
-          switch (role) {
-            case 'student':
-              context.go('/school/student-dashboard');
-              break;
-            case 'teacher':
-              context.go('/school/teacher-dashboard');
-              break;
-            case 'admin':
-            case 'sadmin':
-              context.go('/school/admin-dashboard');
-              break;
-            case 'parent':
-              context.go('/school/parent-dashboard');
-              break;
-            default:
-              context.go('/school/admin-dashboard');
-          }
-        } else {
-          switch (role) {
-            case 'student':
-              context.go('/student-dashboard');
-              break;
-            case 'teacher':
-              context.go('/teacher-dashboard');
-              break;
-            case 'admin':
-              context.go('/admin-dashboard');
-              break;
-            case 'HR':
-              context.go('/hr-dashboard');
-              break;
-            case 'hod':
-              context.go('/hod-dashboard');
-              break;
-            case 'admissiondean':
-              context.go('/leads/dean?username=${_usernameController.text.trim()}');
-              break;
-            case 'counsellor':
-              context.go('/leads/counsellor?username=${_usernameController.text.trim()}');
-              break;
-            case 'temp_student':
-              context.go('/temp-student-dashboard?tempId=${_usernameController.text.trim()}');
-              break;
-            case 'warden':
-              context.go('/warden-dashboard');
-              break;
-            case 'transport_officer':
-              context.go('/transport-dashboard');
-              break;
-            case 'conductor':
-              context.go('/conductor-dashboard');
-              break;
-            case 'accountant':
-              context.go('/accountant-dashboard');
-              break;
-            default:
-              context.go('/student-dashboard');
-          }
-        }
+        final route = AuthService.dashboardRouteForRole(
+          role: role,
+          instituteType: instituteType,
+          username: _usernameController.text.trim(),
+        );
+        context.go(route);
       } else {
         _showError(result['message'] ?? 'Login failed');
       }
@@ -366,23 +305,32 @@ class _LoginScreenState extends State<LoginScreen>
           ),
           const SizedBox(height: AppTheme.sm),
           // College credentials
-          _buildCredentialRow('College Student', 'BT24CSE154', AppTheme.studentPrimary),
-          _buildCredentialRow('College Teacher', 'teacher1', AppTheme.teacherPrimary),
+          _buildCredentialRow(
+              'College Student', 'BT24CSE154', AppTheme.studentPrimary),
+          _buildCredentialRow(
+              'College Teacher', 'teacher1', AppTheme.teacherPrimary),
           _buildCredentialRow('Admin', 'admin1', AppTheme.adminPrimary),
           _buildCredentialRow('HR', 'hr1', const Color(0xFF059669)),
           _buildCredentialRow('HOD', 'hod1', const Color(0xFF0891B2)),
           _buildCredentialRow('Warden', 'warden1', const Color(0xFF1E293B)),
-          _buildCredentialRow('Transport', 'transportofficer1', const Color(0xFF0C4A6E)),
-          _buildCredentialRow('Conductor', 'conductor1', const Color(0xFFD97706)),
-          _buildCredentialRow('Accountant', 'accountant1', const Color(0xFF8B5CF6)),
+          _buildCredentialRow(
+              'Transport', 'transportofficer1', const Color(0xFF0C4A6E)),
+          _buildCredentialRow(
+              'Conductor', 'conductor1', const Color(0xFFD97706)),
+          _buildCredentialRow(
+              'Accountant', 'accountant1', const Color(0xFF8B5CF6)),
           const SizedBox(height: 6),
           Divider(color: AppTheme.extraLightGray, height: 1),
           const SizedBox(height: 6),
           // School credentials
-          _buildCredentialRow('School Student', 'sstudent1', const Color(0xFFFF6B6B)),
-          _buildCredentialRow('School Teacher', 'steacher1', const Color(0xFFFF8E53)),
-          _buildCredentialRow('School Admin', 'sadmin1', const Color(0xFF9B59B6)),
-          _buildCredentialRow('School Admin (Alt)', 'sadmin01', const Color(0xFF8E44AD)),
+          _buildCredentialRow(
+              'School Student', 'sstudent1', const Color(0xFFFF6B6B)),
+          _buildCredentialRow(
+              'School Teacher', 'steacher1', const Color(0xFFFF8E53)),
+          _buildCredentialRow(
+              'School Admin', 'sadmin1', const Color(0xFF9B59B6)),
+          _buildCredentialRow(
+              'School Admin (Alt)', 'sadmin01', const Color(0xFF8E44AD)),
           _buildCredentialRow('Parent', 'parent1', const Color(0xFF1ABC9C)),
         ],
       ),

@@ -2785,6 +2785,7 @@ class SchoolService {
       'category': 'Substitution',
       'target_audience': substituteTeacher,
       'published_by': currentUsername,
+      'published_at': DateTime.now().toIso8601String(),
     };
 
     final response = await _supabase
@@ -2792,6 +2793,20 @@ class SchoolService {
         .insert(payload)
         .select()
         .single();
+
+    try {
+      final recipientRole =
+          await permissions.getLiveUserRole(substituteTeacher) ?? 'teacher';
+      await createNotification(
+        userId: substituteTeacher,
+        role: recipientRole,
+        type: 'substitution_assigned',
+        title: 'Substitution duty assigned',
+        body: 'Period $period • $subject • $classId',
+        refType: 'school_circulars',
+        refId: response['id']?.toString(),
+      );
+    } catch (_) {}
 
     return {
       'id': response['id'],
@@ -2877,7 +2892,9 @@ class SchoolService {
       if (teacherUsername != null && teacherUsername.isNotEmpty) {
         query = query.eq('target_audience', teacherUsername);
       }
-      final response = await query.order('created_at', ascending: false);
+      // school_circulars uses published_at; created_at is not a column on
+      // this table and makes the substitution endpoint fail with HTTP 400.
+      final response = await query.order('published_at', ascending: false);
 
       final result = <Map<String, dynamic>>[];
       for (final row in response) {
@@ -2895,7 +2912,7 @@ class SchoolService {
             'id': row['id'],
             'title': row['title'],
             'date': map['Date'] ??
-                row['created_at']?.toString().split('T')[0] ??
+                row['published_at']?.toString().split('T')[0] ??
                 '',
             'day': map['Day'] ?? 'Monday',
             'period': map['Period'] ?? '1',
@@ -2906,7 +2923,7 @@ class SchoolService {
             'time': map['Time'] ?? '',
             'notes': map['Notes'] ?? '',
             'assigned_by': row['published_by'] ?? '',
-            'created_at': row['published_at'] ?? row['created_at'],
+            'created_at': row['published_at'],
             'status': map['Response'] ?? 'Assigned',
           };
           if (date == null || date.isEmpty || log['date'] == date) {
@@ -3982,6 +3999,58 @@ class SchoolService {
   }
 
   // ===== MARKS & REPORT CARDS =====
+  /// Returns the teacher's assigned class/subject pairs. This intentionally
+  /// does not fall back to every school subject when the mapping is empty.
+  Future<List<Map<String, dynamic>>> getMarksForAllottedSubjects({
+    required String teacherUsername,
+  }) async {
+    final current = await AuthService().getCurrentUsername() ?? '';
+    if (current.isEmpty || current != teacherUsername) {
+      throw Exception(
+          'Marks assignment scope must match the signed-in teacher.');
+    }
+    final role =
+        (await permissions.getLiveUserRole(current) ?? '').toLowerCase();
+    if (!{'teacher', 'steacher', 'class_teacher'}.contains(role)) {
+      throw Exception('Only teaching staff may read marks assignments.');
+    }
+    await permissions.enforce(
+        feature: 'marks', requiredPermission: 'view', username: current);
+
+    final assignments = <String, Map<String, dynamic>>{};
+    try {
+      final rows = await _supabase
+          .from('school_teacher_classes')
+          .select('class_id, subject_name')
+          .eq('teacher_username', current);
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final subject = (row['subject_name'] ?? '').toString().trim();
+        final classId = (row['class_id'] ?? '').toString().trim();
+        if (subject.isEmpty || classId.isEmpty) continue;
+        assignments['$classId|${subject.toLowerCase()}'] = {
+          'class_id': classId,
+          'subject': subject,
+        };
+      }
+    } catch (_) {}
+    try {
+      final rows = await _supabase
+          .from('school_timetable')
+          .select('class_id, subject')
+          .eq('teacher_username', current);
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final subject = (row['subject'] ?? '').toString().trim();
+        final classId = (row['class_id'] ?? '').toString().trim();
+        if (subject.isEmpty || classId.isEmpty) continue;
+        assignments['$classId|${subject.toLowerCase()}'] = {
+          'class_id': classId,
+          'subject': subject,
+        };
+      }
+    } catch (_) {}
+    return assignments.values.toList();
+  }
+
   Future<List<Map<String, dynamic>>> getMarksByClassSubjectExam({
     required String classId,
     required String subject,
@@ -4381,107 +4450,144 @@ class SchoolService {
   Future<bool> saveMarks(List<Map<String, dynamic>> marksList) async {
     lastMarksError = null;
     if (marksList.isEmpty) return false;
-
-    // Enforce live database role check
-    await SchoolPermissionService().enforce(
-      feature: 'marks',
-      requiredPermission: 'edit',
-    );
-
-    // Enforce marks lock check
-    final firstMark = marksList.first;
-    final examType = firstMark['exam_type']?.toString() ?? 'Mid Term';
-    final subject = firstMark['subject']?.toString() ?? '';
-    final classId = firstMark['class_id']?.toString() ?? 'Class 10-A';
-    final isLocked = await SchoolPermissionService().isMarksLocked(
-      examId: examType,
-      classId: classId,
-      subject: subject,
-    );
-    if (isLocked) {
-      lastMarksError =
-          'Marks entry is locked for $subject ($examType). Administrative override required.';
-      throw Exception(lastMarksError);
-    }
-
-    final rows = <Map<String, dynamic>>[];
-    for (final raw in marksList) {
-      final obtained = (raw['marks_obtained'] ??
-          raw['obtained_marks'] ??
-          raw['obtained'] ??
-          0) as num;
-      final total = (raw['total_marks'] ??
-          raw['max_marks'] ??
-          raw['total'] ??
-          100) as num;
-      final pct =
-          total > 0 ? (obtained.toDouble() / total.toDouble()) * 100 : 0.0;
-      final row = <String, dynamic>{
-        if (raw['id'] != null) 'id': raw['id'],
-        'student_id': raw['student_id']?.toString() ?? '',
-        if (raw['student_name'] != null) 'student_name': raw['student_name'],
-        if (raw['class_id'] != null) 'class_id': raw['class_id'],
-        if (raw['class_name'] != null) 'class_name': raw['class_name'],
-        if (raw['section'] != null) 'section': raw['section'],
-        'subject': raw['subject']?.toString() ?? '',
-        'exam_type': raw['exam_type']?.toString() ?? 'Mid Term',
-        'marks_obtained': obtained.toDouble(),
-        'total_marks': total.toDouble(),
-        'grade': raw['grade'] ?? calculateCbseGrade(pct)['grade'],
-        if (raw['remarks'] != null) 'remarks': raw['remarks'],
-      };
-      if (row['student_id'].toString().isEmpty ||
-          row['subject'].toString().isEmpty) {
-        continue;
-      }
-      rows.add(row);
-    }
-    if (rows.isEmpty) {
-      lastMarksError = 'Nothing valid to save.';
-      return false;
-    }
-
     try {
-      final first = rows.first;
-      final key =
-          '${first['student_id']}_${first['subject']}_${first['exam_type']}';
-      _marksStore[key] = List<Map<String, dynamic>>.from(rows);
-    } catch (_) {}
-
-    // Preferred path: one upsert keyed on (student, subject, exam) — requires
-    // the unique index created by database/03_report_card_seed.sql.
-    try {
-      await _supabase
-          .from('school_marks')
-          .upsert(rows, onConflict: 'student_id,subject,exam_type');
-      return true;
-    } catch (_) {}
-
-    // Fallback (unique index not created yet): update existing row per key,
-    // otherwise insert — still avoids duplicates.
-    try {
-      for (final row in rows) {
-        final existing = await _supabase
-            .from('school_marks')
-            .select('id')
-            .eq('student_id', row['student_id'].toString())
-            .eq('subject', row['subject'].toString())
-            .eq('exam_type', row['exam_type'].toString())
-            .limit(1);
-        final list = List<Map<String, dynamic>>.from(existing);
-        if (list.isNotEmpty) {
-          row['id'] = list.first['id'];
-          await _supabase
-              .from('school_marks')
-              .update(row)
-              .eq('id', row['id'].toString());
-        } else {
-          await _supabase.from('school_marks').insert(row);
+      await permissions.enforce(feature: 'marks', requiredPermission: 'edit');
+      final actor = await AuthService().getCurrentUsername() ?? '';
+      final role =
+          (await permissions.getLiveUserRole(actor) ?? '').toLowerCase().trim();
+      if ({'teacher', 'steacher', 'class_teacher'}.contains(role)) {
+        final allowed = await getMarksForAllottedSubjects(
+          teacherUsername: actor,
+        );
+        for (final row in marksList) {
+          final subject =
+              (row['subject'] ?? '').toString().trim().toLowerCase();
+          final classId = (row['class_id'] ?? '').toString().trim();
+          final className = (row['class_name'] ?? '').toString().trim();
+          final permitted = allowed.any((assignment) {
+            final assignedClassId =
+                (assignment['class_id'] ?? '').toString().trim();
+            final assignedClassName =
+                (assignment['class_name'] ?? '').toString().trim();
+            final assignedSubject =
+                (assignment['subject'] ?? '').toString().trim().toLowerCase();
+            return assignedSubject == subject &&
+                (assignedClassId == classId ||
+                    (assignedClassName.isNotEmpty &&
+                        assignedClassName == className));
+          });
+          if (!permitted) {
+            lastMarksError =
+                'You are not assigned to enter marks for $subject in $className.';
+            return false;
+          }
         }
       }
-      return true;
-    } catch (e) {
-      lastMarksError = 'Could not save marks: $e';
+
+      final rows = <Map<String, dynamic>>[];
+      final checkedLocks = <String>{};
+      for (final raw in marksList) {
+        final examType = raw['exam_type']?.toString() ?? 'Mid Term';
+        final subject = raw['subject']?.toString() ?? '';
+        final classId = raw['class_id']?.toString() ?? '';
+        final lockKey = '$examType|$classId|$subject';
+        if (checkedLocks.add(lockKey) &&
+            await permissions.isMarksLocked(
+              examId: examType,
+              classId: classId,
+              subject: subject,
+            )) {
+          lastMarksError =
+              'Marks entry is locked for $subject ($examType). Administrative override required.';
+          return false;
+        }
+        final obtained = num.tryParse((raw['marks_obtained'] ??
+                raw['obtained_marks'] ??
+                raw['obtained'] ??
+                0)
+            .toString());
+        final total = num.tryParse(
+            (raw['total_marks'] ?? raw['max_marks'] ?? raw['total'] ?? 100)
+                .toString());
+        if (obtained == null || total == null || total <= 0) {
+          lastMarksError = 'Marks and maximum marks must be valid numbers.';
+          return false;
+        }
+        final pct = obtained.toDouble() / total.toDouble() * 100;
+        final row = <String, dynamic>{
+          if (raw['id'] != null) 'id': raw['id'],
+          'student_id': raw['student_id']?.toString() ?? '',
+          if (raw['student_name'] != null) 'student_name': raw['student_name'],
+          if (raw['class_id'] != null) 'class_id': raw['class_id'],
+          if (raw['class_name'] != null) 'class_name': raw['class_name'],
+          if (raw['section'] != null) 'section': raw['section'],
+          'subject': subject,
+          'exam_type': examType,
+          'marks_obtained': obtained.toDouble(),
+          'total_marks': total.toDouble(),
+          'grade': raw['grade'] ?? calculateCbseGrade(pct)['grade'],
+          if (raw['remarks'] != null) 'remarks': raw['remarks'],
+        };
+        if (row['student_id'].toString().isEmpty || subject.isEmpty) continue;
+        rows.add(row);
+      }
+      if (rows.isEmpty) {
+        lastMarksError = 'Nothing valid to save.';
+        return false;
+      }
+
+      void cacheSavedRows() {
+        final groups = <String, List<Map<String, dynamic>>>{};
+        for (final row in rows) {
+          final key =
+              '${row['class_id']}_${row['subject']}_${row['exam_type']}';
+          (groups[key] ??= <Map<String, dynamic>>[]).add(row);
+        }
+        for (final entry in groups.entries) {
+          _marksStore[entry.key] = List<Map<String, dynamic>>.from(entry.value);
+        }
+      }
+
+      // Preferred path: one upsert keyed on (student, subject, exam) — requires
+      // the unique index created by database/03_report_card_seed.sql.
+      try {
+        await _supabase
+            .from('school_marks')
+            .upsert(rows, onConflict: 'student_id,subject,exam_type');
+        cacheSavedRows();
+        return true;
+      } catch (_) {}
+
+      // Fallback (unique index not created yet): update existing row per key,
+      // otherwise insert — still avoids duplicates.
+      try {
+        for (final row in rows) {
+          final existing = await _supabase
+              .from('school_marks')
+              .select('id')
+              .eq('student_id', row['student_id'].toString())
+              .eq('subject', row['subject'].toString())
+              .eq('exam_type', row['exam_type'].toString())
+              .limit(1);
+          final list = List<Map<String, dynamic>>.from(existing);
+          if (list.isNotEmpty) {
+            row['id'] = list.first['id'];
+            await _supabase
+                .from('school_marks')
+                .update(row)
+                .eq('id', row['id'].toString());
+          } else {
+            await _supabase.from('school_marks').insert(row);
+          }
+        }
+        cacheSavedRows();
+        return true;
+      } catch (e) {
+        lastMarksError = 'Could not save marks: $e';
+        return false;
+      }
+    } catch (error) {
+      lastMarksError = 'Could not save marks: $error';
       return false;
     }
   }

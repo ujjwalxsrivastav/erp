@@ -288,7 +288,8 @@ class SchoolPermissionService {
       }
     } catch (_) {}
 
-    return _getDefaultMarksLocks();
+    // No configured lock means marks remain open; never invent a lock row.
+    return [];
   }
 
   Future<bool> isMarksLocked({
@@ -677,31 +678,6 @@ class SchoolPermissionService {
       }
     }
     return list;
-  }
-
-  List<Map<String, dynamic>> _getDefaultMarksLocks() {
-    return [
-      {
-        'id': 'SHIV-SCH_EXAM-MID-2026_Class 10-A_All',
-        'institute_id': 'SHIV-SCH',
-        'exam_id': 'EXAM-MID-2026',
-        'class_id': 'Class 10-A',
-        'subject': 'All',
-        'is_locked': true,
-        'locked_at': '2026-10-25T18:00:00Z',
-        'locked_by': 'sadmin1',
-        'deadline': '2026-10-25T17:00:00Z',
-      },
-      {
-        'id': 'SHIV-SCH_EXAM-MID-2026_Class 9-A_All',
-        'institute_id': 'SHIV-SCH',
-        'exam_id': 'EXAM-MID-2026',
-        'class_id': 'Class 9-A',
-        'subject': 'All',
-        'is_locked': false,
-        'deadline': '2026-11-15T18:00:00Z',
-      },
-    ];
   }
 
   List<Map<String, dynamic>> _getDefaultMakerCheckerRequests() {

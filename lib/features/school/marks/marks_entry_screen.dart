@@ -17,6 +17,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
 
   // Role and Identity
   bool _isStaff = false;
+  bool _isAdminRole = false;
+  bool _isTeacherRole = false;
   bool _isInitialising = true;
 
   // Selected parameters
@@ -68,51 +70,79 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   }
 
   Future<void> _init() async {
-    setState(() => _isInitialising = true);
-    final role = await _authService.getCurrentUserRole() ?? 'student';
-    final username = await _authService.getCurrentUsername() ?? '';
-
-    // Allow both Teachers (subject/class) and Admins
-    final isStaff = role == 'admin' ||
-        role == 'sadmin' ||
-        role == 'teacher' ||
-        role == 'steacher';
-    if (!isStaff) {
-      if (mounted) {
-        setState(() {
-          _isStaff = false;
-          _isInitialising = false;
-        });
+    if (mounted) setState(() => _isInitialising = true);
+    var staffVerified = false;
+    var teacherVerified = false;
+    var adminVerified = false;
+    try {
+      final role = (await _authService.getLiveUserRole() ??
+              await _authService.getCurrentUserRole() ??
+              '')
+          .toLowerCase()
+          .trim();
+      final username = await _authService.getCurrentUsername() ?? '';
+      final normalizedRole = switch (role) {
+        'steacher' => 'teacher',
+        'sadmin' => 'admin',
+        _ => role,
+      };
+      final isTeacher =
+          normalizedRole == 'teacher' || normalizedRole == 'class_teacher';
+      final isAdmin = {
+        'admin',
+        'principal',
+        'superadmin',
+      }.contains(normalizedRole);
+      if (!isTeacher && !isAdmin) {
+        if (mounted) {
+          setState(() {
+            _isStaff = false;
+            _isInitialising = false;
+          });
+        }
+        return;
       }
-      return;
-    }
+      staffVerified = true;
+      teacherVerified = isTeacher;
+      adminVerified = isAdmin;
 
-    // Load available exam sessions to match Report Card criteria
-    final sessions = await _schoolService.getExamSessions();
-    if (sessions.isNotEmpty) {
-      _examSessions = sessions;
-      _selectedExam = sessions.first;
-    }
+      final sessions = await _schoolService.getExamSessions();
+      if (sessions.isNotEmpty) {
+        _examSessions = sessions;
+        _selectedExam = sessions.first;
+      }
 
-    // Load classes: if teacher, prefer their assigned classes
-    List<Map<String, dynamic>> classes = [];
-    if (role == 'teacher' || role == 'steacher') {
-      classes = await _schoolService.getTeacherAllAssignedClasses(username);
-    }
-    if (classes.isEmpty) {
-      classes = await _schoolService.getSchoolClasses();
-    }
+      // A teacher with no assigned class must see an empty state. Falling
+      // back to the school-wide roster would expose every class.
+      final classes = isTeacher
+          ? await _schoolService.getTeacherAllAssignedClasses(username)
+          : await _schoolService.getSchoolClasses();
 
-    if (!mounted) return;
-    setState(() {
-      _isStaff = true;
-      _classes = classes;
-      _selectedClass = classes.isNotEmpty ? classes.first : null;
-      _isInitialising = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _isStaff = true;
+        _isAdminRole = isAdmin;
+        _isTeacherRole = isTeacher;
+        _classes = classes;
+        _selectedClass = classes.isNotEmpty ? classes.first : null;
+        _isInitialising = false;
+        if (classes.isEmpty) {
+          _errorMessage = isTeacher
+              ? 'No classes are assigned to this teacher account yet.'
+              : 'No school classes are available.';
+        }
+      });
 
-    if (_selectedClass != null) {
-      await _loadSubjectsAndStudents();
+      if (_selectedClass != null) await _loadSubjectsAndStudents();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isStaff = staffVerified;
+        _isTeacherRole = teacherVerified;
+        _isAdminRole = adminVerified;
+        _isInitialising = false;
+        _errorMessage = 'Marks workspace could not be initialized: $error';
+      });
     }
   }
 
@@ -127,7 +157,32 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     });
 
     try {
-      final subjects = await _schoolService.getSchoolSubjects(classId: classId);
+      var subjects = await _schoolService.getSchoolSubjects(classId: classId);
+      if (_isTeacherRole) {
+        final assigned = await _schoolService.getMarksForAllottedSubjects(
+          teacherUsername: await _authService.getCurrentUsername() ?? '',
+        );
+        final className = _selectedClass?['name']?.toString() ?? '';
+        final allowedSubjects = assigned
+            .where((assignment) =>
+                assignment['class_id']?.toString() == classId ||
+                (assignment['class_name']?.toString().isNotEmpty ?? false) &&
+                    assignment['class_name']?.toString() == className)
+            .map((assignment) =>
+                assignment['subject']?.toString().trim().toLowerCase() ?? '')
+            .where((subject) => subject.isNotEmpty)
+            .toSet();
+        subjects = subjects.where((subject) {
+          final name = (subject['name'] ?? subject['subject'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          return allowedSubjects.contains(name);
+        }).toList();
+        if (subjects.isEmpty) {
+          _errorMessage = 'No subjects are assigned to you for this class yet.';
+        }
+      }
       final students = await _schoolService.getStudentsInClass(classId,
           className: className);
 
@@ -320,7 +375,21 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     }
 
     setState(() => _isSavingMarks = true);
-    final ok = await _schoolService.saveMarks(marksList);
+    bool ok;
+    try {
+      ok = await _schoolService.saveMarks(marksList);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isSavingMarks = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not save marks: $error'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+      return;
+    }
     if (!mounted) return;
     setState(() => _isSavingMarks = false);
 
@@ -585,11 +654,12 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             ),
           ),
           actions: [
-            IconButton(
-              tooltip: 'Bulk CSV Upload',
-              icon: const Icon(Icons.file_upload_outlined, size: 20),
-              onPressed: () => context.push('/school/marks/csv'),
-            ),
+            if (_isAdminRole)
+              IconButton(
+                tooltip: 'Bulk CSV Upload',
+                icon: const Icon(Icons.file_upload_outlined, size: 20),
+                onPressed: () => context.push('/school/marks-csv-admin'),
+              ),
             IconButton(
               tooltip: 'Preview Report Cards',
               icon: const Icon(Icons.description_outlined, size: 20),
@@ -598,12 +668,14 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        body: TabBarView(
-          children: [
-            _buildScholasticTab(),
-            _buildCoScholasticTab(),
-          ],
-        ),
+        body: _errorMessage != null && _classes.isEmpty
+            ? _buildErrorView()
+            : TabBarView(
+                children: [
+                  _buildScholasticTab(),
+                  _buildCoScholasticTab(),
+                ],
+              ),
       ),
     );
   }
@@ -1612,7 +1684,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                     const TextStyle(fontSize: 13.5, color: Color(0xFF64748B))),
             const SizedBox(height: 14),
             ElevatedButton(
-              onPressed: _loadSubjectsAndStudents,
+              onPressed: _classes.isEmpty ? _init : _loadSubjectsAndStudents,
               style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0F172A),
                   foregroundColor: Colors.white),

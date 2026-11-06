@@ -31,6 +31,14 @@ jobs:
       - name: Analyze code
         run: flutter analyze lib/features/school/ lib/services/
 
+      - name: Validate AI provider secrets
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          test -n "$GROQ_API_KEY" || { echo "GROQ_API_KEY secret is required" >&2; exit 1; }
+          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY secret is required" >&2; exit 1; }
+
       - name: Build Flutter Web
         run: >
           flutter build web --release --base-href /erp/

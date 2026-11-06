@@ -33,61 +33,14 @@ class _SplashScreenState extends State<SplashScreen> {
         if (isValid) {
           final role = await _authService.getCurrentUserRole();
           final instituteType = await _authService.getCurrentInstituteType();
-          final isSchool = instituteType == 'school';
+          final username = await _authService.getCurrentUsername();
 
           if (!mounted) return;
-
-          if (isSchool) {
-            switch (role?.toLowerCase()) {
-              case 'student':
-                context.go('/school/student-dashboard');
-                break;
-              case 'teacher':
-                context.go('/school/teacher-dashboard');
-                break;
-              case 'admin':
-                context.go('/school/admin-dashboard');
-                break;
-              case 'parent':
-                context.go('/school/parent-dashboard');
-                break;
-              default:
-                context.go('/school/admin-dashboard');
-            }
-          } else {
-            switch (role?.toLowerCase()) {
-              case 'student':
-                context.go('/student-dashboard');
-                break;
-              case 'teacher':
-                context.go('/teacher-dashboard');
-                break;
-              case 'admin':
-                context.go('/admin-dashboard');
-                break;
-              case 'hr':
-                context.go('/hr-dashboard');
-                break;
-              case 'hod':
-                context.go('/hod-dashboard');
-                break;
-              case 'warden':
-                context.go('/warden-dashboard');
-                break;
-              case 'transport_officer':
-              case 'transportofficer':
-                context.go('/transport-dashboard');
-                break;
-              case 'conductor':
-                context.go('/conductor-dashboard');
-                break;
-              case 'accountant':
-                context.go('/accountant-dashboard');
-                break;
-              default:
-                context.go('/login');
-            }
-          }
+          context.go(AuthService.dashboardRouteForRole(
+            role: role ?? '',
+            instituteType: instituteType ?? '',
+            username: username,
+          ));
         } else {
           await _authService.logout();
           if (!mounted) return;
@@ -129,9 +82,9 @@ class _SplashScreenState extends State<SplashScreen> {
                 height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.4),
+                    color: Colors.white.withValues(alpha: 0.4),
                     width: 3,
                   ),
                 ),
@@ -156,7 +109,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 'College & School Edition',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                   fontWeight: FontWeight.w500,
                 ),
               ),
