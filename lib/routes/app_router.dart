@@ -95,6 +95,9 @@ import '../features/school/school_teacher_dashboard.dart';
 import '../features/school/school_admin_dashboard.dart';
 import '../features/school/parent/school_parent_dashboard.dart';
 import '../features/school/homework/homework_list_screen.dart';
+import '../features/school/homework/student_homework_screen.dart';
+import '../features/school/homework/teacher_homework_screen.dart';
+import '../features/school/homework/teacher_add_homework_screen.dart';
 import '../features/school/homework/add_homework_screen.dart';
 import '../features/school/leave/student_leave_screen.dart';
 import '../features/school/attendance/school_attendance_screen.dart';
@@ -140,7 +143,8 @@ const _schoolStaffRoles = {
   'principal',
   'superadmin',
   'teacher',
-  'steacher'
+  'steacher',
+  'class_teacher',
 };
 const _schoolAccountantRoles = {
   'admin',
@@ -243,9 +247,13 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/fees-student': {'student', 'sstudent', 'parent', 'sparent'},
   '/school/library-librarian': {'librarian', ..._schoolAdminRoles},
   '/school/library-student': _allSchoolRoles,
-  '/school/homework-teacher': _schoolStaffRoles,
+  '/school/homework-teacher': {
+    'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin', 'principal', 'superadmin'
+  },
   '/school/homework-student': {'student', 'sstudent', 'parent', 'sparent'},
-  '/school/homework-add-teacher': _schoolStaffRoles,
+  '/school/homework-add-teacher': {
+    'teacher', 'steacher', 'class_teacher', 'admin', 'sadmin'
+  },
   '/school/timetable-admin': _schoolAdminRoles,
   '/school/timetable-teacher': _schoolStaffRoles,
   '/school/timetable-student': {'student', 'sstudent', 'parent', 'sparent'},
@@ -608,13 +616,13 @@ final router = GoRouter(
         builder: (context, state) => const SchoolLibraryScreen()),
     GoRoute(
         path: '/school/homework-teacher',
-        builder: (context, state) => const HomeworkListScreen()),
+        builder: (context, state) => const TeacherHomeworkScreen()),
     GoRoute(
         path: '/school/homework-student',
-        builder: (context, state) => const HomeworkListScreen()),
+        builder: (context, state) => const StudentHomeworkScreen()),
     GoRoute(
         path: '/school/homework-add-teacher',
-        builder: (context, state) => const AddHomeworkScreen()),
+        builder: (context, state) => const TeacherAddHomeworkScreen()),
     GoRoute(
         path: '/school/timetable-admin',
         builder: (context, state) => const SchoolTimetableScreen()),

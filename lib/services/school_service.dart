@@ -470,21 +470,35 @@ class SchoolService {
       final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
       if (cid.isEmpty) continue;
       final hwList = await getHomework(classId: cid);
+      final students = await getStudentsInClass(cid);
       for (final hw in hwList) {
         final hwId = hw['id']?.toString() ?? '';
         final subs = await getHomeworkSubmissions(homeworkId: hwId);
-        final subCount = subs
-            .where(
-                (s) => s['status'] == 'submitted' || s['status'] == 'completed')
-            .length;
-        final lateCount = subs.where((s) => s['status'] == 'late').length;
+        final dueRaw = hw['due_date']?.toString();
+        final parsedDue = dueRaw == null ? null : DateTime.tryParse(dueRaw);
+        final dueDay = parsedDue == null
+            ? null
+            : DateTime(parsedDue.year, parsedDue.month, parsedDue.day);
+        int subCount = 0;
+        int lateCount = 0;
+        for (final submission in subs) {
+          final submittedAt = DateTime.tryParse(
+              submission['submitted_at']?.toString() ?? '');
+          final submittedDay = submittedAt == null
+              ? null
+              : DateTime(submittedAt.year, submittedAt.month, submittedAt.day);
+          if (dueDay != null && submittedDay != null && submittedDay.isAfter(dueDay)) {
+            lateCount++;
+          } else {
+            subCount++;
+          }
+        }
         submitted += subCount;
         late += lateCount;
 
-        final enrolled = (await getStudentsInClass(cid)).length;
-        final missingForThisHw =
-            (enrolled - subCount - lateCount).clamp(0, 999);
-        missing += missingForThisHw;
+        final today = DateTime.now();
+        final overdue = dueDay != null && dueDay.isBefore(DateTime(today.year, today.month, today.day));
+        if (overdue) missing += (students.length - subs.length).clamp(0, 999);
       }
     }
 
@@ -506,6 +520,26 @@ class SchoolService {
     required String status,
     String? feedback,
   }) async {
+    final username = await AuthService().getCurrentUsername() ?? '';
+    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    await permissions.enforce(feature: 'homework', requiredPermission: 'edit', username: username);
+    if (role != 'teacher' && role != 'steacher' && role != 'class_teacher') {
+      throw Exception('Only teaching staff can grade homework submissions.');
+    }
+    final submission = await _supabase.from('school_homework_submissions')
+        .select('homework_id').eq('id', submissionId).maybeSingle();
+    if (submission == null) throw Exception('Submission was not found.');
+    final homework = await _supabase.from('school_homework')
+        .select('class_id,class_name').eq('id', submission['homework_id']).maybeSingle();
+    if (homework == null) throw Exception('Homework was not found.');
+    final assigned = await getTeacherAllAssignedClasses(username);
+    final classId = homework['class_id']?.toString() ?? '';
+    final className = homework['class_name']?.toString() ?? '';
+    if (!assigned.any((row) => row['id']?.toString() == classId ||
+        row['class_id']?.toString() == classId || row['class_name']?.toString() == className ||
+        row['name']?.toString() == className)) {
+      throw Exception('You cannot grade work outside your allotted classes.');
+    }
     try {
       await _supabase.from('school_homework_submissions').update({
         'status': status,
@@ -1759,7 +1793,6 @@ class SchoolService {
 
   // In-memory operational stores for resilient stateful workflows
   final Map<String, List<Map<String, dynamic>>> _attendanceStore = {};
-  final List<Map<String, dynamic>> _homeworkStore = [];
   final Map<String, List<Map<String, dynamic>>> _marksStore = {};
   final List<Map<String, dynamic>> _circularsStore = [];
   final List<Map<String, dynamic>> _admissionsStore = [];
@@ -4265,100 +4298,57 @@ class SchoolService {
         query = query.or(filter);
       }
       final response = await query.order('created_at', ascending: false);
-      final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) return list;
-    } catch (_) {}
-
-    if (_homeworkStore.isNotEmpty) {
-      final matches = _homeworkStore.where((h) {
-        if (filter == null || filter.isEmpty) return true;
-        final hClass = h['class_id']?.toString() ?? '';
-        final hName = h['class_name']?.toString() ?? '';
-        final base = (className != null && className.contains('-'))
-            ? className.substring(0, className.lastIndexOf('-'))
-            : className;
-        return hClass == (classId ?? '') ||
-            (className != null && (hName == className || hName == base));
-      }).toList();
-      if (matches.isNotEmpty) return matches;
-      return _homeworkStore;
+      return List<Map<String, dynamic>>.from(response);
+    } catch (_) {
+      rethrow;
     }
+  }
 
-    final defaults = [
-      {
-        'id': 'hw-1',
-        'title': 'Chapter 5: Quadratic Equations - Exercise 5.3',
-        'subject': 'Mathematics',
-        'class_id': classId ?? 'Class 10-A',
-        'class_name': classId ?? 'Class 10-A',
-        'teacher_name': 'Mr. Sharma',
-        'description':
-            'Solve problems 1-15 from the NCERT textbook. Show step-by-step working in homework notebook.',
-        'due_date': DateTime.now()
-            .add(const Duration(days: 2))
-            .toIso8601String()
-            .substring(0, 10),
-        'status': 'pending',
-        'submission_count': 18,
-        'total_students': 24,
-      },
-      {
-        'id': 'hw-2',
-        'title': 'Diagram of Human Circulatory System',
-        'subject': 'Science',
-        'class_id': classId ?? 'Class 10-A',
-        'class_name': classId ?? 'Class 10-A',
-        'teacher_name': 'Mrs. Gupta',
-        'description':
-            'Draw neat and labelled diagram on A4 chart paper showing double circulation.',
-        'due_date': DateTime.now()
-            .add(const Duration(days: 4))
-            .toIso8601String()
-            .substring(0, 10),
-        'status': 'pending',
-        'submission_count': 12,
-        'total_students': 24,
-      },
-      {
-        'id': 'hw-3',
-        'title': 'Essay: Clean Energy and Sustainable Living',
-        'subject': 'English',
-        'class_id': classId ?? 'Class 10-A',
-        'class_name': classId ?? 'Class 10-A',
-        'teacher_name': 'Ms. Verma',
-        'description':
-            'Write 300 words essay with proper introduction, body points, and conclusion.',
-        'due_date': DateTime.now()
-            .subtract(const Duration(days: 1))
-            .toIso8601String()
-            .substring(0, 10),
-        'status': 'submitted',
-        'submission_count': 23,
-        'total_students': 24,
-      },
-    ];
-    _homeworkStore.addAll(defaults);
-    return defaults;
+  /// Returns homework for the authenticated student's own class only.
+  Future<List<Map<String, dynamic>>> getHomeworkForStudent({
+    required String studentUsername,
+  }) async {
+    if (studentUsername.trim().isEmpty) return [];
+    final currentUsername = await AuthService().getCurrentUsername() ?? '';
+    if (currentUsername.isEmpty) throw Exception('Sign in to view homework.');
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
+    await permissions.enforce(feature: 'homework', requiredPermission: 'view', username: currentUsername);
+    if (role == 'student' || role == 'sstudent') {
+      if (studentUsername != currentUsername) throw Exception('Students can only view their own homework.');
+    } else if (role == 'parent' || role == 'sparent') {
+      final link = await _supabase.from('parent_student_links').select('student_username')
+          .eq('parent_username', currentUsername).eq('student_username', studentUsername).maybeSingle();
+      if (link == null) throw Exception('This student is not linked to your account.');
+    } else if (!{'admin', 'sadmin', 'principal', 'superadmin'}.contains(role)) {
+      throw Exception('This role cannot view a student homework diary.');
+    }
+    final result = await _supabase.from('school_students').select()
+        .eq('username', studentUsername).maybeSingle();
+    if (result == null) return [];
+    final profile = Map<String, dynamic>.from(result);
+    final classId = profile['class_id']?.toString();
+    final className = profile['class_name']?.toString();
+    var section = profile['section']?.toString();
+    if ((section == null || section.isEmpty) && className != null && className.contains('-')) {
+      section = className.substring(className.lastIndexOf('-') + 1);
+    }
+    if ((classId == null || classId.isEmpty) && (className == null || className.isEmpty)) return [];
+    return getHomework(classId: classId, className: className, section: section);
   }
 
   Future<bool> createHomework(Map<String, dynamic> data) async {
-    int totalCount = 0;
-    try {
-      final cid = data['class_id']?.toString() ?? '';
-      if (cid.isNotEmpty) {
-        final students = await getStudentsInClass(cid);
-        totalCount = students.length;
-      }
-    } catch (_) {}
-
-    final entry = {
-      'id': 'hw-${DateTime.now().millisecondsSinceEpoch}',
-      'submission_count': 0,
-      'total_students': totalCount > 0 ? totalCount : 30,
-      'status': 'pending',
-      ...data,
-    };
-    _homeworkStore.insert(0, entry);
+    final username = await AuthService().getCurrentUsername() ?? '';
+    await permissions.enforce(feature: 'homework', requiredPermission: 'edit', username: username);
+    final role = (await permissions.getLiveUserRole(username) ?? '').toLowerCase();
+    if (role == 'teacher' || role == 'steacher' || role == 'class_teacher') {
+      final assigned = await getTeacherAllAssignedClasses(username);
+      final classId = data['class_id']?.toString() ?? '';
+      final className = data['class_name']?.toString() ?? '';
+      final allowed = assigned.any((row) => row['id']?.toString() == classId ||
+          row['class_id']?.toString() == classId || row['class_name']?.toString() == className ||
+          row['name']?.toString() == className);
+      if (!allowed) throw Exception('Homework can only be assigned to an allotted class.');
+    }
 
     // Only send columns that exist on school_homework; extra keys make the
     // whole insert fail and the homework silently never reaches the backend.
@@ -4371,7 +4361,7 @@ class SchoolService {
       'title': data['title'],
       'description': data['description'],
       'due_date': data['due_date'],
-      'teacher_username': data['teacher_username'] ?? data['teacher'] ?? '',
+      'teacher_username': username,
       'attachment_url': data['attachment_url'],
     };
     payload.removeWhere((_, value) => value == null);
@@ -4385,17 +4375,13 @@ class SchoolService {
   }
 
   Future<bool> updateHomeworkStatus(String homeworkId, String status) async {
-    final idx = _homeworkStore.indexWhere((h) => h['id'] == homeworkId);
-    if (idx >= 0) {
-      _homeworkStore[idx] = {..._homeworkStore[idx], 'status': status};
-    }
-
     try {
       await _supabase
           .from('school_homework')
           .update({'status': status}).eq('id', homeworkId);
+      return true;
     } catch (_) {}
-    return true;
+    return false;
   }
 
   Future<Map<String, dynamic>> getHomeworkStats(String classId) async {
@@ -4433,6 +4419,10 @@ class SchoolService {
     String? homeworkId,
     String? studentUsername,
   }) async {
+    if ((homeworkId == null || homeworkId.isEmpty) &&
+        (studentUsername == null || studentUsername.isEmpty)) {
+      throw ArgumentError('Scope submissions by homework or student.');
+    }
     try {
       var query = _supabase.from('school_homework_submissions').select();
       if (homeworkId != null && homeworkId.isNotEmpty) {
@@ -4444,7 +4434,7 @@ class SchoolService {
       final response = await query.order('submitted_at', ascending: false);
       return List<Map<String, dynamic>>.from(response);
     } catch (_) {
-      return [];
+      rethrow;
     }
   }
 
@@ -4472,7 +4462,7 @@ class SchoolService {
             .from('assignment-submissions')
             .getPublicUrl(path);
       } catch (_) {
-        return 'attachment://' + fileName;
+        return null;
       }
     }
   }
@@ -4485,6 +4475,24 @@ class SchoolService {
     String? note,
     String? attachmentUrl,
   }) async {
+    final currentUsername = await AuthService().getCurrentUsername() ?? '';
+    final role = (await permissions.getLiveUserRole(currentUsername) ?? '').toLowerCase();
+    await permissions.enforce(feature: 'homework', requiredPermission: 'edit', username: currentUsername);
+    if (currentUsername.isEmpty || studentUsername != currentUsername ||
+        (role != 'student' && role != 'sstudent')) {
+      throw Exception('Only the signed-in student can submit their homework.');
+    }
+    final profile = await _supabase.from('school_students').select('class_id,class_name,section')
+        .eq('username', currentUsername).maybeSingle();
+    final assigned = await _supabase.from('school_homework').select('id,class_id,class_name,section')
+        .eq('id', homeworkId).maybeSingle();
+    if (profile == null || assigned == null) throw Exception('Student or homework record was not found.');
+    final classId = profile['class_id']?.toString() ?? '';
+    final className = profile['class_name']?.toString() ?? '';
+    final sameClass = (classId.isNotEmpty && classId == assigned['class_id']?.toString()) ||
+        (className.isNotEmpty && className == assigned['class_name']?.toString() &&
+            (profile['section']?.toString() ?? '') == (assigned['section']?.toString() ?? ''));
+    if (!sameClass) throw Exception('This homework is not assigned to your class.');
     final row = {
       'homework_id': homeworkId,
       'student_username': studentUsername,
@@ -4522,7 +4530,9 @@ class SchoolService {
         final id = row['homework_id']?.toString() ?? '';
         if (id.isNotEmpty) counts[id] = (counts[id] ?? 0) + 1;
       }
-    } catch (_) {}
+    } catch (_) {
+      rethrow;
+    }
     return counts;
   }
 

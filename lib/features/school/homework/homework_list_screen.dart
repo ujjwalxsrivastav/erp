@@ -20,6 +20,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
 
   String? _role;
   bool _isLoading = true;
+  String? _loadError;
 
   List<Map<String, dynamic>> _homework = [];
   List<Map<String, dynamic>> _classes = [];
@@ -89,10 +90,11 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
   Future<void> _loadClasses() async {
     final username = await _authService.getCurrentUsername() ?? '';
     List<Map<String, dynamic>> classes = [];
-    if (_role == 'teacher' || _role == 'steacher') {
+    if (_role == 'teacher' || _role == 'steacher' || _role == 'class_teacher') {
       classes = await _schoolService.getTeacherAllAssignedClasses(username);
     }
-    if (classes.isEmpty) {
+    if (classes.isEmpty &&
+        !(_role == 'teacher' || _role == 'steacher' || _role == 'class_teacher')) {
       classes = await _schoolService.getSchoolClasses();
     }
     if (!mounted) return;
@@ -121,7 +123,12 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
   }
 
   Future<void> _loadHomework() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+
+    try {
 
     // Username -> display name, so students see who actually assigned the work.
     final teacherNames = await _schoolService.getTeacherNames();
@@ -141,6 +148,9 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
         for (final s in subs)
           if (s['homework_id'] != null) s['homework_id'].toString(): s,
       };
+    } else if ((_role == 'teacher' || _role == 'steacher' || _role == 'class_teacher') &&
+        _selectedClass == null) {
+      hw = [];
     } else {
       final classId = _selectedClass?['id']?.toString();
       hw = await _schoolService.getHomework(classId: classId);
@@ -156,6 +166,13 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       _teacherNames = teacherNames;
       _isLoading = false;
     });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _isLoading = false;
+      });
+    }
   }
 
   bool _isPastDue(Map<String, dynamic> hw) {
@@ -163,7 +180,9 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     if (dueDateStr == null) return false;
     try {
       final due = DateTime.parse(dueDateStr);
-      return due.isBefore(DateTime.now().subtract(const Duration(days: 1)));
+      final dueDay = DateTime(due.year, due.month, due.day);
+      final today = DateTime.now();
+      return dueDay.isBefore(DateTime(today.year, today.month, today.day));
     } catch (_) {
       return false;
     }
@@ -360,6 +379,13 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
         fileName: pickedFile!.name,
         bytes: pickedFile!.bytes!,
       );
+      if (attachmentUrl == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File upload failed. Your work was not submitted.')),
+        );
+        return;
+      }
     }
 
     final ok = await _schoolService.submitHomework(
@@ -587,7 +613,8 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
   }
 
   /// Teacher: real backend submission list with live evaluation & Excel export.
-  Future<void> _showTeacherSubmissions(Map<String, dynamic> hw) async {
+  Future<void> _showTeacherSubmissions(Map<String, dynamic> hw,
+      {required bool canGrade}) async {
     final id = hw['id']?.toString();
     if (id == null) return;
     List<Map<String, dynamic>> subs = await _schoolService.getHomeworkSubmissions(homeworkId: id);
@@ -783,7 +810,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                                 ],
                               ),
                             ),
-                            OutlinedButton(
+                            if (canGrade) OutlinedButton(
                               onPressed: () => _openGradingDialog(
                                 context: context,
                                 submissionId: subId,
@@ -922,7 +949,10 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isTeacher = _role == 'teacher' || _role == 'steacher' || _role == 'admin' || _role == 'sadmin';
+    final canGrade = _role == 'teacher' || _role == 'steacher' || _role == 'class_teacher';
+    final isStaffViewer = canGrade || _role == 'admin' || _role == 'sadmin' ||
+        _role == 'principal' || _role == 'superadmin';
+    final canAssign = canGrade || _role == 'admin' || _role == 'sadmin';
 
     final active = _isStudent ? _studentActive : _active;
     final past = _isStudent ? _studentPast : _past;
@@ -1053,7 +1083,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
           ),
         ),
       ),
-      floatingActionButton: isTeacher
+      floatingActionButton: canAssign
           ? FloatingActionButton.extended(
               onPressed: () => context.go('/school/homework/add'),
               backgroundColor: const Color(0xFF2563EB),
@@ -1065,18 +1095,31 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
           : null,
       body: _isLoading
           ? _buildLoadingSkeleton()
+          : _loadError != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.cloud_off, size: 40),
+                      const SizedBox(height: 12),
+                      Text(_loadError!, textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      FilledButton(onPressed: _loadHomework, child: const Text('Retry')),
+                    ],
+                  ),
+                )
           : TabBarView(
               controller: _tabController,
               children: [
                 RefreshIndicator(
                   onRefresh: _loadHomework,
                   color: const Color(0xFF3B82F6),
-                  child: _buildHomeworkList(active, isTeacher: isTeacher, isPast: false),
+                  child: _buildHomeworkList(active, isTeacher: isStaffViewer, canGrade: canGrade, isPast: false),
                 ),
                 RefreshIndicator(
                   onRefresh: _loadHomework,
                   color: const Color(0xFF3B82F6),
-                  child: _buildHomeworkList(past, isTeacher: isTeacher, isPast: true),
+                  child: _buildHomeworkList(past, isTeacher: isStaffViewer, canGrade: canGrade, isPast: true),
                 ),
               ],
             ),
@@ -1086,6 +1129,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
   Widget _buildHomeworkList(
     List<Map<String, dynamic>> items, {
     required bool isTeacher,
+    required bool canGrade,
     bool isPast = false,
   }) {
     if (items.isEmpty) {
@@ -1132,12 +1176,12 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
       itemBuilder: (context, index) =>
-          _buildHomeworkCard(items[index], isTeacher: isTeacher, isPast: isPast),
+          _buildHomeworkCard(items[index], isTeacher: isTeacher, canGrade: canGrade, isPast: isPast),
     );
   }
 
   Widget _buildHomeworkCard(Map<String, dynamic> hw,
-      {required bool isTeacher, required bool isPast}) {
+      {required bool isTeacher, required bool canGrade, required bool isPast}) {
     final subject = hw['subject'] as String? ?? 'Subject';
     final title = hw['title'] as String? ?? 'Homework';
     final description = hw['description'] as String? ?? '';
@@ -1370,7 +1414,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () => _showTeacherSubmissions(hw),
+                        onPressed: () => _showTeacherSubmissions(hw, canGrade: canGrade),
                         icon: const Icon(Icons.people_outline, size: 16),
                         label: Text(
                           submissionCount > 0
@@ -1385,7 +1429,7 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                         ),
                       ),
                     )
-                  else if (!isSubmitted)
+                  else if (_isStudent && !isSubmitted)
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(

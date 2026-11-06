@@ -42,6 +42,7 @@ class SchoolPermissionService {
     'admissions',
     'transport',
     'circulars',
+    'homework',
   ];
 
   // ==========================================
@@ -529,11 +530,13 @@ class SchoolPermissionService {
     switch (role) {
       case 'teacher':
         if (feature == 'attendance' || feature == 'marks') return 'edit';
+        if (feature == 'homework') return 'edit';
         if (feature == 'circulars' || feature == 'library' || feature == 'timetable') return 'view';
         return 'none';
 
       case 'class_teacher':
         if (feature == 'attendance' || feature == 'marks') return 'edit';
+        if (feature == 'homework') return 'edit';
         if (feature == 'discipline') return 'edit';
         if (feature == 'fees' || feature == 'hostel' || feature == 'circulars' || feature == 'library') return 'view';
         return 'none';
@@ -559,11 +562,12 @@ class SchoolPermissionService {
         return 'none';
 
       case 'parent':
-        if (feature == 'attendance' || feature == 'marks' || feature == 'fees' || feature == 'transport' || feature == 'infirmary' || feature == 'circulars') return 'view';
+        if (feature == 'attendance' || feature == 'marks' || feature == 'fees' || feature == 'transport' || feature == 'infirmary' || feature == 'circulars' || feature == 'homework') return 'view';
         return 'none';
 
       case 'student':
         if (feature == 'attendance' || feature == 'marks' || feature == 'fees' || feature == 'library' || feature == 'circulars') return 'view';
+        if (feature == 'homework') return 'edit';
         return 'none';
 
       default:
