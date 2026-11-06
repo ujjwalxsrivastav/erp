@@ -35,6 +35,10 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
 
   // 4-State Lifecycle
   bool _isLoading = true;
+  // Analytics / queues / alerts load after the workspace is already visible.
+  bool _isSecondaryLoading = true;
+  // Keeps pull-to-refresh from flashing the full-screen loader again.
+  bool _hasLoadedOnce = false;
   String? _errorMessage;
 
   // Real Schedule
@@ -83,25 +87,37 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   Future<void> _loadData() async {
     if (mounted) {
       setState(() {
-        _isLoading = true;
+        _isLoading = !_hasLoadedOnce;
+        _isSecondaryLoading = true;
         _errorMessage = null;
       });
     }
 
+    // ── PHASE 1: the teacher's own data ───────────────────────────────────
+    // Identity, classes, timetable, today's attendance and the KPI counters.
+    // Small and fast, so the workspace paints as soon as it lands instead of
+    // waiting for the analytics, queues and alerts loaded in phase 2.
+    final String username;
+    final String? displayName;
+    final List<Map<String, dynamic>> teacherClasses;
+    final List<Map<String, dynamic>> schedule;
+    final List<Map<String, dynamic>> pendingLeavesList;
+    final int pendingHw;
+    final List<Map<String, dynamic>> studentDoubts;
+    var isMarked = false;
+
     try {
-      final username = await _authService.getCurrentUsername() ?? '';
+      username = await _authService.getCurrentUsername() ?? '';
       _teacherUsername = username;
-      final displayName = await _schoolService.getTeacherDisplayName(username);
-      final teacherClasses =
-          await _schoolService.getClassTeacherClasses(username);
+      displayName = await _schoolService.getTeacherDisplayName(username);
+      teacherClasses = await _schoolService.getClassTeacherClasses(username);
       final instName = await _schoolService.getSchoolInstituteName();
 
-      final schedule = await _schoolService.getTeacherTimetable(username);
-      final pendingHw =
-          await _schoolService.getPendingHomeworkToGrade(username);
-      final pendingLeavesList =
+      schedule = await _schoolService.getTeacherTimetable(username);
+      pendingHw = await _schoolService.getPendingHomeworkToGrade(username);
+      pendingLeavesList =
           await _schoolService.getLeaveRequestsForClassTeacher(username);
-      final studentDoubts = await _schoolService.getTeacherStudentQueries(
+      studentDoubts = await _schoolService.getTeacherStudentQueries(
         teacherUsername: username,
       );
 
@@ -109,18 +125,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       final allAssigned =
           await _schoolService.getTeacherAllAssignedClasses(username);
 
-      // Real Teacher Analytics (N2 + T-R01, T-R04, T-R05, T-R07)
-      final attTrend = await _schoolService.getTeacherAttendanceTrend(username);
-      final gradeDist =
-          await _schoolService.getTeacherClassGradeDistribution(username);
-      final subAvgs = await _schoolService.getTeacherSubjectAverages(username);
-      final hwStats =
-          await _schoolService.getTeacherHomeworkCompletionStats(username);
-
       // Real Attendance for Class Teacher's assigned class today
       int? totalStd;
       int? presentStd;
-      bool isMarked = false;
       List<Map<String, dynamic>> absentees = [];
 
       if (teacherClasses.isNotEmpty) {
@@ -152,104 +159,142 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         }
       }
 
+      if (!mounted) return;
+      setState(() {
+        _teacherName = (displayName != null && displayName.isNotEmpty)
+            ? displayName
+            : (username.isEmpty ? 'Teacher' : username);
+        _teacherClass = teacherClasses.isEmpty
+            ? 'Subject Faculty'
+            : 'Class Teacher • ${teacherClasses.first['name'] ?? ''}'.trim();
+        _instituteName = instName;
+        _todaySchedule = schedule;
+        _upcomingClasses = schedule.length;
+        _pendingAssignments = pendingHw;
+        _pendingLeaves = pendingLeavesList.length;
+        _studentDoubts = studentDoubts;
+        _isAttendanceMarkedToday = isMarked;
+        _totalStudents = totalStd;
+        _presentToday = presentStd;
+        _todayAbsentees = absentees;
+        _assignedClasses = allAssigned;
+        _isLoading = false;
+        _hasLoadedOnce = true;
+      });
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _teacherName = (displayName != null && displayName.isNotEmpty)
-              ? displayName
-              : (username.isEmpty ? 'Teacher' : username);
-          _teacherClass = teacherClasses.isEmpty
-              ? 'Subject Faculty'
-              : 'Class Teacher • ${teacherClasses.first['name'] ?? ''}'.trim();
-          _instituteName = instName;
-          _todaySchedule = schedule;
-          _upcomingClasses = schedule.length;
-          _pendingAssignments = pendingHw;
-          _pendingLeaves = pendingLeavesList.length;
-          _studentDoubts = studentDoubts;
-          _isAttendanceMarkedToday = isMarked;
-          _totalStudents = totalStd;
-          _presentToday = presentStd;
-          _todayAbsentees = absentees;
-          _assignedClasses = allAssigned;
+          _isLoading = false;
+          _isSecondaryLoading = false;
+          _errorMessage =
+              'Unable to load teacher workspace. Please check your connection and tap retry.';
+        });
+      }
+      return;
+    }
+
+    // Phase 1 is on screen: the roster and the heavier panels now load on
+    // their own so the page never sits behind one long await chain.
+    _loadStudents();
+    await _loadSecondaryData(
+      username: username,
+      teacherName: _teacherName,
+      displayName: displayName,
+      teacherClasses: teacherClasses,
+      schedule: schedule,
+      isMarked: isMarked,
+      pendingLeavesList: pendingLeavesList,
+    );
+  }
+
+  /// ── PHASE 2: analytics, queues and alerts ─────────────────────────────
+  /// Everything slow that is not needed for the first paint. Each section fed
+  /// from here shows a skeleton while [_isSecondaryLoading] is true, and a
+  /// failure only blanks those sections — never the loaded workspace.
+  Future<void> _loadSecondaryData({
+    required String username,
+    required String teacherName,
+    required String? displayName,
+    required List<Map<String, dynamic>> teacherClasses,
+    required List<Map<String, dynamic>> schedule,
+    required bool isMarked,
+    required List<Map<String, dynamic>> pendingLeavesList,
+  }) async {
+    try {
+      // Real Teacher Analytics (N2 + T-R01, T-R04, T-R05, T-R07)
+      final attTrend = await _schoolService.getTeacherAttendanceTrend(username);
+      final gradeDist =
+          await _schoolService.getTeacherClassGradeDistribution(username);
+      final subAvgs = await _schoolService.getTeacherSubjectAverages(username);
+      final hwStats =
+          await _schoolService.getTeacherHomeworkCompletionStats(username);
+
+      if (mounted) {
+        setState(() {
           _attendanceTrend = attTrend;
           _gradeDistribution = gradeDist;
           _subjectAverages = subAvgs;
           _homeworkStats = hwStats;
         });
+      }
 
-        // Step T5 Queries
-        final todayStr = DateTime.now().toIso8601String().substring(0, 10);
-        final subs = await _schoolService.getSubstitutionLogs(date: todayStr);
-        final mySubs = subs.where((s) {
-          final subT =
-              (s['substitute_teacher']?.toString() ?? '').toLowerCase();
-          return subT.contains(username.toLowerCase()) ||
-              subT.contains((_teacherName).toLowerCase());
-        }).toList();
+      // Step T5 Queries
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+      final subs = await _schoolService.getSubstitutionLogs(date: todayStr);
+      final mySubs = subs.where((s) {
+        final subT = (s['substitute_teacher']?.toString() ?? '').toLowerCase();
+        return subT.contains(username.toLowerCase()) ||
+            subT.contains(teacherName.toLowerCase());
+      }).toList();
 
-        final upExam =
-            await _schoolService.getNextUpcomingExamForTeacher(username);
-        final atRisk = await _schoolService.getTeacherAtRiskStudents(username);
-        final queue =
-            await _schoolService.getTeacherHomeworkGradingQueue(username);
-        final ptms =
-            await _schoolService.getTeacherPtmBookings(displayName ?? username);
-        final myLeaves = await _schoolService.getTeacherLeaves(username);
-        final notifs = await _schoolService.getTeacherNotifications(username);
-        final workload =
-            await _schoolService.getTeacherWeeklyWorkload(username);
+      final upExam =
+          await _schoolService.getNextUpcomingExamForTeacher(username);
+      final atRisk = await _schoolService.getTeacherAtRiskStudents(username);
+      final queue =
+          await _schoolService.getTeacherHomeworkGradingQueue(username);
+      final ptms =
+          await _schoolService.getTeacherPtmBookings(displayName ?? username);
+      final myLeaves = await _schoolService.getTeacherLeaves(username);
+      final notifs = await _schoolService.getTeacherNotifications(username);
+      final workload = await _schoolService.getTeacherWeeklyWorkload(username);
 
-        // Period-wise attendance marked checks for today (N13)
-        final markedClasses = <String>{};
-        if (isMarked && teacherClasses.isNotEmpty) {
-          final tid = teacherClasses.first['id']?.toString() ?? '';
-          final tname = teacherClasses.first['name']?.toString() ?? '';
-          if (tid.isNotEmpty) markedClasses.add(tid);
-          if (tname.isNotEmpty) markedClasses.add(tname);
-        }
-        for (final s in schedule) {
-          final cid = (s['class_id'] ?? s['class'] ?? '').toString();
-          if (cid.isNotEmpty && !markedClasses.contains(cid)) {
-            final marked =
-                await _schoolService.hasMarkedAttendanceToday(username, cid);
-            if (marked) markedClasses.add(cid);
-          }
-        }
-
-        if (mounted) {
-          setState(() {
-            _substitutionsToday = mySubs;
-            _upcomingExam = upExam;
-            _atRiskStudents = atRisk;
-            _gradingQueue = queue;
-            _ptmBookings = ptms;
-            _teacherLeaves = myLeaves;
-            _notifications = notifs;
-            _weeklyWorkload = workload;
-            _attendanceMarkedClassesToday = markedClasses;
-            _pendingStudentLeaves = pendingLeavesList;
-          });
-
-          final velocity =
-              await _schoolService.getTeacherSyllabusVelocity(username);
-          if (mounted) {
-            setState(() {
-              _syllabusVelocity = velocity;
-              _isLoading = false;
-              _errorMessage = null;
-            });
-          }
-          _loadStudents();
+      // Period-wise attendance marked checks for today (N13)
+      final markedClasses = <String>{};
+      if (isMarked && teacherClasses.isNotEmpty) {
+        final tid = teacherClasses.first['id']?.toString() ?? '';
+        final tname = teacherClasses.first['name']?.toString() ?? '';
+        if (tid.isNotEmpty) markedClasses.add(tid);
+        if (tname.isNotEmpty) markedClasses.add(tname);
+      }
+      for (final s in schedule) {
+        final cid = (s['class_id'] ?? s['class'] ?? '').toString();
+        if (cid.isNotEmpty && !markedClasses.contains(cid)) {
+          final marked =
+              await _schoolService.hasMarkedAttendanceToday(username, cid);
+          if (marked) markedClasses.add(cid);
         }
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage =
-              'Unable to load teacher workspace. Please check your connection and tap retry.';
-        });
-      }
+
+      final velocity =
+          await _schoolService.getTeacherSyllabusVelocity(username);
+
+      if (!mounted) return;
+      setState(() {
+        _substitutionsToday = mySubs;
+        _upcomingExam = upExam;
+        _atRiskStudents = atRisk;
+        _gradingQueue = queue;
+        _ptmBookings = ptms;
+        _teacherLeaves = myLeaves;
+        _notifications = notifs;
+        _weeklyWorkload = workload;
+        _attendanceMarkedClassesToday = markedClasses;
+        _pendingStudentLeaves = pendingLeavesList;
+        _syllabusVelocity = velocity;
+        _isSecondaryLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isSecondaryLoading = false);
     }
   }
 
@@ -488,23 +533,29 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       ],
                       const SizedBox(height: 16),
                       _buildKpiGrid(),
-                      if (_gradingQueue.isNotEmpty) ...[
+                      // Phase 2 (analytics, queues, alerts) renders skeletons
+                      // until it lands instead of blocking the whole page.
+                      if (_isSecondaryLoading)
+                        _buildSecondaryLoadingCard()
+                      else ...[
+                        if (_gradingQueue.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _buildHomeworkGradingQueueSection(),
+                        ],
+                        if (_pendingStudentLeaves.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _buildPendingStudentLeavesQueue(),
+                        ],
+                        if (_studentDoubts.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _buildStudentDoubtsDesk(),
+                        ],
                         const SizedBox(height: 20),
-                        _buildHomeworkGradingQueueSection(),
-                      ],
-                      if (_pendingStudentLeaves.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        _buildPendingStudentLeavesQueue(),
-                      ],
-                      if (_studentDoubts.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        _buildStudentDoubtsDesk(),
-                      ],
-                      const SizedBox(height: 20),
-                      _buildTeacherAnalyticsSection(),
-                      if (_atRiskStudents.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        _buildAttentionNeededSection(),
+                        _buildTeacherAnalyticsSection(),
+                        if (_atRiskStudents.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _buildAttentionNeededSection(),
+                        ],
                       ],
                       const SizedBox(height: 20),
                       _buildMyStudentsSection(),
@@ -512,7 +563,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                       _buildAcademicsAndMarksSection(),
                       const SizedBox(height: 20),
                       _buildDailyOperationsSection(),
-                      if (_substitutionsToday.isNotEmpty) ...[
+                      if (!_isSecondaryLoading &&
+                          _substitutionsToday.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         _buildSubstitutionDeskCard(),
                       ],
@@ -542,6 +594,85 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                 fontWeight: FontWeight.w500),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Placeholder shown while analytics / queues / alerts load after the
+  /// workspace itself is already interactive.
+  Widget _buildSecondaryLoadingCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Color(0xFF2563EB)),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Loading analytics, queues and alerts…',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildSkeletonBar(widthFactor: 1.0, height: 12),
+          const SizedBox(height: 8),
+          _buildSkeletonBar(widthFactor: 0.75, height: 12),
+          const SizedBox(height: 8),
+          _buildSkeletonBar(widthFactor: 0.5, height: 12),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: _buildSkeletonBlock(height: 64)),
+              const SizedBox(width: 10),
+              Expanded(child: _buildSkeletonBlock(height: 64)),
+              const SizedBox(width: 10),
+              Expanded(child: _buildSkeletonBlock(height: 64)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonBar(
+      {required double widthFactor, required double height}) {
+    return FractionallySizedBox(
+      alignment: Alignment.centerLeft,
+      widthFactor: widthFactor,
+      child: _buildSkeletonBlock(height: height),
+    );
+  }
+
+  Widget _buildSkeletonBlock({required double height}) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.45, end: 1.0),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeInOut,
+      builder: (context, value, _) => Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: value * 0.8),
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }

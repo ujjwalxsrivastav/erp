@@ -4448,6 +4448,136 @@ class SchoolService {
     return counts;
   }
 
+  /// Homework a teacher has given — feeds the submission tracker in the
+  /// Reports hub. Older rows may not carry `teacher_username`, so the
+  /// teacher's allotted classes are used as the fallback scope.
+  Future<List<Map<String, dynamic>>> getTeacherHomeworkAssignments(
+      String teacherUsername) async {
+    if (teacherUsername.trim().isEmpty) return [];
+    try {
+      final assigned = await getTeacherAllAssignedClasses(teacherUsername);
+      final classKeys = <String>{};
+      for (final c in assigned) {
+        for (final key in ['id', 'class_id', 'name', 'class_name']) {
+          final value = c[key]?.toString() ?? '';
+          if (value.isNotEmpty) classKeys.add(value);
+        }
+      }
+
+      final rows = List<Map<String, dynamic>>.from(await _supabase
+          .from('school_homework')
+          .select()
+          .order('due_date', ascending: false)
+          .timeout(netTimeout));
+
+      final lower = teacherUsername.toLowerCase();
+      return rows.where((hw) {
+        final owner = (hw['teacher_username']?.toString() ?? '').toLowerCase();
+        if (owner.isNotEmpty) return owner == lower;
+        final classId = hw['class_id']?.toString() ?? '';
+        final className = hw['class_name']?.toString() ?? '';
+        return classKeys.contains(classId) || classKeys.contains(className);
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Who submitted one homework and who did not: every student on the class
+  /// roster with their submission row (if any) joined in.
+  Future<Map<String, dynamic>> getHomeworkSubmissionOverview(
+      String homeworkId) async {
+    if (homeworkId.trim().isEmpty) {
+      throw ArgumentError('A homework id is required.');
+    }
+
+    final hw = await _supabase
+        .from('school_homework')
+        .select()
+        .eq('id', homeworkId)
+        .maybeSingle();
+    if (hw == null) throw Exception('Homework was not found.');
+
+    final submissions = await getHomeworkSubmissions(homeworkId: homeworkId);
+    final byStudent = <String, Map<String, dynamic>>{};
+    for (final s in submissions) {
+      final key = (s['student_username'] ?? '').toString().toLowerCase();
+      if (key.isNotEmpty) byStudent[key] = s;
+    }
+
+    var students = <Map<String, dynamic>>[];
+    final classId = hw['class_id']?.toString() ?? '';
+    if (classId.isNotEmpty) {
+      students = await getStudentsByClass(classId);
+    }
+    if (students.isEmpty) {
+      final className = hw['class_name']?.toString() ?? '';
+      if (className.isNotEmpty) {
+        try {
+          final res = await _supabase
+              .from('school_students')
+              .select()
+              .eq('class_name', className)
+              .timeout(netTimeout);
+          students = List<Map<String, dynamic>>.from(res);
+        } catch (_) {}
+      }
+    }
+
+    final rows = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    for (final st in students) {
+      final username = (st['username'] ?? '').toString();
+      final key = username.toLowerCase();
+      if (key.isEmpty || !seen.add(key)) continue;
+      final sub = byStudent[key];
+      rows.add({
+        'username': username,
+        'name': st['name']?.toString() ?? username,
+        'roll_number': st['roll_number']?.toString() ?? '',
+        'submitted': sub != null,
+        'status': sub?['status']?.toString() ?? 'not_submitted',
+        'submitted_at': sub?['submitted_at'],
+        'note': sub?['note'],
+        'attachment_url': sub?['attachment_url'],
+        'teacher_feedback': sub?['teacher_feedback'],
+      });
+    }
+
+    // A submission from a student no longer on the roster still shows up.
+    for (final s in submissions) {
+      final key = (s['student_username'] ?? '').toString().toLowerCase();
+      if (key.isEmpty || !seen.add(key)) continue;
+      rows.add({
+        'username': s['student_username']?.toString() ?? '',
+        'name': s['student_name']?.toString() ?? key,
+        'roll_number': '',
+        'submitted': true,
+        'status': s['status']?.toString() ?? 'submitted',
+        'submitted_at': s['submitted_at'],
+        'note': s['note'],
+        'attachment_url': s['attachment_url'],
+        'teacher_feedback': s['teacher_feedback'],
+      });
+    }
+
+    rows.sort((a, b) {
+      final ra = int.tryParse(a['roll_number'].toString()) ?? 9999;
+      final rb = int.tryParse(b['roll_number'].toString()) ?? 9999;
+      if (ra != rb) return ra.compareTo(rb);
+      return a['name'].toString().compareTo(b['name'].toString());
+    });
+
+    final submitted = rows.where((r) => r['submitted'] == true).length;
+    return {
+      'homework': Map<String, dynamic>.from(hw),
+      'students': rows,
+      'total': rows.length,
+      'submitted': submitted,
+      'pending': rows.length - submitted,
+    };
+  }
+
   // ===== MARKS & REPORT CARDS =====
   /// Returns the teacher's assigned class/subject pairs. This intentionally
   /// does not fall back to every school subject when the mapping is empty.

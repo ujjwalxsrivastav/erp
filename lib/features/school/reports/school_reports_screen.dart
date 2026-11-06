@@ -111,6 +111,15 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
   bool _hwLoading = false;
   List<Map<String, dynamic>> _hwRows = [];
 
+  // --- Homework submission tracker (who did / didn't submit) ---
+  List<Map<String, dynamic>> _hwAssignments = [];
+  bool _hwAssignmentsLoading = false;
+  String? _hwSelectedAssignmentId;
+  Map<String, dynamic>? _hwOverview;
+  bool _hwOverviewLoading = false;
+  String _hwSubmissionFilter = 'all'; // all | submitted | pending
+  String _hwStudentQuery = '';
+
   // --- UDISE+ Compliance state ---
   bool _udiseLoading = false;
   Map<String, dynamic>? _udiseData;
@@ -266,6 +275,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     _loadPrincipalBriefing();
     _generateAttendanceReport();
     _generateMarksReport();
+    _loadHwAssignments();
   }
 
   @override
@@ -726,6 +736,399 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
       _hwRows = [];
     }
     if (mounted) setState(() => _hwLoading = false);
+  }
+
+  // ============= HOMEWORK SUBMISSION TRACKER (who submitted) =============
+  Future<void> _loadHwAssignments() async {
+    setState(() => _hwAssignmentsLoading = true);
+    List<Map<String, dynamic>> list = [];
+    try {
+      if (_isTeacher) {
+        final username = await _authService.getCurrentUsername() ?? '';
+        list = await _schoolService.getTeacherHomeworkAssignments(username);
+      } else {
+        list = await _schoolService.getHomework();
+      }
+    } catch (_) {}
+    if (!mounted) return;
+
+    var selected = _hwSelectedAssignmentId;
+    if (selected == null || !list.any((h) => h['id']?.toString() == selected)) {
+      selected = list.isNotEmpty ? list.first['id']?.toString() : null;
+    }
+    setState(() {
+      _hwAssignments = list;
+      _hwSelectedAssignmentId = selected;
+      _hwAssignmentsLoading = false;
+    });
+    if (selected != null && selected.isNotEmpty) {
+      await _loadHwOverview(selected);
+    }
+  }
+
+  Future<void> _loadHwOverview(String homeworkId) async {
+    setState(() {
+      _hwOverviewLoading = true;
+      _hwOverview = null;
+    });
+    try {
+      final overview =
+          await _schoolService.getHomeworkSubmissionOverview(homeworkId);
+      if (mounted) setState(() => _hwOverview = overview);
+    } catch (_) {
+      if (mounted) setState(() => _hwOverview = null);
+    }
+    if (mounted) setState(() => _hwOverviewLoading = false);
+  }
+
+  String _hwAssignmentLabel(Map<String, dynamic> hw) {
+    final title = hw['title']?.toString() ?? 'Homework';
+    final subject = hw['subject']?.toString() ?? '';
+    final className = hw['class_name']?.toString() ?? '';
+    final due = hw['due_date']?.toString() ?? '';
+    final bits = [
+      if (subject.isNotEmpty) subject,
+      if (className.isNotEmpty) className,
+      if (due.isNotEmpty) 'due $due',
+    ];
+    return bits.isEmpty ? title : '$title · ${bits.join(' · ')}';
+  }
+
+  Widget _buildHwSubmissionTracker() {
+    final overview = _hwOverview;
+    final allRows = (overview?['students'] as List?) ?? const [];
+    final rows = allRows
+        .where((raw) {
+          final row = Map<String, dynamic>.from(raw as Map);
+          final submitted = row['submitted'] == true;
+          if (_hwSubmissionFilter == 'submitted' && !submitted) return false;
+          if (_hwSubmissionFilter == 'pending' && submitted) return false;
+          final q = _hwStudentQuery.trim().toLowerCase();
+          if (q.isEmpty) return true;
+          return row['name'].toString().toLowerCase().contains(q) ||
+              row['roll_number'].toString().toLowerCase() == q;
+        })
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList();
+
+    final total = (overview?['total'] as num?)?.toInt() ?? 0;
+    final submitted = (overview?['submitted'] as num?)?.toInt() ?? 0;
+    final pending = (overview?['pending'] as num?)?.toInt() ?? 0;
+
+    return _buildGlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.fact_check_outlined,
+                    size: 18, color: Color(0xFF2563EB)),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Homework Submission Tracker',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w800)),
+                    Text(
+                        'Pick a homework, then see who submitted and who is still pending.',
+                        style:
+                            TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Reload homework list',
+                onPressed: _hwAssignmentsLoading ? null : _loadHwAssignments,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_hwAssignmentsLoading) ...[
+            const LinearProgressIndicator(minHeight: 3),
+            const SizedBox(height: 10),
+            const Text('Loading homework you have given…',
+                style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+          ] else if (_hwAssignments.isEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Text(
+                'No homework found for your classes yet. Assign homework and it will appear here.',
+                style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+              ),
+            ),
+          ] else ...[
+            DropdownButtonFormField<String>(
+              initialValue: _hwAssignments.any(
+                      (h) => h['id']?.toString() == _hwSelectedAssignmentId)
+                  ? _hwSelectedAssignmentId
+                  : _hwAssignments.first['id']?.toString(),
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Homework given',
+                labelStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B)),
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              items: _hwAssignments.map((hw) {
+                final id = hw['id']?.toString() ?? '';
+                return DropdownMenuItem<String>(
+                  value: id,
+                  child: Text(_hwAssignmentLabel(hw),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5)),
+                );
+              }).toList(),
+              onChanged: (id) {
+                if (id == null) return;
+                setState(() => _hwSelectedAssignmentId = id);
+                _loadHwOverview(id);
+              },
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _hwCounterTile(
+                      'Students', '$total', const Color(0xFF0F172A)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _hwCounterTile(
+                      'Submitted', '$submitted', const Color(0xFF059669)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _hwCounterTile(
+                      'Not submitted',
+                      '$pending',
+                      pending > 0
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFF64748B)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              children: [
+                _hwFilterChip('All', 'all', total, const Color(0xFF0F172A)),
+                _hwFilterChip('Submitted', 'submitted', submitted,
+                    const Color(0xFF059669)),
+                _hwFilterChip('Not Submitted', 'pending', pending,
+                    const Color(0xFFDC2626)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              onChanged: (v) => setState(() => _hwStudentQuery = v),
+              style: const TextStyle(fontSize: 12.5),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Search student by name or roll number…',
+                hintStyle:
+                    const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    size: 18, color: Color(0xFF94A3B8)),
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_hwOverviewLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 22),
+                child: Center(
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                      SizedBox(height: 10),
+                      Text('Checking submissions…',
+                          style: TextStyle(
+                              fontSize: 11.5, color: Color(0xFF64748B))),
+                    ],
+                  ),
+                ),
+              )
+            else if (rows.isEmpty)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Text(
+                  _hwSubmissionFilter == 'pending'
+                      ? 'Every student on this roster has submitted.'
+                      : _hwSubmissionFilter == 'submitted'
+                          ? 'Nobody has submitted this homework yet.'
+                          : 'No students found for this class.',
+                  style:
+                      const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                ),
+              )
+            else
+              ...rows.map(_buildHwStudentSubmissionRow),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _hwCounterTile(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+          const SizedBox(height: 2),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w900, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _hwFilterChip(String label, String value, int count, Color color) {
+    final selected = _hwSubmissionFilter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _hwSubmissionFilter = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? color : const Color(0xFFE2E8F0)),
+        ),
+        child: Text(
+          '$label ($count)',
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : const Color(0xFF475569),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHwStudentSubmissionRow(Map<String, dynamic> row) {
+    final submitted = row['submitted'] == true;
+    final status = (row['status']?.toString() ?? '').toLowerCase();
+    final color = submitted ? const Color(0xFF059669) : const Color(0xFFDC2626);
+    final statusLabel = submitted
+        ? (status == 'graded'
+            ? 'Graded'
+            : status == 'returned'
+                ? 'Returned'
+                : 'Submitted')
+        : 'Not submitted';
+    final roll = row['roll_number']?.toString() ?? '';
+    final submittedAt = row['submitted_at']?.toString() ?? '';
+    final dateLabel =
+        submittedAt.length >= 10 ? submittedAt.substring(0, 10) : submittedAt;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBFDFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: color.withValues(alpha: 0.12),
+            child: Icon(
+              submitted ? Icons.check_rounded : Icons.close_rounded,
+              size: 15,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  row['name']?.toString() ?? row['username']?.toString() ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  [
+                    if (roll.isNotEmpty) 'Roll $roll',
+                    if (submitted && dateLabel.isNotEmpty) 'on $dateLabel',
+                  ].join(' · '),
+                  style:
+                      const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              statusLabel,
+              style: TextStyle(
+                  fontSize: 10.5, fontWeight: FontWeight.w800, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ===================== UDISE+ COMPLIANCE =====================
@@ -4189,6 +4592,8 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          _buildHwSubmissionTracker(),
           if (_hwRows.isNotEmpty) ...[
             const SizedBox(height: 16),
             ..._hwRows.map((r) => Card(

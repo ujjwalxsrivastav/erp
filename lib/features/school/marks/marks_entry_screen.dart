@@ -30,14 +30,12 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   Map<String, dynamic>? _selectedClass;
   Map<String, dynamic>? _selectedSubject;
   String _selectedExam = 'Half Yearly';
-  List<String> _examSessions = [
-    'Half Yearly',
-    'Final',
-    'Periodic Test 1',
-    'Periodic Test 2',
-    'Unit Test 1',
-    'Unit Test 2'
-  ];
+  static const String _otherExamOption = 'Other (class test)…';
+  List<String> _examSessions = ['Half Yearly', 'Annual', 'Final'];
+
+  /// Options shown in the exam picker: the standard sessions plus every
+  /// assessment already in use, and a final "Other" entry for a new test.
+  List<String> get _examOptions => [..._examSessions, _otherExamOption];
 
   // Scholastic Controllers
   final Map<String, TextEditingController> _marksControllers = {};
@@ -137,8 +135,17 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       // so a class test created earlier stays selectable.
       final sessions = await _schoolService.getAvailableExamTypes();
       if (sessions.isNotEmpty) {
-        _examSessions = sessions;
-        _selectedExam = sessions.first;
+        final added = <String>[];
+        for (final s in sessions) {
+          final name = s.trim();
+          if (name.isEmpty) continue;
+          if (_examSessions.any((e) => e.toLowerCase() == name.toLowerCase()))
+            continue;
+          added.add(name);
+        }
+        if (added.isNotEmpty) {
+          setState(() => _examSessions = [..._examSessions, ...added]);
+        }
       }
 
       // A teacher with no assigned class must see an empty state. Falling
@@ -275,10 +282,17 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         final max = m['total_marks'] ?? m['max_marks'];
         if (max != null) {
           final maxInt = int.tryParse(max.toString());
-          if (maxInt != null && maxInt != _maxMarks) {
+          // total_marks stores theory + internal, so subtract the internal head
+          // instead of folding it into the theory total twice.
+          final theory = maxInt == null
+              ? null
+              : (maxInt - _internalMaxMarks > 0
+                  ? maxInt - _internalMaxMarks
+                  : maxInt);
+          if (theory != null && theory != _maxMarks) {
             setState(() {
-              _maxMarks = maxInt;
-              _maxMarksController.text = maxInt.toString();
+              _maxMarks = theory;
+              _maxMarksController.text = theory.toString();
             });
           }
         }
@@ -801,27 +815,25 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
               ),
               const SizedBox(width: 8),
 
-              // Exam Session Picker
+              // Exam Session Picker — Half Yearly / Annual / Final / any
+              // assessment already used / "Other" to name a new class test.
               Expanded(
                 flex: 5,
                 child: _buildDropdownChip<String>(
-                  label: 'Exam Session',
+                  label: 'Exam',
                   value: _selectedExam,
-                  items: _examSessions,
+                  items: _examOptions,
                   itemLabel: (e) => e,
                   onChanged: (v) {
-                    if (v != null) {
-                      setState(() => _selectedExam = v);
-                      _loadExistingMarks();
-                      if (_selectedStudentForNarrative != null) {
-                        _loadStudentNarrative(_selectedStudentForNarrative!);
-                      }
+                    if (v == null) return;
+                    if (v == _otherExamOption) {
+                      _addCustomAssessment();
+                      return;
                     }
+                    _applyExam(v);
                   },
                 ),
               ),
-              const SizedBox(width: 6),
-              _buildNewAssessmentButton(),
             ],
           ),
           const SizedBox(height: 10),
@@ -852,13 +864,13 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Max Marks: ',
+                    const Text('Total Marks: ',
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: Color(0xFF64748B))),
                     SizedBox(
-                      width: 44,
+                      width: 52,
                       height: 28,
                       child: TextField(
                         controller: _maxMarksController,
@@ -875,9 +887,13 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                           border: UnderlineInputBorder(
                               borderSide: BorderSide(color: Color(0xFF0F172A))),
                         ),
-                        onSubmitted: (val) {
+                        onChanged: (val) {
                           final parsed = int.tryParse(val);
-                          if (parsed != null && parsed > 0) {
+                          if (parsed != null &&
+                              parsed > 0 &&
+                              parsed != _maxMarks) {
+                            // Re-renders the per-student "x / total" and the
+                            // save validation; never overwrite what was typed.
                             setState(() => _maxMarks = parsed);
                           }
                         },
@@ -920,50 +936,44 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
     );
   }
 
-  /// Teachers can name their own assessment (class test, unit test, …)
-  /// without asking the admin to create a report-card session first.
-  Widget _buildNewAssessmentButton() {
-    return Tooltip(
-      message: 'New assessment (Class Test, Unit Test …)',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: _addCustomAssessment,
-        child: Container(
-          width: 40,
-          height: 42,
-          decoration: BoxDecoration(
-            color: const Color(0xFFEFF6FF),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFBFDBFE)),
-          ),
-          child: const Icon(Icons.add_rounded,
-              size: 18, color: Color(0xFF2563EB)),
-        ),
-      ),
-    );
+  void _applyExam(String name) {
+    const standard = {'half yearly', 'annual', 'final'};
+    setState(() {
+      _selectedExam = name;
+      // Standard exams carry the 20-mark internal head; class tests are a
+      // single total the teacher typed in.
+      _internalMaxMarks = standard.contains(name.toLowerCase()) ? 20 : 0;
+    });
+    _loadExistingMarks();
+    if (_selectedStudentForNarrative != null) {
+      _loadStudentNarrative(_selectedStudentForNarrative!);
+    }
   }
 
+  /// "Other" — the teacher names the assessment (Class Test 1, Unit Test 2 …)
+  /// and picks how many marks it is out of.
   Future<void> _addCustomAssessment() async {
-    final controller = TextEditingController();
-    final entered = await showDialog<String>(
+    final nameController = TextEditingController();
+    final totalController = TextEditingController(text: '25');
+    final created = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('New assessment',
+        title: const Text('Other assessment',
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Name it e.g. "Class Test 1" or "Periodic Test 3". Marks are saved '
-              'under this name for the selected class and subject, and students '
-              'can pick the same name in their report card.',
+              'Class test, unit test, project … Marks are saved under this name '
+              'for the selected class and subject, and students pick the same '
+              'name in their report card.',
               style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
             ),
             const SizedBox(height: 14),
             TextField(
-              controller: controller,
+              controller: nameController,
               autofocus: true,
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
@@ -971,7 +981,16 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 hintText: 'Class Test 1',
                 border: OutlineInputBorder(),
               ),
-              onSubmitted: (v) => Navigator.pop(ctx, v),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: totalController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Total marks',
+                hintText: '25',
+                border: OutlineInputBorder(),
+              ),
             ),
           ],
         ),
@@ -979,21 +998,37 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('Use this name'),
+            onPressed: () {
+              if (nameController.text.trim().isEmpty) return;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Create'),
           ),
         ],
       ),
     );
-    final name = (entered ?? '').trim();
-    controller.dispose();
-    if (name.isEmpty || !mounted) return;
+
+    final name = nameController.text.trim();
+    final total = int.tryParse(totalController.text.trim());
+    nameController.dispose();
+    totalController.dispose();
+    if (created != true || name.isEmpty || !mounted) return;
+
     setState(() {
       if (!_examSessions.any((e) => e.toLowerCase() == name.toLowerCase())) {
         _examSessions = [..._examSessions, name];
       }
       _selectedExam = name;
+      // A class test is a single total — no separate 20-mark internal head.
+      _internalMaxMarks = 0;
+      if (total != null && total > 0) {
+        _maxMarks = total;
+        _maxMarksController.text = total.toString();
+      }
     });
+    for (final c in _internalMarksControllers.values) {
+      c.text = '0';
+    }
     await _loadExistingMarks();
   }
 

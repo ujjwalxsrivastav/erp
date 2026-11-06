@@ -126,6 +126,12 @@ ON CONFLICT (id) DO NOTHING;
 --    Deterministic offsets keyed on md5(name || subject || exam) so the data
 --    looks varied but never changes between re-runs; Final ~4 points better
 --    than Half Yearly to make the analytics trend meaningful.
+--
+--    Students are split into three bands keyed on their username so every
+--    re-seed always contains learners the support radar can flag:
+--      bucket 0 (~10%)  : 14–31 per subject  -> overall below 33% (critical)
+--      bucket 1 (~10%)  : 34–48 per subject  -> overall 33–49%  (watchlist)
+--      bucket 2 (rest)  : 30–97 per subject  -> normal spread
 -- ---------------------------------------------------------------------------
 WITH subjects AS (
   SELECT name FROM public.school_subjects WHERE class_id IN (
@@ -133,12 +139,14 @@ WITH subjects AS (
   )
 ),
 roster AS (
-  SELECT username, name, class_id, class_name
+  SELECT username, name, class_id, class_name,
+         (('x' || substr(md5('band-' || username), 1, 6))::bit(24)::int % 10) AS band
   FROM public.school_students
   WHERE class_name = 'Class 10'
 ),
 base AS (
   SELECT r.username, r.name, r.class_id, r.class_name, sub.name AS subject,
+         r.band,
          ('x' || substr(md5('hpc-' || r.username || '-' || sub.name), 1, 6))::bit(24)::int AS h
   FROM roster r
   CROSS JOIN subjects sub
@@ -163,11 +171,27 @@ SELECT
   x.exam_type || ' — seeded report card data'
 FROM base b
 CROSS JOIN LATERAL (
-  (SELECT 'Half Yearly'::text AS exam_type, (30 + (b.h % 68))::int AS obtained)
+  (SELECT 'Half Yearly'::text AS exam_type,
+     (CASE b.band
+        WHEN 0 THEN 14 + (b.h % 18)   -- 14–31  critical
+        WHEN 1 THEN 34 + (b.h % 15)   -- 34–48  watchlist
+        ELSE 30 + (b.h % 68)          -- 30–97  normal
+      END)::int AS obtained)
   UNION ALL
-  (SELECT 'Final'::text, LEAST(99, 36 + (b.h % 64))::int)
+  (SELECT 'Final'::text,
+     (CASE b.band
+        WHEN 0 THEN 16 + (b.h % 17)
+        WHEN 1 THEN 35 + (b.h % 14)
+        ELSE LEAST(99, 36 + (b.h % 64))
+      END)::int)
 ) x
-ON CONFLICT (student_id, subject, exam_type) DO NOTHING;
+-- Re-running refreshes the seeded rows so the weak-student bands take effect,
+-- but never overwrites marks a teacher typed in the app.
+ON CONFLICT (student_id, subject, exam_type) DO UPDATE
+  SET marks_obtained = EXCLUDED.marks_obtained,
+      total_marks    = EXCLUDED.total_marks,
+      grade          = EXCLUDED.grade
+  WHERE school_marks.remarks LIKE '%seeded report card data%';
 
 -- ---------------------------------------------------------------------------
 -- 8. CO-SCHOLASTIC — 4 areas, grade derived from the student's final %
@@ -199,7 +223,9 @@ SELECT p.student_id, p.exam_type, a.area,
        CASE WHEN p.p >= 80 THEN a.hi_desc ELSE a.lo_desc END
 FROM pct p
 CROSS JOIN areas a
-ON CONFLICT (student_id, exam_type, area) DO NOTHING;
+ON CONFLICT (student_id, exam_type, area) DO UPDATE
+  SET grade = EXCLUDED.grade,
+      descriptor = EXCLUDED.descriptor;
 
 -- ---------------------------------------------------------------------------
 -- 9. META — default remark + verdict per session (admin can override in app)
@@ -227,7 +253,10 @@ SELECT p.student_id, p.exam_type, '2026-2027',
        END,
        'seed'
 FROM pct p
-ON CONFLICT (student_id, exam_type, academic_year) DO NOTHING;
+ON CONFLICT (student_id, exam_type, academic_year) DO UPDATE
+  SET teacher_remark    = EXCLUDED.teacher_remark,
+      promotion_verdict = EXCLUDED.promotion_verdict
+  WHERE school_report_card_meta.updated_by = 'seed';
 
 -- ---------------------------------------------------------------------------
 -- 10. ATTENDANCE — last 45 days so the analytics card has real data
