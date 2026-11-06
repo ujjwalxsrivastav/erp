@@ -70,7 +70,25 @@ class SchoolService {
       }
     }
 
-    // 2. Subject Faculty classes from timetable
+    // 2. Explicit mappings from school_teacher_classes
+    final mappedClasses = await getTeacherAssignedClasses(teacherUsername);
+    for (final c in mappedClasses) {
+      final id = c['class_id']?.toString() ?? '';
+      final subject = c['subject_name']?.toString() ?? '';
+      final className = c['class_name']?.toString() ?? id;
+      if (id.isNotEmpty && seen.add(id)) {
+        results.add({
+          'id': id,
+          'class_id': id,
+          'name': className,
+          'class_name': className,
+          'role': subject.isNotEmpty ? 'Subject: $subject' : 'Subject Faculty',
+          'is_class_teacher': false,
+        });
+      }
+    }
+
+    // 3. Subject Faculty classes from timetable
     final subClasses = await getTeacherClasses(teacherUsername);
     for (final c in subClasses) {
       final id = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
@@ -6106,6 +6124,119 @@ class SchoolService {
       'class_name': className,
       'fee_paid': paid,
     };
+  }
+
+  /// Assign or transfer a student to a class and section (B4)
+  Future<bool> assignStudentClass({
+    required String studentUsername,
+    required String classId,
+    required String className,
+    String? section,
+  }) async {
+    await permissions.enforce(feature: 'admissions', requiredPermission: 'edit');
+    final actor = await AuthService().getCurrentUsername() ?? 'admin';
+
+    try {
+      final updateData = <String, dynamic>{
+        'class_id': classId,
+        'class_name': className,
+      };
+      if (section != null && section.isNotEmpty) {
+        updateData['section'] = section;
+      }
+      await _supabase
+          .from('school_students')
+          .update(updateData)
+          .or('username.eq.$studentUsername,id.eq.$studentUsername');
+
+      await payroll.logAudit(
+        action: 'assign_student_class',
+        actorUsername: actor,
+        entity: 'school_students',
+        entityId: studentUsername,
+        newValue: updateData,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Teacher Class & Subject Mapping (B5)
+  Future<List<Map<String, dynamic>>> getTeacherAssignedClasses(String teacherUsername) async {
+    try {
+      final res = await _supabase
+          .from('school_teacher_classes')
+          .select()
+          .eq('teacher_username', teacherUsername);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllTeacherClassMappings() async {
+    try {
+      final res = await _supabase
+          .from('school_teacher_classes')
+          .select()
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<bool> assignTeacherClass({
+    required String teacherUsername,
+    required String classId,
+    String? subjectName,
+    String academicYear = '2026-2027',
+  }) async {
+    await permissions.enforce(feature: 'academics', requiredPermission: 'edit');
+    final actor = await AuthService().getCurrentUsername() ?? 'admin';
+    try {
+      final row = {
+        'teacher_username': teacherUsername,
+        'class_id': classId,
+        'subject_name': subjectName,
+        'academic_year': academicYear,
+      };
+      await _supabase.from('school_teacher_classes').upsert(
+        row,
+        onConflict: 'teacher_username,class_id,subject_name',
+      );
+
+      await payroll.logAudit(
+        action: 'assign_teacher_class',
+        actorUsername: actor,
+        entity: 'school_teacher_classes',
+        entityId: '${teacherUsername}_${classId}_${subjectName ?? ""}',
+        newValue: row,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> removeTeacherClass({
+    required String id,
+  }) async {
+    await permissions.enforce(feature: 'academics', requiredPermission: 'delete');
+    final actor = await AuthService().getCurrentUsername() ?? 'admin';
+    try {
+      await _supabase.from('school_teacher_classes').delete().eq('id', id);
+      await payroll.logAudit(
+        action: 'remove_teacher_class',
+        actorUsername: actor,
+        entity: 'school_teacher_classes',
+        entityId: id,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ===== ADMISSION ENQUIRIES / LEADS =====

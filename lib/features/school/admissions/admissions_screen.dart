@@ -52,6 +52,8 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     'Class 12',
   ];
 
+  List<Map<String, dynamic>> _liveClasses = [];
+
   @override
   void initState() {
     super.initState();
@@ -75,12 +77,14 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
       final role = await _authService.getCurrentUserRole() ?? 'admin';
       final admissions = await _schoolService.getAdmissions();
       final enquiries = await _schoolService.getAdmissionEnquiries();
+      final liveClasses = await _schoolService.getSchoolClasses();
 
       if (!mounted) return;
       setState(() {
         _userRole = role;
         _admissions = admissions;
         _enquiries = enquiries;
+        _liveClasses = liveClasses;
         _isLoading = false;
       });
     } catch (e) {
@@ -632,7 +636,14 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                       children: [
                         const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF059669)),
                         const SizedBox(width: 4),
-                        Text('Enrolled as ${a['enrolled_class'] ?? a['grade_applying']} • Adm: ${a['admission_no'] ?? "ADM2026/089"}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF059669))),
+                        Expanded(
+                          child: Text('Enrolled as ${a['enrolled_class'] ?? a['grade_applying']} • Adm: ${a['admission_no'] ?? "ADM2026/089"}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF059669))),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _showClassAllotmentDialog(a),
+                          icon: const Icon(Icons.swap_horiz_rounded, size: 13, color: Color(0xFF059669)),
+                          label: const Text('Allot / Transfer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF059669))),
+                        ),
                       ],
                     ),
                   ),
@@ -1350,7 +1361,14 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   }
 
   void _showFinalEnrollmentDialog(Map<String, dynamic> a) {
-    String selectedClass = (a['grade_applying'] ?? 'Class 1').toString();
+    final availableClassItems = _liveClasses.isNotEmpty
+        ? _liveClasses.map((c) => c['name']?.toString() ?? c['id']?.toString() ?? 'Class').toList()
+        : _gradeOptions.where((g) => g != 'all').toList();
+
+    String selectedClass = (a['grade_applying'] ?? (availableClassItems.isNotEmpty ? availableClassItems.first : 'Class 1')).toString();
+    if (!availableClassItems.contains(selectedClass) && availableClassItems.isNotEmpty) {
+      selectedClass = availableClassItems.first;
+    }
     String section = 'A';
     final feePaidCtrl = TextEditingController(text: ((a['fee_demanded'] as num?) ?? 35000.0).toString());
     String paymentMode = 'Online / UPI';
@@ -1372,7 +1390,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                         child: DropdownButtonFormField<String>(
                           initialValue: selectedClass,
                           decoration: const InputDecoration(labelText: 'Class'),
-                          items: _gradeOptions.where((g) => g != 'all').map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                          items: availableClassItems.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
                           onChanged: (v) {
                             if (v != null) setDState(() => selectedClass = v);
                           },
@@ -1451,6 +1469,91 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                 }
               },
               child: const Text('Confirm & Enrol Student'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showClassAllotmentDialog(Map<String, dynamic> student) {
+    final availableClassItems = _liveClasses.isNotEmpty
+        ? _liveClasses
+        : [
+            {'id': 'cls-10a', 'name': 'Class 10-A'},
+            {'id': 'cls-9a', 'name': 'Class 9-A'}
+          ];
+
+    String selectedClassId = student['class_id']?.toString() ?? (availableClassItems.isNotEmpty ? availableClassItems.first['id'].toString() : 'cls-10a');
+    String selectedClassName = student['class_name']?.toString() ?? (availableClassItems.isNotEmpty ? availableClassItems.first['name'].toString() : 'Class 10-A');
+    String section = student['section']?.toString() ?? 'A';
+    final studentUsername = student['username']?.toString() ?? student['student_id']?.toString() ?? student['applicant_name']?.toString() ?? '';
+    final studentName = student['name']?.toString() ?? student['applicant_name']?.toString() ?? 'Student';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          title: Text('Assign / Transfer Class: $studentName', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedClassId,
+                decoration: const InputDecoration(labelText: 'Target Class'),
+                items: availableClassItems.map((c) {
+                  final cid = c['id']?.toString() ?? '';
+                  final cname = c['name']?.toString() ?? cid;
+                  return DropdownMenuItem(value: cid, child: Text('$cname ($cid)'));
+                }).toList(),
+                onChanged: (v) {
+                  if (v != null) {
+                    final found = availableClassItems.firstWhere((c) => c['id']?.toString() == v, orElse: () => {'name': v});
+                    setDState(() {
+                      selectedClassId = v;
+                      selectedClassName = found['name']?.toString() ?? v;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: section,
+                decoration: const InputDecoration(labelText: 'Section'),
+                items: const [
+                  DropdownMenuItem(value: 'A', child: Text('Section A')),
+                  DropdownMenuItem(value: 'B', child: Text('Section B')),
+                  DropdownMenuItem(value: 'C', child: Text('Section C')),
+                ],
+                onChanged: (v) {
+                  if (v != null) setDState(() => section = v);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
+              onPressed: () async {
+                final success = await _schoolService.assignStudentClass(
+                  studentUsername: studentUsername,
+                  classId: selectedClassId,
+                  className: selectedClassName,
+                  section: section,
+                );
+                if (ctx.mounted) Navigator.pop(ctx);
+                _loadData();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(success ? 'Student $studentName assigned to $selectedClassName ($section)!' : 'Failed to assign class.'),
+                      backgroundColor: success ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Save Assignment'),
             ),
           ],
         ),
