@@ -16,6 +16,19 @@ class SchoolService {
   SchoolPayrollService get payroll => SchoolPayrollService();
   SchoolLivingService get living => SchoolLivingService();
 
+  static final Set<String> _missingTables = <String>{};
+  static bool isTableMissing(String table) => _missingTables.contains(table);
+  static void markTableMissing(String table) => _missingTables.add(table);
+  static bool _isTableMissingError(dynamic e) {
+    final str = e.toString().toLowerCase();
+    return str.contains('404') ||
+        str.contains('42p01') ||
+        str.contains('does not exist') ||
+        str.contains('not found') ||
+        str.contains('pgrst204') ||
+        str.contains('pgrst200');
+  }
+
   Future<String?> getSchoolInstituteName() async {
     try {
       final resp = await _supabase
@@ -7590,24 +7603,30 @@ class SchoolService {
     final alerts = <Map<String, dynamic>>[];
 
     // 1. Try school_notifications table
-    try {
-      final resp = await _supabase
-          .from('school_notifications')
-          .select()
-          .eq('user_id', parentUsername)
-          .order('created_at', ascending: false)
-          .limit(15);
-      final rows = List<Map<String, dynamic>>.from(resp);
-      if (rows.isNotEmpty) {
-        for (final r in rows) {
-          final cId = r['child_id']?.toString();
-          if (cId == null || cId.isEmpty || cId == studentId) {
-            alerts.add(r);
+    if (!_missingTables.contains('school_notifications')) {
+      try {
+        final resp = await _supabase
+            .from('school_notifications')
+            .select()
+            .eq('user_id', parentUsername)
+            .order('created_at', ascending: false)
+            .limit(15);
+        final rows = List<Map<String, dynamic>>.from(resp);
+        if (rows.isNotEmpty) {
+          for (final r in rows) {
+            final cId = r['child_id']?.toString();
+            if (cId == null || cId.isEmpty || cId == studentId) {
+              alerts.add(r);
+            }
           }
+          if (alerts.isNotEmpty) return alerts;
         }
-        if (alerts.isNotEmpty) return alerts;
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_notifications');
+        }
       }
-    } catch (_) {}
+    }
 
     // 2. Synthesize real live dynamic events from authentic DB records
     // Event A: Real Attendance status for this student
@@ -7906,15 +7925,22 @@ class SchoolService {
       'applied_by_role': appliedByRole ?? 'student',
     };
 
-    try {
-      final resp = await _supabase
-          .from('school_student_leaves')
-          .insert(payload)
-          .select()
-          .single();
-      return _normaliseLeaveRow(Map<String, dynamic>.from(resp));
-    } catch (_) {
-      // Legacy storage (pre-migration databases).
+    if (!_missingTables.contains('school_student_leaves')) {
+      try {
+        final resp = await _supabase
+            .from('school_student_leaves')
+            .insert(payload)
+            .select()
+            .single();
+        return _normaliseLeaveRow(Map<String, dynamic>.from(resp));
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_student_leaves');
+        }
+      }
+    }
+
+    // Legacy storage (pre-migration databases).
       final structured =
           'STUDENT_LEAVE_APPLICATION | StudentId: $username | StudentName: $studentName | '
           'ClassId: $classId | StartDate: $startDate | EndDate: $endDate | Type: $leaveType | '
@@ -7950,7 +7976,6 @@ class SchoolService {
         'status': 'pending',
         'legacy': true,
       };
-    }
   }
 
   Map<String, dynamic> _normaliseLeaveRow(Map<String, dynamic> row) {
@@ -8005,6 +8030,7 @@ class SchoolService {
   /// Rows from the dedicated leave table; empty when the setup script has not
   /// been run or the query fails.
   Future<List<Map<String, dynamic>>> _fetchTableLeaves() async {
+    if (_missingTables.contains('school_student_leaves')) return [];
     try {
       final response = await _supabase
           .from('school_student_leaves')
@@ -8013,7 +8039,10 @@ class SchoolService {
       return List<Map<String, dynamic>>.from(response)
           .map(_normaliseLeaveRow)
           .toList();
-    } catch (_) {
+    } catch (e) {
+      if (_isTableMissingError(e)) {
+        _missingTables.add('school_student_leaves');
+      }
       return [];
     }
   }
@@ -9023,16 +9052,22 @@ class SchoolService {
   // ===== N6: STUDENT TARGET GOALS =====
 
   Future<List<Map<String, dynamic>>> getStudentGoals(String studentUsername) async {
-    try {
-      final response = await _supabase
-          .from('school_student_goals')
-          .select()
-          .eq('student_id', studentUsername)
-          .order('subject', ascending: true);
-      if ((response as List).isNotEmpty) {
-        return List<Map<String, dynamic>>.from(response);
+    if (!_missingTables.contains('school_student_goals')) {
+      try {
+        final response = await _supabase
+            .from('school_student_goals')
+            .select()
+            .eq('student_id', studentUsername)
+            .order('subject', ascending: true);
+        if ((response as List).isNotEmpty) {
+          return List<Map<String, dynamic>>.from(response);
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_student_goals');
+        }
       }
-    } catch (_) {}
+    }
 
     try {
       final response = await _supabase
@@ -9073,10 +9108,16 @@ class SchoolService {
       'target_percent': targetPercent,
       'updated_at': DateTime.now().toIso8601String(),
     };
-    try {
-      await _supabase.from('school_student_goals').upsert(payload, onConflict: 'student_id,subject');
-      return true;
-    } catch (_) {}
+    if (!_missingTables.contains('school_student_goals')) {
+      try {
+        await _supabase.from('school_student_goals').upsert(payload, onConflict: 'student_id,subject');
+        return true;
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_student_goals');
+        }
+      }
+    }
 
     try {
       await _supabase.from('school_circulars').insert({
@@ -9099,27 +9140,33 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getStudentNotifications(String studentUsername) async {
     final notifications = <Map<String, dynamic>>[];
 
-    try {
-      final response = await _supabase
-          .from('school_notifications')
-          .select()
-          .eq('user_id', studentUsername)
-          .order('created_at', ascending: false)
-          .limit(10);
-      if ((response as List).isNotEmpty) {
-        for (final row in response) {
-          notifications.add({
-            'id': row['id'],
-            'title': row['title'] ?? 'Notice',
-            'body': row['body'] ?? '',
-            'type': row['type'] ?? 'info',
-            'route': row['link_route'],
-            'is_read': row['is_read'] ?? false,
-            'time': row['created_at'],
-          });
+    if (!_missingTables.contains('school_notifications')) {
+      try {
+        final response = await _supabase
+            .from('school_notifications')
+            .select()
+            .eq('user_id', studentUsername)
+            .order('created_at', ascending: false)
+            .limit(10);
+        if ((response as List).isNotEmpty) {
+          for (final row in response) {
+            notifications.add({
+              'id': row['id'],
+              'title': row['title'] ?? 'Notice',
+              'body': row['body'] ?? '',
+              'type': row['type'] ?? 'info',
+              'route': row['link_route'],
+              'is_read': row['is_read'] ?? false,
+              'time': row['created_at'],
+            });
+          }
+        }
+      } catch (e) {
+        if (_isTableMissingError(e)) {
+          _missingTables.add('school_notifications');
         }
       }
-    } catch (_) {}
+    }
 
     if (notifications.length < 5) {
       try {

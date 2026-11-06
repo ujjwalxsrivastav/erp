@@ -255,68 +255,77 @@ class _LoginScreenState extends State<LoginScreen>
       elevated: true,
       child: Form(
         key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Sign In',
-              style: AppTheme.h3.copyWith(color: AppTheme.dark),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppTheme.lg),
-            TextFormField(
-              controller: _usernameController,
-              decoration: InputDecoration(
-                labelText: 'Username',
-                hintText: 'Enter your username',
-                prefixIcon: const Icon(Icons.person_outline),
-                filled: true,
-                fillColor: AppTheme.background,
+        child: AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Sign In',
+                style: AppTheme.h3.copyWith(color: AppTheme.dark),
+                textAlign: TextAlign.center,
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your username';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: AppTheme.md),
-            TextFormField(
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                hintText: 'Enter your password',
-                prefixIcon: const Icon(Icons.lock_outline),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                  ),
-                  onPressed: () {
-                    setState(() => _obscurePassword = !_obscurePassword);
-                  },
+              const SizedBox(height: AppTheme.lg),
+              TextFormField(
+                controller: _usernameController,
+                autofillHints: const [AutofillHints.username],
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: 'Username',
+                  hintText: 'Enter your username',
+                  prefixIcon: const Icon(Icons.person_outline),
+                  filled: true,
+                  fillColor: AppTheme.background,
                 ),
-                filled: true,
-                fillColor: AppTheme.background,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your username';
+                  }
+                  return null;
+                },
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your password';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: AppTheme.xl),
-            GradientButton(
-              text: 'Sign In',
-              onPressed: _handleLogin,
-              gradient: AppTheme.studentGradient,
-              icon: Icons.login_rounded,
-              isLoading: _isLoading,
-            ),
-          ],
+              const SizedBox(height: AppTheme.md),
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                autofillHints: const [AutofillHints.password],
+                keyboardType: TextInputType.visiblePassword,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _handleLogin(),
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  hintText: 'Enter your password',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () {
+                      setState(() => _obscurePassword = !_obscurePassword);
+                    },
+                  ),
+                  filled: true,
+                  fillColor: AppTheme.background,
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your password';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: AppTheme.xl),
+              GradientButton(
+                text: 'Sign In',
+                onPressed: _handleLogin,
+                gradient: AppTheme.studentGradient,
+                icon: Icons.login_rounded,
+                isLoading: _isLoading,
+              ),
+            ],
+          ),
         ),
       ),
     );

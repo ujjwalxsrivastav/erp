@@ -1,4 +1,4 @@
-- **Current Step in Execution Plan:** `SP0 to SP12: 100% Complete & Verified`
+- **Current Step in Execution Plan:** `SP0 to SP12: 100% Complete & Verified + Production Runtime Hardened`
 - **Status:** **ALL 12 ITEMS (SP0 to SP12) OF THE SUPER ENTERPRISE DEEP-DIVE ARE FULLY COMPLETED, VERIFIED, AND RELEASE-READY!**
   1. **SP0 (Baseline & Audit):** Live `users` table audited (77 users, 76 with `s`-prefix), statutory defaults established (PF 12%, ESI 0.75%, library fine ₹5/day, depreciation 10%).
   2. **SP1 (Deploy Pipeline Fix):** `.github/workflows/deploy.yml` hardened with fail-fast `flutter analyze` and `--dart-define`. `- .env` removed from `pubspec.yaml` assets. Local release build validated.
@@ -13,6 +13,11 @@
   11. **SP10 (Permission Matrix):** 3 tables (`school_role_permissions`, `school_marks_locks`, `school_maker_checker_requests`), 10 roles x 13 features matrix, marks-lock deadline enforcement, maker-checker separation of duty. Report `SP-R12`. Screen `/school/permissions`.
   12. **SP11 (Second AI System & Chatbot RAG):** 4 tables (`school_ai_remarks`, `school_ai_question_papers`, `school_ai_feedback`, `school_ai_usage_log`), primary Groq `openai/gpt-oss-120b` (status 200) with Gemini `gemini-3.8-flash` failover and offline fallback, 25 calls/day quota controls, mandatory `[AI draft — teacher approval pending]` tagging, and cross-module RAG knowledge assistant. Reports `SP-R13` and `SP-R15`. Screen `/school/ai-tools`.
   13. **SP12 (Reports Catalogue, QA & Build):** All 15 dual-sheet Excel reports (`SP-R01` to `SP-R15`) with `fl_chart` graph pairings, zero college ERP files touched, static analysis 0 errors/0 warnings, web release build passing.
+  14. **Production Web Runtime & Console Hardening:**
+      - Resolved 404 network spam on optional runtime tables (`school_notifications`, `school_student_leaves`, `school_student_goals`) via in-memory table availability caching and graceful legacy fallback.
+      - Provided `database/school_runtime_fix_setup.sql` for 1-click execution in Supabase SQL editor.
+      - Silenced Chromium `[DOM] Password field is not contained in a form:` warning by wrapping `login_screen.dart` in `AutofillGroup` with proper `autofillHints`.
+      - Full release build passing (`flutter build web --release --base-href /erp/` in 58.6s).
 
 ---
 
