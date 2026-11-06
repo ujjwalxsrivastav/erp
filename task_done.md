@@ -1,9 +1,36 @@
-- **Current Step in Execution Plan:** `Step SP11: Second AI System & Chatbot RAG (Items 1 & 12)`
-- **Status:** **Step SP10 (Permission Matrix & Governance) is 100% complete and verified on live Supabase!** (1) Created `database/school_permissions_setup.sql` with `school_role_permissions`, `school_marks_locks`, and `school_maker_checker_requests` with multi-school RLS; (2) Built `SchoolPermissionService` defining comprehensive baseline matrix for 10 supported roles across 13 features, service-level hierarchical permission evaluation (approve > edit > view > none), marks-lock deadline enforcement with mandatory audit justification, and 4-eyes maker-checker workflow strictly enforcing separation of duty (Maker != Checker); (3) Added `SP-R12` (Role x Feature Permission Matrix & Governance Audit) dual-sheet Excel export in `SchoolExportService`; (4) Built enterprise UI screen `SchoolPermissionMatrixScreen` with 3 segmented command tabs, 4 KPI tiles, role/feature filtering, interactive authorization level modal, marks lock/unlock desk, and maker-checker approval queue; (5) Wired route `/school/permissions`; (6) Live Supabase test passed with 100% success; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP11: Second AI System & Chatbot RAG (Items 1 & 12)**.
+- **Current Step in Execution Plan:** `Step SP12: Reports Catalogue, Final QA, Build & Handoff`
+- **Status:** **Step SP11 (Second AI System & Chatbot RAG) is 100% complete and verified on live APIs!** (1) Created `database/school_ai_setup.sql` with `school_ai_remarks`, `school_ai_question_papers`, `school_ai_feedback`, and `school_ai_usage_log` with multi-school RLS; (2) Built `SchoolAiService` integrating Groq (`openai/gpt-oss-120b`) with failover to Gemini (`gemini-3.8-flash`) and deterministic offline protection, daily per-user quota controls (25 calls/day), mandatory `[AI draft — teacher approval pending]` tagging, and cross-module RAG knowledge desk covering payroll, hostel, infirmary, cafeteria, alumni, library, and discipline; (3) Added `SP-R13` (Chatbot Usage & Quota Audit) and `SP-R15` (AI Features Adoption & Faculty Approval Audit) dual-sheet Excel exports in `SchoolExportService`; (4) Built enterprise UI screen `SchoolAiAssistantScreen` with 4 segmented command tabs, 4 KPI tiles, remarks generator & approval desk, question paper blueprint generator & preview modal, homework feedback drafter, and interactive RAG chatbot; (5) Wired route `/school/ai-tools`; (6) Live LLM round-trip passed with status 200 on Groq `openai/gpt-oss-120b` and persistence verified on live Supabase; (7) Static analysis clean (0 errors, 0 warnings); zero college files touched. Commencing **Step SP12: Reports Catalogue, Final QA, Build & Handoff**.
 
 ---
 
 ## Detailed Step & Line Progress Log
+
+### [COMPLETED] Step SP11: Second AI System & Chatbot RAG (Items 1 & 12)
+- [x] **Database & Schema Setup (`database/school_ai_setup.sql`):**
+  - Created schema for 4 AI tables: `school_ai_remarks`, `school_ai_question_papers`, `school_ai_feedback`, and `school_ai_usage_log`.
+  - Configured Row Level Security and institutional isolation with `institute_id` multi-school isolation.
+- [x] **AI & RAG Service (`lib/services/school_ai_service.dart`):**
+  - Built multi-tier LLM engine: primary Groq `openai/gpt-oss-120b` (free tier) with failover to Gemini `gemini-3.8-flash` and resilient offline fallback.
+  - Implemented daily per-user quota limit (25 calls/user/day) with graceful quota-exhaustion messaging.
+  - Built Feature 1: AI Report Card Remarks Drafter synthesizing marks percentage, attendance rate, and behavioural observations, with mandatory `[AI draft — teacher approval pending]` tagging and audit logging.
+  - Built Feature 2: Auto Question-Paper Blueprint Generator adhering to standard distribution (40% Easy, 40% Medium, 20% Hard) across MCQs, Short Answers, and Long Analytical questions with mandatory teacher sign-off.
+  - Built Feature 3: Assignment Feedback Drafter providing individualized constructive pointers.
+  - Built Feature 4: Cross-Module RAG Knowledge Assistant embedding institutional policies across Payroll, Living Suite, Library, Alumni, Inventory, and Discipline.
+- [x] **Reports Engine & Excel Exports (`lib/services/school_export_service.dart`):**
+  - Added `exportSchoolChatbotUsageExcel` (`SP-R13`): Dual-sheet summary (total inquiries, tokens consumed, zero-cost confirmation, role distribution) + query data with totals row and `School_SP_R13_<date>.xlsx` naming.
+  - Added `exportSchoolAiUsageExcel` (`SP-R15`): Dual-sheet summary (remarks drafted, approved count, approval rate %, question papers compiled, mandatory tag compliance) + artifact audit data with totals row and `School_SP_R15_<date>.xlsx` naming.
+- [x] **Enterprise UI Screen (`lib/features/school/ai/school_ai_assistant_screen.dart`):**
+  - Built 4-tab segmented interface: Remarks Drafter, Question Generator, Homework Feedback, RAG Chatbot.
+  - Added 4 top KPI tiles: Remarks Drafted, Faculty Approval Rate, Question Papers Generated, RAG Queries Handled.
+  - Built interactive forms for generating remarks with live approval toggles, compiling exam blueprints with modal preview, drafting homework feedback, and communicating with the RAG assistant with quick topic chips.
+- [x] **Router Integration (`lib/routes/app_router.dart`):**
+  - Registered route `/school/ai-tools` pointing to `SchoolAiAssistantScreen`.
+- [x] **Automated Verification:**
+  - `dart analyze lib/services/school_ai_service.dart lib/features/school/ai/school_ai_assistant_screen.dart lib/services/school_export_service.dart lib/routes/app_router.dart`: 0 errors, 0 warnings.
+  - Verified live LLM generation with Groq API `openai/gpt-oss-120b` (status 200) and Supabase persistence with 100% success.
+  - Zero modifications to College ERP files.
+
+---
 
 ### [COMPLETED] Step SP10: Permission Matrix (Item 10)
 - [x] **Database & Schema Setup (`database/school_permissions_setup.sql`):**

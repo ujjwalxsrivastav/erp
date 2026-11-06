@@ -122,6 +122,7 @@ import '../features/school/discipline/school_discipline_screen.dart';
 import '../features/school/admin/school_multi_admin_screen.dart';
 import '../features/school/library/school_library_deep_screen.dart';
 import '../features/school/admin/school_permission_matrix_screen.dart';
+import '../features/school/ai/school_ai_assistant_screen.dart';
 import '../services/auth_service.dart';
 
 final router = GoRouter(
@@ -382,6 +383,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/permissions',
       builder: (context, state) => const SchoolPermissionMatrixScreen(),
+    ),
+    GoRoute(
+      path: '/school/ai-tools',
+      builder: (context, state) => const SchoolAiAssistantScreen(),
     ),
 
     // ===== SCHOOL - PARENT =====
