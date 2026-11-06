@@ -49,6 +49,22 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   final TextEditingController _teacherRemarkController =
       TextEditingController();
   String _selectedPromotionVerdict = 'Promoted';
+  static const List<String> _promotionVerdictOptions = [
+    'Promoted',
+    'Promoted with Grace',
+    'Eligible for Compartment',
+    'Detained',
+  ];
+
+  static String _normalizePromotionVerdict(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return 'Promoted';
+    final s = raw.trim().toLowerCase();
+    if (s.contains('grace') || s.contains('concession')) return 'Promoted with Grace';
+    if (s.contains('compartment') || s.contains('retest')) return 'Eligible for Compartment';
+    if (s.contains('detained') || s.contains('failed') || s.contains('repeat')) return 'Detained';
+    if (s.contains('promoted') || s.contains('pass')) return 'Promoted';
+    return 'Promoted';
+  }
   final Map<String, String> _coScholasticGrades = {
     'Work Education': 'A',
     'Art Education': 'A',
@@ -292,8 +308,8 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       setState(() {
         _teacherRemarkController.text =
             meta['teacher_remark']?.toString() ?? '';
-        _selectedPromotionVerdict =
-            meta['promotion_verdict']?.toString() ?? 'Promoted';
+        _selectedPromotionVerdict = _normalizePromotionVerdict(
+            meta['promotion_verdict']?.toString());
 
         for (final item in coScholastic) {
           final area = item['area']?.toString() ?? '';
@@ -862,7 +878,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
-          value: value,
+          value: items.contains(value) ? value : null,
           isExpanded: true,
           dropdownColor: Colors.white,
           icon: const Icon(Icons.keyboard_arrow_down_rounded,
@@ -1424,7 +1440,17 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<Map<String, dynamic>>(
-                    value: _selectedStudentForNarrative,
+                    value: () {
+                      if (_selectedStudentForNarrative == null || _students.isEmpty) return null;
+                      final sId = _selectedStudentForNarrative!['id'] ?? _selectedStudentForNarrative!['username'];
+                      try {
+                        return _students.firstWhere(
+                          (s) => (s['id'] ?? s['username']) == sId,
+                        );
+                      } catch (_) {
+                        return _students.first;
+                      }
+                    }(),
                     isExpanded: true,
                     dropdownColor: Colors.white,
                     items: _students.map((s) {
@@ -1578,7 +1604,9 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: _selectedPromotionVerdict,
+                    value: _promotionVerdictOptions.contains(_selectedPromotionVerdict)
+                        ? _selectedPromotionVerdict
+                        : _normalizePromotionVerdict(_selectedPromotionVerdict),
                     isExpanded: true,
                     dropdownColor: Colors.white,
                     items: const [

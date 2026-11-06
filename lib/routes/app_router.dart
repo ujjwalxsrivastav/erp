@@ -185,7 +185,6 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/living': {..._allSchoolRoles, 'warden', 'nurse'},
   '/school/alumni': {..._allSchoolRoles, 'alumni'},
   '/school/activities': _allSchoolRoles,
-  '/school/chatbot': _allSchoolRoles,
   '/school/calendar': _allSchoolRoles,
   '/school/academic-calendar': _allSchoolRoles,
 };
