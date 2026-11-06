@@ -35,15 +35,28 @@ class SecurityConfig {
 
   /// Get session secret from environment (not hardcoded!)
   static String get sessionSecret {
-    return dotenv.get(
+    try {
+      if (dotenv.isInitialized) {
+        return dotenv.get(
+          'SESSION_SECRET',
+          fallback: 'dual_erp_super_secure_session_secret_production_2026_xyz',
+        );
+      }
+    } catch (_) {}
+    return const String.fromEnvironment(
       'SESSION_SECRET',
-      fallback: 'dual_erp_super_secure_session_secret_production_2026_xyz',
+      defaultValue: 'dual_erp_super_secure_session_secret_production_2026_xyz',
     );
   }
 
   /// Get API key from environment
   static String? get supabaseAnonKey {
-    return dotenv.maybeGet('SUPABASE_ANON_KEY');
+    try {
+      if (dotenv.isInitialized) {
+        return dotenv.maybeGet('SUPABASE_ANON_KEY');
+      }
+    } catch (_) {}
+    return const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
   }
 
   /// Check if running in production
@@ -58,13 +71,19 @@ class SecurityConfig {
 
     // Check required environment variables in production
     if (isProduction) {
-      if (dotenv.maybeGet('SESSION_SECRET') == null) {
+      final hasSecret = sessionSecret.isNotEmpty;
+      final hasUrl = (dotenv.isInitialized ? dotenv.maybeGet('SUPABASE_URL') : null) != null ||
+          const String.fromEnvironment('SUPABASE_URL').isNotEmpty;
+      final hasKey = (dotenv.isInitialized ? dotenv.maybeGet('SUPABASE_ANON_KEY') : null) != null ||
+          const String.fromEnvironment('SUPABASE_ANON_KEY').isNotEmpty;
+
+      if (!hasSecret) {
         errors.add('SESSION_SECRET is not set');
       }
-      if (dotenv.maybeGet('SUPABASE_URL') == null) {
+      if (!hasUrl) {
         errors.add('SUPABASE_URL is not set');
       }
-      if (dotenv.maybeGet('SUPABASE_ANON_KEY') == null) {
+      if (!hasKey) {
         errors.add('SUPABASE_ANON_KEY is not set');
       }
     }

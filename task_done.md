@@ -17,7 +17,8 @@
       - Resolved 404 network spam on optional runtime tables (`school_notifications`, `school_student_leaves`, `school_student_goals`) via in-memory table availability caching and graceful legacy fallback.
       - Provided `database/school_runtime_fix_setup.sql` for 1-click execution in Supabase SQL editor.
       - Silenced Chromium `[DOM] Password field is not contained in a form:` warning by wrapping `login_screen.dart` in `AutofillGroup` with proper `autofillHints`.
-      - Full release build passing (`flutter build web --release --base-href /erp/` in 58.6s).
+      - Resolved `NotInitializedError` on auth session persistence: `SecurityConfig.sessionSecret` now checks `dotenv.isInitialized` before calling `dotenv.get()`, with fallback to `String.fromEnvironment()`. Added `dotenv.testLoad(fileInput: '')` fallback in `main.dart` for web builds.
+      - Full release build passing (`flutter build web --release --base-href /erp/` in 75.9s).
 
 ---
 

@@ -16,6 +16,9 @@ void main() async {
     print('✅ .env file loaded successfully');
   } catch (e) {
     print('ℹ️ .env file not found (expected for web builds): $e');
+    try {
+      dotenv.testLoad(fileInput: '');
+    } catch (_) {}
   }
 
   // Initialize Supabase & Core Services

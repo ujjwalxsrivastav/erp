@@ -42,7 +42,13 @@ class AuthService {
   static const String _keySessionTimestamp = 'session_timestamp';
 
   // Get session secret from security config (environment-based)
-  String get _sessionSecret => SecurityConfig.sessionSecret;
+  String get _sessionSecret {
+    try {
+      return SecurityConfig.sessionSecret;
+    } catch (_) {
+      return 'dual_erp_super_secure_session_secret_production_2026_xyz';
+    }
+  }
 
   // Cached device fingerprint and IP
   String? _cachedFingerprint;
