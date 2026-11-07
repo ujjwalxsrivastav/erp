@@ -1318,9 +1318,27 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
     );
   }
 
+  Widget _buildReportTabItem({required IconData icon, required String label}) {
+    return Tab(
+      height: 40,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16),
+            const SizedBox(width: 7),
+            Text(label),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSliverAppBar() {
     return SliverAppBar(
-      expandedHeight: 180,
+      expandedHeight: 220,
       pinned: true,
       elevation: 0,
       backgroundColor: _primary,
@@ -1349,14 +1367,15 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 ),
               ),
               SafeArea(
+                bottom: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 54),
+                  padding: const EdgeInsets.fromLTRB(16, 44, 16, 72),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Container(
-                        width: 52,
-                        height: 52,
+                        width: 48,
+                        height: 48,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white.withValues(alpha: 0.18),
@@ -1376,13 +1395,13 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                               ? Icons.school
                               : Icons.admin_panel_settings,
                           color: Colors.white,
-                          size: 28,
+                          size: 26,
                         ),
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
@@ -1393,7 +1412,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                       : 'Institutional Reports Hub',
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 20,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: -0.3,
                                   ),
@@ -1401,10 +1420,10 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                 const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2.5),
+                                      horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: _gold.withValues(alpha: 0.9),
-                                    borderRadius: BorderRadius.circular(12),
+                                    color: _gold.withValues(alpha: 0.95),
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Text(
                                     '2026-2027',
@@ -1417,14 +1436,16 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 3),
                             Text(
                               _isTeacher
                                   ? '$_teacherDisplayName · ${_teacherClasses.isNotEmpty ? 'Class Teacher (${_teacherClasses.first['name']})' : 'Class 10-A'}'
                                   : 'Principal & Academic Executive Dashboard',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.9),
-                                fontSize: 13,
+                                color: Colors.white.withValues(alpha: 0.92),
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -1440,12 +1461,13 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
         ),
       ),
       bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(56),
+        preferredSize: const Size.fromHeight(62),
         child: Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          height: 48,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.22),
+            color: Colors.white.withValues(alpha: 0.20),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
           ),
@@ -1460,7 +1482,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.12),
                   blurRadius: 8,
-                  offset: const Offset(0, 3),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -1473,26 +1495,30 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
             unselectedLabelStyle:
                 const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
             tabs: [
-              Tab(
-                icon: Icon(
-                    _isTeacher
-                        ? Icons.how_to_reg_outlined
-                        : Icons.dashboard_outlined,
-                    size: 16),
-                text:
+              _buildReportTabItem(
+                icon: _isTeacher
+                    ? Icons.how_to_reg_outlined
+                    : Icons.dashboard_outlined,
+                label:
                     _isTeacher ? 'Attendance & Defaulters' : 'Morning Briefing',
               ),
               if (!_isTeacher)
-                const Tab(icon: Icon(Icons.payment, size: 16), text: 'Fees'),
-              const Tab(
-                  icon: Icon(Icons.military_tech_outlined, size: 16),
-                  text: 'Marks & Merit'),
-              const Tab(
-                  icon: Icon(Icons.assignment_outlined, size: 16),
-                  text: 'Homework'),
-              const Tab(
-                  icon: Icon(Icons.verified_user_outlined, size: 16),
-                  text: 'UDISE+'),
+                _buildReportTabItem(
+                  icon: Icons.payment,
+                  label: 'Fees',
+                ),
+              _buildReportTabItem(
+                icon: Icons.military_tech_outlined,
+                label: 'Marks & Merit',
+              ),
+              _buildReportTabItem(
+                icon: Icons.assignment_outlined,
+                label: 'Homework',
+              ),
+              _buildReportTabItem(
+                icon: Icons.verified_user_outlined,
+                label: 'UDISE+',
+              ),
             ],
           ),
         ),
