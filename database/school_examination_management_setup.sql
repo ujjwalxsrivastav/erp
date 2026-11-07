@@ -21,7 +21,7 @@ ALTER TABLE IF EXISTS public.school_marks
 
 CREATE TABLE IF NOT EXISTS public.school_exam_management_sessions (
   id                  TEXT PRIMARY KEY,
-  institute_id        TEXT NOT NULL DEFAULT 'SHIV-SCH',
+  institute_id        TEXT NOT NULL DEFAULT 'SCH-001',
   title               TEXT NOT NULL,
   term                TEXT,
   academic_year       TEXT NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS public.school_exam_management_sessions (
 CREATE TABLE IF NOT EXISTS public.school_exam_schedule_papers (
   id                  TEXT PRIMARY KEY,
   session_id          TEXT NOT NULL REFERENCES public.school_exam_management_sessions(id) ON DELETE CASCADE,
-  institute_id        TEXT NOT NULL DEFAULT 'SHIV-SCH',
+  institute_id        TEXT NOT NULL DEFAULT 'SCH-001',
   class_id            TEXT NOT NULL,
   class_name          TEXT,
   subject             TEXT NOT NULL,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS public.school_exam_schedule_papers (
 
 CREATE TABLE IF NOT EXISTS public.school_exam_rooms (
   id                    TEXT PRIMARY KEY,
-  institute_id          TEXT NOT NULL DEFAULT 'SHIV-SCH',
+  institute_id          TEXT NOT NULL DEFAULT 'SCH-001',
   room_name             TEXT NOT NULL,
   block                 TEXT,
   capacity              INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0),

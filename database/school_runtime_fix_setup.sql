@@ -652,6 +652,89 @@ CREATE INDEX IF NOT EXISTS idx_school_exams_class_date ON public.school_exams (c
 ALTER TABLE IF EXISTS public.school_exams DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.school_exams TO anon, authenticated, service_role;
 
+-- 15. Examination Management Sessions
+CREATE TABLE IF NOT EXISTS public.school_exam_management_sessions (
+    id                  TEXT PRIMARY KEY,
+    institute_id        TEXT NOT NULL DEFAULT 'SCH-001',
+    title               TEXT NOT NULL,
+    term                TEXT,
+    academic_year       TEXT NOT NULL DEFAULT '2026-2027',
+    status              TEXT NOT NULL DEFAULT 'Draft'
+                          CHECK (status IN ('Draft', 'Scheduled', 'Ongoing', 'Evaluation', 'Published')),
+    start_date          DATE NOT NULL,
+    end_date            DATE NOT NULL,
+    passing_percentage  NUMERIC(5,2) NOT NULL DEFAULT 33 CHECK (passing_percentage BETWEEN 0 AND 100),
+    instructions        TEXT,
+    is_published        BOOLEAN NOT NULL DEFAULT FALSE,
+    created_by          TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (end_date >= start_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_school_exam_mgmt_sessions
+    ON public.school_exam_management_sessions (institute_id, start_date DESC);
+ALTER TABLE IF EXISTS public.school_exam_management_sessions DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_exam_management_sessions TO anon, authenticated, service_role;
+
+-- Seed initial sessions so foreign key references in papers are immediately valid
+INSERT INTO public.school_exam_management_sessions (id, title, term, academic_year, status, start_date, end_date, is_published)
+VALUES
+    ('sess-midterm-2026', 'Mid-Term Examinations 2026-27', 'Term 1', '2026-2027', 'Scheduled', '2026-09-15', '2026-09-30', true),
+    ('sess-final-2026', 'Annual Final Examinations 2026-27', 'Term 2', '2026-2027', 'Draft', '2027-02-15', '2027-03-10', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- 16. Date Sheet Exam Schedule Papers
+CREATE TABLE IF NOT EXISTS public.school_exam_schedule_papers (
+    id                  TEXT PRIMARY KEY,
+    session_id          TEXT NOT NULL REFERENCES public.school_exam_management_sessions(id) ON DELETE CASCADE,
+    institute_id        TEXT NOT NULL DEFAULT 'SCH-001',
+    class_id            TEXT NOT NULL,
+    class_name          TEXT,
+    subject             TEXT NOT NULL,
+    exam_date           DATE NOT NULL,
+    day_name            TEXT,
+    start_time          TEXT NOT NULL,
+    end_time            TEXT NOT NULL,
+    duration            TEXT,
+    max_theory          NUMERIC(6,2) NOT NULL DEFAULT 80,
+    max_practical       NUMERIC(6,2) NOT NULL DEFAULT 20,
+    pass_marks          NUMERIC(6,2) NOT NULL DEFAULT 33,
+    hall_name           TEXT,
+    room_no             TEXT,
+    invigilator         TEXT,
+    status              TEXT NOT NULL DEFAULT 'Scheduled',
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_school_exam_schedule_papers_session_class
+    ON public.school_exam_schedule_papers (session_id, class_id, exam_date);
+ALTER TABLE IF EXISTS public.school_exam_schedule_papers DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_exam_schedule_papers TO anon, authenticated, service_role;
+
+-- 17. Exam Rooms and Hall Allocation
+CREATE TABLE IF NOT EXISTS public.school_exam_rooms (
+    id                    TEXT PRIMARY KEY,
+    institute_id          TEXT NOT NULL DEFAULT 'SCH-001',
+    room_name             TEXT NOT NULL,
+    block                 TEXT,
+    capacity              INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0),
+    allocated_count       INTEGER NOT NULL DEFAULT 0 CHECK (allocated_count >= 0),
+    allocated_classes     TEXT,
+    chief_invigilator     TEXT,
+    support_invigilator   TEXT,
+    bench_type            TEXT,
+    status                TEXT NOT NULL DEFAULT 'Ready',
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_school_exam_rooms_institute
+    ON public.school_exam_rooms (institute_id, room_name);
+ALTER TABLE IF EXISTS public.school_exam_rooms DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.school_exam_rooms TO anon, authenticated, service_role;
+
 SELECT 'School ERP runtime tables successfully created and verified!' AS status;
 
 

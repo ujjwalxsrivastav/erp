@@ -1785,39 +1785,47 @@ class SchoolService {
           .map((c) => c['class_id']?.toString() ?? c['id']?.toString() ?? '')
           .where((id) => id.isNotEmpty)
           .toSet();
-      if (classIds.isEmpty) return null;
+      final classNames = assigned
+          .map((c) => c['class_name']?.toString() ?? c['name']?.toString() ?? '')
+          .where((n) => n.isNotEmpty)
+          .toSet();
+      if (classIds.isEmpty && classNames.isEmpty) return null;
 
       final today = DateTime.now().toIso8601String().substring(0, 10);
 
-      // Search Date Sheet for upcoming papers matching teacher's classes
-      for (final cid in classIds) {
-        final papers = await getExamDateSheet(classId: cid);
-        final upcoming = papers.where((p) {
-          final pDate = p['date']?.toString() ?? '';
-          return pDate.compareTo(today) >= 0;
-        }).toList();
+      // Search Date Sheet once for upcoming papers matching teacher's classes
+      final papers = await getExamDateSheet();
+      final upcoming = papers.where((p) {
+        final pDate = p['date']?.toString() ?? '';
+        final pClassId = p['class_id']?.toString() ?? '';
+        final pClassName = p['class_name']?.toString() ?? '';
+        final matches = classIds.contains(pClassId) ||
+            classNames.contains(pClassName) ||
+            classNames.contains(pClassId) ||
+            classIds.contains(pClassName);
+        return matches && pDate.compareTo(today) >= 0;
+      }).toList();
 
-        if (upcoming.isNotEmpty) {
-          upcoming.sort((a, b) => (a['date']?.toString() ?? '')
-              .compareTo(b['date']?.toString() ?? ''));
-          final p = upcoming.first;
-          final examDate =
-              DateTime.tryParse(p['date']?.toString() ?? '') ?? DateTime.now();
-          final daysLeft = examDate.difference(DateTime.now()).inDays + 1;
-          return {
-            'id': p['id'],
-            'subject': p['subject'] ?? 'Upcoming Examination',
-            'name': p['subject'] ?? 'Upcoming Examination',
-            'class_id': p['class_id'] ?? cid,
-            'exam_date': p['date'],
-            'start_time': p['start_time'],
-            'end_time': p['end_time'],
-            'duration': p['duration'] ?? '3.0 Hours',
-            'max_marks': p['max_theory'] ?? 80,
-            'room_no': p['room_no'] ?? p['hall_name'] ?? 'Exam Hall',
-            'days_remaining': daysLeft.clamp(0, 365),
-          };
-        }
+      if (upcoming.isNotEmpty) {
+        upcoming.sort((a, b) => (a['date']?.toString() ?? '')
+            .compareTo(b['date']?.toString() ?? ''));
+        final p = upcoming.first;
+        final examDate =
+            DateTime.tryParse(p['date']?.toString() ?? '') ?? DateTime.now();
+        final daysLeft = examDate.difference(DateTime.now()).inDays + 1;
+        return {
+          'id': p['id'],
+          'subject': p['subject'] ?? 'Upcoming Examination',
+          'name': p['subject'] ?? 'Upcoming Examination',
+          'class_id': p['class_id'] ?? (classIds.isNotEmpty ? classIds.first : ''),
+          'exam_date': p['date'],
+          'start_time': p['start_time'],
+          'end_time': p['end_time'],
+          'duration': p['duration'] ?? '3.0 Hours',
+          'max_marks': p['max_theory'] ?? 80,
+          'room_no': p['room_no'] ?? p['hall_name'] ?? 'Exam Hall',
+          'days_remaining': daysLeft.clamp(0, 365),
+        };
       }
 
       // Check active published sessions
@@ -12336,29 +12344,40 @@ class SchoolService {
   // EXAMINATION CONTROLLER & SCHEDULING MODULE
   // ============================================================================
 
+  static bool _hasExamSessionsTable = true;
+  static bool _hasExamPapersTable = true;
+  static bool _hasExamRoomsTable = true;
+
   /// Fetch all active and scheduled exam sessions
   Future<List<Map<String, dynamic>>> getSchoolExamSessions() async {
-    try {
-      final response = await _supabase
-          .from('school_exam_management_sessions')
-          .select()
-          .eq('institute_id', 'SHIV-SCH')
-          .order('start_date', ascending: false);
-      final rows = List<Map<String, dynamic>>.from(response);
-      if (rows.isNotEmpty) {
-        return rows
-            .map((row) => {
-                  ...row,
-                  'start_date': row['start_date']?.toString() ?? '',
-                  'end_date': row['end_date']?.toString() ?? '',
-                  'total_papers': row['total_papers'] ?? 0,
-                  'classes_count': row['classes_count'] ?? 0,
-                })
-            .toList();
+    if (_hasExamSessionsTable) {
+      try {
+        final response = await _supabase
+            .from('school_exam_management_sessions')
+            .select()
+            .order('start_date', ascending: false);
+        final rows = List<Map<String, dynamic>>.from(response);
+        if (rows.isNotEmpty) {
+          return rows
+              .map((row) => {
+                    ...row,
+                    'start_date': row['start_date']?.toString() ?? '',
+                    'end_date': row['end_date']?.toString() ?? '',
+                    'total_papers': row['total_papers'] ?? 0,
+                    'classes_count': row['classes_count'] ?? 0,
+                  })
+              .toList();
+        }
+      } catch (e) {
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('404') ||
+            errStr.contains('42p01') ||
+            errStr.contains('pgrst204') ||
+            errStr.contains('does not exist') ||
+            errStr.contains('relation')) {
+          _hasExamSessionsTable = false;
+        }
       }
-    } catch (_) {
-      // A local fallback keeps existing installations usable until the setup
-      // migration has been applied.
     }
     if (_examSessionsStore.isEmpty) {
       _examSessionsStore.addAll([
@@ -12437,7 +12456,7 @@ class SchoolService {
       final actor = await AuthService().getCurrentUsername();
       await _supabase.from('school_exam_management_sessions').upsert({
         'id': id,
-        'institute_id': 'SHIV-SCH',
+        'institute_id': payload['institute_id'] ?? 'SCH-001',
         'title': payload['title'],
         'term': payload['term'],
         'academic_year': payload['academic_year'],
@@ -12450,6 +12469,7 @@ class SchoolService {
             payload['is_published'] == true || payload['status'] == 'Published',
         if (actor != null) 'created_by': actor,
       });
+      _hasExamSessionsTable = true;
       invalidateCache('exam:');
     } catch (_) {
       // The in-memory fallback below is retained for deployments that have not
@@ -12517,26 +12537,37 @@ class SchoolService {
     String? classId,
   }) async {
     final sid = sessionId ?? 'sess-midterm-2026';
-    try {
-      var query = _supabase
-          .from('school_exam_schedule_papers')
-          .select()
-          .eq('session_id', sid);
-      if (classId != null && classId.isNotEmpty && classId != '__all__') {
-        query = query.or('class_id.eq.$classId,class_name.eq.$classId');
+    if (_hasExamPapersTable) {
+      try {
+        var query = _supabase
+            .from('school_exam_schedule_papers')
+            .select()
+            .eq('session_id', sid);
+        if (classId != null && classId.isNotEmpty && classId != '__all__') {
+          query = query.or('class_id.eq.$classId,class_name.eq.$classId');
+        }
+        final response = await query.order('exam_date');
+        final rows = List<Map<String, dynamic>>.from(response);
+        if (rows.isNotEmpty) {
+          return rows
+              .map((row) => {
+                    ...row,
+                    'date': row['exam_date']?.toString() ?? '',
+                    'day': row['day_name']?.toString() ?? '',
+                  })
+              .toList();
+        }
+      } catch (e) {
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('404') ||
+            errStr.contains('42p01') ||
+            errStr.contains('pgrst204') ||
+            errStr.contains('does not exist') ||
+            errStr.contains('relation')) {
+          _hasExamPapersTable = false;
+        }
       }
-      final response = await query.order('exam_date');
-      final rows = List<Map<String, dynamic>>.from(response);
-      if (rows.isNotEmpty) {
-        return rows
-            .map((row) => {
-                  ...row,
-                  'date': row['exam_date']?.toString() ?? '',
-                  'day': row['day_name']?.toString() ?? '',
-                })
-            .toList();
-      }
-    } catch (_) {}
+    }
     if (_examDateSheetStore.isEmpty) {
       _examDateSheetStore.addAll([
         {
@@ -12676,7 +12707,7 @@ class SchoolService {
       await _supabase.from('school_exam_schedule_papers').upsert({
         'id': id,
         'session_id': payload['session_id'],
-        'institute_id': 'SHIV-SCH',
+        'institute_id': payload['institute_id'] ?? 'SCH-001',
         'class_id': payload['class_id'],
         'class_name': payload['class_name'],
         'subject': payload['subject'],
@@ -12693,6 +12724,7 @@ class SchoolService {
         'invigilator': payload['invigilator'],
         'status': payload['status'] ?? 'Scheduled',
       });
+      _hasExamPapersTable = true;
     } catch (_) {}
     final idx = _examDateSheetStore.indexWhere((p) => p['id'] == id);
     if (idx >= 0) {
@@ -12764,15 +12796,25 @@ class SchoolService {
 
   /// Exam Halls and Seating Arrangements
   Future<List<Map<String, dynamic>>> getExamRooms() async {
-    try {
-      final response = await _supabase
-          .from('school_exam_rooms')
-          .select()
-          .eq('institute_id', 'SHIV-SCH')
-          .order('room_name');
-      final rows = List<Map<String, dynamic>>.from(response);
-      if (rows.isNotEmpty) return rows;
-    } catch (_) {}
+    if (_hasExamRoomsTable) {
+      try {
+        final response = await _supabase
+            .from('school_exam_rooms')
+            .select()
+            .order('room_name');
+        final rows = List<Map<String, dynamic>>.from(response);
+        if (rows.isNotEmpty) return rows;
+      } catch (e) {
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('404') ||
+            errStr.contains('42p01') ||
+            errStr.contains('pgrst204') ||
+            errStr.contains('does not exist') ||
+            errStr.contains('relation')) {
+          _hasExamRoomsTable = false;
+        }
+      }
+    }
     if (_examRoomsStore.isEmpty) {
       _examRoomsStore.addAll([
         {
@@ -12838,8 +12880,9 @@ class SchoolService {
       await _supabase.from('school_exam_rooms').upsert({
         ...payload,
         'id': id,
-        'institute_id': 'SHIV-SCH',
+        'institute_id': payload['institute_id'] ?? 'SCH-001',
       });
+      _hasExamRoomsTable = true;
     } catch (_) {}
     final idx = _examRoomsStore.indexWhere((r) => r['id'] == id);
     if (idx >= 0) {
