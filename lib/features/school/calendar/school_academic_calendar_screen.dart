@@ -3,7 +3,6 @@ import '../../../services/auth_service.dart';
 import '../../../services/school_service.dart';
 import '../../../services/school_calendar_service.dart';
 import '../../../services/school_export_service.dart';
-import 'calendar_components.dart';
 
 class SchoolAcademicCalendarScreen extends StatefulWidget {
   const SchoolAcademicCalendarScreen({super.key});
@@ -224,10 +223,30 @@ class _SchoolAcademicCalendarScreenState
             icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
             style: const TextStyle(
                 color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-            items: [_selectedYear, _previousAcademicYear].toSet().map((year) => DropdownMenuItem(value: year, child: Text(year == _selectedYear ? '$year (Active)' : '$year (Archived)'))).toList(),
+            items: _availableAcademicYears.map((year) {
+              final now = DateTime.now();
+              final currentSession = now.month >= 4
+                  ? '${now.year}-${now.year + 1}'
+                  : '${now.year - 1}-${now.year}';
+              final label = year == currentSession
+                  ? '$year (Current)'
+                  : year == _selectedYear
+                      ? '$year (Active)'
+                      : year;
+              return DropdownMenuItem(
+                value: year,
+                child: Text(label),
+              );
+            }).toList(),
             onChanged: (val) {
-              if (val != null) {
-                setState(() => _selectedYear = val);
+              if (val != null && val != _selectedYear) {
+                final startYear =
+                    int.tryParse(val.split('-').first) ?? DateTime.now().year;
+                setState(() {
+                  _selectedYear = val;
+                  _focusedMonth = DateTime(startYear, 4, 1);
+                  _selectedDay = DateTime(startYear, 4, 1);
+                });
                 _loadCalendarData();
               }
             },
@@ -283,9 +302,18 @@ class _SchoolAcademicCalendarScreenState
     );
   }
 
-  String get _previousAcademicYear {
-    final startYear = int.tryParse(_selectedYear.split('-').first) ?? DateTime.now().year;
-    return '${startYear - 1}-${startYear}';
+  List<String> get _availableAcademicYears {
+    final now = DateTime.now();
+    final currentBase = now.month >= 4 ? now.year : now.year - 1;
+    final years = <String>{};
+    for (int offset = -4; offset <= 3; offset++) {
+      final start = currentBase + offset;
+      years.add('$start-${start + 1}');
+    }
+    years.add(_selectedYear);
+    final list = years.toList();
+    list.sort((a, b) => b.compareTo(a));
+    return list;
   }
 
   Widget _buildChildPicker() {
@@ -507,12 +535,596 @@ class _SchoolAcademicCalendarScreenState
   // TAB 1: MONTH CALENDAR GRID VIEW
   // ===========================================================================
 
+  void _changeMonth(int delta) {
+    final newMonth =
+        DateTime(_focusedMonth.year, _focusedMonth.month + delta, 1);
+    _onMonthChanged(newMonth);
+  }
+
+  void _changeYear(int delta) {
+    final newMonth =
+        DateTime(_focusedMonth.year + delta, _focusedMonth.month, 1);
+    _onMonthChanged(newMonth);
+  }
+
+  String _calcAcademicYearForDate(DateTime dt) {
+    final startYear = dt.month >= 4 ? dt.year : dt.year - 1;
+    return '$startYear-${startYear + 1}';
+  }
+
+  void _onMonthChanged(DateTime newMonth) {
+    final newAcadYear = _calcAcademicYearForDate(newMonth);
+    final bool yearChanged = newAcadYear != _selectedYear;
+    setState(() {
+      _focusedMonth = newMonth;
+      if (_selectedDay != null) {
+        final daysInMonth =
+            DateTime(newMonth.year, newMonth.month + 1, 0).day;
+        final clampedDay = _selectedDay!.day.clamp(1, daysInMonth);
+        _selectedDay = DateTime(newMonth.year, newMonth.month, clampedDay);
+      }
+      if (yearChanged) {
+        _selectedYear = newAcadYear;
+      }
+    });
+    if (yearChanged) {
+      _loadCalendarData();
+    }
+  }
+
+  void _jumpToToday() {
+    final now = DateTime.now();
+    final todayMonth = DateTime(now.year, now.month, 1);
+    final newAcadYear = _calcAcademicYearForDate(now);
+    final bool yearChanged = newAcadYear != _selectedYear;
+    setState(() {
+      _focusedMonth = todayMonth;
+      _selectedDay = DateTime(now.year, now.month, now.day);
+      if (yearChanged) {
+        _selectedYear = newAcadYear;
+      }
+    });
+    if (yearChanged) {
+      _loadCalendarData();
+    }
+  }
+
+  void _jumpToSessionStart() {
+    final startYear =
+        int.tryParse(_selectedYear.split('-').first) ?? DateTime.now().year;
+    setState(() {
+      _focusedMonth = DateTime(startYear, 4, 1);
+      _selectedDay = DateTime(startYear, 4, 1);
+    });
+  }
+
+  void _showMonthYearPicker() {
+    int pickerYear = _focusedMonth.year;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setPickerState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Jump to Month & Year',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            'Academic Session: $_selectedYear',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Year Selector Bar with << Year >>
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left,
+                              color: Color(0xFF0F766E)),
+                          tooltip: 'Previous Year',
+                          onPressed: () {
+                            setPickerState(() => pickerYear--);
+                          },
+                        ),
+                        Text(
+                          '$pickerYear',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F766E),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right,
+                              color: Color(0xFF0F766E)),
+                          tooltip: 'Next Year',
+                          onPressed: () {
+                            setPickerState(() => pickerYear++);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // 12 Months Grid
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: 12,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      childAspectRatio: 2.0,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemBuilder: (context, i) {
+                      final monthIndex = i + 1;
+                      final isSelected = pickerYear == _focusedMonth.year &&
+                          monthIndex == _focusedMonth.month;
+                      final isSessionStart = monthIndex == 4;
+                      return InkWell(
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _onMonthChanged(DateTime(pickerYear, monthIndex, 1));
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF0F766E)
+                                : isSessionStart
+                                    ? const Color(0xFFCCFBF1)
+                                    : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF0F766E)
+                                  : isSessionStart
+                                      ? const Color(0xFF14B8A6)
+                                      : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                _getMonthName(monthIndex).substring(0, 3),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF1E293B),
+                                ),
+                              ),
+                              if (isSessionStart && !isSelected)
+                                const Text(
+                                  'Session Start',
+                                  style: TextStyle(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F766E),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildNavIconButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Tooltip(
+          message: tooltip,
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Icon(icon, size: 18, color: const Color(0xFF0F766E)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickJumpChip({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDFA),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF99F6E4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: const Color(0xFF0F766E)),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF0F766E),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMonthKpiPill({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required Color bgColor,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 14, color: color),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem({required Color color, required String label}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF475569),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCalendarDayCell({
+    required int dayNumber,
+    required DateTime cellDate,
+    required bool isSelected,
+    required bool isToday,
+    required bool isSunday,
+    required bool isHoliday,
+    required bool isExam,
+    required List<Map<String, dynamic>> dayEvents,
+  }) {
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedDay = cellDate;
+        });
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(
+                  colors: [Color(0xFF0F766E), Color(0xFF115E59)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isSelected
+              ? null
+              : isToday
+                  ? const Color(0xFFECFDF5)
+                  : isHoliday
+                      ? const Color(0xFFFFF1F2)
+                      : isExam
+                          ? const Color(0xFFFAF5FF)
+                          : isSunday
+                              ? const Color(0xFFFAFAFA)
+                              : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF0F766E)
+                : isToday
+                    ? const Color(0xFF10B981)
+                    : isHoliday
+                        ? const Color(0xFFFECDD3)
+                        : isExam
+                            ? const Color(0xFFE9D5FF)
+                            : const Color(0xFFE2E8F0),
+            width: isToday || isSelected ? 1.8 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF0F766E).withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  )
+                ]
+              : null,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Top indicator row (TODAY badge or icon)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (isToday)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.25)
+                          : const Color(0xFF10B981),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'TODAY',
+                      style: TextStyle(
+                        fontSize: 7.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                        color: isSelected ? Colors.white : Colors.white,
+                      ),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 4),
+                if (isHoliday && !isSelected)
+                  const Icon(Icons.beach_access,
+                      size: 10, color: Color(0xFFE11D48))
+                else if (isExam && !isSelected)
+                  const Icon(Icons.assignment,
+                      size: 10, color: Color(0xFF8B5CF6))
+                else
+                  const SizedBox(width: 4),
+              ],
+            ),
+            // Day Number
+            Text(
+              '$dayNumber',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected || isToday || isHoliday || isExam
+                    ? FontWeight.bold
+                    : FontWeight.w600,
+                color: isSelected
+                    ? Colors.white
+                    : isHoliday || isSunday
+                        ? const Color(0xFFE11D48)
+                        : isExam
+                            ? const Color(0xFF7C3AED)
+                            : isToday
+                                ? const Color(0xFF047857)
+                                : const Color(0xFF1E293B),
+              ),
+            ),
+            // Event Dots Row
+            SizedBox(
+              height: 8,
+              child: dayEvents.isEmpty
+                  ? const SizedBox()
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ...dayEvents.take(3).map((e) {
+                          final cat = e['category']?.toString() ?? 'Academic';
+                          final dotColor = isSelected
+                              ? Colors.white
+                              : SchoolCalendarService.getCategoryColor(cat);
+                          return Container(
+                            width: 5,
+                            height: 5,
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            decoration: BoxDecoration(
+                              color: dotColor,
+                              shape: BoxShape.circle,
+                            ),
+                          );
+                        }),
+                        if (dayEvents.length > 3)
+                          Text(
+                            '+',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFF0F766E),
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMonthGridView() {
     final daysInMonth =
         DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0).day;
     final firstWeekday = DateTime(_focusedMonth.year, _focusedMonth.month, 1)
         .weekday; // 1 = Mon, 7 = Sun
     final monthName = _getMonthName(_focusedMonth.month);
+
+    // Calculate month statistics
+    int holidaysCount = 0;
+    int examsCount = 0;
+    int eventsCount = 0;
+    int sundaysCount = 0;
+
+    for (int day = 1; day <= daysInMonth; day++) {
+      final cellDate = DateTime(_focusedMonth.year, _focusedMonth.month, day);
+      if (cellDate.weekday == DateTime.sunday) {
+        sundaysCount++;
+      }
+      final dayEvents = _events.where((e) {
+        try {
+          final start = DateTime.parse(e['start_date'].toString());
+          final end = DateTime.parse(e['end_date'].toString());
+          return !cellDate
+                  .isBefore(DateTime(start.year, start.month, start.day)) &&
+              !cellDate.isAfter(DateTime(end.year, end.month, end.day));
+        } catch (_) {
+          return false;
+        }
+      }).toList();
+
+      if (dayEvents.any(
+          (e) => e['is_holiday'] == true || e['category'] == 'Holiday')) {
+        holidaysCount++;
+      }
+      if (dayEvents.any((e) => e['category'] == 'Examination')) {
+        examsCount++;
+      }
+      eventsCount += dayEvents.length;
+    }
+
+    final workingDays =
+        (daysInMonth - sundaysCount - holidaysCount).clamp(0, daysInMonth);
 
     final selectedDayEvents = _events.where((e) {
       if (_selectedDay == null) return false;
@@ -532,60 +1144,268 @@ class _SchoolAcademicCalendarScreenState
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Month navigation bar
+          // Month navigation header card
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () {
-                    setState(() {
-                      _focusedMonth = DateTime(
-                          _focusedMonth.year, _focusedMonth.month - 1, 1);
-                    });
-                  },
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
+              ],
+            ),
+            child: Column(
+              children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '$monthName ${_focusedMonth.year}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
+                    Row(
+                      children: [
+                        _buildNavIconButton(
+                          icon: Icons.keyboard_double_arrow_left,
+                          tooltip: 'Previous Academic Year (-1 Yr)',
+                          onPressed: () => _changeYear(-1),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildNavIconButton(
+                          icon: Icons.chevron_left,
+                          tooltip: 'Previous Month',
+                          onPressed: () => _changeMonth(-1),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(
+                    InkWell(
+                      onTap: _showMonthYearPicker,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDFA),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF99F6E4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.calendar_month,
+                                size: 18, color: Color(0xFF0F766E)),
+                            const SizedBox(width: 8),
+                            Text(
+                              '$monthName ${_focusedMonth.year}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: Color(0xFF0F766E),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.arrow_drop_down,
+                                size: 18, color: Color(0xFF0F766E)),
+                          ],
+                        ),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          final now = DateTime.now();
-                          _focusedMonth = DateTime(now.year, now.month, 1);
-                          _selectedDay = now;
-                        });
-                      },
-                      child: const Text('Session Start',
-                          style: TextStyle(fontSize: 11)),
+                    ),
+                    Row(
+                      children: [
+                        _buildNavIconButton(
+                          icon: Icons.chevron_right,
+                          tooltip: 'Next Month',
+                          onPressed: () => _changeMonth(1),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildNavIconButton(
+                          icon: Icons.keyboard_double_arrow_right,
+                          tooltip: 'Next Academic Year (+1 Yr)',
+                          onPressed: () => _changeYear(1),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: () {
-                    setState(() {
-                      _focusedMonth = DateTime(
-                          _focusedMonth.year, _focusedMonth.month + 1, 1);
-                    });
+                const SizedBox(height: 10),
+                // Quick jump chips row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildQuickJumpChip(
+                      label: 'Today',
+                      icon: Icons.today,
+                      onTap: _jumpToToday,
+                    ),
+                    const SizedBox(width: 10),
+                    _buildQuickJumpChip(
+                      label: 'Session Start (Apr)',
+                      icon: Icons.flight_takeoff,
+                      onTap: _jumpToSessionStart,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Month KPI Statistics Strip
+          Row(
+            children: [
+              _buildMonthKpiPill(
+                title: 'Working Days',
+                value: '$workingDays Days',
+                icon: Icons.work_outline,
+                color: const Color(0xFF0F766E),
+                bgColor: const Color(0xFFF0FDFA),
+              ),
+              const SizedBox(width: 8),
+              _buildMonthKpiPill(
+                title: 'Holidays',
+                value: '$holidaysCount Days',
+                icon: Icons.beach_access_outlined,
+                color: const Color(0xFFE11D48),
+                bgColor: const Color(0xFFFFF1F2),
+              ),
+              const SizedBox(width: 8),
+              _buildMonthKpiPill(
+                title: 'Examinations',
+                value: '$examsCount Days',
+                icon: Icons.assignment_outlined,
+                color: const Color(0xFF7C3AED),
+                bgColor: const Color(0xFFFAF5FF),
+              ),
+              const SizedBox(width: 8),
+              _buildMonthKpiPill(
+                title: 'Milestones',
+                value: '$eventsCount Events',
+                icon: Icons.flag_outlined,
+                color: const Color(0xFF2563EB),
+                bgColor: const Color(0xFFEFF6FF),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Calendar Card (7-day header + Day Grid)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // 7-day header
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      'Mon',
+                      'Tue',
+                      'Wed',
+                      'Thu',
+                      'Fri',
+                      'Sat',
+                      'Sun'
+                    ].map((day) {
+                      final isSun = day == 'Sun';
+                      final isSat = day == 'Sat';
+                      return Expanded(
+                        child: Center(
+                          child: Text(
+                            day,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: isSun
+                                  ? const Color(0xFFE11D48)
+                                  : isSat
+                                      ? const Color(0xFF0F766E)
+                                      : const Color(0xFF475569),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Day Grid
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: (firstWeekday - 1) + daysInMonth,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    mainAxisSpacing: 6,
+                    crossAxisSpacing: 6,
+                    childAspectRatio: 0.95,
+                  ),
+                  itemBuilder: (context, index) {
+                    if (index < firstWeekday - 1) {
+                      return const SizedBox();
+                    }
+                    final dayNumber = index - (firstWeekday - 2);
+                    final cellDate = DateTime(
+                        _focusedMonth.year, _focusedMonth.month, dayNumber);
+                    final isSelected = _selectedDay != null &&
+                        _selectedDay!.year == cellDate.year &&
+                        _selectedDay!.month == cellDate.month &&
+                        _selectedDay!.day == cellDate.day;
+
+                    final now = DateTime.now();
+                    final isToday = now.year == cellDate.year &&
+                        now.month == cellDate.month &&
+                        now.day == cellDate.day;
+
+                    // Find events on this date
+                    final dayEvents = _events.where((e) {
+                      try {
+                        final start =
+                            DateTime.parse(e['start_date'].toString());
+                        final end = DateTime.parse(e['end_date'].toString());
+                        return !cellDate.isBefore(DateTime(
+                                start.year, start.month, start.day)) &&
+                            !cellDate.isAfter(
+                                DateTime(end.year, end.month, end.day));
+                      } catch (_) {
+                        return false;
+                      }
+                    }).toList();
+
+                    final isHoliday = dayEvents.any((e) =>
+                        e['is_holiday'] == true || e['category'] == 'Holiday');
+                    final isExam =
+                        dayEvents.any((e) => e['category'] == 'Examination');
+                    final isSunday = cellDate.weekday == DateTime.sunday;
+
+                    return _buildCalendarDayCell(
+                      dayNumber: dayNumber,
+                      cellDate: cellDate,
+                      isSelected: isSelected,
+                      isToday: isToday,
+                      isSunday: isSunday,
+                      isHoliday: isHoliday,
+                      isExam: isExam,
+                      dayEvents: dayEvents,
+                    );
                   },
                 ),
               ],
@@ -593,166 +1413,132 @@ class _SchoolAcademicCalendarScreenState
           ),
           const SizedBox(height: 12),
 
-          // 7-day header
+          // Category Legend Bar
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children:
-                  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) {
-                return Expanded(
-                  child: Center(
-                    child: Text(
-                      day,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color:
-                            day == 'Sun' ? Colors.red.shade400 : Colors.black87,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Calendar Grid
-          Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: (firstWeekday - 1) + daysInMonth,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                mainAxisSpacing: 6,
-                crossAxisSpacing: 6,
-                childAspectRatio: 1.1,
-              ),
-              itemBuilder: (context, index) {
-                if (index < firstWeekday - 1) {
-                  return const SizedBox();
-                }
-                final dayNumber = index - (firstWeekday - 2);
-                final cellDate = DateTime(
-                    _focusedMonth.year, _focusedMonth.month, dayNumber);
-                final isSelected = _selectedDay != null &&
-                    _selectedDay!.year == cellDate.year &&
-                    _selectedDay!.month == cellDate.month &&
-                    _selectedDay!.day == cellDate.day;
-
-                // Find events on this date
-                final dayEvents = _events.where((e) {
-                  try {
-                    final start = DateTime.parse(e['start_date'].toString());
-                    final end = DateTime.parse(e['end_date'].toString());
-                    return !cellDate.isBefore(
-                            DateTime(start.year, start.month, start.day)) &&
-                        !cellDate
-                            .isAfter(DateTime(end.year, end.month, end.day));
-                  } catch (_) {
-                    return false;
-                  }
-                }).toList();
-
-                final isHoliday = dayEvents.any((e) =>
-                    e['is_holiday'] == true || e['category'] == 'Holiday');
-                final isExam =
-                    dayEvents.any((e) => e['category'] == 'Examination');
-                final isSunday = cellDate.weekday == DateTime.sunday;
-
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedDay = cellDate;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFF0F766E)
-                          : isHoliday
-                              ? const Color(0xFFFEF2F2)
-                              : isExam
-                                  ? const Color(0xFFF5F3FF)
-                                  : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFF0F766E)
-                            : isHoliday
-                                ? Colors.red.shade200
-                                : Colors.grey.shade200,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '$dayNumber',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: isSelected || dayEvents.isNotEmpty
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: isSelected
-                                ? Colors.white
-                                : (isSunday || isHoliday)
-                                    ? Colors.red.shade600
-                                    : Colors.black87,
-                          ),
-                        ),
-                        if (dayEvents.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: dayEvents.take(3).map((e) {
-                              final cat =
-                                  e['category']?.toString() ?? 'Academic';
-                              final dotColor = isSelected
-                                  ? Colors.white
-                                  : SchoolCalendarService.getCategoryColor(cat);
-                              return Container(
-                                width: 5,
-                                height: 5,
-                                margin:
-                                    const EdgeInsets.symmetric(horizontal: 1),
-                                decoration: BoxDecoration(
-                                  color: dotColor,
-                                  shape: BoxShape.circle,
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                _buildLegendItem(
+                    color: const Color(0xFF10B981), label: 'Academic'),
+                _buildLegendItem(
+                    color: const Color(0xFFEF4444), label: 'Holiday'),
+                _buildLegendItem(
+                    color: const Color(0xFF8B5CF6), label: 'Examination'),
+                _buildLegendItem(
+                    color: const Color(0xFF3B82F6),
+                    label: 'Sports & Activities'),
+                _buildLegendItem(
+                    color: const Color(0xFFF59E0B), label: 'Parent / Meeting'),
+              ],
             ),
           ),
           const SizedBox(height: 16),
 
           // Selected Day Event Detail Card
           if (_selectedDay != null) ...[
-            EventDaySheet(
-              title: 'Events for ${_selectedDay!.day} ${_getMonthName(_selectedDay!.month)} ${_selectedDay!.year}',
-              count: selectedDayEvents.length,
-              children: selectedDayEvents.isEmpty
-                  ? [const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Center(child: Text('No special events or exams scheduled for this date.', style: TextStyle(color: Colors.grey, fontSize: 13))))]
-                  : selectedDayEvents.map((e) => _buildEventCard(e)).toList(),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color:
+                              const Color(0xFF0F766E).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.event_available,
+                            color: Color(0xFF0F766E), size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${_selectedDay!.day} ${_getMonthName(_selectedDay!.month)} ${_selectedDay!.year}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            Text(
+                              '${selectedDayEvents.length} scheduled item${selectedDayEvents.length == 1 ? '' : 's'}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_canManage)
+                        FilledButton.tonalIcon(
+                          onPressed: () => _showAddEventDialog(
+                              prefilledDate: _selectedDay),
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('Add Event',
+                              style: TextStyle(fontSize: 12)),
+                          style: FilledButton.styleFrom(
+                            backgroundColor:
+                                const Color(0xFF0F766E).withValues(alpha: 0.1),
+                            foregroundColor: const Color(0xFF0F766E),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const Divider(height: 24),
+                  if (selectedDayEvents.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.event_note_outlined,
+                                size: 40, color: Colors.grey.shade300),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No special events or exams scheduled for this date.',
+                              style: TextStyle(
+                                  color: Colors.grey.shade600, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    ...selectedDayEvents.map((e) => _buildEventCard(e)),
+                ],
+              ),
             ),
           ],
         ],
@@ -1185,15 +1971,15 @@ class _SchoolAcademicCalendarScreenState
   // ADD EVENT DIALOG
   // ===========================================================================
 
-  void _showAddEventDialog() {
+  void _showAddEventDialog({DateTime? prefilledDate}) {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     final venueCtrl = TextEditingController();
     String category = 'Academic';
     String term = 'Term 1';
     String audience = 'all';
-    DateTime startDate = DateTime.now();
-    DateTime endDate = DateTime.now();
+    DateTime startDate = prefilledDate ?? DateTime.now();
+    DateTime endDate = prefilledDate ?? DateTime.now();
     bool isAllDay = true;
     bool isHoliday = false;
 
