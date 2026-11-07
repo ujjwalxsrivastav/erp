@@ -656,26 +656,24 @@ class _ReportCardScreenState extends State<ReportCardScreen> {
   }
 
   Widget _metricTile(String title, String val, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(height: 6),
-            Text(val,
-                style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.bold, color: color)),
-            Text(title,
-                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(height: 6),
+          Text(val,
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+          Text(title,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+        ],
       ),
     );
   }
