@@ -120,27 +120,55 @@ class SchoolService {
         str.contains('pgrst200');
   }
 
-  Future<String?> getSchoolInstituteName() async {
-    try {
-      final resp = await _supabase
-          .from('institutes')
-          .select('name')
-          .eq('type', 'school')
-          .maybeSingle();
-      return resp?['name']?.toString();
-    } catch (_) {
-      return null;
-    }
+  Future<String?> getSchoolInstituteName() {
+    return _cachedCall(
+      'school_institute_name',
+      () async {
+        try {
+          final resp = await _supabase
+              .from('institutes')
+              .select('name')
+              .eq('type', 'school')
+              .maybeSingle();
+          return resp?['name']?.toString();
+        } catch (_) {
+          return null;
+        }
+      },
+      ttl: const Duration(minutes: 30),
+    );
   }
 
   /// Returns all unique classes assigned to this teacher (both as Class Teacher and Subject Faculty).
   Future<List<Map<String, dynamic>>> getTeacherAllAssignedClasses(
+      String teacherUsername) {
+    if (teacherUsername.isEmpty) return Future.value(<Map<String, dynamic>>[]);
+    return _cachedCall(
+      'teacher_all_assigned:$teacherUsername',
+      () => _loadTeacherAllAssignedClasses(teacherUsername),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadTeacherAllAssignedClasses(
       String teacherUsername) async {
     final results = <Map<String, dynamic>>[];
     final seen = <String>{};
 
+    final fetched = await Future.wait([
+      getClassTeacherClasses(teacherUsername)
+          .catchError((_) => <Map<String, dynamic>>[]),
+      getTeacherAssignedClasses(teacherUsername)
+          .catchError((_) => <Map<String, dynamic>>[]),
+      getTeacherClasses(teacherUsername)
+          .catchError((_) => <Map<String, dynamic>>[]),
+    ]);
+
+    final ctClasses = fetched[0];
+    final mappedClasses = fetched[1];
+    final subClasses = fetched[2];
+
     // 1. Class Teacher classes from school_classes
-    final ctClasses = await getClassTeacherClasses(teacherUsername);
     for (final c in ctClasses) {
       final id = c['id']?.toString() ?? c['class_id']?.toString() ?? '';
       final name =
@@ -162,7 +190,6 @@ class SchoolService {
     }
 
     // 2. Explicit mappings from school_teacher_classes
-    final mappedClasses = await getTeacherAssignedClasses(teacherUsername);
     for (final c in mappedClasses) {
       final id = c['class_id']?.toString() ?? '';
       final subject = c['subject_name']?.toString() ?? '';
@@ -180,7 +207,6 @@ class SchoolService {
     }
 
     // 3. Subject Faculty classes from timetable
-    final subClasses = await getTeacherClasses(teacherUsername);
     for (final c in subClasses) {
       final id = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
       final subject = c['subject']?.toString() ?? '';
@@ -425,12 +451,14 @@ class SchoolService {
                 .toList()
             : assigned;
 
-    final allMarks = <Map<String, dynamic>>[];
-    for (final c in targetClasses) {
+    final marksFutures = targetClasses.map((c) {
       final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
-      if (cid.isEmpty) continue;
-      final classMarks =
-          await getMarksReport(classId: cid, className: c['name']?.toString());
+      if (cid.isEmpty) return Future.value(<Map<String, dynamic>>[]);
+      return getMarksReport(classId: cid, className: c['name']?.toString());
+    });
+    final marksResults = await Future.wait(marksFutures);
+    final allMarks = <Map<String, dynamic>>[];
+    for (final classMarks in marksResults) {
       allMarks.addAll(classMarks);
     }
 
@@ -483,12 +511,14 @@ class SchoolService {
     final assigned = await getTeacherAllAssignedClasses(teacherUsername);
     if (assigned.isEmpty) return [];
 
-    final allMarks = <Map<String, dynamic>>[];
-    for (final c in assigned) {
+    final marksFutures = assigned.map((c) {
       final cid = c['class_id']?.toString() ?? c['id']?.toString() ?? '';
-      if (cid.isEmpty) continue;
-      final mList =
-          await getMarksReport(classId: cid, className: c['name']?.toString());
+      if (cid.isEmpty) return Future.value(<Map<String, dynamic>>[]);
+      return getMarksReport(classId: cid, className: c['name']?.toString());
+    });
+    final marksResults = await Future.wait(marksFutures);
+    final allMarks = <Map<String, dynamic>>[];
+    for (final mList in marksResults) {
       allMarks.addAll(mList);
     }
 
@@ -2475,22 +2505,36 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getTeacherTimetable(String username,
-      {String? day}) async {
-    try {
-      final selectedDay = day ?? _weekdayName(DateTime.now().weekday);
-      final response = await _supabase
-          .from('school_timetable')
-          .select()
-          .eq('teacher_username', username)
-          .eq('day', selectedDay)
-          .order('period');
-      return List<Map<String, dynamic>>.from(response);
-    } catch (_) {
-      rethrow;
-    }
+      {String? day}) {
+    final selectedDay = day ?? _weekdayName(DateTime.now().weekday);
+    return _cachedCall(
+      'teacher_timetable:$username:$selectedDay',
+      () async {
+        try {
+          final response = await _supabase
+              .from('school_timetable')
+              .select()
+              .eq('teacher_username', username)
+              .eq('day', selectedDay)
+              .order('period');
+          return List<Map<String, dynamic>>.from(response);
+        } catch (_) {
+          return <Map<String, dynamic>>[];
+        }
+      },
+      ttl: const Duration(minutes: 5),
+    );
   }
 
-  Future<List<Map<String, dynamic>>> getTeacherClasses(String username) async {
+  Future<List<Map<String, dynamic>>> getTeacherClasses(String username) {
+    return _cachedCall(
+      'teacher_classes:$username',
+      () => _loadTeacherClasses(username),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadTeacherClasses(String username) async {
     try {
       final response = await _supabase
           .from('school_timetable')
@@ -2857,6 +2901,9 @@ class SchoolService {
           .single();
       invalidateCache('timetable:');
       invalidateCache('my_timetable:');
+      invalidateCache('teacher_timetable:');
+      invalidateCache('teacher_classes:');
+      invalidateCache('teacher_all_assigned:');
       return Map<String, dynamic>.from(response);
     } else {
       final response = await _supabase
@@ -2866,6 +2913,9 @@ class SchoolService {
           .single();
       invalidateCache('timetable:');
       invalidateCache('my_timetable:');
+      invalidateCache('teacher_timetable:');
+      invalidateCache('teacher_classes:');
+      invalidateCache('teacher_all_assigned:');
       return Map<String, dynamic>.from(response);
     }
   }
@@ -2887,6 +2937,9 @@ class SchoolService {
       await _supabase.from('school_timetable').delete().eq('id', id);
       invalidateCache('timetable:');
       invalidateCache('my_timetable:');
+      invalidateCache('teacher_timetable:');
+      invalidateCache('teacher_classes:');
+      invalidateCache('teacher_all_assigned:');
       return true;
     } catch (_) {
       return false;
@@ -2915,18 +2968,24 @@ class SchoolService {
   }
 
   /// Display name for one teacher username, or null when not in the directory.
-  Future<String?> getTeacherDisplayName(String username) async {
-    if (username.isEmpty) return null;
-    try {
-      final row = await _supabase
-          .from('school_teachers')
-          .select('name')
-          .eq('username', username)
-          .maybeSingle();
-      final name = row?['name']?.toString().trim() ?? '';
-      if (name.isNotEmpty) return name;
-    } catch (_) {}
-    return null;
+  Future<String?> getTeacherDisplayName(String username) {
+    if (username.isEmpty) return Future.value(null);
+    return _cachedCall(
+      'teacher_display_name:$username',
+      () async {
+        try {
+          final row = await _supabase
+              .from('school_teachers')
+              .select('name')
+              .eq('username', username)
+              .maybeSingle();
+          final name = row?['name']?.toString().trim() ?? '';
+          if (name.isNotEmpty) return name;
+        } catch (_) {}
+        return null;
+      },
+      ttl: const Duration(minutes: 15),
+    );
   }
 
   Future<List<String>> getSchoolTeachersList() async {
@@ -5995,6 +6054,7 @@ class SchoolService {
         }
         // Report card / dashboard read the cached marks list.
         invalidateCache('student_marks:');
+        invalidateCache('marks_report:');
         // New exam names (class tests) must appear in every picker at once.
         invalidateCache('exam_types:');
       }
@@ -6111,6 +6171,26 @@ class SchoolService {
   }
 
   Future<List<Map<String, dynamic>>> getMarksReport({
+    required String classId,
+    String? className,
+    String? subjectId,
+    String? examType,
+  }) {
+    final cacheKey =
+        'marks_report:$classId|${className ?? ''}|${subjectId ?? ''}|${examType ?? ''}';
+    return _cachedCall(
+      cacheKey,
+      () => _loadMarksReport(
+        classId: classId,
+        className: className,
+        subjectId: subjectId,
+        examType: examType,
+      ),
+      ttl: const Duration(minutes: 5),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadMarksReport({
     required String classId,
     String? className,
     String? subjectId,
@@ -12771,21 +12851,53 @@ class SchoolService {
     };
   }
 
-  Future<Map<String, dynamic>> getPrincipalMorningBriefing() async {
+  Future<Map<String, dynamic>> getPrincipalMorningBriefing() {
+    return _cachedCall(
+      'principal_briefing',
+      () => _loadPrincipalMorningBriefing(),
+      ttl: const Duration(minutes: 2),
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadPrincipalMorningBriefing() async {
     try {
-      // 1. Attendance Today
       final todayStr = DateTime.now().toIso8601String().split('T')[0];
-      final attToday = await _supabase
-          .from('school_attendance')
-          .select()
-          .eq('date', todayStr);
+
+      final results = await Future.wait([
+        // 0. Attendance Today
+        _supabase
+            .from('school_attendance')
+            .select('status')
+            .eq('date', todayStr)
+            .catchError((_) => []),
+        // 1. Fee Payments
+        _supabase
+            .from('school_fee_payments')
+            .select('amount, paid_amount, status')
+            .catchError((_) => []),
+        // 2. Transport Fleet
+        _supabase
+            .from('school_transport')
+            .select('id')
+            .catchError((_) => []),
+        // 3. Parent Complaints
+        getParentComplaints().catchError((_) => <Map<String, dynamic>>[]),
+        // 4. Enrolled Students
+        _supabase
+            .from('school_students')
+            .select('id')
+            .catchError((_) => []),
+        // 5. Institute Name
+        getSchoolInstituteName().catchError((_) => null),
+      ]);
+
+      final attToday = List<Map<String, dynamic>>.from(results[0] as List);
       final totalMarked = attToday.length;
       final presentCount =
           attToday.where((a) => a['status'] == 'present').length;
       final attPct = totalMarked > 0 ? (presentCount / totalMarked) * 100 : 0.0;
 
-      // 2. Collections vs Dues
-      final fees = await _supabase.from('school_fee_payments').select();
+      final fees = List<Map<String, dynamic>>.from(results[1] as List);
       double totalCollected = 0;
       double totalPending = 0;
       for (final f in fees) {
@@ -12797,22 +12909,18 @@ class SchoolService {
         }
       }
 
-      // 3. Transport status
-      final fleet = await _supabase.from('school_transport').select();
+      final fleet = List<Map<String, dynamic>>.from(results[2] as List);
       final activeBuses = fleet.length;
 
-      // 4. Open parent complaints
-      final complaints = await getParentComplaints();
+      final complaints = List<Map<String, dynamic>>.from(results[3] as List);
       final openComplaints = complaints
           .where((c) => c['status'] == 'Open' || c['status'] == 'open')
           .length;
 
-      // 5. Total enrolled students
-      final students = await _supabase.from('school_students').select();
+      final students = List<Map<String, dynamic>>.from(results[4] as List);
       final enrolledCount = students.length;
 
-      final instName =
-          await getSchoolInstituteName() ?? 'Shivalik International School';
+      final instName = (results[5] as String?) ?? 'Shivalik International School';
 
       return {
         'attendance_percent': attPct,
@@ -12844,39 +12952,48 @@ class SchoolService {
     }
   }
 
-  Future<Map<String, dynamic>> generateUdisePlusReport() async {
-    final students = await _supabase.from('school_students').select();
+  Future<Map<String, dynamic>> generateUdisePlusReport() {
+    return _cachedCall(
+      'udise_report',
+      () => _loadUdisePlusReport(),
+      ttl: const Duration(minutes: 10),
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadUdisePlusReport() async {
+    final futures = await Future.wait([
+      _supabase.from('school_students').select('id').catchError((_) => []),
+      _supabase.from('school_teachers').select('id').catchError((_) => []),
+      _supabase
+          .from('school_admissions')
+          .select('status')
+          .or('quota.eq.RTE,is_rte.eq.true')
+          .catchError((_) => []),
+      getSchoolInstituteName().catchError((_) => null),
+    ]);
+
+    final students = List<Map<String, dynamic>>.from(futures[0] as List);
     final totalStudents = students.length;
 
-    // Get real teachers count
-    int teacherCount = 0;
-    try {
-      final teachers = await _supabase.from('school_teachers').select();
-      teacherCount = teachers.length;
-      if (teacherCount == 0) {
+    final teachers = List<Map<String, dynamic>>.from(futures[1] as List);
+    int teacherCount = teachers.length;
+    if (teacherCount == 0) {
+      try {
         final usersTeachers = await _supabase
             .from('users')
-            .select()
+            .select('id')
             .eq('role', 'teacher')
             .eq('institute_type', 'school');
         teacherCount = usersTeachers.length;
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
-    // Check RTE admissions
-    int rteCount = 0;
-    try {
-      final rteApps = await _supabase
-          .from('school_admissions')
-          .select()
-          .or('quota.eq.RTE,is_rte.eq.true');
-      rteCount = rteApps
-          .where((a) => (a['status']?.toString().toLowerCase() == 'enrolled'))
-          .length;
-    } catch (_) {}
+    final rteApps = List<Map<String, dynamic>>.from(futures[2] as List);
+    final rteCount = rteApps
+        .where((a) => (a['status']?.toString().toLowerCase() == 'enrolled'))
+        .length;
 
-    final instName =
-        await getSchoolInstituteName() ?? 'Shivalik International School';
+    final instName = (futures[3] as String?) ?? 'Shivalik International School';
 
     final ptrStr = teacherCount > 0 && totalStudents > 0
         ? '${(totalStudents / teacherCount).toStringAsFixed(1)}:1 (Real DB Count: $totalStudents students / $teacherCount faculty)'

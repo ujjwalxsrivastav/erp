@@ -109,21 +109,38 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
     try {
       username = await _authService.getCurrentUsername() ?? '';
       _teacherUsername = username;
-      displayName = await _schoolService.getTeacherDisplayName(username);
-      teacherClasses = await _schoolService.getClassTeacherClasses(username);
-      final instName = await _schoolService.getSchoolInstituteName();
 
-      schedule = await _schoolService.getTeacherTimetable(username);
-      pendingHw = await _schoolService.getPendingHomeworkToGrade(username);
-      pendingLeavesList =
-          await _schoolService.getLeaveRequestsForClassTeacher(username);
-      studentDoubts = await _schoolService.getTeacherStudentQueries(
-        teacherUsername: username,
-      );
+      final results = await Future.wait([
+        _schoolService.getTeacherDisplayName(username).catchError((_) => null),
+        _schoolService
+            .getClassTeacherClasses(username)
+            .catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService.getSchoolInstituteName().catchError((_) => null),
+        _schoolService
+            .getTeacherTimetable(username)
+            .catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService
+            .getPendingHomeworkToGrade(username)
+            .catchError((_) => 0),
+        _schoolService
+            .getLeaveRequestsForClassTeacher(username)
+            .catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService
+            .getTeacherStudentQueries(teacherUsername: username)
+            .catchError((_) => <Map<String, dynamic>>[]),
+        _schoolService
+            .getTeacherAllAssignedClasses(username)
+            .catchError((_) => <Map<String, dynamic>>[]),
+      ]);
 
-      // Real Assigned Classes (Union of Class Teacher and Subject Faculty)
-      final allAssigned =
-          await _schoolService.getTeacherAllAssignedClasses(username);
+      displayName = results[0] as String?;
+      teacherClasses = results[1] as List<Map<String, dynamic>>;
+      final instName = results[2] as String?;
+      schedule = results[3] as List<Map<String, dynamic>>;
+      pendingHw = results[4] as int;
+      pendingLeavesList = results[5] as List<Map<String, dynamic>>;
+      studentDoubts = results[6] as List<Map<String, dynamic>>;
+      final allAssigned = results[7] as List<Map<String, dynamic>>;
 
       // Real Attendance for Class Teacher's assigned class today
       int? totalStd;
