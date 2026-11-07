@@ -10,7 +10,7 @@ class SchoolExaminationScreen extends StatefulWidget {
 }
 
 class _SchoolExaminationScreenState extends State<SchoolExaminationScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final TabController _tabController;
   final _schoolService = SchoolService();
 
@@ -179,6 +179,7 @@ class _SchoolExaminationScreenState extends State<SchoolExaminationScreen>
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: _buildAppBar(hasTabs: true),
       body: TabBarView(
+        key: const ValueKey('examTabBarView'),
         controller: _tabController,
         children: [
           _buildSessionsTab(),
@@ -234,6 +235,7 @@ class _SchoolExaminationScreenState extends State<SchoolExaminationScreen>
                   border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
                 ),
                 child: TabBar(
+                  key: const ValueKey('examTabBar'),
                   controller: _tabController,
                   isScrollable: true,
                   tabAlignment: TabAlignment.start,

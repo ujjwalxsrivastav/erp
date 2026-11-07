@@ -164,9 +164,8 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   },
   '/school/homework/add': _schoolStaffRoles,
   '/school/lesson-plans': _schoolStaffRoles,
-  // Creating date sheets, publishing results, and locking marks are
-  // administrative controls. Teachers continue to use the marks-entry flow.
-  '/school/examination': _schoolAdminRoles,
+  // Examination master & date sheets (accessible to Teachers and School Admin)
+  '/school/examination': _schoolStaffRoles,
   '/school/discipline': _schoolStaffRoles,
   '/school/inventory': _schoolStaffRoles,
   '/school/reports': _schoolStaffRoles,

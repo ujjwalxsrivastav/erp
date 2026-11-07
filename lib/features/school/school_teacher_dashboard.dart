@@ -208,9 +208,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   }
 
   /// ── PHASE 2: analytics, queues and alerts ─────────────────────────────
-  /// Everything slow that is not needed for the first paint. Each section fed
-  /// from here shows a skeleton while [_isSecondaryLoading] is true, and a
-  /// failure only blanks those sections — never the loaded workspace.
+  /// Everything slow that is not needed for the first paint. Runs concurrently
+  /// via Future.wait with fail-safe timeouts to ensure instant dashboard responsiveness.
   Future<void> _loadSecondaryData({
     required String username,
     required String teacherName,
@@ -221,44 +220,93 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
     required List<Map<String, dynamic>> pendingLeavesList,
   }) async {
     try {
-      // Real Teacher Analytics (N2 + T-R01, T-R04, T-R05, T-R07)
-      final attTrend = await _schoolService.getTeacherAttendanceTrend(username);
-      final gradeDist =
-          await _schoolService.getTeacherClassGradeDistribution(username);
-      final subAvgs = await _schoolService.getTeacherSubjectAverages(username);
-      final hwStats =
-          await _schoolService.getTeacherHomeworkCompletionStats(username);
+      // 1. Concurrently fetch analytics with 3.5s timeouts
+      final analyticsFutures = await Future.wait([
+        _schoolService
+            .getTeacherAttendanceTrend(username)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => []),
+        _schoolService
+            .getTeacherClassGradeDistribution(username)
+            .timeout(const Duration(milliseconds: 3500),
+                onTimeout: () =>
+                    {'counts': <String, int>{}, 'total': 0, 'average': 0.0}),
+        _schoolService
+            .getTeacherSubjectAverages(username)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => []),
+        _schoolService
+            .getTeacherHomeworkCompletionStats(username)
+            .timeout(const Duration(milliseconds: 3500),
+                onTimeout: () => {
+                      'submitted': 0,
+                      'late': 0,
+                      'missing': 0,
+                      'total': 0,
+                      'completion_rate': 0.0
+                    }),
+      ]);
 
       if (mounted) {
         setState(() {
-          _attendanceTrend = attTrend;
-          _gradeDistribution = gradeDist;
-          _subjectAverages = subAvgs;
-          _homeworkStats = hwStats;
+          _attendanceTrend = analyticsFutures[0] as List<Map<String, dynamic>>;
+          _gradeDistribution = analyticsFutures[1] as Map<String, dynamic>;
+          _subjectAverages = analyticsFutures[2] as List<Map<String, dynamic>>;
+          _homeworkStats = analyticsFutures[3] as Map<String, dynamic>;
         });
       }
 
-      // Step T5 Queries
+      // 2. Concurrently fetch alert queues and logs with 3.5s timeouts
       final todayStr = DateTime.now().toIso8601String().substring(0, 10);
-      final subs = await _schoolService.getSubstitutionLogs(date: todayStr);
+      final queueResults = await Future.wait([
+        _schoolService
+            .getSubstitutionLogs(date: todayStr)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => []),
+        _schoolService
+            .getNextUpcomingExamForTeacher(username)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => null),
+        _schoolService
+            .getTeacherAtRiskStudents(username)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => []),
+        _schoolService
+            .getTeacherHomeworkGradingQueue(username)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => []),
+        _schoolService
+            .getTeacherPtmBookings(displayName ?? username)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => []),
+        _schoolService
+            .getTeacherLeaves(username)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => []),
+        _schoolService
+            .getTeacherNotifications(username)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => []),
+        _schoolService
+            .getTeacherWeeklyWorkload(username)
+            .timeout(const Duration(milliseconds: 3500),
+                onTimeout: () => {
+                      'total_periods': 0,
+                      'day_distribution': <String, int>{}
+                    }),
+        _schoolService
+            .getTeacherSyllabusVelocity(username)
+            .timeout(const Duration(milliseconds: 3500), onTimeout: () => []),
+      ]);
+
+      final subs = queueResults[0] as List<Map<String, dynamic>>;
       final mySubs = subs.where((s) {
         final subT = (s['substitute_teacher']?.toString() ?? '').toLowerCase();
         return subT.contains(username.toLowerCase()) ||
             subT.contains(teacherName.toLowerCase());
       }).toList();
 
-      final upExam =
-          await _schoolService.getNextUpcomingExamForTeacher(username);
-      final atRisk = await _schoolService.getTeacherAtRiskStudents(username);
-      final queue =
-          await _schoolService.getTeacherHomeworkGradingQueue(username);
-      final ptms =
-          await _schoolService.getTeacherPtmBookings(displayName ?? username);
-      final myLeaves = await _schoolService.getTeacherLeaves(username);
-      final notifs = await _schoolService.getTeacherNotifications(username);
-      final workload = await _schoolService.getTeacherWeeklyWorkload(username);
+      final upExam = queueResults[1] as Map<String, dynamic>?;
+      final atRisk = queueResults[2] as List<Map<String, dynamic>>;
+      final queue = queueResults[3] as List<Map<String, dynamic>>;
+      final ptms = queueResults[4] as List<Map<String, dynamic>>;
+      final myLeaves = queueResults[5] as List<Map<String, dynamic>>;
+      final notifs = queueResults[6] as List<Map<String, dynamic>>;
+      final workload = queueResults[7] as Map<String, dynamic>;
+      final velocity = queueResults[8] as List<Map<String, dynamic>>;
 
-      // Period-wise attendance marked checks for today (N13)
+      // 3. Period-wise attendance checks batched concurrently
       final markedClasses = <String>{};
       if (isMarked && teacherClasses.isNotEmpty) {
         final tid = teacherClasses.first['id']?.toString() ?? '';
@@ -266,17 +314,29 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
         if (tid.isNotEmpty) markedClasses.add(tid);
         if (tname.isNotEmpty) markedClasses.add(tname);
       }
-      for (final s in schedule) {
-        final cid = (s['class_id'] ?? s['class'] ?? '').toString();
-        if (cid.isNotEmpty && !markedClasses.contains(cid)) {
-          final marked =
-              await _schoolService.hasMarkedAttendanceToday(username, cid);
-          if (marked) markedClasses.add(cid);
+      final uniqueScheduleClasses = schedule
+          .map((s) => (s['class_id'] ?? s['class'] ?? '').toString())
+          .where((cid) => cid.isNotEmpty && !markedClasses.contains(cid))
+          .toSet()
+          .toList();
+
+      if (uniqueScheduleClasses.isNotEmpty) {
+        final checks = await Future.wait(
+          uniqueScheduleClasses.map((cid) async {
+            try {
+              final marked = await _schoolService
+                  .hasMarkedAttendanceToday(username, cid)
+                  .timeout(const Duration(seconds: 2), onTimeout: () => false);
+              return MapEntry(cid, marked);
+            } catch (_) {
+              return MapEntry(cid, false);
+            }
+          }),
+        );
+        for (final entry in checks) {
+          if (entry.value) markedClasses.add(entry.key);
         }
       }
-
-      final velocity =
-          await _schoolService.getTeacherSyllabusVelocity(username);
 
       if (!mounted) return;
       setState(() {

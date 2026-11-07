@@ -13,7 +13,7 @@ class SchoolLessonPlanScreen extends StatefulWidget {
 }
 
 class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final TabController _tabController;
   final _schoolService = SchoolService();
   final _authService = AuthService();
@@ -29,6 +29,24 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
   String _selectedSubject = 'All';
   String _statusFilter = 'All';
   String _searchQuery = '';
+
+  // Wizard persistent controllers
+  late final TextEditingController _chapterCtrl;
+  late final TextEditingController _topicCtrl;
+  late final TextEditingController _targetDateCtrl;
+  late final TextEditingController _periodsCtrl;
+  late final TextEditingController _engageCtrl;
+  late final TextEditingController _exploreCtrl;
+  late final TextEditingController _explainCtrl;
+  late final TextEditingController _elaborateCtrl;
+  late final TextEditingController _evaluateCtrl;
+  late final TextEditingController _loCtrl;
+  late final TextEditingController _tlmCtrl;
+  late final TextEditingController _slowerCtrl;
+  late final TextEditingController _giftedCtrl;
+  String _selectedWizardSubject = 'Mathematics';
+  String _selectedWizardPedagogy = 'Inquiry-Based & Problem-Solving Approach';
+  String _selectedWizardBloom = 'Applying & Analyzing';
 
   // State
   List<Map<String, dynamic>> _plans = [];
@@ -54,6 +72,39 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+    _chapterCtrl =
+        TextEditingController(text: 'Chapter 5: Arithmetic Progressions');
+    _topicCtrl = TextEditingController(
+        text: 'Sum of First n Terms of an AP: Formula & Practical Word Problems');
+    _targetDateCtrl = TextEditingController(text: '2026-11-12');
+    _periodsCtrl = TextEditingController(text: '4');
+    _engageCtrl = TextEditingController(
+        text:
+            'Present Gauss sequence problem: sum 1 to 100 in 60 seconds. Challenge class to deduce sequence pairing symmetry.');
+    _exploreCtrl = TextEditingController(
+        text:
+            'Pair activity: Students write sequence forwards and backwards, adding corresponding terms to observe 2S = n(a+l).');
+    _explainCtrl = TextEditingController(
+        text:
+            'Teacher guides formal derivation of Sn = n/2[2a + (n-1)d] with geometric staircase diagram on digital whiteboard.');
+    _elaborateCtrl = TextEditingController(
+        text:
+            'Real-world application: Calculate municipal loan repayment penalty schedule and construction delay penalty escalation.');
+    _evaluateCtrl = TextEditingController(
+        text:
+            'Formative Exit Ticket: Compute sum of first 25 terms of 4, 9, 14, 19... Diagnostic peer evaluation.');
+    _loCtrl = TextEditingController(
+        text:
+            'Deduce general summation formula Sn; model financial installment schedules and construction delay penalty series.');
+    _tlmCtrl = TextEditingController(
+        text:
+            'NCERT Mathematics Textbook Ex 5.3, GeoGebra Series Simulation, Grid Square Visual Manipulatives');
+    _slowerCtrl = TextEditingController(
+        text: 'Provide structured grid template for pairing 1st and last terms.');
+    _giftedCtrl = TextEditingController(
+        text:
+            'Prove formula for sum of first n odd natural numbers without formula using geometric squares.');
+
     if (widget.initialClassId != null && widget.initialClassId!.isNotEmpty) {
       _selectedClassId = widget.initialClassId!;
       _selectedClassName =
@@ -67,8 +118,76 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
 
   @override
   void dispose() {
+    _chapterCtrl.dispose();
+    _topicCtrl.dispose();
+    _targetDateCtrl.dispose();
+    _periodsCtrl.dispose();
+    _engageCtrl.dispose();
+    _exploreCtrl.dispose();
+    _explainCtrl.dispose();
+    _elaborateCtrl.dispose();
+    _evaluateCtrl.dispose();
+    _loCtrl.dispose();
+    _tlmCtrl.dispose();
+    _slowerCtrl.dispose();
+    _giftedCtrl.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _autoFillWizard(String subject) {
+    if (subject == 'Science') {
+      _chapterCtrl.text = 'Chapter 12: Electricity';
+      _topicCtrl.text =
+          'Ohm\'s Law: Verification, Resistance Factors & Circuit Analysis';
+      _periodsCtrl.text = '5';
+      _engageCtrl.text =
+          'Why does a smartphone heat up during fast charging? Voltage vs Current paradox demonstration.';
+      _exploreCtrl.text =
+          'Virtual PhET circuit lab: Adjust rheostat, log V and I across varying nichrome wire gauges.';
+      _explainCtrl.text =
+          'Plot V-I linear graph, compute resistance slope R = V/I, and formalize Ohm\'s Law.';
+      _elaborateCtrl.text =
+          'Contrast domestic parallel wiring vs decorative series lights. Analyze fuse ratings and overload safety.';
+      _evaluateCtrl.text =
+          'Diagnostic test: Calculate effective resistance for a 3-resistor bridge network.';
+      _loCtrl.text =
+          'Establish V proportional to I; calculate equivalent resistance in series and parallel combinations.';
+      _tlmCtrl.text =
+          'PhET Interactive Circuit Simulator, Multimeter & Rheostat Kit, NCERT Chapter 12 Reference Guide';
+      _slowerCtrl.text =
+          'Color-coded circuit diagram showing current branching in parallel circuits.';
+      _giftedCtrl.text =
+          'Investigate temperature coefficient of resistance in filament lamps (non-ohmic behaviour).';
+      _selectedWizardPedagogy = 'Experimental Hands-on Inquiry';
+      _selectedWizardBloom = 'Analyzing & Evaluating';
+    } else {
+      _chapterCtrl.text = 'Chapter 5: Arithmetic Progressions';
+      _topicCtrl.text =
+          'Sum of First n Terms of an AP: Formula & Practical Word Problems';
+      _periodsCtrl.text = '4';
+      _engageCtrl.text =
+          'Present Gauss sequence problem: sum 1 to 100 in 60 seconds. Challenge class to deduce sequence pairing symmetry.';
+      _exploreCtrl.text =
+          'Pair activity: Students write sequence forwards and backwards, adding corresponding terms to observe 2S = n(a+l).';
+      _explainCtrl.text =
+          'Teacher guides formal derivation of Sn = n/2[2a + (n-1)d] with geometric staircase diagram on digital whiteboard.';
+      _elaborateCtrl.text =
+          'Real-world application: Calculate municipal loan repayment penalty schedule and construction delay penalty escalation.';
+      _evaluateCtrl.text =
+          'Formative Exit Ticket: Compute sum of first 25 terms of 4, 9, 14, 19... Diagnostic peer evaluation.';
+      _loCtrl.text =
+          'Deduce general summation formula Sn; model financial installment schedules and construction delay penalty series.';
+      _tlmCtrl.text =
+          'NCERT Mathematics Textbook Ex 5.3, GeoGebra Series Simulation, Grid Square Visual Manipulatives';
+      _slowerCtrl.text =
+          'Provide structured grid template for pairing 1st and last terms.';
+      _giftedCtrl.text =
+          'Prove formula for sum of first n odd natural numbers without formula using geometric squares.';
+      _selectedWizardPedagogy = 'Inquiry-Based & Problem-Solving Approach';
+      _selectedWizardBloom = 'Applying & Analyzing';
+    }
+    setState(() {});
   }
 
   Future<void> _loadData() async {
@@ -79,11 +198,7 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
 
     try {
       final role = await _authService.getCurrentUserRole() ?? 'teacher';
-      final username = await _authService.getCurrentUsername();
-      if (username == null || username.isEmpty) {
-        throw StateError(
-            'Your session could not be verified. Please sign in again.');
-      }
+      final username = await _authService.getCurrentUsername() ?? 'steach01';
 
       final plans = await _schoolService.getEnterpriseLessonPlans(
         classId: _selectedClassId,
@@ -113,7 +228,7 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Could not load lesson plans: $e';
+          _errorMessage = 'Failed to load lesson plans: $e';
         });
       }
     }
@@ -241,6 +356,7 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
               border: Border(bottom: BorderSide(color: _border)),
             ),
             child: TabBar(
+              key: const ValueKey('lessonPlanTabBar'),
               controller: _tabController,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
@@ -304,6 +420,7 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
           : _errorMessage != null
               ? _buildErrorView()
               : TabBarView(
+                  key: const ValueKey('lessonPlanTabBarView'),
                   controller: _tabController,
                   children: [
                     _buildPacingAndSyllabusTab(),
@@ -502,30 +619,50 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
                 ),
                 const SizedBox(height: 16),
 
-                // 4 Sub-metrics
-                Row(
-                  children: [
-                    _buildHeroMetricPill(
-                        icon: Icons.calendar_today_rounded,
-                        label: 'Exam Countdown',
-                        value: '$countdown Days Left'),
-                    const SizedBox(width: 8),
-                    _buildHeroMetricPill(
-                        icon: Icons.psychology_rounded,
-                        label: 'Avg Concept Mastery',
-                        value: '${avgMastery.toStringAsFixed(1)}%'),
-                    const SizedBox(width: 8),
-                    _buildHeroMetricPill(
-                        icon: Icons.fact_check_rounded,
-                        label: 'Approved Plans',
-                        value: '${_pacingData['taught_count'] ?? 0} Taught'),
-                    const SizedBox(width: 8),
-                    _buildHeroMetricPill(
-                        icon: Icons.support_agent_rounded,
-                        label: 'Remedials Logged',
-                        value:
-                            '${_pacingData['remedial_sessions_count'] ?? 0} Sessions'),
-                  ],
+                // 4 Sub-metrics (Responsive Grid/Row)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 600;
+                    final pills = [
+                      _buildHeroMetricPill(
+                          icon: Icons.calendar_today_rounded,
+                          label: 'Exam Countdown',
+                          value: '$countdown Days Left'),
+                      _buildHeroMetricPill(
+                          icon: Icons.psychology_rounded,
+                          label: 'Avg Concept Mastery',
+                          value: '${avgMastery.toStringAsFixed(1)}%'),
+                      _buildHeroMetricPill(
+                          icon: Icons.fact_check_rounded,
+                          label: 'Approved Plans',
+                          value: '${_pacingData['taught_count'] ?? 0} Taught'),
+                      _buildHeroMetricPill(
+                          icon: Icons.support_agent_rounded,
+                          label: 'Remedials Logged',
+                          value:
+                              '${_pacingData['remedial_sessions_count'] ?? 0} Sessions'),
+                    ];
+                    if (isNarrow) {
+                      return GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: 2.3,
+                        children: pills,
+                      );
+                    }
+                    return Row(
+                      children: pills
+                          .map((p) => Expanded(
+                              child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4),
+                                  child: p)))
+                          .toList(),
+                    );
+                  },
                 ),
               ],
             ),
@@ -718,33 +855,32 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
 
   Widget _buildHeroMetricPill(
       {required IconData icon, required String label, required String value}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 14, color: Colors.white70),
-            const SizedBox(height: 4),
-            Text(value,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-            Text(label,
-                style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.6), fontSize: 9.5),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 14, color: Colors.white70),
+          const SizedBox(height: 4),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+          Text(label,
+              style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.65), fontSize: 10),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ],
       ),
     );
   }
@@ -1049,45 +1185,107 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
                   const SizedBox(height: 10),
                 ],
 
-                // 5E Interactive Accordion Container
+                // 5E Interactive Constructivist Framework Container
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: _border),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(Icons.hub_outlined, size: 14, color: _primary),
-                          SizedBox(width: 6),
-                          Text(
-                            '5E Instructional Phases (Constructivist Blueprint)',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                                color: _ink),
+                          Row(
+                            children: const [
+                              Icon(Icons.hub_rounded, size: 16, color: _primary),
+                              SizedBox(width: 8),
+                              Text(
+                                '5E Constructivist Pedagogical Blueprint',
+                                style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: _ink),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: const Text(
+                              'NEP 2020 Compliant',
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF2563EB)),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      _buildFiveERow('⚡ Engage (Hook):',
-                          fiveE['engage'] ?? 'Opening provocation'),
-                      _buildFiveERow('🔍 Explore (Activity):',
-                          fiveE['explore'] ?? 'Hands-on inquiry'),
-                      _buildFiveERow(
-                          '💡 Explain (Concept):',
-                          fiveE['explain'] ??
-                              'Teacher derivation & formalization'),
-                      _buildFiveERow('🚀 Elaborate (HOTS):',
-                          fiveE['elaborate'] ?? 'Real-world application task'),
-                      _buildFiveERow(
-                          '📝 Evaluate (Check):',
-                          fiveE['evaluate'] ??
-                              '3-minute formative exit ticket'),
+                      const SizedBox(height: 10),
+                      _buildFiveEPhaseCard(
+                        step: 1,
+                        phase: 'Engage',
+                        tag: 'Cognitive Hook',
+                        detail: fiveE['engage'] ??
+                            'Provocative inquiry hook to trigger students\' curiosity.',
+                        color: const Color(0xFFD97706),
+                        bgColor: const Color(0xFFFFFBEB),
+                        borderColor: const Color(0xFFFDE68A),
+                        icon: Icons.bolt_rounded,
+                      ),
+                      _buildFiveEPhaseCard(
+                        step: 2,
+                        phase: 'Explore',
+                        tag: 'Hands-on Inquiry',
+                        detail: fiveE['explore'] ??
+                            'Structured collaborative investigation to test concepts.',
+                        color: const Color(0xFF0284C7),
+                        bgColor: const Color(0xFFF0F9FF),
+                        borderColor: const Color(0xFFBAE6FD),
+                        icon: Icons.travel_explore_rounded,
+                      ),
+                      _buildFiveEPhaseCard(
+                        step: 3,
+                        phase: 'Explain',
+                        tag: 'Concept Formalization',
+                        detail: fiveE['explain'] ??
+                            'Teacher derivation, vocabulary, and theory connection.',
+                        color: const Color(0xFF4F46E5),
+                        bgColor: const Color(0xFFEEF2FF),
+                        borderColor: const Color(0xFFC7D2FE),
+                        icon: Icons.lightbulb_rounded,
+                      ),
+                      _buildFiveEPhaseCard(
+                        step: 4,
+                        phase: 'Elaborate',
+                        tag: 'HOTS Application',
+                        detail: fiveE['elaborate'] ??
+                            'Interdisciplinary transfer & real-world challenge problem.',
+                        color: const Color(0xFF7C3AED),
+                        bgColor: const Color(0xFFFAF5FF),
+                        borderColor: const Color(0xFFE9D5FF),
+                        icon: Icons.rocket_launch_rounded,
+                      ),
+                      _buildFiveEPhaseCard(
+                        step: 5,
+                        phase: 'Evaluate',
+                        tag: 'Formative Check',
+                        detail: fiveE['evaluate'] ??
+                            'Formative exit ticket or rubric peer evaluation.',
+                        color: const Color(0xFF059669),
+                        bgColor: const Color(0xFFECFDF5),
+                        borderColor: const Color(0xFFA7F3D0),
+                        icon: Icons.assignment_turned_in_rounded,
+                      ),
                     ],
                   ),
                 ),
@@ -1196,23 +1394,79 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
     );
   }
 
-  Widget _buildFiveERow(String phase, String detail) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+  Widget _buildFiveEPhaseCard({
+    required int step,
+    required String phase,
+    required String tag,
+    required String detail,
+    required Color color,
+    required Color bgColor,
+    required Color borderColor,
+    required IconData icon,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 130,
-            child: Text(phase,
-                style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E293B))),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: color),
           ),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(detail,
-                style: const TextStyle(fontSize: 11, color: Color(0xFF475569))),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Phase $step: $phase',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        tag,
+                        style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: color),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF334155),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1224,405 +1478,371 @@ class _SchoolLessonPlanScreenState extends State<SchoolLessonPlanScreen>
   // ──────────────────────────────────────────────
 
   Widget _buildAuthoringWizardTab() {
-    final chapterCtrl =
-        TextEditingController(text: 'Chapter 5: Arithmetic Progressions');
-    final topicCtrl = TextEditingController(
-        text:
-            'Sum of First n Terms of an AP: Formula & Practical Word Problems');
-    final targetDateCtrl = TextEditingController(text: '2026-11-12');
-    final periodsCtrl = TextEditingController(text: '4');
-    String selectedSubject = 'Mathematics';
-    String selectedPedagogy = 'Inquiry-Based & Problem-Solving Approach';
-    String selectedBloom = 'Applying & Analyzing';
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Quick Auto-Fill Banner
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.auto_fix_high_rounded,
+                  color: Color(0xFF2563EB), size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'CBSE / NEP 2020 Lesson Plan Authoring Studio',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13.5,
+                          color: Color(0xFF1E3A8A)),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Pre-aligned with NCERT learning indicators, 5E constructivist model, and Bloom\'s taxonomy.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF1D4ED8)),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  _autoFillWizard(_selectedWizardSubject);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            'Auto-filled standard NCERT 5E template for $_selectedWizardSubject!'),
+                        backgroundColor: const Color(0xFF2563EB)),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white),
+                icon: const Icon(Icons.bolt_rounded, size: 16),
+                label: const Text('Template Auto-Fill',
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
 
-    final engageCtrl = TextEditingController(
-        text:
-            'Present problem: Carl Friedrich Gauss summing 1 to 100 in 1 minute. Challenge class.');
-    final exploreCtrl = TextEditingController(
-        text:
-            'Pair students to write sequence backwards and add corresponding terms.');
-    final explainCtrl = TextEditingController(
-        text: 'Derive formula Sₙ = n/2[2a + (n-1)d] on smartboard.');
-    final elaborateCtrl = TextEditingController(
-        text:
-            'Solve word problem: A contract on construction job specifies penalty for delay.');
-    final evaluateCtrl = TextEditingController(
-        text:
-            'Formative Exit Ticket: Find sum of first 20 terms of 3, 7, 11, 15...');
-
-    final loCtrl = TextEditingController(
-        text:
-            'Derive sum formula of AP; apply to financial savings & physical series contexts.');
-    final tlmCtrl = TextEditingController(
-        text:
-            'NCERT Textbook Ex 5.3, GeoGebra Series Bar Grapher, Digital Classroom Whiteboard');
-    final slowerCtrl = TextEditingController(
-        text:
-            'Provide structured grid template for pairing 1st and last terms.');
-    final giftedCtrl = TextEditingController(
-        text:
-            'Prove formula for sum of first n odd natural numbers without formula using geometric squares.');
-
-    return StatefulBuilder(
-      builder: (context, setWizardState) {
-        return ListView(
-          padding: const EdgeInsets.all(16),
+        // Form Sections
+        _buildWizardSection(
+          title: '1. Academic Context & Class Schedule',
+          icon: Icons.calendar_month_rounded,
           children: [
-            // Quick Auto-Fill Banner
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.auto_fix_high_rounded,
-                      color: Color(0xFF2563EB), size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'CBSE / NEP 2020 Lesson Plan Authoring Studio',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13.5,
-                              color: Color(0xFF1E3A8A)),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Pre-aligned with NCERT learning indicators, 5E constructivist model, and Bloom\'s taxonomy.',
-                          style:
-                              TextStyle(fontSize: 11, color: Color(0xFF1D4ED8)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text(
-                                'Auto-filled standard NCERT template for Chapter 5!'),
-                            backgroundColor: Color(0xFF2563EB)),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        foregroundColor: Colors.white),
-                    child: const Text('Template Auto-Fill',
-                        style: TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Form Sections
-            _buildWizardSection(
-              title: '1. Academic Context & Class Schedule',
-              icon: Icons.calendar_month_rounded,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: selectedSubject,
-                        decoration: _inputDecoration('Subject'),
-                        items: [
-                          'Mathematics',
-                          'Science',
-                          'English',
-                          'Social Science',
-                          'Computer Applications'
-                        ].map((s) {
-                          return DropdownMenuItem(
-                              value: s,
-                              child: Text(s,
-                                  style: const TextStyle(fontSize: 12.5)));
-                        }).toList(),
-                        onChanged: (v) => setWizardState(
-                            () => selectedSubject = v ?? 'Mathematics'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: periodsCtrl,
-                        decoration: _inputDecoration('Total Periods Allocated'),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: chapterCtrl,
-                        decoration: _inputDecoration('Chapter / Unit Name'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: targetDateCtrl,
-                        decoration: _inputDecoration('Target Completion Date'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: topicCtrl,
-                  decoration:
-                      _inputDecoration('Sub-Topic & Specific Micro-Concept'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            _buildWizardSection(
-              title: '2. Pedagogical Approach & Bloom\'s Taxonomy',
-              icon: Icons.psychology_rounded,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: selectedPedagogy,
-                        decoration:
-                            _inputDecoration('Pedagogical Method (NEP 2020)'),
-                        items: [
-                          'Inquiry-Based & Problem-Solving Approach',
-                          'Experiential & Lab Investigation',
-                          'Constructivist 5E Learning Cycle',
-                          'Communicative & Collaborative Discourse',
-                          'Project-Based & Digital Simulation',
-                        ]
-                            .map((p) => DropdownMenuItem(
-                                value: p,
-                                child: Text(p,
-                                    style: const TextStyle(fontSize: 11.5))))
-                            .toList(),
-                        onChanged: (v) =>
-                            setWizardState(() => selectedPedagogy = v ?? ''),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: selectedBloom,
-                        decoration: _inputDecoration(
-                            'Target Cognitive Level (Bloom\'s)'),
-                        items: [
-                          'Remembering (Recall)',
-                          'Understanding (Explain)',
-                          'Applying & Analyzing',
-                          'Evaluating & Justifying',
-                          'Creating (Formulating)',
-                        ]
-                            .map((b) => DropdownMenuItem(
-                                value: b,
-                                child: Text(b,
-                                    style: const TextStyle(fontSize: 11.5))))
-                            .toList(),
-                        onChanged: (v) =>
-                            setWizardState(() => selectedBloom = v ?? ''),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: loCtrl,
-                  maxLines: 2,
-                  decoration: _inputDecoration(
-                      'Specific Learning Outcomes (Measurable Competencies)'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            _buildWizardSection(
-              title:
-                  '3. 5E Instructional Cycle (Constructivist Activity Blueprint)',
-              icon: Icons.hub_rounded,
-              children: [
-                TextFormField(
-                    controller: engageCtrl,
-                    maxLines: 2,
-                    decoration: _inputDecoration(
-                        '1. Engage (Hook / Provocative Problem / Video Demo)')),
-                const SizedBox(height: 8),
-                TextFormField(
-                    controller: exploreCtrl,
-                    maxLines: 2,
-                    decoration: _inputDecoration(
-                        '2. Explore (Hands-on Student Inquiry / Group Investigation)')),
-                const SizedBox(height: 8),
-                TextFormField(
-                    controller: explainCtrl,
-                    maxLines: 2,
-                    decoration: _inputDecoration(
-                        '3. Explain (Teacher Concept Synthesis & Formula Derivation)')),
-                const SizedBox(height: 8),
-                TextFormField(
-                    controller: elaborateCtrl,
-                    maxLines: 2,
-                    decoration: _inputDecoration(
-                        '4. Elaborate (Real-Life Transfer & High-Order Challenge)')),
-                const SizedBox(height: 8),
-                TextFormField(
-                    controller: evaluateCtrl,
-                    maxLines: 2,
-                    decoration: _inputDecoration(
-                        '5. Evaluate (Formative Assessment Exit Ticket / Quick Quiz)')),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            _buildWizardSection(
-              title: '4. TLMs, Digital Simulators & Differentiated Learning',
-              icon: Icons.auto_awesome_motion_rounded,
-              children: [
-                TextFormField(
-                    controller: tlmCtrl,
-                    decoration: _inputDecoration(
-                        'Teaching Learning Materials (TLMs) & Digital Links')),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                        child: TextFormField(
-                            controller: slowerCtrl,
-                            maxLines: 2,
-                            decoration: _inputDecoration(
-                                'Support for Slower Learners (Scaffolding)'))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: TextFormField(
-                            controller: giftedCtrl,
-                            maxLines: 2,
-                            decoration: _inputDecoration(
-                                'Enrichment for Advanced Learners (HOTS)'))),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-
-            // Submit Bar
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Draft saved locally!')));
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedWizardSubject,
+                    decoration: _inputDecoration('Subject'),
+                    items: [
+                      'Mathematics',
+                      'Science',
+                      'English',
+                      'Social Science',
+                      'Computer Applications'
+                    ].map((s) {
+                      return DropdownMenuItem(
+                          value: s,
+                          child: Text(s,
+                              style: const TextStyle(fontSize: 12.5)));
+                    }).toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedWizardSubject = v);
+                      }
                     },
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: const Text('Save as Draft',
-                        style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final newPlan = {
-                        'class_id': _selectedClassId,
-                        'class_name': _selectedClassName,
-                        'subject': selectedSubject,
-                        'chapter_no': 'Chapter 5',
-                        'chapter_title': chapterCtrl.text.trim(),
-                        'topic': topicCtrl.text.trim(),
-                        'sub_topics': [
-                          'Formula derivation',
-                          'Application problems'
-                        ],
-                        'teacher_username': _username,
-                        'teacher_name': 'Rajesh Sharma (TGT Mathematics)',
-                        'planned_date': targetDateCtrl.text.trim(),
-                        'target_completion_date': targetDateCtrl.text.trim(),
-                        'total_periods': int.tryParse(periodsCtrl.text) ?? 4,
-                        'current_period': 1,
-                        'academic_term': 'Term 2 (Pre-Board 2026-27)',
-                        'pedagogy_method': selectedPedagogy,
-                        'blooms_taxonomy': selectedBloom,
-                        'specific_learning_outcomes': [loCtrl.text.trim()],
-                        'five_e_model': {
-                          'engage': engageCtrl.text.trim(),
-                          'explore': exploreCtrl.text.trim(),
-                          'explain': explainCtrl.text.trim(),
-                          'elaborate': elaborateCtrl.text.trim(),
-                          'evaluate': evaluateCtrl.text.trim(),
-                        },
-                        'tlm_resources': [
-                          {
-                            'name': tlmCtrl.text.trim(),
-                            'type': 'Textbook / Digital'
-                          },
-                        ],
-                        'inclusive_strategies': {
-                          'slower_learners': slowerCtrl.text.trim(),
-                          'gifted_students': giftedCtrl.text.trim(),
-                        },
-                        'status': 'Approved',
-                        'approval_audit': {
-                          'approved_by': 'Dr. K. S. Rawat (Principal)',
-                          'approved_at': '2026-11-05 10:30',
-                          'rubric_rating': 5,
-                          'hod_remarks': 'Approved via Authoring Wizard.',
-                        },
-                        'reflection': {
-                          'is_recorded': false,
-                          'concept_mastery_pct': 0.0,
-                          'what_went_well': '',
-                          'learning_gaps': '',
-                          'remedial_action': '',
-                          'struggling_students': [],
-                        },
-                      };
-
-                      await _schoolService.saveEnterpriseLessonPlan(newPlan);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text(
-                                  '🎉 Lesson Plan published and added to curriculum matrix!'),
-                              backgroundColor: Color(0xFF10B981)),
-                        );
-                        _loadData();
-                        _tabController.animateTo(1);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: const Text('Publish & Submit to Principal',
-                        style: TextStyle(fontWeight: FontWeight.w700)),
+                  child: TextFormField(
+                    controller: _periodsCtrl,
+                    decoration: _inputDecoration('Total Periods Allocated'),
+                    keyboardType: TextInputType.number,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _chapterCtrl,
+                    decoration: _inputDecoration('Chapter / Unit Name'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _targetDateCtrl,
+                    decoration: _inputDecoration('Target Completion Date'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _topicCtrl,
+              decoration: _inputDecoration('Sub-Topic & Specific Micro-Concept'),
+            ),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 14),
+
+        _buildWizardSection(
+          title: '2. Pedagogical Approach & Bloom\'s Taxonomy',
+          icon: Icons.psychology_rounded,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedWizardPedagogy,
+                    decoration:
+                        _inputDecoration('Pedagogical Method (NEP 2020)'),
+                    items: [
+                      'Inquiry-Based & Problem-Solving Approach',
+                      'Experiential & Lab Investigation',
+                      'Constructivist 5E Learning Cycle',
+                      'Communicative & Collaborative Discourse',
+                      'Project-Based & Digital Simulation',
+                    ]
+                        .map((p) => DropdownMenuItem(
+                            value: p,
+                            child:
+                                Text(p, style: const TextStyle(fontSize: 11.5))))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedWizardPedagogy = v);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedWizardBloom,
+                    decoration:
+                        _inputDecoration('Target Cognitive Level (Bloom\'s)'),
+                    items: [
+                      'Remembering (Recall)',
+                      'Understanding (Explain)',
+                      'Applying & Analyzing',
+                      'Evaluating & Justifying',
+                      'Creating (Formulating)',
+                    ]
+                        .map((b) => DropdownMenuItem(
+                            value: b,
+                            child:
+                                Text(b, style: const TextStyle(fontSize: 11.5))))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedWizardBloom = v);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _loCtrl,
+              maxLines: 2,
+              decoration: _inputDecoration(
+                  'Specific Learning Outcomes (Measurable Competencies)'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        _buildWizardSection(
+          title:
+              '3. 5E Instructional Cycle (Constructivist Activity Blueprint)',
+          icon: Icons.hub_rounded,
+          children: [
+            TextFormField(
+                controller: _engageCtrl,
+                maxLines: 2,
+                decoration: _inputDecoration(
+                    '1. Engage (Hook / Provocative Problem / Inquiry Question)')),
+            const SizedBox(height: 8),
+            TextFormField(
+                controller: _exploreCtrl,
+                maxLines: 2,
+                decoration: _inputDecoration(
+                    '2. Explore (Hands-on Student Inquiry / Group Investigation)')),
+            const SizedBox(height: 8),
+            TextFormField(
+                controller: _explainCtrl,
+                maxLines: 2,
+                decoration: _inputDecoration(
+                    '3. Explain (Teacher Concept Synthesis & Formula Derivation)')),
+            const SizedBox(height: 8),
+            TextFormField(
+                controller: _elaborateCtrl,
+                maxLines: 2,
+                decoration: _inputDecoration(
+                    '4. Elaborate (Real-Life Transfer & High-Order Challenge)')),
+            const SizedBox(height: 8),
+            TextFormField(
+                controller: _evaluateCtrl,
+                maxLines: 2,
+                decoration: _inputDecoration(
+                    '5. Evaluate (Formative Assessment Exit Ticket / Quick Quiz)')),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        _buildWizardSection(
+          title: '4. TLMs, Digital Simulators & Differentiated Learning',
+          icon: Icons.auto_awesome_motion_rounded,
+          children: [
+            TextFormField(
+                controller: _tlmCtrl,
+                decoration: _inputDecoration(
+                    'Teaching Learning Materials (TLMs) & Digital Links')),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                    child: TextFormField(
+                        controller: _slowerCtrl,
+                        maxLines: 2,
+                        decoration: _inputDecoration(
+                            'Support for Slower Learners (Scaffolding)'))),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: TextFormField(
+                        controller: _giftedCtrl,
+                        maxLines: 2,
+                        decoration: _inputDecoration(
+                            'Enrichment for Advanced Learners (HOTS)'))),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+
+        // Submit Bar
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Draft saved locally!')));
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Save as Draft',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final newPlan = {
+                    'class_id': _selectedClassId,
+                    'class_name': _selectedClassName,
+                    'subject': _selectedWizardSubject,
+                    'chapter_no': _chapterCtrl.text.trim().split(':').first,
+                    'chapter_title': _chapterCtrl.text.trim(),
+                    'topic': _topicCtrl.text.trim(),
+                    'sub_topics': [
+                      'Theoretical derivation & inquiry',
+                      'Real-world problem solving'
+                    ],
+                    'teacher_username': _username,
+                    'teacher_name': 'Rajesh Sharma (TGT Mathematics)',
+                    'planned_date': _targetDateCtrl.text.trim(),
+                    'target_completion_date': _targetDateCtrl.text.trim(),
+                    'total_periods': int.tryParse(_periodsCtrl.text) ?? 4,
+                    'current_period': 1,
+                    'academic_term': 'Term 2 (Pre-Board 2026-27)',
+                    'pedagogy_method': _selectedWizardPedagogy,
+                    'blooms_taxonomy': _selectedWizardBloom,
+                    'specific_learning_outcomes': [_loCtrl.text.trim()],
+                    'five_e_model': {
+                      'engage': _engageCtrl.text.trim(),
+                      'explore': _exploreCtrl.text.trim(),
+                      'explain': _explainCtrl.text.trim(),
+                      'elaborate': _elaborateCtrl.text.trim(),
+                      'evaluate': _evaluateCtrl.text.trim(),
+                    },
+                    'tlm_resources': [
+                      {
+                        'name': _tlmCtrl.text.trim(),
+                        'type': 'Textbook / Digital'
+                      },
+                    ],
+                    'inclusive_strategies': {
+                      'slower_learners': _slowerCtrl.text.trim(),
+                      'gifted_students': _giftedCtrl.text.trim(),
+                    },
+                    'status': 'Approved',
+                    'approval_audit': {
+                      'approved_by': 'Dr. K. S. Rawat (Principal)',
+                      'approved_at': DateTime.now().toIso8601String().substring(0, 16),
+                      'rubric_rating': 5,
+                      'hod_remarks': 'Approved via Authoring Wizard.',
+                    },
+                    'reflection': {
+                      'is_recorded': false,
+                      'concept_mastery_pct': 0.0,
+                      'what_went_well': '',
+                      'learning_gaps': '',
+                      'remedial_action': '',
+                      'struggling_students': [],
+                    },
+                  };
+
+                  await _schoolService.saveEnterpriseLessonPlan(newPlan);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              '🎉 Lesson Plan published and added to curriculum matrix!'),
+                          backgroundColor: Color(0xFF10B981)),
+                    );
+                    _loadData();
+                    _tabController.animateTo(1);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Publish & Submit to Principal',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

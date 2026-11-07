@@ -735,6 +735,9 @@ CREATE INDEX IF NOT EXISTS idx_school_exam_rooms_institute
 ALTER TABLE IF EXISTS public.school_exam_rooms DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.school_exam_rooms TO anon, authenticated, service_role;
 
+-- 18. Ensure school_homework has graded column if queried directly
+ALTER TABLE IF EXISTS public.school_homework ADD COLUMN IF NOT EXISTS graded BOOLEAN NOT NULL DEFAULT FALSE;
+
 SELECT 'School ERP runtime tables successfully created and verified!' AS status;
 
 
