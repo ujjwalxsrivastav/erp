@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
 
@@ -209,6 +210,11 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
         ],
       ),
       actions: [
+        IconButton(
+          tooltip: 'Open public admission form',
+          icon: const Icon(Icons.open_in_new_rounded, size: 20),
+          onPressed: () => context.push('/admissions/school-apply'),
+        ),
         IconButton(
           tooltip: 'Refresh Admissions',
           icon: const Icon(Icons.refresh_rounded, size: 20),
@@ -527,7 +533,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Applying for: ${a['grade_applying']} • Stream: ${a['stream'] ?? "General"} • DOB: ${a['dob']} (${a['gender'] ?? "N/A"})',
+                        'Applying for: ${a['grade_applying']} • Stream: ${a['stream'] ?? "General"} • DOB: ${(a['dob'] ?? '').toString().isNotEmpty ? a['dob'] : "N/A"} (${(a['gender'] ?? '').toString().isNotEmpty ? a['gender'] : "N/A"})',
                         style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                       ),
                       const SizedBox(height: 4),
@@ -543,6 +549,8 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                           _buildMiniInfo(Icons.history_edu_rounded, 'Prev: ${a['previous_school'] ?? "Not Specified"} (${a['previous_grade'] ?? "N/A"})'),
                           _buildMiniInfo(Icons.directions_bus_rounded, a['transport_required'] == true ? 'Transport: ${a['transport_stop']}' : 'Self Transport'),
                           _buildMiniInfo(Icons.verified_user_outlined, 'KYC: $docStatus', color: docStatus == 'Verified' ? const Color(0xFF059669) : const Color(0xFFD97706)),
+                          if ((a['referral'] ?? '').toString().isNotEmpty)
+                            _buildMiniInfo(Icons.share_rounded, 'Referral: ${a['referral']}', color: const Color(0xFF7C3AED)),
                           if ((a['test_score'] as num?) != null && (a['test_score'] as num) > 0)
                             _buildMiniInfo(Icons.grade_rounded, 'Test: ${a['test_score']}/50 Score', color: const Color(0xFF2563EB)),
                         ],

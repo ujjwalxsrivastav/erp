@@ -8498,64 +8498,78 @@ class SchoolService {
   Future<List<Map<String, dynamic>>> getAdmissions(
       {String? status, String? grade}) async {
     try {
-      var query = _supabase.from('school_admissions').select();
-      if (status != null && status != 'all') {
-        final dbStatus = (status == 'Approved' || status == 'Enrolled')
-            ? 'approved'
-            : (status == 'Rejected' ? 'rejected' : 'pending');
-        query = query.eq('status', dbStatus);
-      }
-      final response = await query.order('created_at', ascending: false);
+      final response = await _supabase
+          .from('school_admissions')
+          .select()
+          .order('created_at', ascending: false);
       final list = List<Map<String, dynamic>>.from(response);
-      if (list.isNotEmpty) {
-        for (final remote in list) {
-          final rid = remote['id']?.toString() ?? '';
-          final localIdx = _admissionsStore.indexWhere((l) => l['id'] == rid);
-          if (localIdx >= 0) {
-            _admissionsStore[localIdx] = {
-              ..._admissionsStore[localIdx],
-              ...remote
-            };
-          } else {
-            _admissionsStore.add({
-              'id': rid,
-              'application_no':
-                  'SIS/2026/${rid.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}',
-              'applicant_name': remote['student_name'] ??
-                  remote['applicant_name'] ??
-                  'Applicant',
-              'grade_applying': remote['class_applying'] ??
-                  remote['grade_applying'] ??
-                  'Class 1',
-              'stream': 'General',
-              'parent_name': remote['parent_name'] ?? 'Parent',
-              'parent_phone': remote['phone'] ?? remote['parent_phone'] ?? '',
-              'email': remote['email'] ?? '',
-              'dob': remote['dob'] ?? '2016-05-12',
-              'status': (remote['status'] == 'approved'
-                  ? 'Approved'
-                  : (remote['status'] == 'rejected'
-                      ? 'Rejected'
-                      : 'Under Review')),
-              'doc_status': remote['doc_status'] ?? 'Verified',
-              'documents': {
-                'birth_cert': true,
-                'student_aadhaar': true,
-                'parent_aadhaar': true,
-                'transfer_cert': true,
-                'previous_report_card': true,
-                'medical_fitness': true,
-                'rte_income_cert': false,
-              },
-              'test_status': 'Scheduled',
-              'test_score': 40,
-              'fee_demanded': 30000.0,
-              'fee_paid': 0.0,
-              'date': (remote['created_at'] != null)
-                  ? remote['created_at'].toString().substring(0, 10)
-                  : DateTime.now().toIso8601String().substring(0, 10),
-            });
-          }
+      for (final remote in list) {
+        final rid = remote['id']?.toString() ?? '';
+        if (rid.isEmpty) continue;
+
+        final dbStatus =
+            (remote['status'] ?? 'pending').toString().toLowerCase();
+        final displayStatus = dbStatus == 'approved'
+            ? 'Approved'
+            : (dbStatus == 'rejected' ? 'Rejected' : 'Under Review');
+
+        final mapped = <String, dynamic>{
+          'id': rid,
+          'application_no':
+              (remote['application_no']?.toString() ?? '').isNotEmpty
+                  ? remote['application_no']
+                  : 'SIS/2026/${rid.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}',
+          'applicant_name': remote['student_name'] ??
+              remote['applicant_name'] ??
+              'Applicant',
+          'grade_applying': remote['class_applying'] ??
+              remote['grade_applying'] ??
+              'Class 1',
+          'stream': remote['stream'] ?? 'General',
+          'parent_name': remote['parent_name'] ?? 'Parent',
+          'parent_phone': remote['phone'] ?? remote['parent_phone'] ?? '',
+          'email': remote['email'] ?? '',
+          'dob': remote['dob'] ?? '',
+          'gender': remote['gender'] ?? '',
+          'address': remote['address'] ?? '',
+          'referral': remote['referral'] ?? '',
+          'referred_by': remote['referral'] ?? '',
+          'previous_school': remote['previous_school'] ?? '',
+          'source': remote['source'] ?? '',
+          'status': displayStatus,
+          'doc_status': remote['doc_status'] ?? 'Pending',
+          'date': (remote['created_at'] != null)
+              ? remote['created_at'].toString().substring(0, 10)
+              : DateTime.now().toIso8601String().substring(0, 10),
+        };
+
+        final localIdx =
+            _admissionsStore.indexWhere((l) => l['id']?.toString() == rid);
+        if (localIdx >= 0) {
+          // The local copy holds workflow state created in this session
+          // (documents, test score, offer letter, fees); refresh the base
+          // details from the DB row but keep the richer local values.
+          _admissionsStore[localIdx] = {
+            ...mapped,
+            ..._admissionsStore[localIdx],
+          };
+        } else {
+          _admissionsStore.add({
+            ...mapped,
+            'documents': {
+              'birth_cert': false,
+              'student_aadhaar': false,
+              'parent_aadhaar': false,
+              'transfer_cert': false,
+              'previous_report_card': false,
+              'medical_fitness': false,
+              'rte_income_cert': false,
+            },
+            'test_status': 'Pending',
+            'test_score': 0,
+            'fee_demanded': 0.0,
+            'fee_paid': 0.0,
+          });
         }
       }
     } catch (_) {}
@@ -8599,16 +8613,28 @@ class SchoolService {
   }
 
   Future<bool> submitAdmission(Map<String, dynamic> data) async {
-    final studentName = data['applicant_name'] ?? data['student_name'] ?? '';
-    final parentName = data['parent_name'] ?? '';
-    final phone = data['parent_phone'] ?? data['phone'] ?? '';
-    final email = data['email'] ?? '';
+    final studentName =
+        (data['applicant_name'] ?? data['student_name'] ?? '').toString().trim();
+    final parentName = (data['parent_name'] ?? '').toString().trim();
+    final phone =
+        (data['parent_phone'] ?? data['phone'] ?? '').toString().trim();
+    final email = (data['email'] ?? '').toString().trim();
     final classApplying =
-        data['grade_applying'] ?? data['class_applying'] ?? 'Class 1';
-    final id = data['id'] ??
-        'ADM-2026-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
-    final appNo = data['application_no'] ??
-        'SIS/2026/${id.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}';
+        (data['grade_applying'] ?? data['class_applying'] ?? 'Class 1')
+            .toString();
+    final referral =
+        (data['referral'] ?? data['referred_by'] ?? '').toString().trim();
+    final dob = (data['dob'] ?? '').toString();
+    final gender = (data['gender'] ?? '').toString();
+    final address = (data['address'] ?? '').toString();
+    final previousSchool = (data['previous_school'] ?? '').toString();
+    final source =
+        (data['source'] ?? 'public_form').toString();
+    final id = data['id']?.toString() ??
+        'ADM-2026-${DateTime.now().millisecondsSinceEpoch}';
+    final appNo = (data['application_no']?.toString() ?? '').isNotEmpty
+        ? data['application_no'].toString()
+        : 'SIS/2026/${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
     final normalized = {
       ...data,
@@ -8619,28 +8645,32 @@ class SchoolService {
       'grade_applying': classApplying,
       'parent_phone': phone,
       'email': email,
-      'dob': data['dob'] ?? '2016-05-12',
-      'gender': data['gender'] ?? 'Male',
-      'blood_group': data['blood_group'] ?? 'B+',
+      'dob': dob,
+      'gender': gender,
+      'address': address,
+      'referral': referral,
+      'referred_by': referral,
+      'source': source,
+      'blood_group': data['blood_group'] ?? '',
       'category': data['category'] ?? 'General',
       'aadhaar_no': data['aadhaar_no'] ?? '',
-      'stream': data['stream'] ?? 'N/A',
+      'stream': data['stream'] ?? 'General',
       'second_language': data['second_language'] ?? 'Hindi',
       'transport_required': data['transport_required'] ?? false,
       'transport_stop': data['transport_stop'] ?? 'School Gate',
-      'previous_school': data['previous_school'] ?? '',
+      'previous_school': previousSchool,
       'previous_board': data['previous_board'] ?? 'CBSE',
       'previous_grade': data['previous_grade'] ?? '',
       'status': data['status'] ?? 'Under Review',
       'doc_status': data['doc_status'] ?? 'Pending',
       'documents': data['documents'] ??
           {
-            'birth_cert': true,
-            'student_aadhaar': true,
-            'parent_aadhaar': true,
+            'birth_cert': false,
+            'student_aadhaar': false,
+            'parent_aadhaar': false,
             'transfer_cert': false,
-            'previous_report_card': true,
-            'medical_fitness': true,
+            'previous_report_card': false,
+            'medical_fitness': false,
             'rte_income_cert': false,
           },
       'test_status': data['test_status'] ?? 'Pending',
@@ -8652,25 +8682,67 @@ class SchoolService {
       'date': DateTime.now().toIso8601String().substring(0, 10),
     };
 
-    final idx = _admissionsStore.indexWhere((a) => a['id'] == id);
+    // Persist first so the admin Admissions Pipeline sees every submission —
+    // including ones made anonymously from the public form.
+    Map<String, dynamic>? savedRow;
+    var saved = false;
+    final fullPayload = <String, dynamic>{
+      'institute_code': 'SHIV-SCH',
+      'student_name': studentName,
+      'parent_name': parentName,
+      'phone': phone,
+      'email': email.isNotEmpty ? email : null,
+      'class_applying': classApplying,
+      'status': 'pending',
+      'application_no': appNo,
+      'source': source,
+      if (dob.isNotEmpty) 'dob': dob,
+      if (gender.isNotEmpty) 'gender': gender,
+      if (address.isNotEmpty) 'address': address,
+      if (previousSchool.isNotEmpty) 'previous_school': previousSchool,
+      if (referral.isNotEmpty) 'referral': referral,
+    };
+    try {
+      final resp = await _supabase
+          .from('school_admissions')
+          .insert(fullPayload)
+          .select()
+          .maybeSingle();
+      if (resp != null) savedRow = Map<String, dynamic>.from(resp);
+      saved = true;
+    } catch (_) {
+      // Older database without database/school_admissions_public_form.sql:
+      // retry with just the original columns so the application is not lost.
+      try {
+        final resp = await _supabase.from('school_admissions').insert({
+          'institute_code': 'SHIV-SCH',
+          'student_name': studentName,
+          'parent_name': parentName,
+          'phone': phone,
+          'email': email.isNotEmpty ? email : null,
+          'class_applying': classApplying,
+          'status': 'pending',
+        }).select().maybeSingle();
+        if (resp != null) savedRow = Map<String, dynamic>.from(resp);
+        saved = true;
+      } catch (_) {
+        saved = false;
+      }
+    }
+
+    // Keep the in-memory copy keyed by the real database id when available so
+    // a later getAdmissions() merges instead of duplicating the application.
+    final rowId = savedRow?['id']?.toString() ?? id;
+    normalized['id'] = rowId;
+    final idx =
+        _admissionsStore.indexWhere((a) => a['id']?.toString() == rowId);
     if (idx >= 0) {
-      _admissionsStore[idx] = normalized;
+      _admissionsStore[idx] = {..._admissionsStore[idx], ...normalized};
     } else {
       _admissionsStore.insert(0, normalized);
     }
 
-    try {
-      await _supabase.from('school_admissions').insert({
-        'institute_code': 'SHIV-SCH',
-        'student_name': studentName,
-        'parent_name': parentName,
-        'phone': phone,
-        'email': email.isNotEmpty ? email : null,
-        'class_applying': classApplying,
-        'status': 'pending',
-      });
-    } catch (_) {}
-    return true;
+    return saved;
   }
 
   Future<bool> updateAdmissionStatus(

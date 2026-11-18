@@ -203,6 +203,15 @@ CREATE TABLE IF NOT EXISTS school_admissions (
     email TEXT,
     class_applying TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    -- Public admission form details (database/school_admissions_public_form.sql)
+    application_no TEXT,
+    dob TEXT,
+    gender TEXT,
+    address TEXT,
+    previous_school TEXT,
+    referral TEXT,
+    source TEXT DEFAULT 'public_form',
+    updated_at TIMESTAMPTZ DEFAULT now(),
     created_at TIMESTAMPTZ DEFAULT now()
 );
 

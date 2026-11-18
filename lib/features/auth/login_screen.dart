@@ -263,6 +263,39 @@ class _LoginScreenState extends State<LoginScreen>
                 icon: Icons.login_rounded,
                 isLoading: _isLoading,
               ),
+              const SizedBox(height: AppTheme.lg),
+              Row(
+                children: [
+                  const Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'Admissions open',
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppTheme.mediumGray,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: AppTheme.md),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/admissions/school-apply'),
+                icon: const Icon(Icons.assignment_ind_outlined, size: 18),
+                label: const Text('Fill the admission form'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                  foregroundColor: AppTheme.studentPrimary,
+                  side: BorderSide(
+                    color: AppTheme.studentPrimary.withValues(alpha: .45),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

@@ -107,6 +107,7 @@ import '../features/school/circulars/circulars_screen.dart';
 import '../features/school/transport/transport_screen.dart';
 import '../features/school/fee/school_fee_screen.dart';
 import '../features/school/admissions/admissions_screen.dart';
+import '../features/school/admissions/school_admission_application_screen.dart';
 import '../features/school/reports/school_reports_screen.dart';
 import '../features/school/library/school_library_screen.dart';
 import '../features/school/certificates/school_certificates_screen.dart';
@@ -877,6 +878,12 @@ final router = GoRouter(
     // ============================================================================
     // ADMISSION FLOW ROUTES
     // ============================================================================
+    // Public school admission form — intentionally NOT under /school so it is
+    // reachable without signing in.
+    GoRoute(
+      path: '/admissions/school-apply',
+      builder: (context, state) => const SchoolAdmissionApplicationScreen(),
+    ),
     GoRoute(
       path: '/leads/capture-form',
       builder: (context, state) => const LeadCaptureFormScreen(),
