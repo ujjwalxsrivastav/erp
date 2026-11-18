@@ -8511,11 +8511,17 @@ class SchoolService {
             (remote['status'] ?? 'pending').toString().toLowerCase();
         final statusDetail =
             (remote['status_detail'] ?? '').toString().trim();
+        final remoteDocStatus =
+            (remote['doc_status'] ?? 'Pending').toString();
         final displayStatus = statusDetail.isNotEmpty
             ? statusDetail
             : (dbStatus == 'approved'
                 ? 'Approved'
-                : (dbStatus == 'rejected' ? 'Rejected' : 'Under Review'));
+                : (dbStatus == 'rejected'
+                    ? 'Rejected'
+                    : (remoteDocStatus.toLowerCase() == 'verified'
+                        ? 'Documents Verified'
+                        : 'Under Review')));
 
         final mapped = <String, dynamic>{
           'id': rid,
@@ -8546,7 +8552,7 @@ class SchoolService {
           'source': remote['source'] ?? '',
           'status': displayStatus,
           'status_detail': statusDetail.isNotEmpty ? statusDetail : displayStatus,
-          'doc_status': remote['doc_status'] ?? 'Pending',
+          'doc_status': remoteDocStatus,
           'test_score': (remote['test_score'] as num?)?.toInt() ?? 0,
           'test_status':
               ((remote['test_score'] as num?)?.toInt() ?? 0) > 0
@@ -8569,6 +8575,18 @@ class SchoolService {
         if (remote['documents'] is Map) {
           mapped['documents'] =
               Map<String, dynamic>.from(remote['documents'] as Map);
+        }
+
+        // Enrolment outcome columns are newer than some installs; keep the
+        // locally generated values when the database cannot return them.
+        for (final key in const [
+          'admission_no',
+          'student_username',
+          'enrolled_class',
+          'enrolled_at',
+        ]) {
+          final value = remote[key]?.toString() ?? '';
+          if (value.isNotEmpty) mapped[key] = value;
         }
 
         final localIdx =
@@ -8727,6 +8745,13 @@ class SchoolService {
       if (previousSchool.isNotEmpty) 'previous_school': previousSchool,
       if (referral.isNotEmpty) 'referral': referral,
       if (data['documents'] is Map) 'documents': data['documents'],
+      'doc_status': (data['doc_status'] ?? 'Pending').toString(),
+      // The public form starts in review; admin-side intake can arrive with
+      // documents already checked, which moves it to the scrutiny-verified
+      // stage of the pipeline.
+      'status_detail': (data['doc_status'] == 'Verified')
+          ? 'Documents Verified'
+          : (data['status'] ?? 'Under Review').toString(),
     };
     try {
       final resp = await _supabase
@@ -8964,16 +8989,41 @@ class SchoolService {
     Map<String, bool>? documents,
   }) async {
     final nowIso = DateTime.now().toUtc().toIso8601String();
+    final verified = docStatus.trim().toLowerCase() == 'verified';
     final idx =
         _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+    String? nextStatusDetail;
     if (idx >= 0) {
       final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
       updated['doc_status'] = docStatus;
-      updated['status_detail'] =
-          (updated['status_detail'] ?? updated['status'] ?? '').toString();
       updated['last_action_at'] = nowIso;
       if (documents != null) {
         updated['documents'] = documents;
+      }
+      final current = (updated['status_detail'] ??
+              updated['status'] ??
+              'Under Review')
+          .toString()
+          .trim();
+      final currentLower = current.toLowerCase();
+      // Never regress an application that has already moved past scrutiny.
+      const lockedStatuses = {
+        'offer letter issued',
+        'approved',
+        'enrolled',
+        'rejected',
+      };
+      if (verified && !lockedStatuses.contains(currentLower)) {
+        updated['status'] = 'Documents Verified';
+        updated['status_detail'] = 'Documents Verified';
+        nextStatusDetail = 'Documents Verified';
+      } else if (!verified && currentLower == 'documents verified') {
+        // Scrutiny was withdrawn — send it back to the review queue.
+        updated['status'] = 'Under Review';
+        updated['status_detail'] = 'Under Review';
+        nextStatusDetail = 'Under Review';
+      } else {
+        updated['status_detail'] = current;
       }
       _admissionsStore[idx] = updated;
     }
@@ -8981,6 +9031,7 @@ class SchoolService {
       await _supabase.from('school_admissions').update({
         'doc_status': docStatus,
         if (documents != null) 'documents': documents,
+        if (nextStatusDetail != null) 'status_detail': nextStatusDetail,
         'updated_at': nowIso,
       }).eq('id', admissionId);
     } catch (_) {
@@ -9078,92 +9129,307 @@ class SchoolService {
     return true;
   }
 
+  /// Highest existing admission sequence for [year] plus one.
+  ///
+  /// Sequences are shared across `school_students.admission_no`
+  /// (`ADM2026####`), `school_admissions.admission_no` and the generated login
+  /// usernames (`2026####`) so an enrolment number is never handed out twice.
+  Future<int> _nextAdmissionSequence(int year) async {
+    final suffix = RegExp('^(?:ADM)?$year(\\d+)\$');
+    var maxSequence = 0;
+    void consider(dynamic value) {
+      final match = suffix.firstMatch((value ?? '').toString().trim());
+      if (match == null) return;
+      final seq = int.tryParse(match.group(1) ?? '');
+      if (seq != null && seq > maxSequence) maxSequence = seq;
+    }
+
+    try {
+      final rows = await _supabase
+          .from('school_students')
+          .select('admission_no')
+          .like('admission_no', 'ADM$year%');
+      for (final row in rows) {
+        consider(row['admission_no']);
+      }
+    } catch (_) {}
+
+    try {
+      final rows = await _supabase
+          .from('school_admissions')
+          .select('admission_no')
+          .like('admission_no', 'ADM$year%');
+      for (final row in rows) {
+        consider(row['admission_no']);
+      }
+    } catch (_) {}
+
+    try {
+      final rows = await _supabase
+          .from('users')
+          .select('username')
+          .like('username', '$year%');
+      for (final row in rows) {
+        consider(row['username']);
+      }
+    } catch (_) {}
+
+    return maxSequence + 1;
+  }
+
   Future<Map<String, dynamic>> enrollAdmissionStudent({
     required Map<String, dynamic> admission,
     required String classId,
     required String section,
+    String? className,
     double? feePaid,
     String? paymentMode,
   }) async {
-    final studentName = admission['applicant_name'] ??
-        admission['student_name'] ??
-        'New Student';
-    final parentName = admission['parent_name'] ?? 'Parent';
-    final contact =
-        admission['parent_phone'] ?? admission['phone'] ?? '9876543210';
-    final className = '$classId-$section';
-    final newStudentId =
-        'SCH-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-    final username = 'student_${newStudentId.toLowerCase()}';
-    final admissionNo =
-        'ADM${DateTime.now().year}${newStudentId.replaceAll(RegExp(r'[^0-9]'), '')}';
+    final studentName = (admission['applicant_name'] ??
+            admission['student_name'] ??
+            'New Student')
+        .toString()
+        .trim();
+    final parentName =
+        (admission['parent_name'] ?? 'Parent').toString().trim();
+    final contact = (admission['parent_phone'] ?? admission['phone'] ?? '')
+        .toString()
+        .trim();
+    final cleanClassId = classId.trim();
+    final cleanSection = section.trim();
+    final baseClassName = (className ?? '').trim().isNotEmpty
+        ? className!.trim()
+        : cleanClassId;
+    final resolvedClassName = cleanSection.isEmpty
+        ? baseClassName
+        : (baseClassName.toLowerCase().endsWith('-${cleanSection.toLowerCase()}')
+            ? baseClassName
+            : '$baseClassName-$cleanSection');
 
-    // 1. Insert into school_students
-    final studentRow = {
+    final now = DateTime.now();
+    final year = now.year;
+    final academicYear =
+        now.month >= 4 ? '$year-${year + 1}' : '${year - 1}-$year';
+
+    // 1. Allocate the next admission number + login username. The sequence is
+    //    shared across students and login usernames, and re-checked against
+    //    `users` so a deleted profile cannot cause a duplicate account.
+    final startingSequence = await _nextAdmissionSequence(year);
+    var sequence = startingSequence;
+    var username = '';
+    var admissionNo = '';
+    for (var attempt = 0; attempt < 50; attempt++) {
+      final seq = startingSequence + attempt;
+      final padded = seq.toString().padLeft(4, '0');
+      final candidateUser = '$year$padded';
+      var taken = false;
+      try {
+        final existing = await _supabase
+            .from('users')
+            .select('username')
+            .eq('username', candidateUser)
+            .limit(1);
+        taken = existing.isNotEmpty;
+      } catch (_) {}
+      if (!taken) {
+        sequence = seq;
+        username = candidateUser;
+        admissionNo = 'ADM$year$padded';
+        break;
+      }
+    }
+    if (username.isEmpty) {
+      final padded = startingSequence.toString().padLeft(4, '0');
+      sequence = startingSequence;
+      username = '$year$padded';
+      admissionNo = 'ADM$year$padded';
+    }
+    final password = username;
+    final newStudentId = 'SCH-$username';
+    final rollNumber = sequence.toString().padLeft(2, '0');
+
+    // 2. Create the student login. `secure_add_user_v2` stores a bcrypt hash;
+    //    the direct-insert fallback stores plaintext, which `verify_password`
+    //    accepts and upgrades on the first successful login.
+    var loginCreated = false;
+    String? loginError;
+    try {
+      final authResult = await _supabase.rpc('secure_add_user_v2', params: {
+        'p_username': username,
+        'p_password': password,
+        'p_role': 'student',
+        'p_created_by': 'admission_enrolment',
+      });
+      final result = Map<String, dynamic>.from(authResult as Map);
+      loginCreated = result['success'] == true;
+      loginError = result['message']?.toString();
+    } catch (e) {
+      loginError = e.toString();
+    }
+    if (!loginCreated) {
+      try {
+        await _supabase.from('users').insert({
+          'username': username,
+          'password': password,
+          'role': 'student',
+        });
+        loginCreated = true;
+        loginError = null;
+      } catch (e) {
+        loginError = '${loginError ?? ''} $e'.trim();
+      }
+    }
+    if (loginCreated) {
+      // Digits-only login names rely on the institution columns to land on
+      // the school student dashboard after login.
+      try {
+        await _supabase.from('users').update({
+          'institution': 'school',
+          'institute_type': 'school',
+        }).eq('username', username);
+      } catch (_) {
+        try {
+          await _supabase
+              .from('users')
+              .update({'institute_type': 'school'}).eq('username', username);
+        } catch (_) {
+          try {
+            await _supabase
+                .from('users')
+                .update({'institution': 'school'}).eq('username', username);
+          } catch (_) {}
+        }
+      }
+    }
+
+    // 3. Student master row. Installs differ on `section`/`academic_year`, so
+    //    try the rich row first and fall back to the common columns.
+    final studentRow = <String, dynamic>{
       'id': newStudentId,
       'username': username,
       'name': studentName,
-      'class_id': classId,
-      'class_name': className,
-      'roll_number': '08',
+      'class_id': cleanClassId,
+      'class_name': resolvedClassName,
+      'section': cleanSection,
+      'roll_number': rollNumber,
       'admission_no': admissionNo,
       'parent_name': parentName,
       'contact': contact,
+      'academic_year': academicYear,
+      'is_active': true,
     };
+    var profileSaved = false;
     try {
       await _supabase.from('school_students').insert(studentRow);
-    } catch (_) {}
+      profileSaved = true;
+    } catch (_) {
+      try {
+        await _supabase.from('school_students').insert({
+          'id': newStudentId,
+          'username': username,
+          'name': studentName,
+          'class_id': cleanClassId,
+          'class_name': resolvedClassName,
+          'roll_number': rollNumber,
+          'admission_no': admissionNo,
+          'parent_name': parentName,
+          'contact': contact,
+        });
+        profileSaved = true;
+      } catch (_) {}
+    }
 
-    // 2. Insert parent-student link
-    try {
-      await _supabase.from('parent_student_links').insert({
-        'parent_username': 'parent1',
-        'student_username': username,
-        'relation': 'Parent/Guardian',
-      });
-    } catch (_) {}
+    // 4. Link the student to a parent account when one exists.
+    if (profileSaved) {
+      try {
+        var parentUsername = 'parent1';
+        final parents = await _supabase
+            .from('users')
+            .select('username')
+            .eq('role', 'parent')
+            .limit(1);
+        if (parents.isNotEmpty) {
+          parentUsername = parents.first['username'].toString();
+        }
+        await _supabase.from('parent_student_links').insert({
+          'parent_username': parentUsername,
+          'student_username': username,
+          'relation': 'Parent/Guardian',
+        });
+      } catch (_) {}
+    }
 
-    // 3. Create initial fee demand & payment log
+    // 5. Create the initial fee demand & payment log.
     final double paid = feePaid ?? 0.0;
     try {
       await _supabase.from('school_fee_payments').insert({
         'student_id': username,
-        'class_id': classId,
+        'class_id': cleanClassId,
         'amount': paid,
         'paid_amount': paid,
-        'due_date': DateTime.now().toIso8601String().substring(0, 10),
+        'due_date': now.toIso8601String().substring(0, 10),
         'payment_mode': paymentMode ?? 'Online / UPI',
         'status': paid > 0 ? 'paid' : 'pending',
         'head': 'Admission & First Quarter Composite Fee',
         'receipt_no':
-            'REC-ADM-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+            'REC-ADM-${now.millisecondsSinceEpoch.toString().substring(7)}',
       });
     } catch (_) {}
 
-    // 4. Update status in local memory and database
-    if (admission['id'] != null) {
-      final idx = _admissionsStore.indexWhere(
-          (a) => a['id']?.toString() == admission['id']?.toString());
+    // 6. Mark the application approved & enrolled, and stamp the outcome so
+    //    the pipeline / counsellor desk can show the admission number.
+    final enrolledAt = now.toUtc().toIso8601String();
+    final admissionId = admission['id']?.toString() ?? '';
+    if (admissionId.isNotEmpty) {
+      final idx = _admissionsStore
+          .indexWhere((a) => a['id']?.toString() == admissionId);
       if (idx >= 0) {
         _admissionsStore[idx] = {
           ..._admissionsStore[idx],
           'status': 'Enrolled',
           'status_detail': 'Enrolled',
-          'enrolled_class': className,
+          'enrolled_class': resolvedClassName,
           'admission_no': admissionNo,
+          'student_username': username,
+          'enrolled_at': enrolledAt,
           'fee_paid': paid,
-          'last_action_at': DateTime.now().toUtc().toIso8601String(),
+          'last_action_at': enrolledAt,
         };
       }
-      await updateAdmissionStatus(admission['id'].toString(), 'Enrolled');
+      try {
+        await _supabase.from('school_admissions').update({
+          'status': 'approved',
+          'status_detail': 'Enrolled',
+          'admission_no': admissionNo,
+          'student_username': username,
+          'enrolled_class': resolvedClassName,
+          'enrolled_at': enrolledAt,
+          'updated_at': enrolledAt,
+        }).eq('id', admissionId);
+      } catch (_) {
+        try {
+          await _supabase.from('school_admissions').update({
+            'status': 'approved',
+            'status_detail': 'Enrolled',
+            'updated_at': enrolledAt,
+          }).eq('id', admissionId);
+        } catch (_) {
+          await updateAdmissionStatus(admissionId, 'Enrolled');
+        }
+      }
     }
 
     return {
       'student_id': newStudentId,
       'username': username,
+      'password': password,
       'admission_no': admissionNo,
-      'class_name': className,
+      'class_name': resolvedClassName,
       'fee_paid': paid,
+      'login_created': loginCreated,
+      'profile_saved': profileSaved,
+      if (loginError != null && loginError.isNotEmpty)
+        'login_error': loginError,
     };
   }
 

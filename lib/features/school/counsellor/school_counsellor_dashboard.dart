@@ -98,6 +98,7 @@ class _SchoolCounsellorDashboardState extends State<SchoolCounsellorDashboard> {
   List<String> get _statusOptions {
     final base = <String>[
       'Under Review',
+      'Documents Verified',
       'Interview Scheduled',
       'Approved',
       'Offer Letter Issued',
@@ -160,6 +161,8 @@ class _SchoolCounsellorDashboardState extends State<SchoolCounsellorDashboard> {
         return (fg: const Color(0xFF2563EB), bg: const Color(0xFFEFF6FF));
       case 'interview scheduled':
         return (fg: const Color(0xFF0284C7), bg: const Color(0xFFF0F9FF));
+      case 'documents verified':
+        return (fg: const Color(0xFF0D9488), bg: const Color(0xFFF0FDFA));
       case 'rejected':
         return (fg: const Color(0xFFDC2626), bg: const Color(0xFFFEF2F2));
       default:
@@ -386,6 +389,7 @@ class _SchoolCounsellorDashboardState extends State<SchoolCounsellorDashboard> {
     final inProgress = _countWhere((a) {
       final s = (a['status'] ?? '').toString().toLowerCase();
       return s == 'under review' ||
+          s == 'documents verified' ||
           s == 'interview scheduled' ||
           s == 'pending';
     });

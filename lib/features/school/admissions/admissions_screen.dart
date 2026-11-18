@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
@@ -30,6 +31,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   final List<String> _statusFilters = [
     'all',
     'Under Review',
+    'Documents Verified',
     'Interview Scheduled',
     'Offer Letter Issued',
     'Approved',
@@ -442,6 +444,9 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     } else if (status == 'Interview Scheduled') {
       statusColor = const Color(0xFF0284C7);
       statusBg = const Color(0xFFE0F2FE);
+    } else if (status == 'Documents Verified') {
+      statusColor = const Color(0xFF0D9488);
+      statusBg = const Color(0xFFF0FDFA);
     } else if (status == 'Rejected') {
       statusColor = const Color(0xFFDC2626);
       statusBg = const Color(0xFFFEF2F2);
@@ -612,7 +617,11 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                 const Spacer(),
 
                 // Decision Action
-                if (status == 'Approved' || status == 'Under Review' || status == 'Interview Scheduled')
+                if ((status == 'Approved' ||
+                        status == 'Under Review' ||
+                        status == 'Interview Scheduled' ||
+                        status == 'Documents Verified') &&
+                    (docStatus == 'Verified' || status == 'Documents Verified'))
                   ElevatedButton.icon(
                     onPressed: () => _showIssueOfferLetterDialog(a),
                     icon: const Icon(Icons.mail_rounded, size: 14),
@@ -621,6 +630,20 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                       backgroundColor: const Color(0xFF7C3AED),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    ),
+                  )
+                else if (status == 'Approved' ||
+                    status == 'Under Review' ||
+                    status == 'Interview Scheduled' ||
+                    status == 'Documents Verified')
+                  OutlinedButton.icon(
+                    onPressed: () => _showDocumentScrutinyDialog(a),
+                    icon: const Icon(Icons.lock_clock_rounded, size: 14),
+                    label: const Text('Verify Documents First', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFD97706),
+                      side: const BorderSide(color: Color(0xFFFDE68A)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                   )
                 else if (status == 'Offer Letter Issued') ...[
@@ -638,7 +661,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                   ElevatedButton.icon(
                     onPressed: () => _showFinalEnrollmentDialog(a),
                     icon: const Icon(Icons.how_to_reg_rounded, size: 14),
-                    label: const Text('Complete Enrolment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    label: const Text('Approve & Enrol', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF059669),
                       foregroundColor: Colors.white,
@@ -654,7 +677,11 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                         const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF059669)),
                         const SizedBox(width: 4),
                         Expanded(
-                          child: Text('Enrolled as ${a['enrolled_class'] ?? a['grade_applying']} • Adm: ${a['admission_no'] ?? "ADM2026/089"}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF059669))),
+                          child: Text(
+                            'Enrolled as ${a['enrolled_class'] ?? a['grade_applying']} • Adm: ${a['admission_no'] ?? '—'}'
+                            '${(a['student_username'] ?? '').toString().isNotEmpty ? ' • Login: ${a['student_username']}' : ''}',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF059669)),
+                          ),
                         ),
                         TextButton.icon(
                           onPressed: () => _showClassAllotmentDialog(a),
@@ -1168,6 +1195,18 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                 await _schoolService.updateAdmissionDocStatus(a['id'], status, documents: docs);
                 if (ctx.mounted) Navigator.pop(ctx);
                 _loadData();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(allDone
+                          ? 'All documents verified — offer letter unlocked.'
+                          : 'Verification saved. Some documents are still pending.'),
+                      backgroundColor: allDone
+                          ? const Color(0xFF0D9488)
+                          : const Color(0xFFD97706),
+                    ),
+                  );
+                }
               },
               child: const Text('Save Verification'),
             ),
@@ -1394,7 +1433,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDState) => AlertDialog(
-          title: Text('Final Enrollment: ${a['applicant_name']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          title: Text('Approve & Enrol: ${a['applicant_name']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           content: SingleChildScrollView(
             child: SizedBox(
               width: 440,
@@ -1454,7 +1493,9 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6)),
                     child: const Text(
-                      'Enrolling will automatically create Student Master record, Parent link, and Official Fee Receipt.',
+                      'Approving will generate the admission number and a student login '
+                      '(username = year + admission sequence, password = username), '
+                      'create the Student Master record, parent link, and fee receipt.',
                       style: TextStyle(fontSize: 11.5, color: Color(0xFF065F46)),
                     ),
                   ),
@@ -1467,9 +1508,24 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
               onPressed: () async {
+                final selectedEntry = _liveClasses.isEmpty
+                    ? <String, dynamic>{}
+                    : _liveClasses.firstWhere(
+                        (c) =>
+                            (c['name']?.toString() ??
+                                c['id']?.toString() ??
+                                '') ==
+                            selectedClass,
+                        orElse: () => <String, dynamic>{},
+                      );
+                final resolvedClassId =
+                    (selectedEntry['id']?.toString() ?? '').trim().isNotEmpty
+                        ? selectedEntry['id'].toString()
+                        : selectedClass;
                 final res = await _schoolService.enrollAdmissionStudent(
                   admission: a,
-                  classId: selectedClass,
+                  classId: resolvedClassId,
+                  className: selectedClass,
                   section: section,
                   feePaid: double.tryParse(feePaidCtrl.text) ?? 35000.0,
                   paymentMode: paymentMode,
@@ -1477,18 +1533,157 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                 if (ctx.mounted) Navigator.pop(ctx);
                 _loadData();
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Enrolled ${a['applicant_name']} successfully! Admission No: ${res['admission_no']}'),
-                      backgroundColor: const Color(0xFF059669),
-                    ),
-                  );
+                  _showEnrolledCredentialsDialog(a, res);
                 }
               },
-              child: const Text('Confirm & Enrol Student'),
+              child: const Text('Approve & Enrol Student'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Shown right after enrolment with the generated admission number and
+  /// login credentials the admin should hand over to the family.
+  void _showEnrolledCredentialsDialog(
+      Map<String, dynamic> a, Map<String, dynamic> res) {
+    final username = (res['username'] ?? '').toString();
+    final password = (res['password'] ?? username).toString();
+    final admissionNo = (res['admission_no'] ?? '').toString();
+    final className = (res['class_name'] ?? '').toString();
+    final studentName =
+        (a['applicant_name'] ?? a['student_name'] ?? 'The student').toString();
+    final loginCreated = res['login_created'] != false;
+
+    Widget credentialRow(String label, String value) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 118,
+              child: Text(
+                label,
+                style: const TextStyle(
+                    fontSize: 12, color: Color(0xFF64748B)),
+              ),
+            ),
+            Expanded(
+              child: SelectableText(
+                value,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded,
+                color: Color(0xFF059669), size: 22),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('Student Enrolled',
+                  style:
+                      TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${studentName} has been approved, enrolled and a '
+                'login account was created. Share these credentials with the '
+                'student/parent.',
+                style: const TextStyle(
+                    fontSize: 12.5, color: Color(0xFF475569), height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    credentialRow('Admission No', admissionNo),
+                    credentialRow('Class', className),
+                    credentialRow('Username', username),
+                    credentialRow('Password', password),
+                  ],
+                ),
+              ),
+              if (!loginCreated) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFFECACA)),
+                  ),
+                  child: const Text(
+                    'The student record was saved but the login account could '
+                    'not be created automatically. Create it from Manage Users.',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFFB91C1C)),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              const Text(
+                'The default password is the same as the username. Ask the '
+                'student to change it after the first login.',
+                style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Done'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final text = 'Admission No: $admissionNo\n'
+                  'Class: $className\n'
+                  'Username: $username\n'
+                  'Password: $password';
+              await Clipboard.setData(ClipboardData(text: text));
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                    content: Text('Credentials copied to clipboard'),
+                    backgroundColor: Color(0xFF059669),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.copy_rounded, size: 15),
+            label: const Text('Copy Credentials'),
+          ),
+        ],
       ),
     );
   }

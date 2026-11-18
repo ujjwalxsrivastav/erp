@@ -221,6 +221,10 @@ CREATE TABLE IF NOT EXISTS school_admissions (
     interview_notes TEXT,
     fee_demanded NUMERIC,
     offer_valid_till TEXT,
+    admission_no TEXT,
+    student_username TEXT,
+    enrolled_class TEXT,
+    enrolled_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ DEFAULT now(),
     created_at TIMESTAMPTZ DEFAULT now()
 );

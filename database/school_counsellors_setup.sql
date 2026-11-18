@@ -216,6 +216,10 @@ ALTER TABLE school_admissions
   ADD COLUMN IF NOT EXISTS interview_notes TEXT,
   ADD COLUMN IF NOT EXISTS fee_demanded NUMERIC,
   ADD COLUMN IF NOT EXISTS offer_valid_till TEXT,
+  ADD COLUMN IF NOT EXISTS admission_no TEXT,
+  ADD COLUMN IF NOT EXISTS student_username TEXT,
+  ADD COLUMN IF NOT EXISTS enrolled_class TEXT,
+  ADD COLUMN IF NOT EXISTS enrolled_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_school_admissions_counsellor
