@@ -51,6 +51,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
   Map<String, dynamic> _homeworkStats = {};
 
   // My Students Roster & Filter State (N1 + M12)
+  // The roster only covers sections where the teacher is the class teacher.
   List<Map<String, dynamic>> _assignedClasses = [];
   String _selectedClassFilter = 'all';
   List<Map<String, dynamic>> _students = [];
@@ -380,22 +381,41 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
     setState(() => _isStudentsLoading = true);
 
     try {
-      final rawStudents = await _schoolService.getStudentsForTeacher(
-        _teacherUsername,
-        classId: _selectedClassFilter == 'all' ? null : _selectedClassFilter,
-      );
+      // Roster is scoped to sections where this teacher is the class teacher
+      // (school_classes.class_teacher_id). Subject-faculty classes are not
+      // part of the roster.
+      final ctClasses = _assignedClasses
+          .where((c) => c['is_class_teacher'] == true)
+          .toList();
+      final targetClasses = _selectedClassFilter == 'all'
+          ? ctClasses
+          : ctClasses
+              .where((c) =>
+                  (c['class_id']?.toString() ?? c['id']?.toString() ?? '') ==
+                  _selectedClassFilter)
+              .toList();
+
+      final seen = <String>{};
+      final rawStudents = <Map<String, dynamic>>[];
+      for (final c in targetClasses) {
+        final classId = (c['class_id'] ?? c['id'] ?? '').toString();
+        if (classId.isEmpty) continue;
+        final classStudents = await _schoolService.getStudentsInClass(
+          classId,
+          className: c['name']?.toString(),
+        );
+        for (final s in classStudents) {
+          final sId = s['id']?.toString() ?? s['username']?.toString() ?? '';
+          if (sId.isNotEmpty && seen.add(sId)) rawStudents.add(s);
+        }
+      }
+      rawStudents.sort((a, b) => (a['roll_number']?.toString() ?? '')
+          .compareTo(b['roll_number']?.toString() ?? ''));
 
       // Attendance for the whole visible cohort comes from one read per class
       // instead of one query per student. Attendance rows are keyed by the
       // student *username*, so that is the identifier looked up first.
       final attendanceByStudent = <String, double>{};
-      final targetClasses = _selectedClassFilter == 'all'
-          ? _assignedClasses
-          : _assignedClasses
-              .where((c) =>
-                  (c['class_id']?.toString() ?? c['id']?.toString() ?? '') ==
-                  _selectedClassFilter)
-              .toList();
       try {
         final maps = await Future.wait(targetClasses.map((c) {
           final classId = (c['class_id'] ?? c['id'] ?? '').toString();
@@ -1852,6 +1872,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           roll.contains(query) ||
           adm.contains(query);
     }).toList();
+    final ctClasses = _assignedClasses
+        .where((c) => c['is_class_teacher'] == true)
+        .toList();
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1870,7 +1893,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section Header with Title, Count & Excel Export
+          // Section Header with Title, Count & See More
           Row(
             children: [
               Container(
@@ -1916,48 +1939,27 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     ),
                     const SizedBox(height: 2),
                     const Text(
-                      'Assigned classes, daily attendance rates & holistic student 360° cards',
+                      'Students of your class-teacher section • tap a card for 360° profile',
                       style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                     ),
                   ],
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: _students.isEmpty
-                    ? null
-                    : () {
-                        final currentClassLabel = _selectedClassFilter == 'all'
-                            ? 'All Assigned Classes'
-                            : (_assignedClasses
-                                    .firstWhere(
-                                      (c) =>
-                                          c['class_id'] ==
-                                              _selectedClassFilter ||
-                                          c['id'] == _selectedClassFilter,
-                                      orElse: () =>
-                                          {'name': _selectedClassFilter},
-                                    )['name']
-                                    ?.toString() ??
-                                _selectedClassFilter);
-                        SchoolExportService.exportClassRosterExcel(
-                          context: context,
-                          className: currentClassLabel,
-                          teacherName: _teacherName,
-                          students: filtered,
-                        );
-                      },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF0F172A),
-                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+              TextButton.icon(
+                onPressed: () =>
+                    context.push('/school/teacher-class-students'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF2563EB),
+                  backgroundColor: const Color(0xFFEFF6FF),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
-                icon: const Icon(Icons.file_download_outlined, size: 16),
-                label: const Text('Excel Roster',
+                icon: const Icon(Icons.arrow_forward_rounded, size: 15),
+                label: const Text('See more',
                     style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
               ),
             ],
           ),
@@ -2011,7 +2013,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             child: Row(
               children: [
                 ChoiceChip(
-                  label: Text('All Classes (${_students.length})'),
+                  label: Text('All Sections (${_students.length})'),
                   selected: _selectedClassFilter == 'all',
                   onSelected: (sel) {
                     if (sel && _selectedClassFilter != 'all') {
@@ -2033,7 +2035,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   side: BorderSide.none,
                 ),
                 const SizedBox(width: 8),
-                ..._assignedClasses.map((c) {
+                ...ctClasses.map((c) {
                   final cid =
                       c['class_id']?.toString() ?? c['id']?.toString() ?? '';
                   final cname = c['name']?.toString() ?? 'Class';
@@ -2070,7 +2072,7 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
           ),
           const SizedBox(height: 14),
 
-          // Students Roster Grid / List (4-State Lifecycle)
+          // Students Roster Strip — horizontal scroll (4-State Lifecycle)
           if (_isStudentsLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 32),
@@ -2105,6 +2107,39 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
               ),
             )
+          else if (ctClasses.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.co_present_outlined,
+                        size: 32, color: Color(0xFF94A3B8)),
+                    SizedBox(height: 8),
+                    Text(
+                      'You are not a class teacher for any section.',
+                      style: TextStyle(
+                          color: Color(0xFF334155),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'The roster here only lists students of sections where you are the class teacher.',
+                      textAlign: TextAlign.center,
+                      style:
+                          TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            )
           else if (filtered.isEmpty)
             Container(
               padding: const EdgeInsets.all(28),
@@ -2122,8 +2157,8 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     const SizedBox(height: 8),
                     Text(
                       _searchQuery.isNotEmpty
-                          ? 'No students matching "$_searchQuery" in your assigned classes.'
-                          : 'No enrolled students found in this cohort.',
+                          ? 'No students matching "$_searchQuery" in your class-teacher section.'
+                          : 'No enrolled students found in this section.',
                       style: const TextStyle(
                           color: Color(0xFF64748B),
                           fontSize: 13,
@@ -2134,44 +2169,29 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
               ),
             )
           else
-            LayoutBuilder(
-              builder: (ctx, constraints) {
-                final isWide = constraints.maxWidth > 900;
-                final isMedium = constraints.maxWidth > 580;
-                final crossCount = isWide ? 3 : (isMedium ? 2 : 1);
-
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filtered.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossCount,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: isWide ? 2.3 : (isMedium ? 2.1 : 2.5),
-                  ),
-                  itemBuilder: (ctx, idx) {
-                    final s = filtered[idx];
-                    return _buildStudentCard(s);
-                  },
-                );
-              },
+            SizedBox(
+              height: 150,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                itemCount: filtered.length,
+                itemBuilder: (ctx, idx) => _buildStudentMiniCard(filtered[idx]),
+              ),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildStudentCard(Map<String, dynamic> s) {
+  /// Compact card for the horizontal roster strip on the dashboard.
+  Widget _buildStudentMiniCard(Map<String, dynamic> s) {
     final name = (s['name'] ?? s['student_name'] ?? 'Student').toString();
     final roll = (s['roll_number'] ?? s['roll_no'] ?? '-').toString();
-    final adm =
-        (s['admission_no'] ?? s['username'] ?? s['id'] ?? '-').toString();
-    final className = (s['class_name'] ?? s['class_id'] ?? 'Class').toString();
+    final className =
+        (s['class_name'] ?? s['class_id'] ?? 'Class').toString();
     final attPct = (s['attendance_pct'] as num?)?.toDouble() ?? 0.0;
     final isAtRisk = attPct > 0 && attPct < 75.0;
 
-    // Generate Initials
     final nameParts = name.trim().split(RegExp(r'\s+'));
     final initials = nameParts.length >= 2
         ? '${nameParts[0][0]}${nameParts[1][0]}'.toUpperCase()
@@ -2179,91 +2199,45 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
             ? name.substring(0, name.length >= 2 ? 2 : 1).toUpperCase()
             : 'ST');
 
-    return InkWell(
-      onTap: () => _showStudent360Modal(context, s),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color:
-                  isAtRisk ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
+    return Container(
+      width: 158,
+      margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color:
+                isAtRisk ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
+      ),
+      child: InkWell(
+        onTap: () => _showStudent360Modal(context, s),
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Initials Avatar
-            CircleAvatar(
-              radius: 20,
-              backgroundColor:
-                  isAtRisk ? const Color(0xFFFEE2E2) : const Color(0xFFEFF6FF),
-              child: Text(
-                initials,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: isAtRisk
-                      ? const Color(0xFFEF4444)
-                      : const Color(0xFF2563EB),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-
-            // Name & Demographics
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Roll: $roll • $adm',
-                    style:
-                        const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      className,
-                      style: const TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF475569)),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Attendance Pill & Drill-Down
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.center,
+            Row(
               children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: isAtRisk
+                      ? const Color(0xFFFEE2E2)
+                      : const Color(0xFFEFF6FF),
+                  child: Text(
+                    initials,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: isAtRisk
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFF2563EB),
+                    ),
+                  ),
+                ),
+                const Spacer(),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: attPct <= 0
                         ? const Color(0xFFF1F5F9)
@@ -2282,9 +2256,9 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                   child: Text(
                     attPct <= 0
                         ? 'Att. --'
-                        : '${attPct.toStringAsFixed(0)}% Att',
+                        : '${attPct.toStringAsFixed(0)}%',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 9.5,
                       fontWeight: FontWeight.w800,
                       color: attPct <= 0
                           ? const Color(0xFF64748B)
@@ -2294,23 +2268,42 @@ class _SchoolTeacherDashboardState extends State<SchoolTeacherDashboard> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '360° View',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF2563EB)),
-                    ),
-                    SizedBox(width: 2),
-                    Icon(Icons.arrow_forward_rounded,
-                        size: 10, color: Color(0xFF2563EB)),
-                  ],
-                ),
               ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Roll: $roll',
+              style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const Spacer(),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                className,
+                style: const TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2563EB)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),

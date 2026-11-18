@@ -43,6 +43,14 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
   List<Map<String, dynamic>> _holidays = [];
   List<String> _teacherClasses = [];
 
+  /// Display name of the class teacher of the student's (or selected child's)
+  /// class, shown while applying for leave and on the cards.
+  String _classTeacherName = '';
+
+  /// Display names for teacher usernames stored on leave rows
+  /// (`class_teacher_id`, `reviewed_by`).
+  Map<String, String> _teacherNames = {};
+
   /// Every known class identity (id, "cls-10a", "class10", "Class 10-A")
   /// mapped to the class name shown in the UI. Leaves stored before the
   /// class refactor only carry a UUID, so the label has to be resolved.
@@ -88,6 +96,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
       _selectedChild = _parentChildren.isEmpty ? null : _parentChildren.first;
       _profile = _selectedChild;
       if (mounted) setState(() {});
+      final name = await _resolveClassTeacherName(_selectedChild);
+      if (mounted) setState(() => _classTeacherName = name);
     }
 
     await _loadClassNames();
@@ -96,6 +106,8 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
       final profile = await _schoolService.getSchoolStudentProfile(username);
       if (!mounted) return;
       setState(() => _profile = profile);
+      final name = await _resolveClassTeacherName(profile);
+      if (mounted) setState(() => _classTeacherName = name);
     } else if (_canReview) {
       final classes = await _schoolService.getClassTeacherClasses(username);
       if (!mounted) return;
@@ -135,6 +147,25 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
     setState(() => _classNames = map);
   }
 
+  /// Resolves the display name of the class teacher of [profile]'s class.
+  Future<String> _resolveClassTeacherName(Map<String, dynamic>? profile) async {
+    if (profile == null) return '';
+    final teacherId = await _schoolService.getClassTeacherForClass(
+      classId: profile['class_id']?.toString(),
+      className: profile['class_name']?.toString(),
+      section: profile['section']?.toString(),
+    );
+    if (teacherId == null || teacherId.isEmpty) return '';
+    final display = await _schoolService.getTeacherDisplayName(teacherId);
+    return (display != null && display.isNotEmpty) ? display : teacherId;
+  }
+
+  String _teacherNameFor(dynamic teacherId) {
+    final key = teacherId?.toString() ?? '';
+    if (key.isEmpty) return '';
+    return _teacherNames[key] ?? '';
+  }
+
   Future<void> _loadLeaves() async {
     setState(() => _isLoading = true);
 
@@ -153,8 +184,25 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
             : await _schoolService.getStudentLeaves();
 
     if (!mounted) return;
+
+    // Resolve display names for the class teacher / reviewer usernames
+    // stored on the leave rows so cards can mention them by name.
+    final ids = <String>{};
+    for (final l in leaves) {
+      for (final k in const ['class_teacher_id', 'reviewed_by']) {
+        final v = l[k]?.toString() ?? '';
+        if (v.isNotEmpty) ids.add(v);
+      }
+    }
+    final names = <String, String>{};
+    for (final id in ids) {
+      final display = await _schoolService.getTeacherDisplayName(id);
+      names[id] = (display != null && display.isNotEmpty) ? display : id;
+    }
+
     setState(() {
       _leaves = leaves;
+      _teacherNames = names;
       _isLoading = false;
     });
   }
@@ -228,6 +276,33 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                     Text(
                       'Your application goes to the class teacher of your class for approval.',
                       style: TextStyle(fontSize: 12.5, color: _muted),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _rose.withValues(alpha: .06),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.school_outlined,
+                              size: 18, color: _rose),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _classTeacherName.isNotEmpty
+                                  ? 'Approving authority: $_classTeacherName (Class Teacher)'
+                                  : 'Approving authority: your class teacher',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: _ink,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 18),
                     DropdownButtonFormField<String>(
@@ -699,11 +774,14 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                                   'Student'),
                             ))
                         .toList(),
-                    onChanged: (child) {
+                    onChanged: (child) async {
                       setState(() {
                         _selectedChild = child;
                         _profile = child;
+                        _classTeacherName = '';
                       });
+                      final name = await _resolveClassTeacherName(child);
+                      if (mounted) setState(() => _classTeacherName = name);
                       _loadLeaves();
                     },
                   ),
@@ -712,7 +790,9 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Text(
                   (_isStudent || _isParent)
-                      ? 'Apply for leave and track your class teacher’s decision'
+                      ? (_classTeacherName.isNotEmpty
+                          ? 'Apply for leave • Class Teacher: $_classTeacherName'
+                          : 'Apply for leave and track your class teacher’s decision')
                       : _teacherClasses.isEmpty
                           ? 'Review leave applications from your class students'
                           : 'Class teacher of ${_teacherClasses.join(', ')}',
@@ -1004,6 +1084,42 @@ class _StudentLeaveScreenState extends State<StudentLeaveScreen>
                     ),
                   ],
                 ),
+                if (_isStudent || _isParent) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        isPending
+                            ? Icons.person_outline_rounded
+                            : Icons.verified_outlined,
+                        size: 15,
+                        color: _muted,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          isPending
+                              ? (_teacherNameFor(leave['class_teacher_id'])
+                                      .isNotEmpty
+                                  ? 'Pending with ${_teacherNameFor(leave['class_teacher_id'])} (Class Teacher)'
+                                  : 'Pending with your class teacher')
+                              : (_teacherNameFor(
+                                          leave['reviewed_by'] ?? '')
+                                      .isNotEmpty
+                                  ? 'Reviewed by ${_teacherNameFor(leave['reviewed_by'])}'
+                                  : 'Reviewed'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _ink,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Text(
                   leave['reason']?.toString() ?? '-',

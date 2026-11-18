@@ -270,6 +270,36 @@ class SchoolService {
     return allStudents;
   }
 
+  /// Students of only the classes where [teacherUsername] is the *class
+  /// teacher* (resolved via `school_classes.class_teacher_id`). Subject-faculty
+  /// classes are intentionally excluded so the roster only shows the section
+  /// the teacher owns.
+  Future<List<Map<String, dynamic>>> getStudentsForClassTeacher(
+      String teacherUsername) async {
+    final ctClasses = await getClassTeacherClasses(teacherUsername);
+    if (ctClasses.isEmpty) return [];
+
+    final seen = <String>{};
+    final allStudents = <Map<String, dynamic>>[];
+    for (final c in ctClasses) {
+      final cId = c['id']?.toString() ?? c['class_id']?.toString() ?? '';
+      if (cId.isEmpty) continue;
+      final classStudents = await getStudentsInClass(
+        cId,
+        className: c['name']?.toString(),
+        section: c['section']?.toString(),
+      );
+      for (final s in classStudents) {
+        final sId = s['id']?.toString() ?? s['username']?.toString() ?? '';
+        if (sId.isNotEmpty && seen.add(sId)) allStudents.add(s);
+      }
+    }
+
+    allStudents.sort((a, b) => (a['roll_number']?.toString() ?? '')
+        .compareTo(b['roll_number']?.toString() ?? ''));
+    return allStudents;
+  }
+
   /// Returns 360-degree holistic academic, attendance and disciplinary profile for a student.
   Future<Map<String, dynamic>> getStudent360Profile({
     required String studentId,

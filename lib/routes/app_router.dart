@@ -92,6 +92,7 @@ import '../features/leads/screens/admission_review_screen.dart';
 // School imports
 import '../features/school/school_student_dashboard.dart';
 import '../features/school/school_teacher_dashboard.dart';
+import '../features/school/teacher/school_class_students_screen.dart';
 import '../features/school/school_admin_dashboard.dart';
 import '../features/school/parent/school_parent_dashboard.dart';
 import '../features/school/homework/homework_list_screen.dart';
@@ -152,6 +153,7 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
 
   // Staff (Teacher + Admin)
   '/school/teacher-dashboard': _schoolStaffRoles,
+  '/school/teacher-class-students': _schoolStaffRoles,
   '/school/marks-entry': _schoolStaffRoles,
   '/school/marks/csv': _schoolStaffRoles,
   // Students and parents open the same screen in a read-only self view.
@@ -375,6 +377,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/teacher-dashboard',
       builder: (context, state) => const SchoolTeacherDashboard(),
+    ),
+    GoRoute(
+      path: '/school/teacher-class-students',
+      builder: (context, state) => const SchoolClassStudentsScreen(),
     ),
     GoRoute(
       path: '/school/homework',

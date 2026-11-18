@@ -90,14 +90,35 @@ class _StudentReportCardScreenState extends State<StudentReportCardScreen> {
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: const Color(0xFFF6F8FB),
         appBar: AppBar(
-          title: const Text('My Report Card',
-              style: TextStyle(fontWeight: FontWeight.w800)),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('My Report Card',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+              Text(
+                _loading
+                    ? 'Academic performance & progress'
+                    : '$_name • $_className',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: Colors.white.withValues(alpha: .82)),
+              ),
+            ],
+          ),
           foregroundColor: Colors.white,
           elevation: 0,
-          flexibleSpace: const DecoratedBox(
-            decoration: BoxDecoration(
+          surfaceTintColor: Colors.transparent,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
               gradient: LinearGradient(
-                  colors: [Color(0xFF0F172A), Color(0xFF0F766E)]),
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF14B8A6)],
+              ),
             ),
           ),
           actions: [
@@ -166,7 +187,7 @@ class _StudentReportCardScreenState extends State<StudentReportCardScreen> {
                   children: [
                 const Text('ACADEMIC PERFORMANCE',
                     style: TextStyle(
-                        color: Colors.white70,
+                        color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
                         letterSpacing: .8)),
@@ -178,8 +199,10 @@ class _StudentReportCardScreenState extends State<StudentReportCardScreen> {
                         fontSize: 21,
                         fontWeight: FontWeight.w800)),
                 Text(_className,
-                    style:
-                        const TextStyle(color: Colors.white70, fontSize: 12)),
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: .85),
+                        fontSize: 12)),
                 const SizedBox(height: 10),
                 Text(
                     '$_obtained / $_max  ·  ${_percentage.toStringAsFixed(1)}%',
@@ -193,7 +216,8 @@ class _StudentReportCardScreenState extends State<StudentReportCardScreen> {
               height: 58,
               decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white54, width: 2),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: .6), width: 2),
                   color: Colors.white.withValues(alpha: .12)),
               child: Center(
                   child: Text(_grade,
