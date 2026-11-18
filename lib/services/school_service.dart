@@ -8534,6 +8534,8 @@ class SchoolService {
           'address': remote['address'] ?? '',
           'referral': remote['referral'] ?? '',
           'referred_by': remote['referral'] ?? '',
+          'counsellor_id': remote['counsellor_id']?.toString() ?? '',
+          'counsellor_name': remote['counsellor_name']?.toString() ?? '',
           'previous_school': remote['previous_school'] ?? '',
           'source': remote['source'] ?? '',
           'status': displayStatus,
@@ -8734,6 +8736,21 @@ class SchoolService {
     // a later getAdmissions() merges instead of duplicating the application.
     final rowId = savedRow?['id']?.toString() ?? id;
     normalized['id'] = rowId;
+
+    // Round-robin allotment: every submitted application gets a counsellor so
+    // the load rotates evenly across the team.
+    if (saved && _looksLikeUuid(rowId)) {
+      final counsellor = await assignCounsellorToAdmission(rowId);
+      if (counsellor != null) {
+        normalized['counsellor_id'] = counsellor['id'];
+        normalized['counsellor_name'] = counsellor['name'] ??
+            counsellor['username'] ??
+            '';
+        normalized['counsellor_assigned_at'] =
+            DateTime.now().toUtc().toIso8601String();
+      }
+    }
+
     final idx =
         _admissionsStore.indexWhere((a) => a['id']?.toString() == rowId);
     if (idx >= 0) {
@@ -8743,6 +8760,95 @@ class SchoolService {
     }
 
     return saved;
+  }
+
+  bool _looksLikeUuid(String value) => RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+      .hasMatch(value);
+
+  /// Active school counsellors from the admissions counsellor directory.
+  Future<List<Map<String, dynamic>>> getSchoolCounsellors() async {
+    try {
+      final res = await _supabase
+          .from('school_counsellors')
+          .select()
+          .eq('is_active', true)
+          .order('name');
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      // Table not created yet (database/school_counsellors_setup.sql).
+      return [];
+    }
+  }
+
+  /// Allots a counsellor to [admissionId] using round-robin with load balance:
+  /// the counsellor with the fewest assignments wins, and ties go to whoever
+  /// was assigned longest ago. Returns the chosen counsellor, or null when no
+  /// counsellor directory exists.
+  Future<Map<String, dynamic>?> assignCounsellorToAdmission(
+      String admissionId) async {
+    try {
+      final counsellors = await getSchoolCounsellors();
+      if (counsellors.isEmpty) return null;
+
+      Map<String, dynamic>? chosen;
+      var bestCount = 1 << 30;
+      DateTime? bestLastAssigned;
+
+      for (final c in counsellors) {
+        if (c['is_active'] == false) continue;
+        final count = (c['assignments_count'] as num?)?.toInt() ?? 0;
+        final lastRaw = c['last_assigned_at']?.toString() ?? '';
+        final last = lastRaw.isEmpty ? null : DateTime.tryParse(lastRaw);
+
+        final isBetter = chosen == null ||
+            count < bestCount ||
+            (count == bestCount &&
+                (bestLastAssigned == null ||
+                    (last != null && last.isBefore(bestLastAssigned))));
+
+        if (isBetter) {
+          chosen = c;
+          bestCount = count;
+          bestLastAssigned = last;
+        }
+      }
+      if (chosen == null) return null;
+
+      final counsellorId = chosen['id']?.toString() ?? '';
+      final counsellorName = (chosen['name'] ?? chosen['username'] ?? '')
+          .toString();
+      if (counsellorId.isEmpty) return null;
+
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+
+      // Rotate the pointer + increment the load for the next allotment.
+      try {
+        await _supabase.from('school_counsellors').update({
+          'assignments_count': bestCount + 1,
+          'last_assigned_at': nowIso,
+        }).eq('id', counsellorId);
+      } catch (_) {}
+
+      // Stamp the application so the admin pipeline shows who owns it.
+      if (_looksLikeUuid(admissionId)) {
+        try {
+          await _supabase.from('school_admissions').update({
+            'counsellor_id': counsellorId,
+            'counsellor_name': counsellorName,
+            'counsellor_assigned_at': nowIso,
+          }).eq('id', admissionId);
+        } catch (_) {}
+      }
+
+      return {
+        ...chosen,
+        'assignments_count': bestCount + 1,
+        'last_assigned_at': nowIso,
+      };
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<bool> updateAdmissionStatus(

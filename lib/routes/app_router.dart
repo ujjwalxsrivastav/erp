@@ -92,6 +92,7 @@ import '../features/leads/screens/admission_review_screen.dart';
 // School imports
 import '../features/school/school_student_dashboard.dart';
 import '../features/school/school_teacher_dashboard.dart';
+import '../features/school/counsellor/school_counsellor_dashboard.dart';
 import '../features/school/teacher/school_class_students_screen.dart';
 import '../features/school/school_admin_dashboard.dart';
 import '../features/school/parent/school_parent_dashboard.dart';
@@ -155,6 +156,8 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   // Staff (Teacher + Admin)
   '/school/teacher-dashboard': _schoolStaffRoles,
   '/school/teacher-class-students': _schoolStaffRoles,
+  // Counsellors get a placeholder landing page for now.
+  '/school/counsellor-dashboard': {'counsellor', 'counselor', ..._schoolAdminRoles},
   '/school/marks-entry': _schoolStaffRoles,
   '/school/marks/csv': _schoolStaffRoles,
   // Students and parents open the same screen in a read-only self view.
@@ -238,6 +241,9 @@ final router = GoRouter(
           return '/school/student-dashboard';
         } else if (normalizedRole == 'parent') {
           return '/school/parent-dashboard';
+        } else if (normalizedRole == 'counsellor' ||
+            normalizedRole == 'counselor') {
+          return '/school/counsellor-dashboard';
         } else if (normalizedRole == 'warden') {
           return '/warden-dashboard';
         } else if (normalizedRole == 'conductor') {
@@ -382,6 +388,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/teacher-class-students',
       builder: (context, state) => const SchoolClassStudentsScreen(),
+    ),
+    GoRoute(
+      path: '/school/counsellor-dashboard',
+      builder: (context, state) => const SchoolCounsellorDashboard(),
     ),
     GoRoute(
       path: '/school/homework',

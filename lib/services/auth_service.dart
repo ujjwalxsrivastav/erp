@@ -83,6 +83,7 @@ class AuthService {
         'student' => '/school/student-dashboard',
         'parent' => '/school/parent-dashboard',
         'admin' || 'principal' || 'superadmin' => '/school/admin-dashboard',
+        'counsellor' || 'counselor' => '/school/counsellor-dashboard',
         'driver' || 'attendant' || 'conductor' => '/conductor-dashboard',
         'warden' => '/warden-dashboard',
         _ => '/login',

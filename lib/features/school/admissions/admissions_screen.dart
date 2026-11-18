@@ -551,6 +551,15 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                           _buildMiniInfo(Icons.verified_user_outlined, 'KYC: $docStatus', color: docStatus == 'Verified' ? const Color(0xFF059669) : const Color(0xFFD97706)),
                           if ((a['referral'] ?? '').toString().isNotEmpty)
                             _buildMiniInfo(Icons.share_rounded, 'Referral: ${a['referral']}', color: const Color(0xFF7C3AED)),
+                          _buildMiniInfo(
+                            Icons.support_agent_rounded,
+                            (a['counsellor_name'] ?? '').toString().isNotEmpty
+                                ? 'Counsellor: ${a['counsellor_name']}'
+                                : 'Counsellor: Unassigned',
+                            color: (a['counsellor_name'] ?? '').toString().isNotEmpty
+                                ? const Color(0xFF0891B2)
+                                : const Color(0xFFDC2626),
+                          ),
                           if ((a['test_score'] as num?) != null && (a['test_score'] as num) > 0)
                             _buildMiniInfo(Icons.grade_rounded, 'Test: ${a['test_score']}/50 Score', color: const Color(0xFF2563EB)),
                         ],

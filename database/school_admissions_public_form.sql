@@ -17,6 +17,9 @@ ALTER TABLE school_admissions
   ADD COLUMN IF NOT EXISTS previous_school TEXT,
   ADD COLUMN IF NOT EXISTS referral TEXT,
   ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'public_form',
+  ADD COLUMN IF NOT EXISTS counsellor_id UUID,
+  ADD COLUMN IF NOT EXISTS counsellor_name TEXT,
+  ADD COLUMN IF NOT EXISTS counsellor_assigned_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_school_admissions_created_at

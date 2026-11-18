@@ -540,7 +540,7 @@ class _SchoolAdmissionApplicationScreenState
             ),
             const SizedBox(height: 8),
             const Text(
-              'Your application has been sent to the school for review. You will be contacted on the mobile number provided.',
+              'Your application has been sent to the school for review. A counsellor will be allotted to you and will contact you on the mobile number provided.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Color(0xFF64748B), height: 1.4),
             ),

@@ -211,6 +211,9 @@ CREATE TABLE IF NOT EXISTS school_admissions (
     previous_school TEXT,
     referral TEXT,
     source TEXT DEFAULT 'public_form',
+    counsellor_id UUID,
+    counsellor_name TEXT,
+    counsellor_assigned_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ DEFAULT now(),
     created_at TIMESTAMPTZ DEFAULT now()
 );
