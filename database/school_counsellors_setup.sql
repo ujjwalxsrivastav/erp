@@ -9,6 +9,11 @@
 -- ============================================================================
 
 -- 1. Allow the counsellor role on the users table ----------------------------
+-- Some databases predate the dual-mode migration; make sure the school column
+-- exists before seeding counsellor accounts.
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS institute_type TEXT DEFAULT 'college';
+
 ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE public.users
   ADD CONSTRAINT users_role_check
@@ -98,11 +103,69 @@ SET name = EXCLUDED.name,
     email = EXCLUDED.email,
     phone = EXCLUDED.phone;
 
--- 5. Admission allotment columns ---------------------------------------------
+-- 5. Admission allotment + workflow columns -----------------------------------
+-- Allotment marks who owns the application; the workflow columns let the
+-- counsellor desk see the latest admin action (status_detail) even though the
+-- constrained `status` column only allows pending/approved/rejected.
 ALTER TABLE school_admissions
   ADD COLUMN IF NOT EXISTS counsellor_id UUID,
   ADD COLUMN IF NOT EXISTS counsellor_name TEXT,
-  ADD COLUMN IF NOT EXISTS counsellor_assigned_at TIMESTAMPTZ;
+  ADD COLUMN IF NOT EXISTS counsellor_assigned_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS status_detail TEXT,
+  ADD COLUMN IF NOT EXISTS doc_status TEXT DEFAULT 'Pending',
+  ADD COLUMN IF NOT EXISTS documents JSONB,
+  ADD COLUMN IF NOT EXISTS test_score INT,
+  ADD COLUMN IF NOT EXISTS interview_notes TEXT,
+  ADD COLUMN IF NOT EXISTS fee_demanded NUMERIC,
+  ADD COLUMN IF NOT EXISTS offer_valid_till TEXT,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
+CREATE INDEX IF NOT EXISTS idx_school_admissions_counsellor
+  ON school_admissions (counsellor_id);
+
+-- 6. Backfill applications submitted before the counsellor system ------------
+-- Distributes every currently unassigned application across the active
+-- counsellor pool, then recomputes each counsellor's load counter. Re-running
+-- is safe: only rows with a NULL counsellor_id are touched.
+WITH unassigned AS (
+  SELECT id, (row_number() OVER (ORDER BY created_at NULLS LAST, id)) - 1 AS rn
+  FROM school_admissions
+  WHERE counsellor_id IS NULL
+),
+pool AS (
+  SELECT id,
+         name,
+         (row_number() OVER (
+            ORDER BY assignments_count, last_assigned_at NULLS FIRST, name
+         )) - 1 AS rn,
+         count(*) OVER () AS total
+  FROM school_counsellors
+  WHERE is_active = TRUE
+),
+assign AS (
+  SELECT u.id AS admission_id, p.id AS counsellor_id, p.name AS counsellor_name
+  FROM unassigned u
+  JOIN pool p ON (u.rn % p.total) = p.rn
+)
+UPDATE school_admissions a
+SET counsellor_id = assign.counsellor_id,
+    counsellor_name = assign.counsellor_name,
+    counsellor_assigned_at = now()
+FROM assign
+WHERE a.id = assign.admission_id;
+
+UPDATE school_counsellors c
+SET assignments_count = COALESCE(sub.cnt, 0),
+    last_assigned_at = COALESCE(sub.last_at, c.last_assigned_at)
+FROM (
+  SELECT counsellor_id,
+         count(*) AS cnt,
+         max(counsellor_assigned_at) AS last_at
+  FROM school_admissions
+  WHERE counsellor_id IS NOT NULL
+  GROUP BY counsellor_id
+) sub
+WHERE c.id = sub.counsellor_id;
 
 -- Quick verification helpers
 DO $$

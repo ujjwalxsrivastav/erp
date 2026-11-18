@@ -20,6 +20,16 @@ ALTER TABLE school_admissions
   ADD COLUMN IF NOT EXISTS counsellor_id UUID,
   ADD COLUMN IF NOT EXISTS counsellor_name TEXT,
   ADD COLUMN IF NOT EXISTS counsellor_assigned_at TIMESTAMPTZ,
+  -- Workflow visibility for the counsellor desk: every admin action writes the
+  -- display status here (the constrained `status` column stays pending/
+  -- approved/rejected for compatibility).
+  ADD COLUMN IF NOT EXISTS status_detail TEXT,
+  ADD COLUMN IF NOT EXISTS doc_status TEXT DEFAULT 'Pending',
+  ADD COLUMN IF NOT EXISTS documents JSONB,
+  ADD COLUMN IF NOT EXISTS test_score INT,
+  ADD COLUMN IF NOT EXISTS interview_notes TEXT,
+  ADD COLUMN IF NOT EXISTS fee_demanded NUMERIC,
+  ADD COLUMN IF NOT EXISTS offer_valid_till TEXT,
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_school_admissions_created_at
@@ -27,6 +37,9 @@ CREATE INDEX IF NOT EXISTS idx_school_admissions_created_at
 
 CREATE INDEX IF NOT EXISTS idx_school_admissions_status
   ON school_admissions (status);
+
+CREATE INDEX IF NOT EXISTS idx_school_admissions_counsellor
+  ON school_admissions (counsellor_id);
 
 -- Public (anonymous) submissions must be able to insert rows. The original
 -- setup script already disables RLS and grants anon access; this keeps the

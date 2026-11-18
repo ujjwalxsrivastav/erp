@@ -214,6 +214,13 @@ CREATE TABLE IF NOT EXISTS school_admissions (
     counsellor_id UUID,
     counsellor_name TEXT,
     counsellor_assigned_at TIMESTAMPTZ,
+    status_detail TEXT,
+    doc_status TEXT DEFAULT 'Pending',
+    documents JSONB,
+    test_score INT,
+    interview_notes TEXT,
+    fee_demanded NUMERIC,
+    offer_valid_till TEXT,
     updated_at TIMESTAMPTZ DEFAULT now(),
     created_at TIMESTAMPTZ DEFAULT now()
 );

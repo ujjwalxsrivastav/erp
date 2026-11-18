@@ -8509,9 +8509,13 @@ class SchoolService {
 
         final dbStatus =
             (remote['status'] ?? 'pending').toString().toLowerCase();
-        final displayStatus = dbStatus == 'approved'
-            ? 'Approved'
-            : (dbStatus == 'rejected' ? 'Rejected' : 'Under Review');
+        final statusDetail =
+            (remote['status_detail'] ?? '').toString().trim();
+        final displayStatus = statusDetail.isNotEmpty
+            ? statusDetail
+            : (dbStatus == 'approved'
+                ? 'Approved'
+                : (dbStatus == 'rejected' ? 'Rejected' : 'Under Review'));
 
         final mapped = <String, dynamic>{
           'id': rid,
@@ -8536,24 +8540,46 @@ class SchoolService {
           'referred_by': remote['referral'] ?? '',
           'counsellor_id': remote['counsellor_id']?.toString() ?? '',
           'counsellor_name': remote['counsellor_name']?.toString() ?? '',
+          'counsellor_assigned_at':
+              remote['counsellor_assigned_at']?.toString() ?? '',
           'previous_school': remote['previous_school'] ?? '',
           'source': remote['source'] ?? '',
           'status': displayStatus,
+          'status_detail': statusDetail.isNotEmpty ? statusDetail : displayStatus,
           'doc_status': remote['doc_status'] ?? 'Pending',
+          'test_score': (remote['test_score'] as num?)?.toInt() ?? 0,
+          'test_status':
+              ((remote['test_score'] as num?)?.toInt() ?? 0) > 0
+                  ? 'Completed'
+                  : 'Pending',
+          'interview_notes': remote['interview_notes'] ?? '',
+          'fee_demanded':
+              (remote['fee_demanded'] as num?)?.toDouble() ?? 0.0,
+          'offer_valid_till': remote['offer_valid_till'] ?? '',
+          'last_action_at': (remote['updated_at'] ?? remote['created_at'])
+                  ?.toString() ??
+              '',
           'date': (remote['created_at'] != null)
               ? remote['created_at'].toString().substring(0, 10)
               : DateTime.now().toIso8601String().substring(0, 10),
         };
 
+        // Only override the local document checklist when the DB actually has
+        // one, so in-session scrutiny state is never blanked out.
+        if (remote['documents'] is Map) {
+          mapped['documents'] =
+              Map<String, dynamic>.from(remote['documents'] as Map);
+        }
+
         final localIdx =
             _admissionsStore.indexWhere((l) => l['id']?.toString() == rid);
         if (localIdx >= 0) {
-          // The local copy holds workflow state created in this session
-          // (documents, test score, offer letter, fees); refresh the base
-          // details from the DB row but keep the richer local values.
+          // Database values win for persisted fields (status, test score,
+          // offer letter, docs). Local-only keys the DB does not store
+          // (documents map, fee_paid, ...) are preserved.
           _admissionsStore[localIdx] = {
-            ...mapped,
             ..._admissionsStore[localIdx],
+            ...mapped,
           };
         } else {
           _admissionsStore.add({
@@ -8567,9 +8593,6 @@ class SchoolService {
               'medical_fitness': false,
               'rte_income_cert': false,
             },
-            'test_status': 'Pending',
-            'test_score': 0,
-            'fee_demanded': 0.0,
             'fee_paid': 0.0,
           });
         }
@@ -8703,6 +8726,7 @@ class SchoolService {
       if (address.isNotEmpty) 'address': address,
       if (previousSchool.isNotEmpty) 'previous_school': previousSchool,
       if (referral.isNotEmpty) 'referral': referral,
+      if (data['documents'] is Map) 'documents': data['documents'],
     };
     try {
       final resp = await _supabase
@@ -8781,6 +8805,53 @@ class SchoolService {
     }
   }
 
+  /// Directory record for the signed-in counsellor (matched by username).
+  Future<Map<String, dynamic>?> getSchoolCounsellorByUsername(
+      String username) async {
+    final clean = username.trim();
+    if (clean.isEmpty) return null;
+    try {
+      final res = await _supabase
+          .from('school_counsellors')
+          .select()
+          .eq('username', clean)
+          .limit(1);
+      final rows = List<Map<String, dynamic>>.from(res);
+      if (rows.isEmpty) return null;
+      return rows.first;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Every admission allotted to a counsellor, newest first. Matching is done
+  /// on the counsellor id (preferred) and falls back to the stored name.
+  Future<List<Map<String, dynamic>>> getAdmissionsForCounsellor({
+    String? counsellorId,
+    String? counsellorName,
+  }) async {
+    final id = (counsellorId ?? '').trim();
+    final name = (counsellorName ?? '').trim().toLowerCase();
+    if (id.isEmpty && name.isEmpty) return [];
+
+    final all = await getAdmissions();
+    final result = all.where((a) {
+      final rowId = (a['counsellor_id'] ?? '').toString().trim();
+      final rowName =
+          (a['counsellor_name'] ?? '').toString().trim().toLowerCase();
+      if (id.isNotEmpty && rowId == id) return true;
+      if (name.isNotEmpty && rowName == name) return true;
+      return false;
+    }).toList();
+
+    result.sort((a, b) {
+      final ad = (a['date'] ?? '').toString();
+      final bd = (b['date'] ?? '').toString();
+      return bd.compareTo(ad);
+    });
+    return result;
+  }
+
   /// Allots a counsellor to [admissionId] using round-robin with load balance:
   /// the counsellor with the fewest assignments wins, and ties go to whoever
   /// was assigned longest ago. Returns the chosen counsellor, or null when no
@@ -8853,20 +8924,37 @@ class SchoolService {
 
   Future<bool> updateAdmissionStatus(
       String admissionId, String newStatus) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     final idx =
         _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
-      _admissionsStore[idx] = {..._admissionsStore[idx], 'status': newStatus};
+      _admissionsStore[idx] = {
+        ..._admissionsStore[idx],
+        'status': newStatus,
+        'status_detail': newStatus,
+        'last_action_at': nowIso,
+      };
     }
     final dbStatus = (newStatus.toLowerCase() == 'approved' ||
             newStatus.toLowerCase() == 'enrolled')
         ? 'approved'
         : (newStatus.toLowerCase() == 'rejected' ? 'rejected' : 'pending');
     try {
-      await _supabase
-          .from('school_admissions')
-          .update({'status': dbStatus}).eq('id', admissionId);
-    } catch (_) {}
+      await _supabase.from('school_admissions').update({
+        'status': dbStatus,
+        // The CHECK constraint only allows pending/approved/rejected, so the
+        // richer workflow label is stored separately for the counsellor desk.
+        'status_detail': newStatus,
+        'updated_at': nowIso,
+      }).eq('id', admissionId);
+    } catch (_) {
+      // Databases created before database/school_admissions_public_form.sql.
+      try {
+        await _supabase
+            .from('school_admissions')
+            .update({'status': dbStatus}).eq('id', admissionId);
+      } catch (_) {}
+    }
     return true;
   }
 
@@ -8875,15 +8963,32 @@ class SchoolService {
     String docStatus, {
     Map<String, bool>? documents,
   }) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     final idx =
         _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
       final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
       updated['doc_status'] = docStatus;
+      updated['status_detail'] =
+          (updated['status_detail'] ?? updated['status'] ?? '').toString();
+      updated['last_action_at'] = nowIso;
       if (documents != null) {
         updated['documents'] = documents;
       }
       _admissionsStore[idx] = updated;
+    }
+    try {
+      await _supabase.from('school_admissions').update({
+        'doc_status': docStatus,
+        if (documents != null) 'documents': documents,
+        'updated_at': nowIso,
+      }).eq('id', admissionId);
+    } catch (_) {
+      try {
+        await _supabase.from('school_admissions').update({
+          'doc_status': docStatus,
+        }).eq('id', admissionId);
+      } catch (_) {}
     }
     return true;
   }
@@ -8894,6 +8999,10 @@ class SchoolService {
     required String notes,
     required String verdict,
   }) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final statusLabel = verdict == 'Recommended'
+        ? 'Approved'
+        : (verdict == 'Not Recommended' ? 'Rejected' : null);
     final idx =
         _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
@@ -8901,12 +9010,34 @@ class SchoolService {
       updated['test_score'] = score;
       updated['test_status'] = 'Completed';
       updated['interaction_notes'] = notes;
-      if (verdict == 'Recommended') {
-        updated['status'] = 'Approved';
-      } else if (verdict == 'Not Recommended') {
-        updated['status'] = 'Rejected';
+      if (statusLabel != null) {
+        updated['status'] = statusLabel;
+        updated['status_detail'] = statusLabel;
       }
+      updated['last_action_at'] = nowIso;
       _admissionsStore[idx] = updated;
+    }
+
+    final payload = <String, dynamic>{
+      'test_score': score,
+      'interview_notes': notes,
+      'updated_at': nowIso,
+      if (statusLabel != null) 'status_detail': statusLabel,
+      if (statusLabel == 'Approved') 'status': 'approved',
+      if (statusLabel == 'Rejected') 'status': 'rejected',
+    };
+    try {
+      await _supabase
+          .from('school_admissions')
+          .update(payload)
+          .eq('id', admissionId);
+    } catch (_) {
+      // Older schema: persist whatever subset of columns exists.
+      try {
+        await _supabase.from('school_admissions').update({
+          'test_score': score,
+        }).eq('id', admissionId);
+      } catch (_) {}
     }
     return true;
   }
@@ -8916,15 +9047,33 @@ class SchoolService {
     required double feeDemanded,
     required String validTill,
   }) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final offerDate = nowIso.substring(0, 10);
     final idx =
         _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
       final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
       updated['status'] = 'Offer Letter Issued';
+      updated['status_detail'] = 'Offer Letter Issued';
       updated['fee_demanded'] = feeDemanded;
-      updated['offer_date'] = DateTime.now().toIso8601String().substring(0, 10);
+      updated['offer_date'] = offerDate;
       updated['offer_valid_till'] = validTill;
+      updated['last_action_at'] = nowIso;
       _admissionsStore[idx] = updated;
+    }
+    try {
+      await _supabase.from('school_admissions').update({
+        'status_detail': 'Offer Letter Issued',
+        'fee_demanded': feeDemanded,
+        'offer_valid_till': validTill,
+        'updated_at': nowIso,
+      }).eq('id', admissionId);
+    } catch (_) {
+      try {
+        await _supabase.from('school_admissions').update({
+          'fee_demanded': feeDemanded,
+        }).eq('id', admissionId);
+      } catch (_) {}
     }
     return true;
   }
@@ -8999,9 +9148,11 @@ class SchoolService {
         _admissionsStore[idx] = {
           ..._admissionsStore[idx],
           'status': 'Enrolled',
+          'status_detail': 'Enrolled',
           'enrolled_class': className,
           'admission_no': admissionNo,
           'fee_paid': paid,
+          'last_action_at': DateTime.now().toUtc().toIso8601String(),
         };
       }
       await updateAdmissionStatus(admission['id'].toString(), 'Enrolled');
