@@ -29,6 +29,104 @@ ALTER TABLE public.users
     OR role IN ('HR', 'HOD')
   ) NOT VALID;
 
+-- 1b. Account-creation RPC ------------------------------------------------
+-- The app creates teacher/counsellor logins through `secure_add_user_v2`.
+-- Older definitions only accepted student/teacher/admin, so counsellor
+-- accounts failed with "Invalid role". This version accepts the school roles
+-- used by Manage Users and fills the institution columns when they exist.
+CREATE OR REPLACE FUNCTION public.secure_add_user_v2(
+  p_username TEXT,
+  p_password TEXT,
+  p_role TEXT,
+  p_created_by TEXT DEFAULT NULL
+)
+RETURNS JSON AS $$
+DECLARE
+  v_hashed_password TEXT;
+  v_clean_username TEXT;
+  v_valid_roles TEXT[] := ARRAY['student', 'teacher', 'admin', 'counsellor', 'counselor'];
+  v_institution TEXT;
+BEGIN
+  IF p_username IS NULL OR TRIM(p_username) = '' THEN
+    RETURN json_build_object('success', false, 'message', 'Username is required');
+  END IF;
+  IF p_password IS NULL OR TRIM(p_password) = '' THEN
+    RETURN json_build_object('success', false, 'message', 'Password is required');
+  END IF;
+  IF LENGTH(p_password) < 6 THEN
+    RETURN json_build_object('success', false, 'message', 'Password must be at least 6 characters');
+  END IF;
+  IF p_role IS NULL OR NOT (LOWER(p_role) = ANY(v_valid_roles)) THEN
+    RETURN json_build_object(
+      'success', false,
+      'message', 'Invalid role. Valid roles: student, teacher, admin, counsellor'
+    );
+  END IF;
+
+  v_clean_username := LOWER(TRIM(p_username));
+  IF v_clean_username !~ '^[a-z0-9_]+$' THEN
+    RETURN json_build_object('success', false,
+      'message', 'Username can only contain letters, numbers, and underscores');
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.users WHERE username = v_clean_username) THEN
+    RETURN json_build_object('success', false, 'message', 'Username already exists');
+  END IF;
+
+  v_hashed_password := public.hash_password(p_password);
+  v_institution := CASE WHEN LOWER(p_role) = 'admin' THEN 'college' ELSE 'school' END;
+
+  INSERT INTO public.users (username, password, role)
+  VALUES (v_clean_username, v_hashed_password, LOWER(p_role));
+
+  -- Keep whichever institution columns this database has in sync.
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users'
+      AND column_name = 'institute_type'
+  ) THEN
+    EXECUTE 'UPDATE public.users SET institute_type = $1 WHERE username = $2'
+      USING v_institution, v_clean_username;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users'
+      AND column_name = 'institution'
+  ) THEN
+    EXECUTE 'UPDATE public.users SET institution = $1 WHERE username = $2'
+      USING v_institution, v_clean_username;
+  END IF;
+
+  RETURN json_build_object(
+    'success', true,
+    'message', 'User created successfully',
+    'username', v_clean_username,
+    'role', LOWER(p_role)
+  );
+EXCEPTION
+  WHEN unique_violation THEN
+    RETURN json_build_object('success', false, 'message', 'Username already exists');
+  WHEN OTHERS THEN
+    RETURN json_build_object('success', false,
+      'message', 'Error creating user: ' || SQLERRM);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.secure_add_user_v2
+  TO anon, authenticated, service_role;
+
+-- 1c. Teacher display-name directory ---------------------------------------
+-- School screens resolve teacher names from this table; admins may create
+-- teachers before the seed script that originally defined it has run.
+CREATE TABLE IF NOT EXISTS public.school_teachers (
+  username   TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  subject    TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.school_teachers DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE public.school_teachers TO anon, authenticated, service_role;
+
 -- Older databases also carry an `institution` column used by the admin user
 -- management screens. Counsellor rows are synced after seeding below.
 

@@ -140,7 +140,7 @@ CREATE OR REPLACE FUNCTION public.secure_add_user_v2(
   p_username TEXT, p_password TEXT, p_role TEXT, p_created_by TEXT DEFAULT NULL
 ) RETURNS JSON AS $$
 DECLARE
-  v_hashed TEXT; v_clean TEXT; v_roles TEXT[] := ARRAY['student', 'teacher', 'admin', 'staff', 'HR', 'hod'];
+  v_hashed TEXT; v_clean TEXT; v_roles TEXT[] := ARRAY['student', 'teacher', 'admin', 'counsellor', 'counselor', 'staff', 'HR', 'hod'];
 BEGIN
   IF p_username IS NULL OR TRIM(p_username) = '' THEN
     RETURN json_build_object('success', false, 'message', 'Username required');

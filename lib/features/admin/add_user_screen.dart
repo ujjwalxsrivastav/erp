@@ -5,8 +5,8 @@ import '../../core/theme/app_theme.dart';
 import '../../services/school_service.dart';
 import 'services/user_management_service.dart';
 
-/// Admin — Add User. Creates a login account for a student, teacher or
-/// admin and stores the person's name on their profile row.
+/// Admin — Add User. Creates a login account for a student, teacher,
+/// counsellor or admin and stores the person's name on their profile row.
 class AddUserScreen extends StatefulWidget {
   /// Institution the account is created in; returned to the caller on success.
   final String? institution;
@@ -28,6 +28,8 @@ class _AddUserScreenState extends State<AddUserScreen> {
   final _subjectController = TextEditingController();
   final _departmentController = TextEditingController();
   final _rollNumberController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
 
   String _role = UserRoles.student;
   String? _className;
@@ -51,6 +53,8 @@ class _AddUserScreenState extends State<AddUserScreen> {
       _subjectController,
       _departmentController,
       _rollNumberController,
+      _emailController,
+      _phoneController,
     ]) {
       c.dispose();
     }
@@ -93,6 +97,9 @@ class _AddUserScreenState extends State<AddUserScreen> {
       rollNumber: _rollNumberController.text,
       subject: _subjectController.text,
       department: _departmentController.text,
+      email: _emailController.text,
+      phone: _phoneController.text,
+      institution: widget.institution,
     );
     if (!mounted) return;
     setState(() => _isSaving = false);
@@ -165,6 +172,34 @@ class _AddUserScreenState extends State<AddUserScreen> {
                 controller: _departmentController,
                 label: 'Department',
                 icon: Icons.business_outlined,
+              ),
+            ],
+            if (_role == UserRoles.counsellor) ...[
+              _sectionTitle('Counsellor Details'),
+              _field(
+                controller: _emailController,
+                label: 'Email (optional)',
+                icon: Icons.email_outlined,
+                keyboardType: TextInputType.emailAddress,
+              ),
+              _field(
+                controller: _phoneController,
+                label: 'Phone (optional)',
+                icon: Icons.phone_outlined,
+                keyboardType: TextInputType.phone,
+              ),
+              Container(
+                margin: const EdgeInsets.only(bottom: AppTheme.sm),
+                padding: const EdgeInsets.all(AppTheme.sm),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentOrange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                ),
+                child: Text(
+                  'Counsellors are added to the admission allotment pool and '
+                  'receive new applications in round-robin order.',
+                  style: AppTheme.caption.copyWith(color: AppTheme.dark),
+                ),
               ),
             ],
             if (_role == UserRoles.student) ...[

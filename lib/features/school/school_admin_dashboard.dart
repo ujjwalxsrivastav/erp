@@ -3223,7 +3223,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
             ),
             _ModuleItem(
               title: 'User & Role Access Control',
-              desc: 'Staff, parent & student credential provisioning',
+              desc: 'Teacher, counsellor, student & parent credential provisioning',
               icon: Icons.manage_accounts_rounded,
               route: '/admin/manage-users/school',
               badge: '${_staffDirectory.length} Faculty',

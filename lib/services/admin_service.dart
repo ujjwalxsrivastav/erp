@@ -148,6 +148,15 @@ class AdminService {
         'updated_at': DateTime.now().toIso8601String(),
       });
 
+      // School screens resolve teacher names from `school_teachers`.
+      try {
+        await _supabase.from('school_teachers').upsert({
+          'username': teacherId.toLowerCase(),
+          'name': name,
+          if (subject.trim().isNotEmpty) 'subject': subject.trim(),
+        }, onConflict: 'username');
+      } catch (_) {}
+
       // Keep the account visible under Admin → Manage Users → School.
       try {
         await _supabase

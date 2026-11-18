@@ -35,6 +35,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   static const Map<String, Color> _roleColors = {
     UserRoles.student: AppTheme.studentPrimary,
     UserRoles.teacher: AppTheme.teacherPrimary,
+    UserRoles.counsellor: Color(0xFF0F766E),
     UserRoles.admin: AppTheme.adminPrimary,
     'parent': AppTheme.accentOrange,
   };
@@ -151,7 +152,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
     if (picked == null || picked == current || !mounted) return;
 
-    final ok = await _service.updateUserRole(username, picked);
+    final ok = await _service.updateUserRole(
+      username,
+      picked,
+      name: (user['display_name'] ?? '').toString(),
+      institution: _institution,
+    );
     if (!mounted) return;
     if (ok) {
       await _load();
@@ -590,9 +596,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ? Icons.school_rounded
                   : role == UserRoles.teacher
                       ? Icons.person_rounded
-                      : role == 'parent'
-                          ? Icons.family_restroom_rounded
-                          : Icons.shield_rounded,
+                      : role == UserRoles.counsellor
+                          ? Icons.support_agent_rounded
+                          : role == 'parent'
+                              ? Icons.family_restroom_rounded
+                              : Icons.shield_rounded,
               color: color,
             ),
           ),

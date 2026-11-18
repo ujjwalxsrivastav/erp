@@ -44,7 +44,7 @@ DELETE FROM public.users WHERE role IN ('staff', 'hod', 'HR');
 ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE public.users
   ADD CONSTRAINT users_role_check
-  CHECK (role IN ('student', 'teacher', 'admin'));
+  CHECK (role IN ('student', 'teacher', 'admin', 'counsellor', 'counselor'));
 
 -- Keep the secure RPCs in step with the new role list.
 CREATE OR REPLACE FUNCTION public.secure_add_user_v2(
@@ -57,7 +57,7 @@ RETURNS JSON AS $$
 DECLARE
   v_hashed_password TEXT;
   v_clean_username TEXT;
-  v_valid_roles TEXT[] := ARRAY['student', 'teacher', 'admin'];
+  v_valid_roles TEXT[] := ARRAY['student', 'teacher', 'admin', 'counsellor', 'counselor'];
 BEGIN
   IF p_username IS NULL OR TRIM(p_username) = '' THEN
     RETURN json_build_object('success', false, 'message', 'Username is required');

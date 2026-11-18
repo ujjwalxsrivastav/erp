@@ -15,21 +15,28 @@ class ManagedUsersResult {
 class UserRoles {
   static const String student = 'student';
   static const String teacher = 'teacher';
+  static const String counsellor = 'counsellor';
   static const String admin = 'admin';
 
-  static const List<String> all = [student, teacher, admin];
+  static const List<String> all = [student, teacher, counsellor, admin];
 
   static String label(String role) => switch (role) {
         student => 'Student',
         teacher => 'Teacher',
+        counsellor => 'Counsellor',
         admin => 'Admin',
         _ =>
           role.isEmpty ? role : '${role[0].toUpperCase()}${role.substring(1)}',
       };
 
-  /// `users.institution` — decides which dashboard the account lands on.
-  static String institutionFor(String role) =>
-      role == admin ? 'college' : 'school';
+  /// `users.institution` / `users.institute_type` — decides which dashboard
+  /// the account lands on. [preferredInstitution] lets the screen pass the
+  /// institution the admin is currently creating accounts for.
+  static String institutionFor(String role, {String? preferredInstitution}) {
+    final preferred = (preferredInstitution ?? '').trim().toLowerCase();
+    if (preferred == 'school' || preferred == 'college') return preferred;
+    return role == admin ? 'college' : 'school';
+  }
 
   static bool isSupported(String role) => all.contains(role);
 }
@@ -174,6 +181,54 @@ class UserManagementService {
     }
 
     try {
+      final teachers = await _supabase
+          .from('school_teachers')
+          .select('username, name, subject')
+          .inFilter('username', ids);
+      final byId = <String, Map<String, dynamic>>{
+        for (final t in List<Map<String, dynamic>>.from(teachers))
+          t['username'] as String: t,
+      };
+      for (final u in users) {
+        final t = byId[u['username']];
+        if (t == null) continue;
+        u['display_name'] = t['name'];
+        final subject = (t['subject'] ?? '').toString();
+        if (subject.isNotEmpty) {
+          u['detail'] = '$subject • School teacher';
+        }
+      }
+    } catch (e) {
+      print('Error resolving school teacher directory for users: $e');
+    }
+
+    try {
+      final counsellors = await _supabase
+          .from('school_counsellors')
+          .select('username, name, phone, email, assignments_count')
+          .inFilter('username', ids);
+      final byId = <String, Map<String, dynamic>>{
+        for (final c in List<Map<String, dynamic>>.from(counsellors))
+          c['username'] as String: c,
+      };
+      for (final u in users) {
+        final c = byId[u['username']];
+        if (c == null) continue;
+        u['display_name'] = c['name'];
+        final phone = (c['phone'] ?? '').toString();
+        final load = (c['assignments_count'] as num?)?.toInt() ?? 0;
+        u['detail'] = [
+          'Admission counsellor',
+          if (phone.isNotEmpty) phone,
+          '$load allotted',
+        ].join(' • ');
+      }
+    } catch (e) {
+      // Table may not exist until database/school_counsellors_setup.sql runs.
+      print('Error resolving counsellor directory for users: $e');
+    }
+
+    try {
       final students = await _supabase
           .from('student_details')
           .select('student_id, name, department, year, semester, section')
@@ -237,17 +292,121 @@ class UserManagementService {
     }
   }
 
-  Future<bool> updateUserRole(String username, String newRole) async {
+  /// Keeps the legacy `users.institution` column and the dual-mode
+  /// `users.institute_type` column in sync, tolerating databases that only
+  /// have one of them.
+  Future<void> _applyInstitution(String username, String institution) async {
     try {
       await _supabase.from('users').update({
-        'role': newRole,
-        'institution': UserRoles.institutionFor(newRole),
+        'institution': institution,
+        'institute_type': institution,
       }).eq('username', username);
+      return;
+    } catch (_) {}
+    try {
+      await _supabase
+          .from('users')
+          .update({'institution': institution}).eq('username', username);
+      return;
+    } catch (_) {}
+    try {
+      await _supabase
+          .from('users')
+          .update({'institute_type': institution}).eq('username', username);
+    } catch (_) {}
+  }
+
+  String? _nullIfBlank(String? value) {
+    final v = (value ?? '').trim();
+    return v.isEmpty ? null : v;
+  }
+
+  /// Adds/refreshes the school teacher directory row used by the teacher
+  /// dashboard and homework cards to show a real name.
+  Future<bool> _upsertSchoolTeacher(
+      String username, String name, String? subject) async {
+    final cleanSubject = (subject ?? '').trim();
+    try {
+      await _supabase.from('school_teachers').upsert({
+        'username': username,
+        'name': name,
+        if (cleanSubject.isNotEmpty) 'subject': cleanSubject,
+      }, onConflict: 'username');
       return true;
+    } catch (e) {
+      print('Error saving school teacher $username: $e');
+      return false;
+    }
+  }
+
+  /// Adds/refreshes the school counsellor directory row. This is what the
+  /// round-robin allotment engine reads when assigning admission forms.
+  Future<bool> _upsertCounsellor({
+    required String username,
+    required String name,
+    String? email,
+    String? phone,
+  }) async {
+    final cleanEmail = _nullIfBlank(email);
+    final cleanPhone = _nullIfBlank(phone);
+    try {
+      await _supabase.from('school_counsellors').upsert({
+        'username': username,
+        'name': name,
+        'is_active': true,
+        if (cleanEmail != null) 'email': cleanEmail,
+        if (cleanPhone != null) 'phone': cleanPhone,
+      }, onConflict: 'username');
+      return true;
+    } catch (e) {
+      print('Error saving school counsellor $username: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateUserRole(
+    String username,
+    String newRole, {
+    String? name,
+    String? institution,
+  }) async {
+    if (!UserRoles.isSupported(newRole)) return false;
+
+    try {
+      await _supabase
+          .from('users')
+          .update({'role': newRole}).eq('username', username);
     } catch (e) {
       print('Error updating role for $username: $e');
       return false;
     }
+
+    final targetInstitution =
+        UserRoles.institutionFor(newRole, preferredInstitution: institution);
+    await _applyInstitution(username, targetInstitution);
+
+    final displayName = (name ?? '').trim();
+    final safeName = displayName.isEmpty ? username : displayName;
+
+    if (newRole == UserRoles.counsellor) {
+      // Make sure the allocator can pick this person for new admissions.
+      await _upsertCounsellor(username: username, name: safeName);
+    } else {
+      // Stop offering the account to the round-robin allocator.
+      try {
+        await _supabase
+            .from('school_counsellors')
+            .update({'is_active': false}).eq('username', username);
+      } catch (_) {}
+    }
+
+    if (newRole == UserRoles.teacher &&
+        targetInstitution == 'school' &&
+        displayName.isNotEmpty) {
+      await _upsertSchoolTeacher(username, displayName, null);
+    }
+
+    return true;
   }
 
   /// Creates a login account and a profile row carrying [name].
@@ -261,6 +420,9 @@ class UserManagementService {
     String? rollNumber,
     String? subject,
     String? department,
+    String? email,
+    String? phone,
+    String? institution,
     String? createdBy,
   }) async {
     final cleanUsername = username.trim().toLowerCase();
@@ -287,41 +449,68 @@ class UserManagementService {
       return {'success': false, 'message': 'Could not create account: $e'};
     }
 
-    try {
-      await _supabase.from('users').update({
-        'institution': UserRoles.institutionFor(role),
-      }).eq('username', cleanUsername);
-    } catch (_) {
-      // Column may not exist yet — the account itself already works.
-    }
+    final targetInstitution =
+        UserRoles.institutionFor(role, preferredInstitution: institution);
+    await _applyInstitution(cleanUsername, targetInstitution);
+
+    var profileSaved = false;
+    String? profileError;
 
     try {
-      final now = DateTime.now().toIso8601String();
       if (role == UserRoles.teacher) {
-        await _supabase.from('teacher_details').insert({
-          'teacher_id': cleanUsername,
-          'name': cleanName,
-          'employee_id': cleanUsername,
-          'subject': (subject ?? '').trim().isEmpty ? '-' : subject!.trim(),
-          'department':
-              (department ?? '').trim().isEmpty ? '-' : department!.trim(),
-          'created_at': now,
-          'updated_at': now,
-        });
-      } else {
+        if (targetInstitution == 'school') {
+          profileSaved =
+              await _upsertSchoolTeacher(cleanUsername, cleanName, subject);
+        }
+        if (!profileSaved) {
+          final now = DateTime.now().toIso8601String();
+          await _supabase.from('teacher_details').insert({
+            'teacher_id': cleanUsername,
+            'name': cleanName,
+            'employee_id': cleanUsername,
+            'subject': (subject ?? '').trim().isEmpty ? '-' : subject!.trim(),
+            'department':
+                (department ?? '').trim().isEmpty ? '-' : department!.trim(),
+            'created_at': now,
+            'updated_at': now,
+          });
+          profileSaved = true;
+        }
+      } else if (role == UserRoles.counsellor) {
+        profileSaved = await _upsertCounsellor(
+          username: cleanUsername,
+          name: cleanName,
+          email: email,
+          phone: phone,
+        );
+        if (!profileSaved) {
+          profileError = 'the school_counsellors table is unavailable — run '
+              'database/school_counsellors_setup.sql';
+        }
+      } else if (role == UserRoles.student) {
         await _supabase.from('school_students').insert({
           'username': cleanUsername,
           'name': cleanName,
           'class_name': (className ?? '').trim(),
           'roll_number': (rollNumber ?? '').trim(),
         });
+        profileSaved = true;
+      } else {
+        // Admin accounts do not need a profile row.
+        profileSaved = true;
       }
     } catch (e) {
+      profileError = e.toString();
+    }
+
+    if (!profileSaved) {
       // The login exists; surface the profile error so the admin can fix it.
       return {
         'success': true,
         'username': cleanUsername,
-        'message': 'Account created, but saving the name failed: $e. '
+        'message': 'Account created, but saving the '
+            '${UserRoles.label(role).toLowerCase()} profile failed: '
+            '${profileError ?? 'unknown error'}. '
             'Role changes are still applied from this screen.',
       };
     }
@@ -329,7 +518,7 @@ class UserManagementService {
     return {
       'success': true,
       'username': cleanUsername,
-      'message': 'Account created for $cleanName',
+      'message': '${UserRoles.label(role)} account created for $cleanName',
     };
   }
 }

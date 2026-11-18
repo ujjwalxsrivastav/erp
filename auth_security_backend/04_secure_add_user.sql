@@ -23,7 +23,7 @@ RETURNS JSON AS $$
 DECLARE
   v_hashed_password TEXT;
   v_clean_username TEXT;
-  v_valid_roles TEXT[] := ARRAY['student', 'teacher', 'admin', 'staff', 'HR', 'hod'];
+  v_valid_roles TEXT[] := ARRAY['student', 'teacher', 'admin', 'counsellor', 'counselor', 'staff', 'HR', 'hod'];
 BEGIN
   -- Input validation
   IF p_username IS NULL OR TRIM(p_username) = '' THEN
@@ -55,7 +55,7 @@ BEGIN
   IF p_role IS NULL OR NOT (p_role = ANY(v_valid_roles)) THEN
     RETURN json_build_object(
       'success', false,
-      'message', 'Invalid role. Valid roles: student, teacher, admin, staff, HR, hod',
+      'message', 'Invalid role. Valid roles: student, teacher, admin, counsellor, staff, HR, hod',
       'error_code', 'INVALID_ROLE'
     );
   END IF;
