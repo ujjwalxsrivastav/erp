@@ -2136,6 +2136,310 @@ class SchoolService {
     }
   }
 
+  // ===== CLASS-WISE MONTHLY FEES =====
+  // Every student of the same class pays the same monthly fee. The amount is
+  // read from `school_class_monthly_fees`; until an admin row exists the
+  // seeded default for that grade applies.
+  static const Map<int, double> _defaultClassMonthlyFees = {
+    0: 2500.0,
+    1: 3200.0,
+    2: 3200.0,
+    3: 3200.0,
+    4: 3500.0,
+    5: 3500.0,
+    6: 4200.0,
+    7: 4200.0,
+    8: 4500.0,
+    9: 4800.0,
+    10: 5000.0,
+    11: 5500.0,
+    12: 6000.0,
+  };
+
+  List<Map<String, dynamic>> _classMonthlyFeesStore = [];
+
+  String get currentAcademicYearLabel {
+    final now = DateTime.now();
+    final start = now.month >= 4 ? now.year : now.year - 1;
+    return '$start-${(start + 1).toString().substring(2)}';
+  }
+
+  /// Grade number used to key class fees. Pre-primary maps to 0, unknown
+  /// classes to -1 (so they fall back to the standard monthly amount).
+  int _classFeeGrade(String? classId, String? className) {
+    final name = className ?? '';
+    final nameMatch = RegExp(r'(\d{1,2})').firstMatch(name);
+    if (nameMatch != null) {
+      return int.tryParse(nameMatch.group(1)!) ?? -1;
+    }
+    if (RegExp(r'nursery|lkg|ukg|pre.?primary|^kg\b', caseSensitive: false)
+        .hasMatch(name)) {
+      return 0;
+    }
+    final idMatch =
+        RegExp(r'^cls-?(\d{1,2})').firstMatch((classId ?? '').toLowerCase());
+    if (idMatch != null) {
+      return int.tryParse(idMatch.group(1)!) ?? -1;
+    }
+    return -1;
+  }
+
+  double _defaultClassFeeForGrade(int grade) =>
+      _defaultClassMonthlyFees[grade] ?? 3500.0;
+
+  /// Admin-managed monthly fee for every class, merged with the seeded
+  /// defaults so the section is never empty.
+  Future<List<Map<String, dynamic>>> getClassMonthlyFees() {
+    return _cachedCall(
+      'class_monthly_fees',
+      _loadClassMonthlyFees,
+      ttl: const Duration(minutes: 10),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadClassMonthlyFees() async {
+    final classes = await getSchoolClasses();
+    final configured = await _loadClassFeeConfigRows();
+
+    final grades = <int>{for (var g = 0; g <= 12; g++) g};
+    for (final c in classes) {
+      final g = _classFeeGrade(c['id']?.toString(), c['name']?.toString());
+      if (g >= 0) grades.add(g);
+    }
+
+    List<Map<String, dynamic>> rowsForGrade(int grade) => configured
+        .where((r) =>
+            ((r['grade'] as num?)?.toInt() ??
+                _classFeeGrade(r['class_id']?.toString(),
+                    r['class_name']?.toString())) ==
+            grade)
+        .toList();
+
+    final sorted = grades.toList()..sort();
+    final result = <Map<String, dynamic>>[];
+    for (final grade in sorted) {
+      Map<String, dynamic>? classRow;
+      for (final c in classes) {
+        if (_classFeeGrade(c['id']?.toString(), c['name']?.toString()) ==
+            grade) {
+          classRow = c;
+          break;
+        }
+      }
+      final matches = rowsForGrade(grade);
+      final cfg = matches.isEmpty ? null : matches.first;
+      final configuredAmount = (cfg?['monthly_fee'] as num?)?.toDouble();
+      result.add({
+        'class_id': classRow?['id'] ?? cfg?['class_id'],
+        'class_name': classRow?['name']?.toString() ??
+            cfg?['class_name']?.toString() ??
+            (grade == 0 ? 'Pre-Primary' : 'Class $grade'),
+        'grade': grade,
+        'monthly_fee':
+            configuredAmount ?? _defaultClassFeeForGrade(grade),
+        'academic_year':
+            cfg?['academic_year']?.toString() ?? currentAcademicYearLabel,
+        'is_configured': cfg != null,
+      });
+    }
+    return result;
+  }
+
+  Future<List<Map<String, dynamic>>> _loadClassFeeConfigRows() async {
+    final now = currentAcademicYearLabel;
+    final byGrade = <int, Map<String, dynamic>>{};
+
+    void addRow(Map<String, dynamic> row) {
+      final year = row['academic_year']?.toString();
+      if (year != null && year != now) return;
+      final grade = (row['grade'] as num?)?.toInt() ??
+          _classFeeGrade(
+              row['class_id']?.toString(), row['class_name']?.toString());
+      if (grade < 0) return;
+      byGrade[grade] = Map<String, dynamic>.from(row);
+    }
+
+    // Config rows mirrored into `school_circulars` — this keeps admin edits
+    // working even before the dedicated table migration is applied.
+    try {
+      final resp = await _supabase
+          .from('school_circulars')
+          .select()
+          .eq('category', 'CLASS_MONTHLY_FEE_CONFIG')
+          .timeout(netTimeout);
+      for (final r in List<Map<String, dynamic>>.from(resp)) {
+        try {
+          final decoded = jsonDecode(r['content']?.toString() ?? '');
+          if (decoded is Map) addRow(Map<String, dynamic>.from(decoded));
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    // Dedicated table wins when it exists.
+    try {
+      final resp = await _supabase
+          .from('school_class_monthly_fees')
+          .select()
+          .timeout(netTimeout);
+      for (final r in List<Map<String, dynamic>>.from(resp)) {
+        addRow(r);
+      }
+    } catch (_) {}
+
+    final rows = byGrade.values.toList();
+    _classMonthlyFeesStore = List<Map<String, dynamic>>.from(rows);
+    return rows;
+  }
+
+  /// Persist a class fee into the circulars config store (fallback path).
+  Future<bool> _saveClassFeeConfigRow(Map<String, dynamic> payload) async {
+    final title = 'Class Monthly Fee - Grade ${payload['grade']}';
+    try {
+      final existing = await _supabase
+          .from('school_circulars')
+          .select('id')
+          .eq('category', 'CLASS_MONTHLY_FEE_CONFIG')
+          .eq('title', title)
+          .maybeSingle()
+          .timeout(netTimeout);
+      final row = {
+        'title': title,
+        'category': 'CLASS_MONTHLY_FEE_CONFIG',
+        'content': jsonEncode(payload),
+        'published_by': 'Admin',
+        'target_audience': 'all',
+      };
+      if (existing != null) {
+        await _supabase
+            .from('school_circulars')
+            .update(row)
+            .eq('id', existing['id'])
+            .timeout(netTimeout);
+      } else {
+        await _supabase.from('school_circulars').insert(row).timeout(netTimeout);
+      }
+      return true;
+    } catch (e) {
+      print('Could not persist class fee config: $e');
+      return false;
+    }
+  }
+
+  /// Monthly fee for one class — same amount for every student in it.
+  Future<Map<String, dynamic>> getClassMonthlyFee({
+    String? classId,
+    String? className,
+  }) async {
+    final grade = _classFeeGrade(classId, className);
+    final fees = await getClassMonthlyFees();
+    for (final f in fees) {
+      if ((f['grade'] as num?)?.toInt() == grade) return f;
+    }
+    return {
+      'class_id': classId,
+      'class_name': className ?? (grade == 0 ? 'Pre-Primary' : 'Class $grade'),
+      'grade': grade,
+      'monthly_fee': _defaultClassFeeForGrade(grade),
+      'academic_year': currentAcademicYearLabel,
+      'is_configured': false,
+    };
+  }
+
+  /// Admin method: set the monthly fee collected from every student of one
+  /// class. Persists to `school_class_monthly_fees` and drops cached ledgers so
+  /// students see the new amount on their next load.
+  Future<void> saveClassMonthlyFee({
+    required int grade,
+    required String className,
+    required double monthlyFee,
+    String? classId,
+    String? academicYear,
+  }) async {
+    if (monthlyFee <= 0) {
+      throw Exception('Monthly fee must be greater than zero.');
+    }
+    final year = academicYear ?? currentAcademicYearLabel;
+    final payload = <String, dynamic>{
+      'class_id': classId,
+      'class_name': className,
+      'grade': grade,
+      'monthly_fee': monthlyFee,
+      'academic_year': year,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    try {
+      final existing = await _supabase
+          .from('school_class_monthly_fees')
+          .select('id')
+          .eq('academic_year', year)
+          .eq('grade', grade)
+          .maybeSingle()
+          .timeout(netTimeout);
+
+      if (existing != null) {
+        await _supabase
+            .from('school_class_monthly_fees')
+            .update(payload)
+            .eq('id', existing['id'])
+            .timeout(netTimeout);
+      } else {
+        await _supabase
+            .from('school_class_monthly_fees')
+            .insert(payload)
+            .timeout(netTimeout);
+      }
+    } catch (e) {
+      // Dedicated table missing (migration not applied) — persist the fee in
+      // the existing circulars config store instead of losing the edit.
+      final saved = await _saveClassFeeConfigRow(payload);
+      if (!saved) {
+        print('Could not save class monthly fee: $e');
+        rethrow;
+      }
+    }
+
+    // Keep the in-memory view consistent even if the read cache is reused.
+    final idx = _classMonthlyFeesStore.indexWhere(
+        (r) => ((r['grade'] as num?)?.toInt() ?? -1) == grade &&
+            r['academic_year']?.toString() == year);
+    if (idx >= 0) {
+      _classMonthlyFeesStore[idx] = payload;
+    } else {
+      _classMonthlyFeesStore.add(payload);
+    }
+
+    invalidateCache('class_monthly_fees');
+    invalidateCache('fee_schedule:');
+  }
+
+  /// Split a class monthly fee across the active heads so the itemized
+  /// breakdown on the student ledger always adds up to the class amount.
+  List<Map<String, dynamic>> _allocateClassFee(
+    List<Map<String, dynamic>> heads,
+    double total,
+  ) {
+    if (heads.isEmpty || total <= 0) return heads;
+    final headsSum = heads.fold<double>(
+      0.0,
+      (sum, h) => sum + ((h['amount'] as num?)?.toDouble() ?? 0.0),
+    );
+    final out = <Map<String, dynamic>>[];
+    double allocated = 0;
+    for (var i = 0; i < heads.length; i++) {
+      final isLast = i == heads.length - 1;
+      final base = (heads[i]['amount'] as num?)?.toDouble() ?? 0.0;
+      final share = isLast
+          ? total - allocated
+          : (headsSum > 0
+              ? (base / headsSum * total * 100).roundToDouble() / 100
+              : (total / heads.length * 100).roundToDouble() / 100);
+      allocated += share;
+      out.add({...heads[i], 'amount': share});
+    }
+    return out;
+  }
+
   String _compactClassKey(String value) =>
       value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
@@ -6560,10 +6864,28 @@ class SchoolService {
   }) async {
     final heads = await getSchoolFeeHeads();
     final activeHeads = heads.where((h) => h['is_active'] != false).toList();
-    final double baseMonthlyAmount = activeHeads.fold<double>(
+
+    // The monthly fee is fixed per class: resolve the student's class first,
+    // then use its configured (or seeded) amount instead of a flat sum.
+    Map<String, dynamic>? profile;
+    try {
+      profile = await getSchoolStudentProfile(studentUsername);
+    } catch (_) {}
+    final classFee = await getClassMonthlyFee(
+      classId: classId ?? profile?['class_id']?.toString(),
+      className: profile?['class_name']?.toString(),
+    );
+    final double classMonthlyFee =
+        (classFee['monthly_fee'] as num?)?.toDouble() ?? 0.0;
+    final double headsMonthlyAmount = activeHeads.fold<double>(
       0.0,
       (sum, h) => sum + ((h['amount'] as num?)?.toDouble() ?? 0.0),
     );
+    final double baseMonthlyAmount =
+        classMonthlyFee > 0 ? classMonthlyFee : headsMonthlyAmount;
+    final billedHeads = classMonthlyFee > 0
+        ? _allocateClassFee(activeHeads, classMonthlyFee)
+        : activeHeads;
 
     // Fetch existing payment rows from Supabase
     List<Map<String, dynamic>> existingPayments = [];
@@ -6681,7 +7003,9 @@ class SchoolService {
         'receipt_no': receiptNo,
         'payment_mode': paymentMode,
         'paid_on': paidOn,
-        'heads': activeHeads
+        'class_fee': classMonthlyFee > 0 ? classMonthlyFee : baseMonthlyAmount,
+        'class_name': classFee['class_name'],
+        'heads': billedHeads
             .map((h) => {
                   'id': h['id'],
                   'title': h['title'],

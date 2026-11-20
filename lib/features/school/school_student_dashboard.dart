@@ -32,6 +32,8 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
   double? _attendancePercent;
   int _pendingHomework = 0;
   String _pendingFees = '₹0';
+  double? _classMonthlyFee;
+  String _classFeeLabel = '';
   int _upcomingTests = 0;
   String _upcomingExamBadge = '';
   String _recentExamName = 'Recent Exam Scores';
@@ -156,6 +158,10 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
       final transportFuture = _schoolService.getStudentTransport(username);
       final certsFuture = _schoolService.getStudentCertificateRequests(username);
       final notifsFuture = _schoolService.getStudentNotifications(username);
+      final classFeeFuture = _schoolService.getClassMonthlyFee(
+        classId: classId.isNotEmpty ? classId : null,
+        className: className.isNotEmpty ? className : null,
+      );
 
       final results = await Future.wait([
         hwFuture.catchError((_) => <Map<String, dynamic>>[]),
@@ -175,6 +181,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
         transportFuture.catchError((_) => <Map<String, dynamic>>[]),
         certsFuture.catchError((_) => <Map<String, dynamic>>[]),
         notifsFuture.catchError((_) => <Map<String, dynamic>>[]),
+        classFeeFuture.catchError((_) => <String, dynamic>{}),
       ]);
 
       final hw = results[0] as List<Map<String, dynamic>>;
@@ -194,6 +201,7 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
       final transData = results[14] as List<Map<String, dynamic>>;
       final certsData = results[15] as List<Map<String, dynamic>>;
       final notifsData = results[16] as List<Map<String, dynamic>>;
+      final classFeeData = results[17] as Map<String, dynamic>;
 
       // Homework processing
       final submittedIds = mySubmissions
@@ -348,6 +356,9 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           _pendingFees = feesDue > 0 ? '₹${NumberFormat('#,##,###').format(feesDue.round())}' : '₹0';
           _upcomingTests = upcomingExamCount;
           _upcomingExamBadge = examBadge;
+          _classMonthlyFee =
+              (classFeeData['monthly_fee'] as num?)?.toDouble();
+          _classFeeLabel = classFeeData['class_name']?.toString() ?? '';
 
           _isLoading = false;
           _isRefreshing = false;
@@ -432,6 +443,8 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
                                         const SizedBox(height: 14),
                                       ],
                                       _buildStatsSection(isWide),
+                                      const SizedBox(height: 14),
+                                      _buildClassMonthlyFeeCard(),
                                       const SizedBox(height: 22),
                                       _buildProgressAnalyticsSection(context, isWide),
                                       const SizedBox(height: 22),
@@ -865,6 +878,78 @@ class _SchoolStudentDashboardState extends State<SchoolStudentDashboard>
           children: stats.map((s) => SizedBox(width: cardWidth, child: s)).toList(),
         );
       },
+    );
+  }
+
+  /// Per-class monthly fee — identical for every student in the class.
+  Widget _buildClassMonthlyFeeCard() {
+    final amount = _classMonthlyFee;
+    if (amount == null || amount <= 0) return const SizedBox.shrink();
+    final label = _classFeeLabel.isNotEmpty ? _classFeeLabel : _studentClass;
+
+    return InkWell(
+      onTap: () => context.go('/school/fees'),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFDE68A)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.account_balance_wallet_rounded,
+                  color: Color(0xFFD97706), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Monthly Fee • $label',
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Same for every student in your class • Due by the 5th each month',
+                    style: TextStyle(fontSize: 11, color: Color(0xFFB45309)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '₹${NumberFormat('#,##,###').format(amount.round())}',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFD97706),
+                  ),
+                ),
+                const Text(
+                  '/ month',
+                  style: TextStyle(fontSize: 10.5, color: Color(0xFFB45309)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

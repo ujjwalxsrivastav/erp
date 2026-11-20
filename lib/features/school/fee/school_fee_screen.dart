@@ -41,6 +41,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
 
   // Admin state
   List<Map<String, dynamic>> _allStudentSummaries = [];
+  List<Map<String, dynamic>> _classMonthlyFees = [];
   Map<String, dynamic> _defaulterData = {};
   String _adminSearchQuery = '';
   String _adminFilter = 'all'; // 'all', 'overdue', 'paid', 'partial'
@@ -94,6 +95,7 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
       final roleFuture = _authService.getCurrentUserRole();
       final usernameFuture = _authService.getCurrentUsername();
       final headsFuture = _schoolService.getSchoolFeeHeads();
+      final classFeesFuture = _schoolService.getClassMonthlyFees();
 
       final role = await roleFuture ?? 'student';
       final username = await usernameFuture ?? 'sstudent1';
@@ -103,12 +105,14 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
         final results = await Future.wait([
           _schoolService.getAllStudentFeeSummaries(),
           _schoolService.getDefaultersWithAgeing(),
+          classFeesFuture,
         ]);
 
         if (!mounted) return;
         setState(() {
           _userRole = role;
           _feeHeads = heads;
+          _classMonthlyFees = results[2] as List<Map<String, dynamic>>;
           _allStudentSummaries = results[0] as List<Map<String, dynamic>>;
           _defaulterData = results[1] as Map<String, dynamic>;
           _receipts = const [];
@@ -565,7 +569,12 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
 
     double sumOf(String field) => months.fold<double>(
         0.0, (sum, m) => sum + ((m[field] as num?)?.toDouble() ?? 0.0));
-    final double baseAmt = months.isEmpty ? _monthlyBaseFee : sumOf('base_amount');
+    final double scheduledBase = _monthlySchedule.isEmpty
+        ? 0.0
+        : ((_monthlySchedule.first['base_amount'] as num?)?.toDouble() ?? 0.0);
+    final double baseAmt = months.isEmpty
+        ? (scheduledBase > 0 ? scheduledBase : _monthlyBaseFee)
+        : sumOf('base_amount');
     final double lateFee =
         months.isEmpty ? _studentTotalLateFees : sumOf('late_fee');
     final double totalPayable = months.isEmpty
@@ -1263,6 +1272,406 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
 
   // ================= ADMIN TAB 1: FEE HEADS & POLICY =================
 
+  Future<void> _showBulkEditClassFeesDialog() async {
+    if (_classMonthlyFees.isEmpty) return;
+
+    final entries = <Map<String, dynamic>>[];
+    for (final fee in _classMonthlyFees) {
+      entries.add({
+        'fee': fee,
+        'controller': TextEditingController(
+          text:
+              ((fee['monthly_fee'] as num?)?.toDouble() ?? 0).toStringAsFixed(0),
+        ),
+      });
+    }
+    final formKey = GlobalKey<FormState>();
+    var saving = false;
+    String? errorText;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> saveAll() async {
+            if (!(formKey.currentState?.validate() ?? false)) return;
+            final changed = entries.where((e) {
+              final fee = e['fee'] as Map<String, dynamic>;
+              final before =
+                  ((fee['monthly_fee'] as num?)?.toDouble() ?? 0).round();
+              final after = double.parse(
+                      (e['controller'] as TextEditingController).text.trim())
+                  .round();
+              return before != after;
+            }).toList();
+
+            if (changed.isEmpty) {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No fee changes to save.')),
+              );
+              return;
+            }
+
+            setDialogState(() {
+              saving = true;
+              errorText = null;
+            });
+            try {
+              for (final entry in changed) {
+                final fee = entry['fee'] as Map<String, dynamic>;
+                final amount = double.parse(
+                    (entry['controller'] as TextEditingController).text.trim());
+                await _schoolService.saveClassMonthlyFee(
+                  grade: (fee['grade'] as num?)?.toInt() ?? -1,
+                  className: fee['class_name']?.toString() ?? 'Class',
+                  monthlyFee: amount,
+                  classId: fee['class_id']?.toString(),
+                  academicYear: fee['academic_year']?.toString(),
+                );
+              }
+              final fees = await _schoolService.getClassMonthlyFees();
+              if (!mounted) return;
+              setState(() => _classMonthlyFees = fees);
+              if (ctx.mounted) Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                      '${changed.length} class fee${changed.length == 1 ? '' : 's'} updated.'),
+                  backgroundColor: const Color(0xFF059669),
+                ),
+              );
+            } catch (e) {
+              if (!mounted) return;
+              setDialogState(() {
+                saving = false;
+                errorText = 'Could not save all class fees: $e';
+              });
+            }
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: const Text('Edit All Class Fees', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+            content: SizedBox(
+              width: 480,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Set the monthly fee for every class in one place. Each amount applies to all 12 months (April - March) for every student in that class.',
+                      style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B), height: 1.4),
+                    ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 10),
+                      Text(errorText!, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFFDC2626))),
+                    ],
+                    const SizedBox(height: 14),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 380),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: entries.map((entry) {
+                            final fee = entry['fee'] as Map<String, dynamic>;
+                            final className = fee['class_name']?.toString() ?? 'Class';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(className, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                                  ),
+                                  SizedBox(
+                                    width: 170,
+                                    child: TextFormField(
+                                      controller: entry['controller'] as TextEditingController,
+                                      enabled: !saving,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      decoration: InputDecoration(
+                                        isDense: true,
+                                        prefixText: '₹ ',
+                                        suffixText: '/mo',
+                                        filled: true,
+                                        fillColor: const Color(0xFFF8FAFC),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                      ),
+                                      validator: (v) {
+                                        final parsed = double.tryParse((v ?? '').trim());
+                                        if (parsed == null || parsed <= 0) return 'Invalid';
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                onPressed: saving ? null : saveAll,
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F172A)),
+                icon: saving
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.save_rounded, size: 16),
+                label: Text(saving ? 'Saving...' : 'Save All'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    for (final entry in entries) {
+      (entry['controller'] as TextEditingController).dispose();
+    }
+  }
+
+  Future<void> _showEditClassFeeDialog(Map<String, dynamic> fee) async {
+    final className = fee['class_name']?.toString() ?? 'Class';
+    final grade = (fee['grade'] as num?)?.toInt() ?? -1;
+    final amountCtrl = TextEditingController(
+      text: ((fee['monthly_fee'] as num?)?.toDouble() ?? 0).toStringAsFixed(0),
+    );
+    final formKey = GlobalKey<FormState>();
+    var saving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> save() async {
+            if (!(formKey.currentState?.validate() ?? false)) return;
+            setDialogState(() => saving = true);
+            try {
+              await _schoolService.saveClassMonthlyFee(
+                grade: grade,
+                className: className,
+                monthlyFee: double.parse(amountCtrl.text.trim()),
+                classId: fee['class_id']?.toString(),
+                academicYear: fee['academic_year']?.toString(),
+              );
+              final fees = await _schoolService.getClassMonthlyFees();
+              if (!mounted) return;
+              setState(() => _classMonthlyFees = fees);
+              if (ctx.mounted) Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Monthly fee for $className saved.'),
+                  backgroundColor: const Color(0xFF059669),
+                ),
+              );
+            } catch (e) {
+              if (!mounted) return;
+              setDialogState(() => saving = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Could not save class fee: $e'),
+                  backgroundColor: const Color(0xFFDC2626),
+                ),
+              );
+            }
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: Text('Monthly Fee — $className', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This amount is charged from every student of $className for all 12 months (April - March).',
+                    style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B), height: 1.4),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: amountCtrl,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Monthly Fee',
+                      prefixText: '₹ ',
+                      suffixText: '/ month',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    validator: (v) {
+                      final parsed = double.tryParse((v ?? '').trim());
+                      if (parsed == null || parsed <= 0) {
+                        return 'Enter an amount greater than zero';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'The ₹100 late fee for payments after the 5th stays unchanged.',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: saving ? null : save,
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F172A)),
+                child: saving
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Save Fee'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    amountCtrl.dispose();
+  }
+
+  /// Class-wise monthly fee master. Every student of a class is billed the
+  /// same monthly amount; admins will be able to edit these rows next.
+  Widget _buildClassMonthlyFeesSection() {
+    final fees = _classMonthlyFees;
+    final configured =
+        fees.where((f) => f['is_configured'] == true).length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.class_rounded, color: Color(0xFF4F46E5), size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Monthly Fees by Class', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                      SizedBox(height: 2),
+                      Text('Same amount for every student in a class • 12 months (Apr-Mar)', style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                    ],
+                  ),
+                ),
+                Text('${fees.length} classes', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+                if (fees.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  TextButton.icon(
+                    onPressed: _showBulkEditClassFeesDialog,
+                    icon: const Icon(Icons.playlist_add_check_rounded, size: 16, color: Color(0xFF4F46E5)),
+                    label: const Text('Bulk Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4F46E5))),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          if (fees.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No classes found to assign monthly fees.', style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
+            )
+          else
+            ...fees.map((f) {
+              final className = f['class_name']?.toString() ?? 'Class';
+              final amount = (f['monthly_fee'] as num?)?.toDouble() ?? 0.0;
+              final isConfigured = f['is_configured'] == true;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(className, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isConfigured ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isConfigured ? 'SET' : 'DEFAULT',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: isConfigured ? const Color(0xFF059669) : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text('₹${NumberFormat('#,##,###').format(amount.round())} /mo', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFFD97706))),
+                    const SizedBox(width: 2),
+                    IconButton(
+                      tooltip: 'Edit monthly fee',
+                      onPressed: () => _showEditClassFeeDialog(f),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                      icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          if (fees.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      configured == 0
+                          ? 'Seeded default fees are in effect. Tap the edit icon to set a class fee.'
+                          : '$configured class fee${configured == 1 ? '' : 's'} set by admin. Changes apply to every student in that class.',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAdminFeeHeadsTab() {
     return RefreshIndicator(
       onRefresh: _loadFeeData,
@@ -1294,7 +1703,9 @@ class _SchoolFeeScreenState extends State<SchoolFeeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          _buildClassMonthlyFeesSection(),
+          const SizedBox(height: 16),
 
           // Statutory Late Fee Policy Banner
           Container(
