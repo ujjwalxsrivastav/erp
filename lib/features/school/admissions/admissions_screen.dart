@@ -681,26 +681,30 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                     ),
                   ),
                 ] else if (status == 'Enrolled') ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFA7F3D0))),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF059669)),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Enrolled as ${a['enrolled_class'] ?? a['grade_applying']} • Adm: ${a['admission_no'] ?? '—'}'
-                            '${(a['student_username'] ?? '').toString().isNotEmpty ? ' • Login: ${a['student_username']}' : ''}',
-                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF059669)),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6), border: Border.all(color: const Color(0xFFA7F3D0))),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF059669)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Enrolled as ${a['enrolled_class'] ?? a['grade_applying']} • Adm: ${a['admission_no'] ?? '—'}'
+                              '${(a['student_username'] ?? '').toString().isNotEmpty ? ' • Login: ${a['student_username']}' : ''}',
+                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF059669)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () => _showClassAllotmentDialog(a),
-                          icon: const Icon(Icons.swap_horiz_rounded, size: 13, color: Color(0xFF059669)),
-                          label: const Text('Allot / Transfer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF059669))),
-                        ),
-                      ],
+                          TextButton.icon(
+                            onPressed: () => _showClassAllotmentDialog(a),
+                            icon: const Icon(Icons.swap_horiz_rounded, size: 13, color: Color(0xFF059669)),
+                            label: const Text('Allot / Transfer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF059669))),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
