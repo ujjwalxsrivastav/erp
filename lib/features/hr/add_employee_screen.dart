@@ -216,7 +216,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen>
 
   Future<void> _uploadCSV() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['csv'],
       );
@@ -225,10 +225,9 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen>
 
       setState(() => _isLoading = true);
 
-      final bytes = result.files.first.bytes!;
+      final bytes = await result.readAsBytes();
       final csvString = utf8.decode(bytes);
-      final List<List<dynamic>> csvData =
-          const CsvToListConverter().convert(csvString);
+      final List<List<dynamic>> csvData = Csv().decode(csvString);
 
       if (csvData.isEmpty || csvData.length < 2) {
         throw Exception('CSV file is empty or invalid');

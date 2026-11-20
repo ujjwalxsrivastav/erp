@@ -295,13 +295,12 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
                 child: pickedFile == null
                     ? InkWell(
                         onTap: () async {
-                          final result = await FilePicker.platform.pickFiles(
+                          final result = await FilePicker.pickFile(
                             type: FileType.custom,
                             allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'docx', 'doc', 'txt'],
-                            withData: true,
                           );
-                          if (result != null && result.files.isNotEmpty) {
-                            setDlgState(() => pickedFile = result.files.first);
+                          if (result != null) {
+                            setDlgState(() => pickedFile = result);
                           }
                         },
                         borderRadius: BorderRadius.circular(8),
@@ -383,10 +382,11 @@ class _HomeworkListScreenState extends State<HomeworkListScreen>
     if (confirmed != true) return;
 
     String? attachmentUrl;
-    if (pickedFile != null && pickedFile!.bytes != null) {
+    if (pickedFile != null) {
+      final bytes = await pickedFile!.readAsBytes();
       attachmentUrl = await _schoolService.uploadHomeworkAttachment(
         fileName: pickedFile!.name,
-        bytes: pickedFile!.bytes!,
+        bytes: bytes,
       );
       if (attachmentUrl == null) {
         if (!mounted) return;

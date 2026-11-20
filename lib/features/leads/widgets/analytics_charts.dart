@@ -419,7 +419,7 @@ class LeadTrendChart extends StatelessWidget {
                   ],
                   lineTouchData: LineTouchData(
                     touchTooltipData: LineTouchTooltipData(
-                      tooltipRoundedRadius: 12,
+                      tooltipBorderRadius: BorderRadius.circular(12),
                       getTooltipItems: (touchedSpots) {
                         return touchedSpots.map((spot) {
                           final isTotal = spot.barIndex == 0;
@@ -1002,7 +1002,7 @@ class CounsellorBarChart extends StatelessWidget {
                   barTouchData: BarTouchData(
                     enabled: true,
                     touchTooltipData: BarTouchTooltipData(
-                      tooltipRoundedRadius: 12,
+                      tooltipBorderRadius: BorderRadius.circular(12),
                       tooltipPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {

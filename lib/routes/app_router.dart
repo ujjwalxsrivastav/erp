@@ -112,6 +112,7 @@ import '../features/school/admissions/school_admission_application_screen.dart';
 import '../features/school/reports/school_reports_screen.dart';
 import '../features/school/library/school_library_screen.dart';
 import '../features/school/certificates/school_certificates_screen.dart';
+import '../features/school/grievances/school_grievance_screen.dart';
 import '../features/school/promotion/school_promotion_screen.dart';
 import '../features/school/examination/school_examination_screen.dart';
 import '../features/school/academics/school_lesson_plan_screen.dart';
@@ -198,6 +199,7 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/library': {..._allSchoolRoles, 'librarian'},
   '/school/library-deep': {..._allSchoolRoles, 'librarian'},
   '/school/certificates': _allSchoolRoles,
+  '/school/grievances': _schoolAdminRoles,
   '/school/living': {..._allSchoolRoles, 'warden', 'nurse'},
   '/school/alumni': {..._allSchoolRoles, 'alumni'},
   '/school/activities': _allSchoolRoles,
@@ -461,6 +463,10 @@ final router = GoRouter(
     GoRoute(
       path: '/school/certificates',
       builder: (context, state) => const SchoolCertificatesScreen(),
+    ),
+    GoRoute(
+      path: '/school/grievances',
+      builder: (context, state) => const SchoolGrievanceScreen(),
     ),
     GoRoute(
       path: '/school/promotion',

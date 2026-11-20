@@ -17,7 +17,7 @@ void main() async {
   } catch (e) {
     print('ℹ️ .env file not found (expected for web builds): $e');
     try {
-      dotenv.testLoad(fileInput: '');
+      dotenv.loadFromString(envString: '', isOptional: true);
     } catch (_) {}
   }
 

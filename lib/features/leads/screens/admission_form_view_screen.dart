@@ -435,15 +435,15 @@ class _AdmissionFormViewScreenState extends State<AdmissionFormViewScreen> {
   }
 
   Future<void> _reuploadMarksheet(String type) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
 
-    if (result != null && result.files.single.path != null) {
+    if (result?.path != null) {
       setState(() => _isSaving = true);
 
-      final file = File(result.files.single.path!);
+      final file = File(result!.path!);
       final newUrl =
           await _formService.uploadMarksheet(file, _form!.phone, type);
 

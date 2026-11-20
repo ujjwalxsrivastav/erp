@@ -181,7 +181,7 @@ class SchoolExportService {
       ]);
     }
 
-    final csvContent = const ListToCsvConverter().convert(rows);
+    final csvContent = Csv().encode(rows);
     final filename = '${className.replaceAll(" ", "_")}_${examType.replaceAll(" ", "_")}_Results.csv';
     await downloadCsv(context: context, filename: filename, csvContent: csvContent);
   }
@@ -326,7 +326,7 @@ class SchoolExportService {
       ]);
     }
 
-    final csvContent = const ListToCsvConverter().convert(rows);
+    final csvContent = Csv().encode(rows);
     final filename = '${className.replaceAll(" ", "_")}_Attendance_Log.csv';
     await downloadCsv(context: context, filename: filename, csvContent: csvContent);
   }
@@ -486,7 +486,7 @@ class SchoolExportService {
       ]);
     }
 
-    final csvContent = const ListToCsvConverter().convert(rows);
+    final csvContent = Csv().encode(rows);
     const filename = 'All_Students_Pending_Fees.csv';
     await downloadCsv(context: context, filename: filename, csvContent: csvContent);
   }

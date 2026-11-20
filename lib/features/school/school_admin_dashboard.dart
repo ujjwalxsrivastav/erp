@@ -34,9 +34,11 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
   int _activeTransportRoutes = 0;
   int _openParentComplaints = 0;
   int _pendingAdmissionsCount = 0;
+  int _approvalAdmissionsCount = 0;
+  int _documentsVerifiedCount = 0;
+  int _offersAwaitingEnrolmentCount = 0;
+  int _enrolledAdmissionsCount = 0;
   int _pendingCertificatesCount = 0;
-  int _pendingTeacherLeavesCount = 0;
-  int _pendingStudentLeavesCount = 0;
   int _defaultersCount = 0;
   Map<String, dynamic> _unifiedApprovals = {
     'items': <Map<String, dynamic>>[],
@@ -136,11 +138,28 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
       final auditLogs = results[14] as List<Map<String, dynamic>>;
       final staffDir = results[15] as List<Map<String, dynamic>>;
 
-      // Parse admissions requiring review
-      final pendingAdmissions = admissions.where((a) {
-        final status = (a['status']?.toString() ?? '').toLowerCase();
-        return status == 'under review' || status == 'pending';
+      // Admission workflow: Applied → Documents Verified → Offer Letter Issued
+      // → Enrolled. Rejected applications are closed and leave the pipeline.
+      String admissionStage(Map<String, dynamic> a) =>
+          (a['status_detail'] ?? a['status'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+
+      final pipelineAdmissions = admissions.where((a) {
+        final stage = admissionStage(a);
+        return stage != 'enrolled' && stage != 'rejected';
       }).toList();
+      final documentsVerifiedAdmissions = admissions
+          .where((a) => admissionStage(a) == 'documents verified')
+          .toList();
+      final offersAwaitingEnrolment = admissions.where((a) {
+        final stage = admissionStage(a);
+        return stage == 'offer letter issued' || stage == 'approved';
+      }).toList();
+      final enrolledAdmissions = admissions
+          .where((a) => admissionStage(a) == 'enrolled')
+          .toList();
 
       // Parse open complaints
       final openComplaints = complaints.where((c) {
@@ -148,7 +167,25 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
         return status == 'open' || status.contains('open');
       }).toList();
 
-      final countsByType = (approvals['counts_by_type'] as Map<String, dynamic>?) ?? {};
+      final rawApprovalItems = ((approvals['items'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      // Leave approvals are handled by the class teacher / HR desk, so they are
+      // not part of the school administration approvals queue.
+      final approvalItems = rawApprovalItems
+          .where((i) => i['type'] != 'TeacherLeave' && i['type'] != 'StudentLeave')
+          .toList();
+      final countsByType =
+          Map<String, dynamic>.from((approvals['counts_by_type'] as Map?) ?? {})
+            ..remove('TeacherLeave')
+            ..remove('StudentLeave');
+      final filteredApprovals = <String, dynamic>{
+        ...approvals,
+        'items': approvalItems,
+        'total_count': approvalItems.length,
+        'counts_by_type': countsByType,
+      };
 
       if (mounted) {
         setState(() {
@@ -186,11 +223,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           _feePendingDues = (briefing['fee_pending'] as num?)?.toDouble() ?? 0.0;
           _activeTransportRoutes = (briefing['active_transport_fleet'] as num?)?.toInt() ?? 0;
           
-          _unifiedApprovals = approvals;
-          _pendingAdmissionsCount = countsByType['Admission'] ?? pendingAdmissions.length;
+          _unifiedApprovals = filteredApprovals;
+          _pendingAdmissionsCount = pipelineAdmissions.length;
+          _approvalAdmissionsCount =
+              countsByType['Admission'] ?? approvalItems.where((i) => i['type'] == 'Admission').length;
+          _documentsVerifiedCount = documentsVerifiedAdmissions.length;
+          _offersAwaitingEnrolmentCount = offersAwaitingEnrolment.length;
+          _enrolledAdmissionsCount = enrolledAdmissions.length;
           _pendingCertificatesCount = countsByType['Certificate'] ?? 0;
-          _pendingTeacherLeavesCount = countsByType['TeacherLeave'] ?? 0;
-          _pendingStudentLeavesCount = countsByType['StudentLeave'] ?? 0;
           _openParentComplaints = countsByType['Grievance'] ?? openComplaints.length;
           
           _defaultersCount = (defaulters['total_defaulters'] as num?)?.toInt() ??
@@ -658,8 +698,22 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               if (_pendingAdmissionsCount > 0)
                 _buildActionChip(
                   icon: Icons.person_add_alt_1_rounded,
-                  label: '$_pendingAdmissionsCount Admissions (KYC)',
-                  actionText: 'Scrutinize',
+                  label: '$_pendingAdmissionsCount Admissions In Progress',
+                  actionText: 'Open Desk',
+                  onTap: () => context.go('/school/admissions'),
+                ),
+              if (_documentsVerifiedCount > 0)
+                _buildActionChip(
+                  icon: Icons.fact_check_rounded,
+                  label: '$_documentsVerifiedCount Docs Verified • Issue Offer',
+                  actionText: 'Review',
+                  onTap: () => context.go('/school/admissions'),
+                ),
+              if (_offersAwaitingEnrolmentCount > 0)
+                _buildActionChip(
+                  icon: Icons.how_to_reg_rounded,
+                  label: '$_offersAwaitingEnrolmentCount Offers Awaiting Enrolment',
+                  actionText: 'Enrol',
                   onTap: () => context.go('/school/admissions'),
                 ),
               if (_pendingCertificatesCount > 0)
@@ -667,21 +721,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   icon: Icons.verified_user_rounded,
                   label: '$_pendingCertificatesCount Certificates Pending',
                   actionText: 'Review',
-                  onTap: () => _showUnifiedApprovalsModal(context, filterType: 'Certificate'),
-                ),
-              if (_pendingTeacherLeavesCount > 0)
-                _buildActionChip(
-                  icon: Icons.event_busy_rounded,
-                  label: '$_pendingTeacherLeavesCount Faculty Leaves',
-                  actionText: 'Review',
-                  onTap: () => _showUnifiedApprovalsModal(context, filterType: 'TeacherLeave'),
-                ),
-              if (_pendingStudentLeavesCount > 0)
-                _buildActionChip(
-                  icon: Icons.time_to_leave_rounded,
-                  label: '$_pendingStudentLeavesCount Student Leaves',
-                  actionText: 'Oversight',
-                  onTap: () => _showUnifiedApprovalsModal(context, filterType: 'StudentLeave'),
+                  onTap: () => context.go('/school/certificates'),
                 ),
               if (_defaultersCount > 0)
                 _buildActionChip(
@@ -695,7 +735,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   icon: Icons.chat_bubble_outline_rounded,
                   label: '$_openParentComplaints Parent Grievances Open',
                   actionText: 'Review',
-                  onTap: () => _showComplaintsModal(context),
+                  onTap: () => context.go('/school/grievances'),
                 ),
             ],
           ),
@@ -795,16 +835,12 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
-              if (type == 'TeacherLeave') {
-                _showReviewTeacherLeaveDialog(context, item);
-              } else if (type == 'Certificate') {
+              if (type == 'Certificate') {
                 _showReviewCertificateDialog(context, item);
               } else if (type == 'Grievance') {
                 _showResolveGrievanceDialog(context, item);
               } else if (type == 'Admission') {
                 context.go('/school/admissions');
-              } else if (type == 'StudentLeave') {
-                context.go('/school/leave');
               }
             },
             style: ElevatedButton.styleFrom(
@@ -815,140 +851,6 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
             child: const Text('Review', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showReviewTeacherLeaveDialog(BuildContext context, Map<String, dynamic> item) {
-    final remarksController = TextEditingController();
-    final raw = item['raw_data'] as Map<String, dynamic>? ?? {};
-    final id = item['id']?.toString() ?? '';
-    final name = raw['teacher_name']?.toString() ?? item['title']?.toString() ?? 'Faculty';
-    final type = raw['type']?.toString() ?? 'Leave';
-    final dates = '${raw['start_date']} to ${raw['end_date']}';
-    final reason = raw['reason']?.toString() ?? 'Official Faculty Leave';
-    final days = item['days_pending'] ?? 0;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.event_busy_rounded, color: Color(0xFFD97706), size: 22),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Faculty Leave Application',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-              ),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFFDE68A)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF92400E)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Type: $type • Period: $dates', style: const TextStyle(fontSize: 12, color: Color(0xFF78350F))),
-                    const SizedBox(height: 2),
-                    Text('Reason: $reason', style: const TextStyle(fontSize: 12, color: Color(0xFF78350F))),
-                    const SizedBox(height: 4),
-                    Text('Age in Queue: $days days pending review', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFB45309))),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text('Administrative Remarks (Mandatory for rejection):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
-              const SizedBox(height: 6),
-              TextField(
-                controller: remarksController,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: 'Enter executive decision remarks...',
-                  hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final remarks = remarksController.text.trim();
-              if (remarks.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please provide rejection remarks.'), backgroundColor: Color(0xFFDC2626)),
-                );
-                return;
-              }
-              Navigator.pop(ctx);
-              final ok = await _schoolService.updateTeacherLeaveStatus(
-                circularId: id,
-                status: 'Rejected',
-                reviewedBy: _adminName,
-                remarks: remarks,
-              );
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? 'Faculty leave application rejected.' : 'Failed to update leave.'),
-                    backgroundColor: ok ? const Color(0xFFDC2626) : Colors.red,
-                  ),
-                );
-                _loadData(showRefreshing: true);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
-            child: const Text('Reject Leave'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final remarks = remarksController.text.trim();
-              final ok = await _schoolService.updateTeacherLeaveStatus(
-                circularId: id,
-                status: 'Approved',
-                reviewedBy: _adminName,
-                remarks: remarks.isEmpty ? 'Approved by Principal' : remarks,
-              );
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? 'Faculty leave application approved.' : 'Failed to approve leave.'),
-                    backgroundColor: ok ? const Color(0xFF059669) : Colors.red,
-                  ),
-                );
-                _loadData(showRefreshing: true);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
-            child: const Text('Approve Leave'),
           ),
         ],
       ),
@@ -1280,13 +1182,9 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                       children: [
                         _buildFilterChip('All', allItems.length, activeFilter == 'All', () => setModalState(() => activeFilter = 'All')),
                         const SizedBox(width: 8),
-                        _buildFilterChip('Admissions', _pendingAdmissionsCount, activeFilter == 'Admission', () => setModalState(() => activeFilter = 'Admission')),
+                        _buildFilterChip('Admissions', _approvalAdmissionsCount, activeFilter == 'Admission', () => setModalState(() => activeFilter = 'Admission')),
                         const SizedBox(width: 8),
                         _buildFilterChip('Certificates', _pendingCertificatesCount, activeFilter == 'Certificate', () => setModalState(() => activeFilter = 'Certificate')),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('Faculty Leaves', _pendingTeacherLeavesCount, activeFilter == 'TeacherLeave', () => setModalState(() => activeFilter = 'TeacherLeave')),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('Student Leaves', _pendingStudentLeavesCount, activeFilter == 'StudentLeave', () => setModalState(() => activeFilter = 'StudentLeave')),
                         const SizedBox(width: 8),
                         _buildFilterChip('Grievances', _openParentComplaints, activeFilter == 'Grievance', () => setModalState(() => activeFilter = 'Grievance')),
                       ],
@@ -1453,16 +1351,12 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              if (type == 'TeacherLeave') {
-                _showReviewTeacherLeaveDialog(context, item);
-              } else if (type == 'Certificate') {
+              if (type == 'Certificate') {
                 _showReviewCertificateDialog(context, item);
               } else if (type == 'Grievance') {
                 _showResolveGrievanceDialog(context, item);
               } else if (type == 'Admission') {
                 context.go('/school/admissions');
-              } else if (type == 'StudentLeave') {
-                context.go('/school/leave');
               }
             },
             style: ElevatedButton.styleFrom(
@@ -2324,7 +2218,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   lineTouchData: LineTouchData(
                     handleBuiltInTouches: true,
                     touchTooltipData: LineTouchTooltipData(
-                      tooltipBgColor: const Color(0xFF0F172A),
+                      getTooltipColor: (_) => const Color(0xFF0F172A),
                       getTooltipItems: (touchedSpots) {
                         return touchedSpots.map((spot) {
                           final idx = spot.spotIndex;
@@ -2605,7 +2499,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   maxY: maxY,
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
-                      tooltipBgColor: const Color(0xFF0F172A),
+                      getTooltipColor: (_) => const Color(0xFF0F172A),
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
                         final m = (groupIndex >= 0 && groupIndex < _feeTrend.length)
                             ? (_feeTrend[groupIndex]['month']?.toString() ?? '')
@@ -2813,7 +2707,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   lineTouchData: LineTouchData(
                     handleBuiltInTouches: true,
                     touchTooltipData: LineTouchTooltipData(
-                      tooltipBgColor: const Color(0xFF0F172A),
+                      getTooltipColor: (_) => const Color(0xFF0F172A),
                       getTooltipItems: (touchedSpots) {
                         return touchedSpots.map((spot) {
                           final idx = spot.spotIndex;
@@ -2939,20 +2833,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
     final stages = _admissionFunnel.isNotEmpty
         ? _admissionFunnel
         : [
-            {'stage': 'Inquiries', 'count': 0, 'rate': 100.0},
-            {'stage': 'Applied', 'count': 0, 'rate': 0.0},
-            {'stage': 'Scrutiny', 'count': 0, 'rate': 0.0},
-            {'stage': 'Interaction', 'count': 0, 'rate': 0.0},
-            {'stage': 'Offers', 'count': 0, 'rate': 0.0},
+            {'stage': 'Applied', 'count': 0, 'rate': 100.0},
+            {'stage': 'Documents Verified', 'count': 0, 'rate': 0.0},
+            {'stage': 'Offer Letter Issued', 'count': 0, 'rate': 0.0},
             {'stage': 'Enrolled', 'count': 0, 'rate': 0.0},
           ];
 
     final stageColors = [
-      const Color(0xFF6366F1), // Indigo
-      const Color(0xFF3B82F6), // Blue
-      const Color(0xFF0EA5E9), // Sky
+      const Color(0xFF2563EB), // Blue
       const Color(0xFF0D9488), // Teal
-      const Color(0xFF10B981), // Emerald
+      const Color(0xFF7C3AED), // Violet
       const Color(0xFF059669), // Green
     ];
 
@@ -2999,7 +2889,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Lead conversion from initial inquiry to enrollment',
+                      'Application → document verification → offer letter → enrolment',
                       style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                     ),
                   ],
@@ -3062,9 +2952,9 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'RTE Quota Monitored via DB',
-                style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+              Text(
+                '$_enrolledAdmissionsCount enrolled this session • RTE quota monitored via DB',
+                style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
               ),
               Row(
                 children: [
@@ -3201,15 +3091,15 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           modules: [
             _ModuleItem(
               title: 'Admissions Management Hub',
-              desc: 'Inquiry to enrollment, document verification & approvals',
+              desc: 'Application intake → document verification → offer letter → approve & enrol',
               icon: Icons.person_add_alt_1_rounded,
               route: '/school/admissions',
-              badge: _pendingAdmissionsCount > 0 ? '$_pendingAdmissionsCount Pending' : null,
+              badge: _pendingAdmissionsCount > 0 ? '$_pendingAdmissionsCount In Pipeline' : null,
               badgeColor: const Color(0xFFDC2626),
             ),
             _ModuleItem(
               title: 'Daily Attendance Register',
-              desc: 'Biometric & RFID roll call, leave tracking & SMS alerts',
+              desc: 'Biometric & RFID roll call, absentee alerts & SMS notifications',
               icon: Icons.how_to_reg_rounded,
               route: '/school/attendance',
             ),
@@ -3931,8 +3821,8 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   _buildQuickActionRow(
                     icon: Icons.person_add_alt_1_rounded,
                     iconColor: const Color(0xFF059669),
-                    title: 'Scrutinize Pending Admissions',
-                    subtitle: 'Review incoming admission applications & documents',
+                    title: 'Review Admission Pipeline',
+                    subtitle: 'Verify documents, issue offer letters and complete enrolment',
                     onTap: () {
                       Navigator.pop(ctx);
                       context.go('/school/admissions');
@@ -4353,93 +4243,6 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           ),
         ],
       ),
-    );
-  }
-
-  // ==========================================
-  // 9. PARENT COMPLAINTS MODAL
-  // ==========================================
-  void _showComplaintsModal(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFFDC2626), size: 22),
-              SizedBox(width: 8),
-              Text(
-                'Open Parent Grievances',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 480,
-            child: _openComplaintsList.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: Text(
-                        'No open parent grievances awaiting review.',
-                        style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: _openComplaintsList.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (cCtx, idx) {
-                      final item = _openComplaintsList[idx];
-                      final id = item['id']?.toString() ?? '';
-                      final title = item['title']?.toString() ?? 'Parent Complaint';
-                      final parent = item['author'] ?? 'Registered Parent';
-
-                      return ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                        title: Text(
-                          title,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                        ),
-                        subtitle: Text('From: $parent • Status: Open', style: const TextStyle(fontSize: 11)),
-                        trailing: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            _showResolveGrievanceDialog(context, {
-                              'id': id,
-                              'title': title,
-                              'subtitle': 'From: $parent • Status: Open',
-                              'days_pending': 0,
-                            });
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF059669),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            minimumSize: const Size(60, 28),
-                          ),
-                          child: const Text('Resolve', style: TextStyle(fontSize: 11)),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -5476,8 +5279,21 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           notifications.add({
             'icon': Icons.person_add_alt_1_rounded,
             'color': const Color(0xFF059669),
-            'title': 'Admissions Under Review',
-            'desc': '$_pendingAdmissionsCount new candidate applications require administrative scrutiny.',
+            'title': 'Admissions In Progress',
+            'desc': '$_pendingAdmissionsCount applications are moving through document verification, offer letters or enrolment.',
+            'action': () {
+              Navigator.pop(ctx);
+              context.go('/school/admissions');
+            },
+          });
+        }
+
+        if (_offersAwaitingEnrolmentCount > 0) {
+          notifications.add({
+            'icon': Icons.how_to_reg_rounded,
+            'color': const Color(0xFF7C3AED),
+            'title': 'Offer Letters Awaiting Enrolment',
+            'desc': '$_offersAwaitingEnrolmentCount families have an offer letter; complete the final approve & enrol step.',
             'action': () {
               Navigator.pop(ctx);
               context.go('/school/admissions');
@@ -5494,19 +5310,6 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
             'action': () {
               Navigator.pop(ctx);
               _showUnifiedApprovalsModal(context, filterType: 'Certificate');
-            },
-          });
-        }
-
-        if (_pendingTeacherLeavesCount > 0) {
-          notifications.add({
-            'icon': Icons.time_to_leave_rounded,
-            'color': const Color(0xFF2563EB),
-            'title': 'Faculty Leave Applications',
-            'desc': '$_pendingTeacherLeavesCount teacher leave requests pending administrative executive approval.',
-            'action': () {
-              Navigator.pop(ctx);
-              _showUnifiedApprovalsModal(context, filterType: 'TeacherLeave');
             },
           });
         }

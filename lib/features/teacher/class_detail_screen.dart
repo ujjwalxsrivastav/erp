@@ -92,14 +92,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png'],
     );
 
-    if (result != null) {
+    if (result?.path != null) {
       setState(() {
-        _selectedFile = File(result.files.single.path!);
+        _selectedFile = File(result!.path!);
       });
     }
   }

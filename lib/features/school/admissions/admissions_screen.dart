@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/offer_letter_pdf_service.dart';
 
 class AdmissionsScreen extends StatefulWidget {
   const AdmissionsScreen({super.key});
@@ -32,9 +33,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     'all',
     'Under Review',
     'Documents Verified',
-    'Interview Scheduled',
     'Offer Letter Issued',
-    'Approved',
     'Enrolled',
     'Rejected',
   ];
@@ -260,7 +259,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   // ============================================================================
   Widget _buildPipelineTab() {
     final underReview = _statusCounts['Under Review'] ?? 0;
-    final interview = _statusCounts['Interview Scheduled'] ?? 0;
+    final documentsVerified = _statusCounts['Documents Verified'] ?? 0;
     final offerIssued = _statusCounts['Offer Letter Issued'] ?? 0;
     final enrolled = _statusCounts['Enrolled'] ?? 0;
     final rteEnrolled = _admissions.where((a) {
@@ -277,11 +276,11 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
           children: [
             Expanded(child: _buildMetricTile('Total Applications', '${_admissions.length}', 'Session 2026-27 Intake', Icons.folder_shared_rounded, const Color(0xFF2563EB))),
             const SizedBox(width: 12),
-            Expanded(child: _buildMetricTile('Under Scrutiny', '$underReview', 'KYC & Document Review', Icons.hourglass_top_rounded, const Color(0xFFD97706))),
+            Expanded(child: _buildMetricTile('Under Review', '$underReview', 'Application & KYC scrutiny', Icons.hourglass_top_rounded, const Color(0xFFD97706))),
             const SizedBox(width: 12),
-            Expanded(child: _buildMetricTile('Interaction / Test', '$interview', 'Readiness assessment', Icons.event_available_rounded, const Color(0xFF0284C7))),
+            Expanded(child: _buildMetricTile('Documents Verified', '$documentsVerified', 'Ready for offer letter', Icons.fact_check_rounded, const Color(0xFF0D9488))),
             const SizedBox(width: 12),
-            Expanded(child: _buildMetricTile('Offer Letters', '$offerIssued', 'Awaiting Fee Deposit', Icons.mail_outline_rounded, const Color(0xFF7C3AED))),
+            Expanded(child: _buildMetricTile('Offer Letters', '$offerIssued', 'Awaiting Approve & Enrol', Icons.mail_outline_rounded, const Color(0xFF7C3AED))),
             const SizedBox(width: 12),
             Expanded(child: _buildMetricTile('Enrolled Students', '$enrolled', '$rteEnrolled Enrolled (RTE Quota)', Icons.school_rounded, const Color(0xFF059669))),
           ],
@@ -614,6 +613,19 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                   ),
+                if (status != 'Enrolled' && status != 'Rejected') ...[
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _showRejectAdmissionDialog(a),
+                    icon: const Icon(Icons.cancel_outlined, size: 14),
+                    label: const Text('Reject', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626),
+                      side: const BorderSide(color: Color(0xFFFECACA)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ],
                 const Spacer(),
 
                 // Decision Action
@@ -1190,7 +1202,19 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
               onPressed: () async {
-                final allDone = docs.values.every((v) => v);
+                // Only the documents actually shown for this applicant are
+                // required — a non-RTE application must not be blocked by the
+                // hidden RTE income certificate entry.
+                final requiredDocKeys = <String>[
+                  'birth_cert',
+                  'student_aadhaar',
+                  'parent_aadhaar',
+                  'transfer_cert',
+                  'previous_report_card',
+                  'medical_fitness',
+                  if (a['rte_quota'] == true) 'rte_income_cert',
+                ];
+                final allDone = requiredDocKeys.every((k) => docs[k] == true);
                 final status = allDone ? 'Verified' : 'Pending';
                 await _schoolService.updateAdmissionDocStatus(a['id'], status, documents: docs);
                 if (ctx.mounted) Navigator.pop(ctx);
@@ -1199,10 +1223,10 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(allDone
-                          ? 'All documents verified — offer letter unlocked.'
-                          : 'Verification saved. Some documents are still pending.'),
+                          ? 'All required documents verified — Offer Letter auto-issued.'
+                          : 'Verification saved. Some required documents are still pending.'),
                       backgroundColor: allDone
-                          ? const Color(0xFF0D9488)
+                          ? const Color(0xFF059669)
                           : const Color(0xFFD97706),
                     ),
                   );
@@ -1212,6 +1236,78 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showRejectAdmissionDialog(Map<String, dynamic> a) {
+    final remarksCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Reject Application: ${a['applicant_name']}',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This closes the application and removes it from the live admission pipeline. Record the reason for the counsellor desk.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: remarksCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Rejection Reason',
+                  hintText: 'e.g. Seat unavailable, documents incomplete or eligibility not met',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
+            onPressed: () async {
+              final remarks = remarksCtrl.text.trim();
+              if (remarks.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please provide a rejection reason.'),
+                    backgroundColor: Color(0xFFDC2626),
+                  ),
+                );
+                return;
+              }
+              await _schoolService.updateAdmissionStatus(a['id'], 'Rejected');
+              await _schoolService.logAuditEvent(
+                actorUsername: _userRole,
+                action: 'Admission Rejected',
+                entityType: 'Admission',
+                entityId: a['id']?.toString() ?? '',
+                details: remarks,
+              );
+              if (ctx.mounted) Navigator.pop(ctx);
+              _loadData();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Application rejected and counsellor desk updated.'),
+                    backgroundColor: Color(0xFF059669),
+                  ),
+                );
+              }
+            },
+            child: const Text('Reject Application'),
+          ),
+        ],
       ),
     );
   }
@@ -1254,6 +1350,11 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                   controller: notesCtrl,
                   maxLines: 3,
                   decoration: const InputDecoration(labelText: 'Principal / Faculty Notes'),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'This assessment is advisory. It does not change the application stage; use Verify Documents and Issue Offer Letter to advance the application.',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                 ),
               ],
             ),
@@ -1336,84 +1437,533 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   }
 
   void _showOfferLetterPreviewModal(Map<String, dynamic> a) {
+    final schoolName = 'SHIVALIK INTERNATIONAL SCHOOL';
+    final schoolAddress = 'NH-72, Chakrata Road, Dehradun - 248007, Uttarakhand';
+    final affiliationNo = '3530124';
+    final principalName = 'Dr. Priya Sharma';
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
-          width: 600,
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8)),
-                    child: const Center(child: Text('SIS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900))),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text('SHIVALIK INTERNATIONAL SCHOOL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                        Text('Affiliated to CBSE, New Delhi • Affiliation No: 3530124', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                      ],
-                    ),
-                  ),
-                  const Chip(label: Text('OFFER LETTER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF7C3AED))), backgroundColor: Color(0xFFEDE9FE)),
-                ],
-              ),
-              const Divider(height: 24, color: Color(0xFFE2E8F0)),
-              Text('Ref: SIS/ADM/2026/${a['id'].toString().replaceAll(RegExp(r'[^0-9]'), '')}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
-              const SizedBox(height: 8),
-              Text('PROVISIONAL ADMISSION OFFER: ${a['grade_applying'].toString().toUpperCase()}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-              const SizedBox(height: 10),
-              Text(
-                'Dear ${a['parent_name']},\n\nWe are pleased to inform you that following the document scrutiny and academic interaction, your ward ${a['applicant_name']} has been provisionally granted admission to ${a['grade_applying']} at Shivalik International School for the Academic Session 2026-27.',
-                style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), height: 1.4),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
-                child: Column(
+          width: 720,
+          constraints: const BoxConstraints(maxHeight: 780),
+          padding: const EdgeInsets.all(28),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildDossierRow('Admission Fee:', '₹10,000 (One-Time)'),
-                    _buildDossierRow('Caution Money:', '₹5,000 (Refundable)'),
-                    _buildDossierRow('First Quarter Fee:', '₹20,000'),
-                    const Divider(height: 12),
-                    _buildDossierRow('Total Payable:', '₹${(a['fee_demanded'] as num?)?.toStringAsFixed(0) ?? "35000"}'),
-                    _buildDossierRow('Valid Till:', a['offer_valid_till'] ?? '2026-11-20'),
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(10)),
+                      child: const Center(child: Text('SIS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16))),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(schoolName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF0F172A))),
+                          const SizedBox(height: 4),
+                          Text(schoolAddress, style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                          Text('Affiliated to CBSE, New Delhi • Affiliation No: $affiliationNo', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                    Chip(
+                      label: const Text('OFFER LETTER', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF7C3AED))),
+                      backgroundColor: const Color(0xFFEDE9FE),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Offer Letter sent to printer / PDF queue.')));
-                    },
-                    icon: const Icon(Icons.print_rounded, size: 16),
-                    label: const Text('Print Official Letter'),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+                const SizedBox(height: 16),
+                Container(height: 2, color: const Color(0xFFE2E8F0)),
+                const SizedBox(height: 20),
+
+                // Reference and date
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Ref: ${a['application_no'] ?? a['id']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+                    Text('Date: ${_formatDate(a['offer_date'] ?? DateTime.now().toIso8601String())}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Title
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 28),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFF7C3AED), width: 2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text('PROVISIONAL ADMISSION OFFER LETTER', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF4C1D95))),
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 24),
+
+                // Salutation
+                Text('Dear ${a['parent_name'] ?? 'Parent'},', style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155))),
+                const SizedBox(height: 16),
+
+                // Body
+                Text(
+                  'We are pleased to inform you that following the document scrutiny and academic assessment, '
+                  'your ward ${a['applicant_name']} has been provisionally granted admission to '
+                  '${a['grade_applying']} at $schoolName for the Academic Session ${_academicSessionFromDate(a['offer_date'])}.',
+                  style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), height: 1.5),
+                ),
+                const SizedBox(height: 20),
+
+                // Fee structure
+                const Text('Fee Structure (Provisional):', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                const SizedBox(height: 10),
+                _buildFeeStructureTable(a),
+                const SizedBox(height: 20),
+
+                // Validity notice
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.event_busy_rounded, color: Color(0xFFD97706), size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'This offer is valid until ${_formatDate(a['offer_valid_till'] ?? '')}. '
+                          'Please complete the enrolment formalities and fee payment before this date to confirm the seat.',
+                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF92400E), height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Terms & Conditions
+                _buildTermsSection(),
+                const SizedBox(height: 30),
+
+                // Signature Block
+                _buildSignatureBlock(
+                  principalName: principalName,
+                  studentName: a['applicant_name'] ?? 'Student',
+                  parentName: a['parent_name'] ?? 'Parent',
+                ),
+                const SizedBox(height: 24),
+
+                // Action buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Close'),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await OfferLetterPdfService.instance.shareOfferLetterPdf(
+                          admission: a,
+                          schoolName: schoolName,
+                          schoolAddress: schoolAddress,
+                          affiliationNo: affiliationNo,
+                          principalName: principalName,
+                          fileName: 'Offer_Letter_${a['application_no'] ?? a['id']}.pdf',
+                        );
+                      },
+                      icon: const Icon(Icons.download_rounded, size: 16),
+                      label: const Text('Download PDF'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await OfferLetterPdfService.instance.printOfferLetterPdf(
+                          admission: a,
+                          schoolName: schoolName,
+                          schoolAddress: schoolAddress,
+                          affiliationNo: affiliationNo,
+                          principalName: principalName,
+                        );
+                      },
+                      icon: const Icon(Icons.print_rounded, size: 16),
+                      label: const Text('Print'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F172A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      onPressed: () => _handleApproveAndEnrolFromOfferLetter(a),
+                      icon: const Icon(Icons.how_to_reg_rounded, size: 16),
+                      label: const Text('Approve & Enrol'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  /// Called from the Offer Letter preview modal to approve & enrol.
+  Future<void> _handleApproveAndEnrolFromOfferLetter(Map<String, dynamic> a) async {
+    final availableClassItems = _liveClasses.isNotEmpty
+        ? _liveClasses.map((c) => c['name']?.toString() ?? c['id']?.toString() ?? 'Class').toList()
+        : _gradeOptions.where((g) => g != 'all').toList();
+
+    String selectedClass = (a['grade_applying'] ?? (availableClassItems.isNotEmpty ? availableClassItems.first : 'Class 1')).toString();
+    if (!availableClassItems.contains(selectedClass) && availableClassItems.isNotEmpty) {
+      selectedClass = availableClassItems.first;
+    }
+    String section = 'A';
+    final feePaidCtrl = TextEditingController(text: ((a['fee_demanded'] as num?) ?? 35000.0).toString());
+    String paymentMode = 'Online / UPI';
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          title: Text('Approve & Enrol: ${a['applicant_name']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedClass,
+                          decoration: const InputDecoration(labelText: 'Class'),
+                          items: availableClassItems.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                          onChanged: (v) {
+                            if (v != null) setDState(() => selectedClass = v);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: section,
+                          decoration: const InputDecoration(labelText: 'Section'),
+                          items: const [
+                            DropdownMenuItem(value: 'A', child: Text('Section A')),
+                            DropdownMenuItem(value: 'B', child: Text('Section B')),
+                          ],
+                          onChanged: (v) {
+                            if (v != null) setDState(() => section = v);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: feePaidCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Admission Fee Collected (₹)'),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: paymentMode,
+                    decoration: const InputDecoration(labelText: 'Payment Mode'),
+                    items: const [
+                      DropdownMenuItem(value: 'Online / UPI', child: Text('Online / UPI')),
+                      DropdownMenuItem(value: 'Bank Transfer / NEFT', child: Text('Bank Transfer / NEFT')),
+                      DropdownMenuItem(value: 'Cheque / DD', child: Text('Cheque / DD')),
+                      DropdownMenuItem(value: 'Cash at Counter', child: Text('Cash at Counter')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setDState(() => paymentMode = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6)),
+                    child: const Text(
+                      'Approving will generate the admission number and a student login '
+                      '(username = year + admission sequence, password = username), '
+                      'create the Student Master record, parent link, and fee receipt.',
+                      style: TextStyle(fontSize: 11.5, color: Color(0xFF065F46)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Approve & Enrol Student'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != true) return;
+
+    final selectedEntry = _liveClasses.isEmpty
+        ? <String, dynamic>{}
+        : _liveClasses.firstWhere(
+            (c) =>
+                (c['name']?.toString() ?? c['id']?.toString() ?? '') ==
+                selectedClass,
+            orElse: () => <String, dynamic>{},
+          );
+    final resolvedClassId =
+        (selectedEntry['id']?.toString() ?? '').trim().isNotEmpty
+            ? selectedEntry['id'].toString()
+            : selectedClass;
+    final res = await _schoolService.enrollAdmissionStudent(
+      admission: a,
+      classId: resolvedClassId,
+      className: selectedClass,
+      section: section,
+      feePaid: double.tryParse(feePaidCtrl.text) ?? 35000.0,
+      paymentMode: paymentMode,
+    );
+    _loadData();
+    if (mounted) {
+      _showEnrolledCredentialsDialog(a, res);
+    }
+  }
+
+  Widget _buildFeeStructureTable(Map<String, dynamic> a) {
+    final feeDemanded = (a['fee_demanded'] as num?)?.toDouble() ?? 35000.0;
+    final admissionFee = 10000.0;
+    final cautionMoney = 5000.0;
+    final firstQuarter = feeDemanded - admissionFee - cautionMoney;
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          _feeRow('Admission Fee (One-Time)', '₹${admissionFee.toStringAsFixed(0)}'),
+          _dividerRow(),
+          _feeRow('Caution Money (Refundable)', '₹${cautionMoney.toStringAsFixed(0)}'),
+          _dividerRow(),
+          _feeRow('First Quarter Fee', '₹${firstQuarter.toStringAsFixed(0)}'),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+            ),
+            child: _feeRow('Total Payable', '₹${feeDemanded.toStringAsFixed(0)}', isTotal: true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _feeRow(String label, String amount, {bool isTotal = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
+              color: isTotal ? const Color(0xFF1E40AF) : const Color(0xFF334155),
+            ),
+          ),
+          Text(
+            amount,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isTotal ? FontWeight.w800 : FontWeight.w600,
+              color: isTotal ? const Color(0xFF1E40AF) : const Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dividerRow() {
+    return const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0), indent: 16, endIndent: 16);
+  }
+
+  Widget _buildTermsSection() {
+    final terms = [
+      'This admission is provisional and subject to verification of all original documents at the time of physical enrolment.',
+      'The fee structure is subject to revision as per school policy and CBSE guidelines.',
+      'Caution money is refundable only upon withdrawal/transfer with due clearance certificates.',
+      'Attendance of 75% is mandatory as per CBSE norms; failure may affect promotion/examination eligibility.',
+      'The school reserves the right to cancel admission if any information provided is found to be incorrect.',
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Terms & Conditions:', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+        const SizedBox(height: 10),
+        ...terms.map((t) => Padding(
+              padding: const EdgeInsets.only(bottom: 6, left: 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('• ', style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                  Expanded(child: Text(t, style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569), height: 1.4))),
+                ],
+              ),
+            )),
+      ],
+    );
+  }
+
+  Widget _buildSignatureBlock({
+    required String principalName,
+    required String studentName,
+    required String parentName,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0)),
+        const SizedBox(height: 20),
+        const Text('Authorised Signatures', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+        const SizedBox(height: 28),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // Principal signature with stamp
+            Expanded(
+              child: Column(
+                children: [
+                  _signatureLineBox('Principal\'s Signature'),
+                  const SizedBox(height: 8),
+                  _stampBox(),
+                  const SizedBox(height: 10),
+                  Text(principalName, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  Text('Principal', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                  Text('SHIVALIK INTERNATIONAL SCHOOL', style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8))),
+                ],
+              ),
+            ),
+            const SizedBox(width: 32),
+            // Parent signature
+            Expanded(
+              child: Column(
+                children: [
+                  _signatureLineBox('Parent\'s Signature'),
+                  const SizedBox(height: 18),
+                  Text(parentName, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  const Text('Parent / Guardian', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                  const Text('Date: __________________', style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8))),
+                ],
+              ),
+            ),
+            const SizedBox(width: 32),
+            // Student signature
+            Expanded(
+              child: Column(
+                children: [
+                  _signatureLineBox('Student\'s Signature'),
+                  const SizedBox(height: 18),
+                  Text(studentName, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  const Text('Student', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                  const Text('Date: __________________', style: TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8))),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _signatureLineBox(String label) {
+    return Container(
+      height: 64,
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic),
+        ),
+      ),
+    );
+  }
+
+  Widget _stampBox() {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE2E8F0), style: BorderStyle.solid),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Center(
+        child: Text(
+          'School Stamp',
+          style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(String iso) {
+    try {
+      final dt = DateTime.parse(iso);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  String _academicSessionFromDate(String iso) {
+    try {
+      final dt = DateTime.parse(iso);
+      final year = dt.month >= 4 ? dt.year : dt.year - 1;
+      return '$year-${(year + 1).toString().substring(2)}';
+    } catch (_) {
+      return '2026-27';
+    }
   }
 
   void _showFinalEnrollmentDialog(Map<String, dynamic> a) {

@@ -1294,27 +1294,42 @@ class SchoolService {
 
     final unifiedList = <Map<String, dynamic>>[];
 
-    // 1. Admissions pending scrutiny
+    // 1. Admissions moving through the live pipeline
     try {
       final admissions = await getAdmissions();
       for (final a in admissions) {
-        final s = (a['status']?.toString() ?? '').toLowerCase();
-        if (s == 'under review' || s == 'pending') {
-          final reqDate = a['created_at']?.toString().split('T')[0] ??
-              a['applied_date']?.toString();
-          unifiedList.add({
-            'id': a['id']?.toString() ?? '',
-            'type': 'Admission',
-            'type_label': 'New Intake',
-            'title': a['student_name']?.toString() ?? 'Admission Applicant',
-            'subtitle':
-                'Class: ${a['class_applied'] ?? a['class_name'] ?? 'General'} • Quota: ${a['quota'] ?? 'General'}',
-            'category_color': 0xFF2563EB,
-            'requested_date': reqDate ?? '',
-            'days_pending': calculateDaysPending(a['created_at']?.toString()),
-            'raw_data': a,
-          });
-        }
+        final stage = a['status']?.toString() ?? 'Under Review';
+        final s = stage.toLowerCase();
+        final isLive = s == 'under review' ||
+            s == 'pending' ||
+            s == 'documents verified' ||
+            s == 'offer letter issued' ||
+            s == 'approved';
+        if (!isLive) continue;
+
+        final reqDate = a['date']?.toString() ??
+            a['last_action_at']?.toString().split('T')[0] ??
+            a['applied_date']?.toString();
+        final typeLabel = s == 'documents verified'
+            ? 'Docs Verified'
+            : (s == 'offer letter issued' || s == 'approved')
+                ? 'Offer · Enrol'
+                : 'New Intake';
+        unifiedList.add({
+          'id': a['id']?.toString() ?? '',
+          'type': 'Admission',
+          'type_label': typeLabel,
+          'title': a['applicant_name']?.toString() ??
+              a['student_name']?.toString() ??
+              'Admission Applicant',
+          'subtitle':
+              '${a['grade_applying'] ?? a['class_applied'] ?? a['class_name'] ?? 'General'} • $stage',
+          'category_color': 0xFF2563EB,
+          'requested_date': reqDate ?? '',
+          'days_pending': calculateDaysPending(
+              a['last_action_at']?.toString() ?? a['created_at']?.toString()),
+          'raw_data': a,
+        });
       }
     } catch (_) {}
 
@@ -1340,52 +1355,7 @@ class SchoolService {
       }
     } catch (_) {}
 
-    // 3. Faculty Leave Requests
-    try {
-      final leaves = await getTeacherLeaves('');
-      for (final l in leaves) {
-        final s = (l['status']?.toString() ?? '').toLowerCase();
-        if (s == 'pending') {
-          unifiedList.add({
-            'id': l['id']?.toString() ?? '',
-            'type': 'TeacherLeave',
-            'type_label': 'Faculty Leave',
-            'title': l['teacher_name']?.toString() ?? 'Faculty Member',
-            'subtitle':
-                '${l['type'] ?? 'Leave'} • ${l['start_date']} to ${l['end_date']} • Reason: ${l['reason']}',
-            'category_color': 0xFFD97706,
-            'requested_date': l['created_at']?.toString().split('T')[0] ?? '',
-            'days_pending': calculateDaysPending(l['created_at']?.toString()),
-            'raw_data': l,
-          });
-        }
-      }
-    } catch (_) {}
-
-    // 4. Student Leave Requests
-    try {
-      final studentLeaves = await getLeaveRequestsForClassTeacher('');
-      for (final sl in studentLeaves) {
-        final s = (sl['status']?.toString() ?? '').toLowerCase();
-        if (s == 'pending' || s.contains('pending')) {
-          unifiedList.add({
-            'id': sl['id']?.toString() ?? '',
-            'type': 'StudentLeave',
-            'type_label': 'Student Leave',
-            'title': sl['student_name']?.toString() ?? 'Student',
-            'subtitle':
-                '${sl['class_name'] ?? 'Class'} • ${sl['start_date']} to ${sl['end_date']} (${sl['leave_type'] ?? 'Leave'})',
-            'category_color': 0xFF059669,
-            'requested_date': sl['start_date']?.toString() ?? '',
-            'days_pending': calculateDaysPending(
-                sl['created_at']?.toString() ?? sl['start_date']?.toString()),
-            'raw_data': sl,
-          });
-        }
-      }
-    } catch (_) {}
-
-    // 5. Parent Grievances Open
+    // 3. Parent Grievances Open
     try {
       final complaints = await getParentComplaints();
       for (final g in complaints) {
@@ -1414,11 +1384,8 @@ class SchoolService {
       'Admission': unifiedList.where((u) => u['type'] == 'Admission').length,
       'Certificate':
           unifiedList.where((u) => u['type'] == 'Certificate').length,
-      'TeacherLeave':
-          unifiedList.where((u) => u['type'] == 'TeacherLeave').length,
-      'StudentLeave':
-          unifiedList.where((u) => u['type'] == 'StudentLeave').length,
-      'Grievance': unifiedList.where((u) => u['type'] == 'Grievance').length,
+      'Grievance':
+          unifiedList.where((u) => u['type'] == 'Grievance').length,
     };
 
     return {
@@ -1629,59 +1596,57 @@ class SchoolService {
   }
 
   /// 4. Admission Funnel Analytics (AD-R05 / N7)
+  ///
+  /// Mirrors the live admission workflow used across the admin and counsellor
+  /// desks: Applied → Documents Verified → Offer Letter Issued → Enrolled.
   Future<List<Map<String, dynamic>>> getAdminAdmissionFunnel() async {
     try {
       final admissions = await getAdmissions();
       final totalApps = admissions.length;
-      final scrutiny = admissions.where((a) {
-        final s = (a['status']?.toString() ?? '').toLowerCase();
-        return s == 'under review' || s == 'pending';
-      }).length;
-      final interaction = admissions.where((a) {
-        final s = (a['status']?.toString() ?? '').toLowerCase();
-        return s == 'interview scheduled' || s == 'interaction';
-      }).length;
-      final offer = admissions.where((a) {
-        final s = (a['status']?.toString() ?? '').toLowerCase();
-        return s == 'offer letter issued' || s == 'approved';
-      }).length;
-      final enrolled = admissions.where((a) {
-        final s = (a['status']?.toString() ?? '').toLowerCase();
-        return s == 'enrolled';
-      }).length;
 
-      final inquiries = totalApps > 0 ? totalApps + 5 : 0;
+      String stageOf(Map<String, dynamic> a) =>
+          (a['status_detail'] ?? a['status'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+
+      final documentsVerified = admissions.where((a) {
+        final s = stageOf(a);
+        return s == 'documents verified' ||
+            s == 'offer letter issued' ||
+            s == 'approved' ||
+            s == 'enrolled';
+      }).length;
+      final offers = admissions.where((a) {
+        final s = stageOf(a);
+        return s == 'offer letter issued' || s == 'approved' || s == 'enrolled';
+      }).length;
+      final enrolled =
+          admissions.where((a) => stageOf(a) == 'enrolled').length;
+
+      double pct(int value) =>
+          totalApps > 0 ? (value / totalApps) * 100 : 0.0;
 
       return [
-        {'stage': 'Inquiries', 'count': inquiries, 'rate': 100.0},
         {
           'stage': 'Applied',
           'count': totalApps,
-          'rate': inquiries > 0 ? (totalApps / inquiries) * 100 : 0.0
+          'rate': totalApps > 0 ? 100.0 : 0.0,
         },
         {
-          'stage': 'Scrutiny',
-          'count': scrutiny + interaction + offer + enrolled,
-          'rate': totalApps > 0
-              ? ((scrutiny + interaction + offer + enrolled) / totalApps) * 100
-              : 0.0
+          'stage': 'Documents Verified',
+          'count': documentsVerified,
+          'rate': pct(documentsVerified),
         },
         {
-          'stage': 'Interaction',
-          'count': interaction + offer + enrolled,
-          'rate': totalApps > 0
-              ? ((interaction + offer + enrolled) / totalApps) * 100
-              : 0.0
-        },
-        {
-          'stage': 'Offers',
-          'count': offer + enrolled,
-          'rate': totalApps > 0 ? ((offer + enrolled) / totalApps) * 100 : 0.0
+          'stage': 'Offer Letter Issued',
+          'count': offers,
+          'rate': pct(offers),
         },
         {
           'stage': 'Enrolled',
           'count': enrolled,
-          'rate': totalApps > 0 ? (enrolled / totalApps) * 100 : 0.0
+          'rate': pct(enrolled),
         },
       ];
     } catch (_) {
@@ -8993,6 +8958,7 @@ class SchoolService {
     final idx =
         _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     String? nextStatusDetail;
+    bool shouldAutoIssueOffer = false;
     if (idx >= 0) {
       final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
       updated['doc_status'] = docStatus;
@@ -9014,9 +8980,37 @@ class SchoolService {
         'rejected',
       };
       if (verified && !lockedStatuses.contains(currentLower)) {
-        updated['status'] = 'Documents Verified';
-        updated['status_detail'] = 'Documents Verified';
-        nextStatusDetail = 'Documents Verified';
+        // Check if all required documents are verified
+        final docsMap = Map<String, bool>.from(documents ?? updated['documents'] ?? {});
+        final isRte = updated['rte_quota'] == true;
+        final requiredDocs = <String>[
+          'birth_cert',
+          'student_aadhaar',
+          'parent_aadhaar',
+          'transfer_cert',
+          'previous_report_card',
+          'medical_fitness',
+        ];
+        if (isRte) {
+          requiredDocs.add('rte_income_cert');
+        }
+        final allRequiredVerified = requiredDocs.every((d) => docsMap[d] == true);
+        if (allRequiredVerified) {
+          // Auto-transition to Offer Letter Issued
+          updated['status'] = 'Offer Letter Issued';
+          updated['status_detail'] = 'Offer Letter Issued';
+          nextStatusDetail = 'Offer Letter Issued';
+          // Set default fee and validity if not already set
+          updated['fee_demanded'] = updated['fee_demanded'] ?? 35000.0;
+          updated['offer_date'] = nowIso.substring(0, 10);
+          updated['offer_valid_till'] = updated['offer_valid_till'] ?? 
+              DateTime.now().add(const Duration(days: 30)).toIso8601String().substring(0, 10);
+          shouldAutoIssueOffer = true;
+        } else {
+          updated['status'] = 'Documents Verified';
+          updated['status_detail'] = 'Documents Verified';
+          nextStatusDetail = 'Documents Verified';
+        }
       } else if (!verified && currentLower == 'documents verified') {
         // Scrutiny was withdrawn — send it back to the review queue.
         updated['status'] = 'Under Review';
@@ -9028,12 +9022,22 @@ class SchoolService {
       _admissionsStore[idx] = updated;
     }
     try {
-      await _supabase.from('school_admissions').update({
+      final updatePayload = <String, dynamic>{
         'doc_status': docStatus,
         if (documents != null) 'documents': documents,
         if (nextStatusDetail != null) 'status_detail': nextStatusDetail,
         'updated_at': nowIso,
-      }).eq('id', admissionId);
+      };
+      // If auto-issuing offer letter, include fee and validity dates
+      if (shouldAutoIssueOffer) {
+        final adm = idx >= 0 ? _admissionsStore[idx] : null;
+        if (adm != null) {
+          updatePayload['fee_demanded'] = adm['fee_demanded'] ?? 35000.0;
+          updatePayload['offer_date'] = adm['offer_date'];
+          updatePayload['offer_valid_till'] = adm['offer_valid_till'];
+        }
+      }
+      await _supabase.from('school_admissions').update(updatePayload).eq('id', admissionId);
     } catch (_) {
       try {
         await _supabase.from('school_admissions').update({
@@ -9051,31 +9055,26 @@ class SchoolService {
     required String verdict,
   }) async {
     final nowIso = DateTime.now().toUtc().toIso8601String();
-    final statusLabel = verdict == 'Recommended'
-        ? 'Approved'
-        : (verdict == 'Not Recommended' ? 'Rejected' : null);
+    // The assessment is advisory only. Status changes must follow the
+    // documented pipeline: Documents Verified → Offer Letter Issued → Enrolled.
+    final annotatedNotes = notes.isEmpty
+        ? 'Assessment verdict: $verdict'
+        : 'Assessment verdict: $verdict\n$notes';
     final idx =
         _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     if (idx >= 0) {
       final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
       updated['test_score'] = score;
       updated['test_status'] = 'Completed';
-      updated['interaction_notes'] = notes;
-      if (statusLabel != null) {
-        updated['status'] = statusLabel;
-        updated['status_detail'] = statusLabel;
-      }
+      updated['interaction_notes'] = annotatedNotes;
       updated['last_action_at'] = nowIso;
       _admissionsStore[idx] = updated;
     }
 
     final payload = <String, dynamic>{
       'test_score': score,
-      'interview_notes': notes,
+      'interview_notes': annotatedNotes,
       'updated_at': nowIso,
-      if (statusLabel != null) 'status_detail': statusLabel,
-      if (statusLabel == 'Approved') 'status': 'approved',
-      if (statusLabel == 'Rejected') 'status': 'rejected',
     };
     try {
       await _supabase
@@ -12661,7 +12660,9 @@ class SchoolService {
         'attempted_at': demoPayload['attempted_at'],
         'is_demo': true,
       });
-      return true;
+      // The attempt only lives on this device, so report the server as
+      // not updated.
+      return false;
     }
 
     final payload = {

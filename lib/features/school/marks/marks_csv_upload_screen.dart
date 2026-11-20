@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:csv/csv.dart';
@@ -165,20 +164,13 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
     }
 
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['csv'],
-        withData: true,
       );
-      if (result == null || result.files.isEmpty) return;
+      if (file == null) return;
 
-      final file = result.files.first;
-      String text = '';
-      if (file.bytes != null) {
-        text = utf8.decode(file.bytes!, allowMalformed: true);
-      } else if (file.path != null) {
-        text = await File(file.path!).readAsString();
-      }
+      final text = utf8.decode(await file.readAsBytes(), allowMalformed: true);
 
       if (text.trim().isEmpty) {
         _showMessage('That CSV file is empty.', isError: true);
@@ -195,10 +187,7 @@ class _MarksCsvUploadScreenState extends State<MarksCsvUploadScreen> {
     final normalisedText = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     final List<List<dynamic>> rows;
     try {
-      rows = const CsvToListConverter(
-        shouldParseNumbers: false,
-        eol: '\n',
-      ).convert(normalisedText);
+      rows = Csv().decode(normalisedText);
     } catch (_) {
       setState(() {
         _fileName = fileName;

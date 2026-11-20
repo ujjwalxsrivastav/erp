@@ -41,7 +41,7 @@ class _UploadStudyMaterialScreenState extends State<UploadStudyMaterialScreen> {
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: [
           'pdf',
@@ -55,9 +55,9 @@ class _UploadStudyMaterialScreenState extends State<UploadStudyMaterialScreen> {
         ],
       );
 
-      if (result != null && result.files.single.path != null) {
+      if (result?.path != null) {
         setState(() {
-          _selectedFile = File(result.files.single.path!);
+          _selectedFile = File(result!.path!);
         });
       }
     } catch (e) {

@@ -2921,7 +2921,7 @@ class _SchoolReportsScreenState extends State<SchoolReportsScreen>
                       lineTouchData: LineTouchData(
                         handleBuiltInTouches: true,
                         touchTooltipData: LineTouchTooltipData(
-                          tooltipBgColor: const Color(0xFF0F172A),
+                          getTooltipColor: (_) => const Color(0xFF0F172A),
                           getTooltipItems: (touchedSpots) {
                             return touchedSpots.map((spot) {
                               final idx = spot.spotIndex;

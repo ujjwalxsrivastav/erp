@@ -286,7 +286,7 @@ class _AccountantDashboardState extends State<AccountantDashboard> with TickerPr
             : BarChart(BarChartData(
                 alignment: BarChartAlignment.spaceAround,
                 maxY: _deptRevenue.fold<double>(0, (m, d) { final c = (d['collected'] as num?)?.toDouble() ?? 0; final p = (d['pending'] as num?)?.toDouble() ?? 0; return (c + p) > m ? (c + p) : m; }) * 1.2,
-                barTouchData: BarTouchData(enabled: true, touchTooltipData: BarTouchTooltipData(tooltipRoundedRadius: 8)),
+                barTouchData: BarTouchData(enabled: true, touchTooltipData: BarTouchTooltipData(tooltipBorderRadius: BorderRadius.circular(8))),
                 titlesData: FlTitlesData(
                   bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) {
                     if (v.toInt() >= _deptRevenue.length) return const SizedBox();

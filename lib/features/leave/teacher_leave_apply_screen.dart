@@ -85,13 +85,13 @@ class _TeacherLeaveApplyScreenState extends State<TeacherLeaveApplyScreen>
   }
 
   Future<void> _pickDocument() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
     );
     if (result != null) {
       setState(() {
-        _documentUrl = result.files.first.name;
+        _documentUrl = result.name;
       });
     }
   }

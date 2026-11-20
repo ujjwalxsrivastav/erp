@@ -1202,7 +1202,7 @@ class _SchoolParentDashboardState extends State<SchoolParentDashboard>
           ],
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
-              tooltipBgColor: const Color(0xFF0F172A),
+              getTooltipColor: (_) => const Color(0xFF0F172A),
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((spot) {
                   final idx = spot.spotIndex;

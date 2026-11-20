@@ -483,16 +483,16 @@ class _StudentAssignmentsScreenState extends State<StudentAssignmentsScreen> {
   Future<void> _submitAssignment(Map<String, dynamic> assignment) async {
     try {
       // Pick file
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png', 'jpeg'],
       );
 
-      if (result == null || result.files.single.path == null) {
+      if (result?.path == null) {
         return;
       }
 
-      final file = File(result.files.single.path!);
+      final file = File(result!.path!);
 
       // Show loading dialog
       if (!mounted) return;

@@ -102,13 +102,13 @@ class _BusMaintenanceDetailsScreenState
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: () async {
-                    final result = await FilePicker.platform.pickFiles(
+                    final result = await FilePicker.pickFile(
                       type: FileType.custom,
                       allowedExtensions: ['jpg', 'png', 'pdf'],
                     );
-                    if (result != null && result.files.single.path != null) {
+                    if (result?.path != null) {
                       setState(() {
-                        receiptFile = File(result.files.single.path!);
+                        receiptFile = File(result!.path!);
                       });
                     }
                   },
@@ -188,13 +188,13 @@ class _BusMaintenanceDetailsScreenState
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: () async {
-                    final result = await FilePicker.platform.pickFiles(
+                    final result = await FilePicker.pickFile(
                       type: FileType.custom,
                       allowedExtensions: ['jpg', 'png', 'pdf'],
                     );
-                    if (result != null && result.files.single.path != null) {
+                    if (result?.path != null) {
                       setState(() {
-                        receiptFile = File(result.files.single.path!);
+                        receiptFile = File(result!.path!);
                       });
                     }
                   },
