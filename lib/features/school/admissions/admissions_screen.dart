@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/offer_letter_pdf_service.dart';
+import '../../../services/entrance_exam_service.dart';
 
 class AdmissionsScreen extends StatefulWidget {
   const AdmissionsScreen({super.key});
@@ -32,6 +33,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   final List<String> _statusFilters = [
     'all',
     'Under Review',
+    'Entrance Exam',
     'Documents Verified',
     'Offer Letter Issued',
     'Enrolled',
@@ -56,10 +58,16 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
 
   List<Map<String, dynamic>> _liveClasses = [];
 
+  final _entranceService = EntranceExamService();
+  List<Map<String, dynamic>> _entranceSubjects = [];
+  String _catalogGrade = 'Class 1';
+  String _entranceRosterGrade = 'all';
+  bool _entranceCatalogLoading = false;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _loadData();
   }
 
@@ -89,6 +97,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
         _liveClasses = liveClasses;
         _isLoading = false;
       });
+      _loadEntranceCatalog(_catalogGrade);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -96,6 +105,16 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
         _errorMessage = 'Failed to load admission system: $e';
       });
     }
+  }
+
+  Future<void> _loadEntranceCatalog(String className) async {
+    setState(() => _entranceCatalogLoading = true);
+    final subjects = await _entranceService.getSubjects(className);
+    if (!mounted) return;
+    setState(() {
+      _entranceSubjects = subjects;
+      _entranceCatalogLoading = false;
+    });
   }
 
   List<Map<String, dynamic>> get _filteredAdmissions {
@@ -183,6 +202,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
         children: [
           _buildPipelineTab(),
           _buildIntakeWizardTab(),
+          _buildEntranceExamTab(),
           _buildDocumentScrutinyTab(),
           _buildInteractionTestTab(),
           _buildEnquiriesTab(),
@@ -243,9 +263,10 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                   tabs: const [
                     Tab(icon: Icon(Icons.view_kanban_rounded, size: 16), text: '1. Admission Pipeline'),
                     Tab(icon: Icon(Icons.person_add_alt_1_rounded, size: 16), text: '2. New Intake Form'),
-                    Tab(icon: Icon(Icons.verified_user_rounded, size: 16), text: '3. Document Scrutiny'),
-                    Tab(icon: Icon(Icons.quiz_rounded, size: 16), text: '4. Entrance & Interaction'),
-                    Tab(icon: Icon(Icons.contact_phone_rounded, size: 16), text: '5. Prospect Leads & Enquiries'),
+                    Tab(icon: Icon(Icons.quiz_rounded, size: 16), text: '3. Entrance Exam'),
+                    Tab(icon: Icon(Icons.verified_user_rounded, size: 16), text: '4. Document Scrutiny'),
+                    Tab(icon: Icon(Icons.fact_check_rounded, size: 16), text: '5. Interaction & Readiness'),
+                    Tab(icon: Icon(Icons.contact_phone_rounded, size: 16), text: '6. Prospect Leads & Enquiries'),
                   ],
                 ),
               ),
@@ -259,6 +280,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   // ============================================================================
   Widget _buildPipelineTab() {
     final underReview = _statusCounts['Under Review'] ?? 0;
+    final entranceExam = _statusCounts['Entrance Exam'] ?? 0;
     final documentsVerified = _statusCounts['Documents Verified'] ?? 0;
     final offerIssued = _statusCounts['Offer Letter Issued'] ?? 0;
     final enrolled = _statusCounts['Enrolled'] ?? 0;
@@ -272,17 +294,16 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
       padding: const EdgeInsets.all(20),
       children: [
         // Metric Banner
-        Row(
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
           children: [
-            Expanded(child: _buildMetricTile('Total Applications', '${_admissions.length}', 'Session 2026-27 Intake', Icons.folder_shared_rounded, const Color(0xFF2563EB))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildMetricTile('Under Review', '$underReview', 'Application & KYC scrutiny', Icons.hourglass_top_rounded, const Color(0xFFD97706))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildMetricTile('Documents Verified', '$documentsVerified', 'Ready for offer letter', Icons.fact_check_rounded, const Color(0xFF0D9488))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildMetricTile('Offer Letters', '$offerIssued', 'Awaiting Approve & Enrol', Icons.mail_outline_rounded, const Color(0xFF7C3AED))),
-            const SizedBox(width: 12),
-            Expanded(child: _buildMetricTile('Enrolled Students', '$enrolled', '$rteEnrolled Enrolled (RTE Quota)', Icons.school_rounded, const Color(0xFF059669))),
+            SizedBox(width: 196, child: _buildMetricTile('Total Applications', '${_admissions.length}', 'Session 2026-27 Intake', Icons.folder_shared_rounded, const Color(0xFF2563EB))),
+            SizedBox(width: 196, child: _buildMetricTile('Under Review', '$underReview', 'Application & KYC scrutiny', Icons.hourglass_top_rounded, const Color(0xFFD97706))),
+            SizedBox(width: 196, child: _buildMetricTile('Entrance Exam', '$entranceExam', 'Offline marks or AI paper', Icons.quiz_rounded, const Color(0xFF0284C7))),
+            SizedBox(width: 196, child: _buildMetricTile('Documents Verified', '$documentsVerified', 'Ready for offer letter', Icons.fact_check_rounded, const Color(0xFF0D9488))),
+            SizedBox(width: 196, child: _buildMetricTile('Offer Letters', '$offerIssued', 'Awaiting Approve & Enrol', Icons.mail_outline_rounded, const Color(0xFF7C3AED))),
+            SizedBox(width: 196, child: _buildMetricTile('Enrolled Students', '$enrolled', '$rteEnrolled Enrolled (RTE Quota)', Icons.school_rounded, const Color(0xFF059669))),
           ],
         ),
         const SizedBox(height: 18),
@@ -443,6 +464,9 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     } else if (status == 'Interview Scheduled') {
       statusColor = const Color(0xFF0284C7);
       statusBg = const Color(0xFFE0F2FE);
+    } else if (status == 'Entrance Exam') {
+      statusColor = const Color(0xFF0284C7);
+      statusBg = const Color(0xFFE0F2FE);
     } else if (status == 'Documents Verified') {
       statusColor = const Color(0xFF0D9488);
       statusBg = const Color(0xFFF0FDFA);
@@ -553,6 +577,14 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                           _buildMiniInfo(Icons.history_edu_rounded, 'Prev: ${a['previous_school'] ?? "Not Specified"} (${a['previous_grade'] ?? "N/A"})'),
                           _buildMiniInfo(Icons.directions_bus_rounded, a['transport_required'] == true ? 'Transport: ${a['transport_stop']}' : 'Self Transport'),
                           _buildMiniInfo(Icons.verified_user_outlined, 'KYC: $docStatus', color: docStatus == 'Verified' ? const Color(0xFF059669) : const Color(0xFFD97706)),
+                          _buildMiniInfo(
+                            Icons.quiz_rounded,
+                            'Entrance: ${a['entrance_exam_status'] ?? 'Pending'}'
+                                '${((a['entrance_percentage'] as num?) ?? 0) > 0 ? ' • ${(a['entrance_percentage'] as num).toStringAsFixed(1)}% (${a['entrance_score'] ?? 0}/${a['entrance_max_score'] ?? 0})' : ''}',
+                            color: (a['entrance_exam_status']?.toString().toLowerCase() == 'completed')
+                                ? const Color(0xFF059669)
+                                : const Color(0xFF0284C7),
+                          ),
                           if ((a['referral'] ?? '').toString().isNotEmpty)
                             _buildMiniInfo(Icons.share_rounded, 'Referral: ${a['referral']}', color: const Color(0xFF7C3AED)),
                           _buildMiniInfo(
@@ -587,6 +619,17 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF0F172A),
                     side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _showEntranceExamChooser(a),
+                  icon: const Icon(Icons.quiz_rounded, size: 14),
+                  label: const Text('Entrance Exam', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0284C7),
+                    side: const BorderSide(color: Color(0xFFBAE6FD)),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
@@ -632,6 +675,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                 if ((status == 'Approved' ||
                         status == 'Under Review' ||
                         status == 'Interview Scheduled' ||
+                        status == 'Entrance Exam' ||
                         status == 'Documents Verified') &&
                     (docStatus == 'Verified' || status == 'Documents Verified'))
                   ElevatedButton.icon(
@@ -647,6 +691,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                 else if (status == 'Approved' ||
                     status == 'Under Review' ||
                     status == 'Interview Scheduled' ||
+                    status == 'Entrance Exam' ||
                     status == 'Documents Verified')
                   OutlinedButton.icon(
                     onPressed: () => _showDocumentScrutinyDialog(a),
@@ -741,7 +786,973 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   }
 
   // ============================================================================
-  // TAB 3: DOCUMENT SCRUTINY MASTER
+  // TAB 3: ENTRANCE EXAMINATION DESK
+  // ============================================================================
+  Widget _buildEntranceExamTab() {
+    final candidates = _admissions.where((a) {
+      final s = (a['status'] ?? '').toString().toLowerCase();
+      if (s == 'enrolled' || s == 'rejected') return false;
+      if (_entranceRosterGrade != 'all' &&
+          (a['grade_applying'] ?? '').toString() != _entranceRosterGrade) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        const Text('Entrance Examination Desk',
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A))),
+        const Text(
+          'Runs before document verification • Offline marks entry or an AI paper built from previous-class + target-class topics • Each subject is worth 50 marks',
+          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+        ),
+        const SizedBox(height: 16),
+        _buildEntranceCatalogCard(),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Text('Applicant Roster (${candidates.length})',
+                style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A))),
+            const Spacer(),
+            const Text('Class:',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B))),
+            const SizedBox(width: 6),
+            DropdownButton<String>(
+              value: _entranceRosterGrade,
+              underline: const SizedBox.shrink(),
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0F172A)),
+              items: _gradeOptions
+                  .map((g) => DropdownMenuItem(
+                      value: g,
+                      child: Text(g == 'all' ? 'All classes' : g)))
+                  .toList(),
+              onChanged: (v) => setState(() => _entranceRosterGrade = v ?? 'all'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        const Text('Record the entrance outcome before scrutiny',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+        const SizedBox(height: 10),
+        if (candidates.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Center(
+              child: Text('No applicants are currently in the entrance stage.',
+                  style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
+            ),
+          )
+        else
+          ...candidates.map(_buildEntranceCandidateCard),
+      ],
+    );
+  }
+
+  Widget _buildEntranceCatalogCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.menu_book_rounded,
+                  size: 18, color: Color(0xFF0284C7)),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Subjects, Topics & Weightage',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A))),
+              ),
+              DropdownButton<String>(
+                value: _catalogGrade,
+                underline: const SizedBox.shrink(),
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F172A)),
+                items: _gradeOptions
+                    .where((g) => g != 'all')
+                    .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                    .toList(),
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() => _catalogGrade = v);
+                  _loadEntranceCatalog(v);
+                },
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () =>
+                    _showEntrancePaperPreview(className: _catalogGrade),
+                icon: const Icon(Icons.auto_awesome_rounded, size: 15),
+                label: const Text('AI Paper',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF7C3AED),
+                  side: const BorderSide(color: Color(0xFFDDD6FE)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => _showEntranceCatalogDialog(),
+                icon: const Icon(Icons.add_rounded, size: 15),
+                label: const Text('Add Subject',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF0284C7),
+                  side: const BorderSide(color: Color(0xFFBAE6FD)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Every subject carries a fixed 50-mark weightage. Topics are combined with the previous class syllabus when the AI paper is generated.',
+            style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 12),
+          if (_entranceCatalogLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: LinearProgressIndicator(
+                  minHeight: 2, color: Color(0xFF0284C7)),
+            )
+          else if (_entranceSubjects.isEmpty)
+            const Text('No subjects configured for this class yet.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)))
+          else
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _entranceSubjects.map((s) {
+                final topics = (s['topics'] as List?) ?? const [];
+                return Container(
+                  width: 300,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(s['subject']?.toString() ?? '',
+                                style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A))),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                                color: const Color(0xFFE0F2FE),
+                                borderRadius: BorderRadius.circular(4)),
+                            child: Text('${s['weightage'] ?? 50} marks',
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0369A1))),
+                          ),
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () => _showEntranceCatalogDialog(existing: s),
+                            child: const Icon(Icons.edit_rounded,
+                                size: 14, color: Color(0xFF64748B)),
+                          ),
+                          const SizedBox(width: 6),
+                          InkWell(
+                            onTap: () => _deleteEntranceSubject(s),
+                            child: const Icon(Icons.delete_outline_rounded,
+                                size: 14, color: Color(0xFFDC2626)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        topics.isEmpty
+                            ? 'No topics added'
+                            : topics.join(' • '),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 10.5,
+                            color: Color(0xFF64748B),
+                            height: 1.3),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEntranceCandidateCard(Map<String, dynamic> a) {
+    final status = a['status']?.toString() ?? 'Under Review';
+    final entranceStatus =
+        a['entrance_exam_status']?.toString() ?? 'Pending';
+    final completed = entranceStatus.toLowerCase() == 'completed';
+    final pct = (a['entrance_percentage'] as num?) ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: completed
+                  ? const Color(0xFFECFDF5)
+                  : const Color(0xFFE0F2FE),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text(
+                completed ? '${pct.toStringAsFixed(0)}%' : '—',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: completed
+                        ? const Color(0xFF059669)
+                        : const Color(0xFF0284C7)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(a['applicant_name'] ?? '',
+                    style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A))),
+                const SizedBox(height: 2),
+                Text(
+                  '${a['grade_applying']} • ${a['application_no'] ?? a['id']} • Stage: $status',
+                  style: const TextStyle(
+                      fontSize: 11.5, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  completed
+                      ? 'Entrance completed (${a['entrance_exam_mode'] ?? 'offline'}) • ${a['entrance_score'] ?? 0}/${a['entrance_max_score'] ?? 0} marks'
+                      : 'Entrance not recorded • ${(a['entrance_subjects'] as List?)?.length ?? 0} subject snapshot(s)',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: completed
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFD97706),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(
+            onPressed: () => _showOfflineEntranceMarksDialog(a),
+            icon: const Icon(Icons.edit_note_rounded, size: 15),
+            label: const Text('Offline Marks',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF0F172A),
+              side: const BorderSide(color: Color(0xFFCBD5E1)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: () => _showEntrancePaperDialog(a),
+            icon: const Icon(Icons.auto_awesome_rounded, size: 15),
+            label: const Text('AI Online Paper',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEntranceExamChooser(Map<String, dynamic> a) {
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('Entrance Exam: ${a['applicant_name']}',
+            style:
+                const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        children: [
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showOfflineEntranceMarksDialog(a);
+            },
+            child: const Row(
+              children: [
+                Icon(Icons.edit_note_rounded, size: 20, color: Color(0xFF0F172A)),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Record Offline Marks — enter marks obtained in each subject (out of 50).',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showEntrancePaperDialog(a);
+            },
+            child: const Row(
+              children: [
+                Icon(Icons.auto_awesome_rounded, size: 20, color: Color(0xFF0284C7)),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Generate AI Online Paper — build a paper from previous + target class topics.',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() => _catalogGrade =
+                  (a['grade_applying'] ?? 'Class 1').toString());
+              _loadEntranceCatalog(_catalogGrade);
+              _tabController.animateTo(2);
+            },
+            child: const Row(
+              children: [
+                Icon(Icons.menu_book_rounded, size: 20, color: Color(0xFF64748B)),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Manage Subjects & Topics for this class.',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEntranceCatalogDialog({Map<String, dynamic>? existing}) {
+    final subjectCtrl =
+        TextEditingController(text: existing?['subject']?.toString() ?? '');
+    final topicsCtrl = TextEditingController(
+        text: ((existing?['topics'] as List?) ?? const []).join(', '));
+    final isEdit = existing != null;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          '${isEdit ? 'Edit' : 'Add'} Entrance Subject — $_catalogGrade',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: subjectCtrl,
+                enabled: !isEdit,
+                decoration: const InputDecoration(
+                    labelText: 'Subject (e.g. Mathematics)'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: topicsCtrl,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Topics (comma separated)',
+                  hintText:
+                      'Number system, fractions, problem solving, previous class revision',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(6)),
+                child: const Text(
+                  'Weightage is fixed at 50 marks per subject. The AI paper combines these topics with the previous class syllabus.',
+                  style: TextStyle(fontSize: 11.5, color: Color(0xFF075985)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white),
+            onPressed: () async {
+              final subject = subjectCtrl.text.trim();
+              if (subject.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Please enter a subject name.'),
+                      backgroundColor: Color(0xFFDC2626)),
+                );
+                return;
+              }
+              final topics = topicsCtrl.text
+                  .split(',')
+                  .map((t) => t.trim())
+                  .where((t) => t.isNotEmpty)
+                  .toList();
+              await _entranceService.saveSubject(
+                className: _catalogGrade,
+                subject: subject,
+                topics: topics,
+              );
+              if (ctx.mounted) Navigator.pop(ctx);
+              _loadEntranceCatalog(_catalogGrade);
+            },
+            child: Text(isEdit ? 'Save Subject' : 'Add Subject'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteEntranceSubject(Map<String, dynamic> subject) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Subject?',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+        content: Text(
+            'Remove ${subject['subject']} from the $_catalogGrade entrance blueprint?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _entranceService.deleteSubject(subject['id']?.toString() ?? '');
+    _loadEntranceCatalog(_catalogGrade);
+  }
+
+  Future<void> _showOfflineEntranceMarksDialog(Map<String, dynamic> a,
+      {Map<String, dynamic>? paper}) async {
+    final className = (a['grade_applying'] ?? 'Class 1').toString();
+    final subjects = paper != null
+        ? ((paper['subjects'] as List?) ?? const [])
+            .map((s) => Map<String, dynamic>.from(s as Map))
+            .toList()
+        : await _entranceService.getSubjects(className);
+
+    if (subjects.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Add at least one entrance subject first.'),
+              backgroundColor: Color(0xFFD97706)),
+        );
+      }
+      return;
+    }
+
+    final controllers = <String, TextEditingController>{};
+    for (final s in subjects) {
+      final subject = s['subject']?.toString() ?? 'General';
+      final existing = ((paper?['subjects'] as List?) ?? const [])
+          .whereType<Map>()
+          .where((e) =>
+              (e['subject']?.toString() ?? '').toLowerCase() ==
+              subject.toLowerCase())
+          .toList();
+      final existingScores = ((a['entrance_subjects'] as List?) ?? const [])
+          .whereType<Map>()
+          .where((e) =>
+              (e['subject']?.toString() ?? '').toLowerCase() ==
+              subject.toLowerCase())
+          .toList();
+      final priorMarks = existing.isNotEmpty
+          ? existing.first['marks']
+          : (existingScores.isNotEmpty ? existingScores.first['marks'] : null);
+      controllers[subject] = TextEditingController(
+          text: (priorMarks as num?)?.toString() ?? '');
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) {
+          double total = 0;
+          for (final s in subjects) {
+            final subject = s['subject']?.toString() ?? 'General';
+            total += double.tryParse(controllers[subject]!.text.trim()) ?? 0;
+          }
+          final max = subjects.fold<double>(
+              0, (sum, s) => sum + ((s['weightage'] as num?)?.toDouble() ?? 50));
+          return AlertDialog(
+            title: Text('Offline Entrance Marks: ${a['applicant_name']}',
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w700)),
+            content: SizedBox(
+              width: 480,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$className • Each subject is scored out of 50. Enter the marks obtained in the offline paper.',
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 12),
+                    ...subjects.map((s) {
+                      final subject = s['subject']?.toString() ?? 'General';
+                      final subjectMax =
+                          (s['weightage'] as num?)?.toDouble() ?? 50;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(subject,
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                            SizedBox(
+                              width: 90,
+                              child: TextField(
+                                controller: controllers[subject],
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true),
+                                textAlign: TextAlign.center,
+                                decoration: InputDecoration(
+                                  labelText: 'Marks',
+                                  helperText: 'of ${subjectMax.toInt()}',
+                                  border: const OutlineInputBorder(),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 8),
+                                ),
+                                onChanged: (_) => setDState(() {}),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total',
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w700)),
+                        Text('${total.toStringAsFixed(1)} / ${max.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0284C7))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white),
+                onPressed: () async {
+                  final scores = <Map<String, dynamic>>[];
+                  for (final s in subjects) {
+                    final subject = s['subject']?.toString() ?? 'General';
+                    final subjectMax =
+                        (s['weightage'] as num?)?.toDouble() ?? 50;
+                    final raw =
+                        double.tryParse(controllers[subject]!.text.trim()) ?? 0;
+                    scores.add({
+                      'subject': subject,
+                      'marks': raw.clamp(0, subjectMax).toDouble(),
+                      'max': subjectMax,
+                    });
+                  }
+                  final res = await _schoolService
+                      .recordAdmissionEntranceResult(
+                    admissionId: a['id']?.toString() ?? '',
+                    subjectScores: scores,
+                    mode: 'offline',
+                    recordedBy: _userRole,
+                    className: className,
+                    paperId: paper?['id']?.toString(),
+                  );
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  await _loadData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            'Entrance recorded: ${res['total_score']}/${res['max_score']} (${res['percentage']}%).'),
+                        backgroundColor: const Color(0xFF059669),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Save Entrance Result'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showEntrancePaperDialog(Map<String, dynamic> a) {
+    _showEntrancePaperPreview(
+      className: (a['grade_applying'] ?? 'Class 1').toString(),
+      admissionId: a['id']?.toString() ?? '',
+      applicantLabel: a['applicant_name']?.toString() ?? '',
+      admission: a,
+    );
+  }
+
+  /// Shows an AI entrance paper. When [admission] is null the paper is a
+  /// class-level preview for [className] (no marks entry).
+  void _showEntrancePaperPreview({
+    required String className,
+    String admissionId = '',
+    String applicantLabel = '',
+    Map<String, dynamic>? admission,
+  }) {
+    late Future<Map<String, dynamic>> paperFuture;
+
+    Future<Map<String, dynamic>> load() async {
+      final existing = admissionId.isEmpty
+          ? null
+          : await _entranceService.getPaperForAdmission(admissionId);
+      if (existing != null) return existing;
+      return _entranceService.generatePaper(
+        className: className,
+        username: _userRole,
+        mode: 'online',
+        admissionId: admissionId,
+      );
+    }
+
+    paperFuture = load();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            width: 720,
+            constraints: const BoxConstraints(maxHeight: 780),
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome_rounded,
+                        color: Color(0xFF0284C7), size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'AI Entrance Paper • $className${applicantLabel.isNotEmpty ? ' • $applicantLabel' : ''}',
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A)),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Flexible(
+                  child: FutureBuilder<Map<String, dynamic>>(
+                    future: paperFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 60),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(
+                                  strokeWidth: 2, color: Color(0xFF0284C7)),
+                              SizedBox(height: 14),
+                              Text(
+                                'Building the paper from previous + target class topics…',
+                                style: TextStyle(
+                                    fontSize: 12, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      if (snapshot.hasError || snapshot.data == null) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Text('Could not generate the paper: ${snapshot.error ?? 'unknown error'}',
+                              style: const TextStyle(
+                                  fontSize: 12, color: Color(0xFFDC2626))),
+                        );
+                      }
+                      final paper = snapshot.data!;
+                      final subjects = ((paper['subjects'] as List?) ?? const [])
+                          .map((s) => Map<String, dynamic>.from(s as Map))
+                          .toList();
+                      return SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                  color: const Color(0xFFF0F9FF),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: const Color(0xFFBAE6FD))),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.info_outline_rounded,
+                                      size: 16, color: Color(0xFF0284C7)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${paper['instructions'] ?? 'Answer all questions.'} Total: ${paper['total_marks'] ?? 0} marks • Model: ${paper['ai_model'] ?? 'template'}',
+                                      style: const TextStyle(
+                                          fontSize: 11.5,
+                                          color: Color(0xFF075985)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            ...subjects.map((s) {
+                              final questions =
+                                  ((s['questions'] as List?) ?? const [])
+                                      .map((q) =>
+                                          Map<String, dynamic>.from(q as Map))
+                                      .toList();
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    side: const BorderSide(
+                                        color: Color(0xFFE2E8F0))),
+                                child: ExpansionTile(
+                                  initiallyExpanded: true,
+                                  tilePadding: const EdgeInsets.symmetric(
+                                      horizontal: 14),
+                                  title: Text(
+                                    '${s['subject']} — ${s['weightage'] ?? 50} marks',
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A)),
+                                  ),
+                                  children: [
+                                    ...questions.asMap().entries.map((entry) {
+                                      final i = entry.key;
+                                      final q = entry.value;
+                                      final options = ((q['options'] as List?) ??
+                                              const [])
+                                          .map((o) => o?.toString() ?? '')
+                                          .where((o) => o.isNotEmpty)
+                                          .toList();
+                                      return Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                            16, 4, 16, 10),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Q${i + 1}. ${q['question']} (${q['marks'] ?? 10} marks)',
+                                              style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Color(0xFF334155),
+                                                  height: 1.35),
+                                            ),
+                                            if (options.isNotEmpty)
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.only(
+                                                        top: 4, left: 10),
+                                                child: Text(
+                                                  options.join('   '),
+                                                  style: const TextStyle(
+                                                      fontSize: 11.5,
+                                                      color: Color(0xFF64748B)),
+                                                ),
+                                              ),
+                                            if ((q['answer']?.toString() ??
+                                                    '')
+                                                .isNotEmpty)
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.only(
+                                                        top: 4, left: 10),
+                                                child: Text(
+                                                  'Answer key: ${q['answer']}',
+                                                  style: const TextStyle(
+                                                      fontSize: 10.5,
+                                                      fontStyle:
+                                                          FontStyle.italic,
+                                                      color: Color(0xFF059669)),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () {
+                        setDState(() {
+                          paperFuture = _entranceService.generatePaper(
+                            className: className,
+                            username: _userRole,
+                            mode: 'online',
+                            admissionId: admissionId,
+                          );
+                        });
+                      },
+                      icon: const Icon(Icons.refresh_rounded, size: 15),
+                      label: const Text('Regenerate'),
+                    ),
+                    const SizedBox(width: 8),
+                    if (admission != null)
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final paper = await paperFuture;
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          _showOfflineEntranceMarksDialog(admission, paper: paper);
+                        },
+                        icon: const Icon(Icons.edit_note_rounded, size: 15),
+                        label: const Text('Enter Marks'),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF059669),
+                            foregroundColor: Colors.white),
+                      )
+                    else
+                      const Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: Text(
+                          'Open an applicant from the roster to record marks.',
+                          style: TextStyle(
+                              fontSize: 11, color: Color(0xFF64748B)),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================================
+  // TAB 4: DOCUMENT SCRUTINY MASTER
   // ============================================================================
   Widget _buildDocumentScrutinyTab() {
     return ListView(
@@ -854,7 +1865,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   }
 
   // ============================================================================
-  // TAB 4: ENTRANCE & INTERACTION ROSTER
+  // TAB 5: ENTRANCE & INTERACTION ROSTER
   // ============================================================================
   Widget _buildInteractionTestTab() {
     return ListView(
@@ -928,7 +1939,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   }
 
   // ============================================================================
-  // TAB 5: ENQUIRIES & PROSPECT LEADS
+  // TAB 6: ENQUIRIES & PROSPECT LEADS
   // ============================================================================
   Widget _buildEnquiriesTab() {
     return ListView(
@@ -1219,6 +2230,20 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                   if (a['rte_quota'] == true) 'rte_income_cert',
                 ];
                 final allDone = requiredDocKeys.every((k) => docs[k] == true);
+                final entranceCompleted = a['entrance_exam_status']
+                        ?.toString()
+                        .toLowerCase() ==
+                    'completed';
+                if (allDone && !entranceCompleted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Record the entrance exam before verifying all documents.'),
+                      backgroundColor: Color(0xFFD97706),
+                    ),
+                  );
+                  return;
+                }
                 final status = allDone ? 'Verified' : 'Pending';
                 await _schoolService.updateAdmissionDocStatus(a['id'], status, documents: docs);
                 if (ctx.mounted) Navigator.pop(ctx);

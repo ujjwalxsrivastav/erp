@@ -35,6 +35,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
   int _openParentComplaints = 0;
   int _pendingAdmissionsCount = 0;
   int _approvalAdmissionsCount = 0;
+  int _entrancePendingCount = 0;
   int _documentsVerifiedCount = 0;
   int _offersAwaitingEnrolmentCount = 0;
   int _enrolledAdmissionsCount = 0;
@@ -138,8 +139,9 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
       final auditLogs = results[14] as List<Map<String, dynamic>>;
       final staffDir = results[15] as List<Map<String, dynamic>>;
 
-      // Admission workflow: Applied → Documents Verified → Offer Letter Issued
-      // → Enrolled. Rejected applications are closed and leave the pipeline.
+      // Admission workflow: Applied → Entrance Exam → Documents Verified
+      // → Offer Letter Issued → Enrolled. Rejected applications are closed and
+      // leave the pipeline.
       String admissionStage(Map<String, dynamic> a) =>
           (a['status_detail'] ?? a['status'] ?? '')
               .toString()
@@ -149,6 +151,20 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
       final pipelineAdmissions = admissions.where((a) {
         final stage = admissionStage(a);
         return stage != 'enrolled' && stage != 'rejected';
+      }).toList();
+      final entrancePendingAdmissions = admissions.where((a) {
+        final stage = admissionStage(a);
+        final entrance =
+            (a['entrance_exam_status'] ?? '').toString().toLowerCase();
+        const advanced = {
+          'entrance exam',
+          'documents verified',
+          'offer letter issued',
+          'approved',
+          'enrolled',
+          'rejected',
+        };
+        return entrance != 'completed' && !advanced.contains(stage);
       }).toList();
       final documentsVerifiedAdmissions = admissions
           .where((a) => admissionStage(a) == 'documents verified')
@@ -227,6 +243,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
           _pendingAdmissionsCount = pipelineAdmissions.length;
           _approvalAdmissionsCount =
               countsByType['Admission'] ?? approvalItems.where((i) => i['type'] == 'Admission').length;
+          _entrancePendingCount = entrancePendingAdmissions.length;
           _documentsVerifiedCount = documentsVerifiedAdmissions.length;
           _offersAwaitingEnrolmentCount = offersAwaitingEnrolment.length;
           _enrolledAdmissionsCount = enrolledAdmissions.length;
@@ -700,6 +717,13 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                   icon: Icons.person_add_alt_1_rounded,
                   label: '$_pendingAdmissionsCount Admissions In Progress',
                   actionText: 'Open Desk',
+                  onTap: () => context.go('/school/admissions'),
+                ),
+              if (_entrancePendingCount > 0)
+                _buildActionChip(
+                  icon: Icons.quiz_rounded,
+                  label: '$_entrancePendingCount Entrance Exams Pending',
+                  actionText: 'Conduct',
                   onTap: () => context.go('/school/admissions'),
                 ),
               if (_documentsVerifiedCount > 0)
@@ -2834,6 +2858,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
         ? _admissionFunnel
         : [
             {'stage': 'Applied', 'count': 0, 'rate': 100.0},
+            {'stage': 'Entrance Exam', 'count': 0, 'rate': 0.0},
             {'stage': 'Documents Verified', 'count': 0, 'rate': 0.0},
             {'stage': 'Offer Letter Issued', 'count': 0, 'rate': 0.0},
             {'stage': 'Enrolled', 'count': 0, 'rate': 0.0},
@@ -2841,6 +2866,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
 
     final stageColors = [
       const Color(0xFF2563EB), // Blue
+      const Color(0xFF0284C7), // Sky
       const Color(0xFF0D9488), // Teal
       const Color(0xFF7C3AED), // Violet
       const Color(0xFF059669), // Green
@@ -2889,7 +2915,7 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Application → document verification → offer letter → enrolment',
+                      'Application → entrance exam → document verification → offer letter → enrolment',
                       style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                     ),
                   ],

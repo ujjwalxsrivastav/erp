@@ -50,9 +50,13 @@ class SchoolAiService {
   /// Chat replies are short conversational answers, so the small fast model
   /// (and a tight token budget) keeps the first response around a second.
   /// Long-form drafting features still use the larger model.
-  static (String, int) _modelFor(String feature) => feature == 'rag_chat'
-      ? ('llama-3.1-8b-instant', 500)
-      : ('llama-3.3-70b-versatile', 1200);
+  static (String, int) _modelFor(String feature) => switch (feature) {
+        'rag_chat' => ('llama-3.1-8b-instant', 500),
+        // Entrance papers carry several subjects with structured questions, so
+        // they need a larger completion budget than a chat reply.
+        'entrance_exam' => ('llama-3.3-70b-versatile', 4096),
+        _ => ('llama-3.3-70b-versatile', 1200),
+      };
 
   // ==========================================
   // 1. LLM CALLER WITH GROQ -> GEMINI -> INSTITUTIONAL RAG
@@ -599,6 +603,171 @@ Difficulty Distribution: $difficultyMix
     }
 
     return payload;
+  }
+
+  // ==========================================
+  // 3b. ADMISSION ENTRANCE EXAM PAPER GENERATOR
+  // ==========================================
+
+  /// Generates an entrance examination paper for [className] from the supplied
+  /// subject blueprint. Each subject is worth 50 marks.
+  ///
+  /// Returns `{ok: true, subjects: [...], model: ...}` when the LLM produced a
+  /// parsable paper, or `{ok: false, raw: ...}` so the caller can fall back to
+  /// the deterministic template generator. This is intentionally a *basic*
+  /// pipeline — prompts and validation will be hardened later.
+  Future<Map<String, dynamic>> generateEntranceExamPaper({
+    required String className,
+    required List<Map<String, dynamic>> subjects,
+    required String username,
+    String role = 'admin',
+    String? admissionId,
+  }) async {
+    final blueprint = subjects.map((s) {
+      final topics = (s['topics'] as List?)?.cast<dynamic>() ?? const [];
+      return '- ${s['subject']} (${s['weightage'] ?? 50} marks): '
+          '${topics.join(', ')}';
+    }).join('\n');
+
+    const systemPrompt = '''
+You are the entrance examination cell of Shivalik International School (CBSE).
+Create a fair, age-appropriate admission entrance paper that bridges the
+syllabus of the applicant's previous class and the class being applied for.
+
+Return ONLY valid JSON — no markdown fences, no commentary — in this shape:
+{
+  "instructions": "short exam instructions",
+  "subjects": [
+    {
+      "subject": "Mathematics",
+      "weightage": 50,
+      "questions": [
+        {"question": "text", "options": ["A","B","C","D"], "answer": "A", "marks": 10, "topic": "topic name"}
+      ]
+    }
+  ]
+}
+
+Rules:
+1. Produce exactly 5 questions per subject; every question is worth 10 marks.
+2. The questions for a subject must total exactly its weightage of 50 marks.
+3. Mix objective (with 4 options) and short-answer questions.
+4. Cover both the previous class and the target class topics supplied.
+5. Keep language simple and unambiguous for the applicant's age group.
+''';
+
+    final userPrompt = '''
+Target class: $className
+Subject blueprint:
+$blueprint
+
+Generate the entrance paper JSON now.
+''';
+
+    String raw = '';
+    try {
+      raw = await _callLlm(
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+        feature: 'entrance_exam',
+        username: username,
+        role: role,
+        contextData: {
+          'class_name': className,
+          'subjects': subjects,
+          'admission_id': admissionId,
+        },
+      );
+    } catch (_) {
+      raw = '';
+    }
+
+    final parsed = _parseEntrancePaper(raw, subjects);
+    if (parsed == null) {
+      return {'ok': false, 'raw': raw};
+    }
+    return {
+      'ok': true,
+      'subjects': parsed,
+      'instructions':
+          'Answer all questions. Each subject carries 50 marks. Duration: 90 minutes.',
+      'model': isLlmConfigured ? 'llm' : 'institutional-rag-engine',
+    };
+  }
+
+  /// Extracts and normalises the entrance paper JSON from a model reply.
+  List<Map<String, dynamic>>? _parseEntrancePaper(
+    String raw,
+    List<Map<String, dynamic>> blueprint,
+  ) {
+    if (raw.trim().isEmpty) return null;
+    var text = raw.trim();
+    final fence = RegExp(r'```(?:json)?', caseSensitive: false);
+    text = text.replaceAll(fence, '').trim();
+    final start = text.indexOf('{');
+    final end = text.lastIndexOf('}');
+    if (start < 0 || end <= start) return null;
+    text = text.substring(start, end + 1);
+
+    try {
+      final decoded = jsonDecode(text);
+      final subjectList = decoded is Map ? decoded['subjects'] : decoded;
+      if (subjectList is! List) return null;
+
+      final normalised = <Map<String, dynamic>>[];
+      for (final rawSubject in subjectList) {
+        if (rawSubject is! Map) continue;
+        final subject = rawSubject['subject']?.toString() ?? '';
+        if (subject.isEmpty) continue;
+
+        final blueprintEntry = blueprint.firstWhere(
+          (b) => (b['subject']?.toString() ?? '').toLowerCase() ==
+              subject.toLowerCase(),
+          orElse: () => blueprint.isNotEmpty
+              ? blueprint.first
+              : <String, dynamic>{},
+        );
+        final weightage =
+            (rawSubject['weightage'] as num?)?.toInt() ??
+                (blueprintEntry['weightage'] as num?)?.toInt() ??
+                50;
+
+        final rawQuestions = rawSubject['questions'];
+        final questions = <Map<String, dynamic>>[];
+        if (rawQuestions is List) {
+          for (final q in rawQuestions) {
+            if (q is! Map) continue;
+            final questionText = q['question']?.toString() ?? '';
+            if (questionText.trim().isEmpty) continue;
+            final options = (q['options'] as List?)
+                    ?.map((o) => o?.toString() ?? '')
+                    .where((o) => o.isNotEmpty)
+                    .toList() ??
+                const <String>[];
+            final marks = (q['marks'] as num?)?.toInt() ?? 10;
+            questions.add({
+              'question': questionText,
+              'options': options,
+              'answer': q['answer']?.toString() ?? '',
+              'marks': marks,
+              'topic': q['topic']?.toString() ?? '',
+            });
+          }
+        }
+        if (questions.isEmpty) continue;
+
+        normalised.add({
+          'subject': subject,
+          'weightage': weightage,
+          'topics':
+              (blueprintEntry['topics'] as List?)?.cast<dynamic>() ?? const [],
+          'questions': questions,
+        });
+      }
+      return normalised.isEmpty ? null : normalised;
+    } catch (_) {
+      return null;
+    }
   }
 
   // ==========================================

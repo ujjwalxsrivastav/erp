@@ -98,6 +98,7 @@ class _SchoolCounsellorDashboardState extends State<SchoolCounsellorDashboard> {
   List<String> get _statusOptions {
     final base = <String>[
       'Under Review',
+      'Entrance Exam',
       'Documents Verified',
       'Interview Scheduled',
       'Approved',
@@ -1243,15 +1244,17 @@ class _SchoolCounsellorDashboardState extends State<SchoolCounsellorDashboard> {
     final rejected = lower == 'rejected';
     const steps = <String>[
       'Applied',
+      'Entrance Exam',
       'Documents Verified',
       'Offer Letter',
       'Enrolled',
     ];
 
     var current = 0;
-    if (lower == 'documents verified') current = 1;
-    if (lower == 'offer letter issued' || lower == 'approved') current = 2;
-    if (lower == 'enrolled') current = 3;
+    if (lower == 'entrance exam') current = 1;
+    if (lower == 'documents verified') current = 2;
+    if (lower == 'offer letter issued' || lower == 'approved') current = 3;
+    if (lower == 'enrolled') current = 4;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1278,7 +1281,7 @@ class _SchoolCounsellorDashboardState extends State<SchoolCounsellorDashboard> {
                 ),
               ),
               Text(
-                rejected ? 'Closed' : 'Stage ${current + 1} of 4',
+                rejected ? 'Closed' : 'Stage ${current + 1} of ${steps.length}',
                 style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w700,

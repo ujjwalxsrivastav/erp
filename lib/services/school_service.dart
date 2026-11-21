@@ -7,6 +7,7 @@ import 'school_payroll_service.dart';
 import 'school_living_service.dart';
 import 'school_calendar_service.dart';
 import 'school_permission_service.dart';
+import 'entrance_exam_service.dart';
 
 class SchoolService {
   static final SchoolService _instance = SchoolService._internal();
@@ -1302,6 +1303,7 @@ class SchoolService {
         final s = stage.toLowerCase();
         final isLive = s == 'under review' ||
             s == 'pending' ||
+            s == 'entrance exam' ||
             s == 'documents verified' ||
             s == 'offer letter issued' ||
             s == 'approved';
@@ -1310,11 +1312,13 @@ class SchoolService {
         final reqDate = a['date']?.toString() ??
             a['last_action_at']?.toString().split('T')[0] ??
             a['applied_date']?.toString();
-        final typeLabel = s == 'documents verified'
-            ? 'Docs Verified'
-            : (s == 'offer letter issued' || s == 'approved')
-                ? 'Offer · Enrol'
-                : 'New Intake';
+        final typeLabel = s == 'entrance exam'
+            ? 'Entrance Exam'
+            : s == 'documents verified'
+                ? 'Docs Verified'
+                : (s == 'offer letter issued' || s == 'approved')
+                    ? 'Offer · Enrol'
+                    : 'New Intake';
         unifiedList.add({
           'id': a['id']?.toString() ?? '',
           'type': 'Admission',
@@ -1610,6 +1614,18 @@ class SchoolService {
               .trim()
               .toLowerCase();
 
+      final entranceExam = admissions.where((a) {
+        final s = stageOf(a);
+        final entrance = (a['entrance_exam_status'] ?? '')
+            .toString()
+            .toLowerCase();
+        return s == 'entrance exam' ||
+            entrance == 'completed' ||
+            s == 'documents verified' ||
+            s == 'offer letter issued' ||
+            s == 'approved' ||
+            s == 'enrolled';
+      }).length;
       final documentsVerified = admissions.where((a) {
         final s = stageOf(a);
         return s == 'documents verified' ||
@@ -1632,6 +1648,11 @@ class SchoolService {
           'stage': 'Applied',
           'count': totalApps,
           'rate': totalApps > 0 ? 100.0 : 0.0,
+        },
+        {
+          'stage': 'Entrance Exam',
+          'count': entranceExam,
+          'rate': pct(entranceExam),
         },
         {
           'stage': 'Documents Verified',
@@ -8802,6 +8823,8 @@ class SchoolService {
             (remote['status_detail'] ?? '').toString().trim();
         final remoteDocStatus =
             (remote['doc_status'] ?? 'Pending').toString();
+        final entranceStatus =
+            (remote['entrance_exam_status'] ?? 'Pending').toString();
         final displayStatus = statusDetail.isNotEmpty
             ? statusDetail
             : (dbStatus == 'approved'
@@ -8810,7 +8833,9 @@ class SchoolService {
                     ? 'Rejected'
                     : (remoteDocStatus.toLowerCase() == 'verified'
                         ? 'Documents Verified'
-                        : 'Under Review')));
+                        : (entranceStatus.toLowerCase() == 'completed'
+                            ? 'Entrance Exam'
+                            : 'Under Review'))));
 
         final mapped = <String, dynamic>{
           'id': rid,
@@ -8842,6 +8867,16 @@ class SchoolService {
           'status': displayStatus,
           'status_detail': statusDetail.isNotEmpty ? statusDetail : displayStatus,
           'doc_status': remoteDocStatus,
+          'entrance_exam_status': entranceStatus,
+          'entrance_exam_mode': remote['entrance_exam_mode']?.toString() ?? '',
+          'entrance_score':
+              (remote['entrance_score'] as num?)?.toDouble() ?? 0.0,
+          'entrance_max_score':
+              (remote['entrance_max_score'] as num?)?.toDouble() ?? 0.0,
+          'entrance_percentage':
+              (remote['entrance_percentage'] as num?)?.toDouble() ?? 0.0,
+          'entrance_subjects': remote['entrance_subjects'],
+          'entrance_exam_at': remote['entrance_exam_at']?.toString() ?? '',
           'test_score': (remote['test_score'] as num?)?.toInt() ?? 0,
           'test_status':
               ((remote['test_score'] as num?)?.toInt() ?? 0) > 0
@@ -9370,6 +9405,112 @@ class SchoolService {
       } catch (_) {}
     }
     return true;
+  }
+
+  /// Records the entrance examination outcome for an applicant.
+  ///
+  /// Updates the denormalised columns on `school_admissions`, advances the
+  /// workflow to the **Entrance Exam** stage (without ever regressing a later
+  /// stage), and archives the detailed subject scores.
+  Future<Map<String, dynamic>> recordAdmissionEntranceResult({
+    required String admissionId,
+    required List<Map<String, dynamic>> subjectScores,
+    required String mode,
+    required String recordedBy,
+    String? paperId,
+    String? className,
+  }) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final result = EntranceExamService().buildResult(
+      subjectScores: subjectScores,
+      mode: mode,
+    );
+
+    final idx =
+        _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+    String? nextStatusDetail;
+    String resolvedClass = className ?? '';
+    if (idx >= 0) {
+      final updated = Map<String, dynamic>.from(_admissionsStore[idx]);
+      resolvedClass = resolvedClass.isNotEmpty
+          ? resolvedClass
+          : (updated['grade_applying'] ?? '').toString();
+      updated['entrance_exam_status'] = 'Completed';
+      updated['entrance_exam_mode'] = mode;
+      updated['entrance_score'] = result['total_score'];
+      updated['entrance_max_score'] = result['max_score'];
+      updated['entrance_percentage'] = result['percentage'];
+      updated['entrance_subjects'] = subjectScores;
+      updated['entrance_exam_at'] = nowIso;
+      updated['last_action_at'] = nowIso;
+
+      final current = (updated['status_detail'] ?? updated['status'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+      const laterStages = {
+        'documents verified',
+        'offer letter issued',
+        'approved',
+        'enrolled',
+        'rejected',
+      };
+      if (!laterStages.contains(current)) {
+        updated['status'] = 'Entrance Exam';
+        updated['status_detail'] = 'Entrance Exam';
+        nextStatusDetail = 'Entrance Exam';
+      }
+      _admissionsStore[idx] = updated;
+    }
+
+    final payload = <String, dynamic>{
+      'entrance_exam_status': 'Completed',
+      'entrance_exam_mode': mode,
+      'entrance_score': result['total_score'],
+      'entrance_max_score': result['max_score'],
+      'entrance_percentage': result['percentage'],
+      'entrance_subjects': subjectScores,
+      'entrance_exam_at': nowIso,
+      'updated_at': nowIso,
+      if (nextStatusDetail != null) 'status_detail': nextStatusDetail,
+    };
+
+    try {
+      await _supabase
+          .from('school_admissions')
+          .update(payload)
+          .eq('id', admissionId);
+    } catch (_) {
+      // Older schema: keep at least the status transition.
+      try {
+        await _supabase.from('school_admissions').update({
+          if (nextStatusDetail != null) 'status_detail': nextStatusDetail,
+          'updated_at': nowIso,
+        }).eq('id', admissionId);
+      } catch (_) {}
+    }
+
+    try {
+      await _supabase.from('school_entrance_exam_results').insert({
+        'admission_id': admissionId,
+        if (paperId != null && paperId.isNotEmpty) 'paper_id': paperId,
+        'class_name': resolvedClass,
+        'mode': mode,
+        'subject_scores': subjectScores,
+        'total_score': result['total_score'],
+        'max_score': result['max_score'],
+        'percentage': result['percentage'],
+        'grade': result['grade'],
+        'recorded_by': recordedBy,
+      });
+    } catch (_) {}
+
+    return {
+      ...result,
+      'admission_id': admissionId,
+      'class_name': resolvedClass,
+      'status_detail': nextStatusDetail ?? '',
+    };
   }
 
   Future<bool> recordAdmissionTestScore({
