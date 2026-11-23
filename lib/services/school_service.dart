@@ -8877,6 +8877,8 @@ class SchoolService {
               (remote['entrance_percentage'] as num?)?.toDouble() ?? 0.0,
           'entrance_subjects': remote['entrance_subjects'],
           'entrance_exam_at': remote['entrance_exam_at']?.toString() ?? '',
+          'entrance_enrollment_no':
+              remote['entrance_enrollment_no']?.toString() ?? '',
           'test_score': (remote['test_score'] as num?)?.toInt() ?? 0,
           'test_status':
               ((remote['test_score'] as num?)?.toInt() ?? 0) > 0
@@ -8908,6 +8910,7 @@ class SchoolService {
           'student_username',
           'enrolled_class',
           'enrolled_at',
+          'entrance_enrollment_no',
         ]) {
           final value = remote[key]?.toString() ?? '';
           if (value.isNotEmpty) mapped[key] = value;

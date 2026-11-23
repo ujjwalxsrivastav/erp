@@ -296,6 +296,16 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () => context.push('/entrance-test'),
+                icon: const Icon(Icons.quiz_outlined, size: 17),
+                label: const Text('Entrance test portal'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.studentPrimary,
+                  minimumSize: const Size(double.infinity, 44),
+                ),
+              ),
             ],
           ),
         ),

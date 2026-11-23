@@ -5,6 +5,8 @@ import '../../../services/school_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/offer_letter_pdf_service.dart';
 import '../../../services/entrance_exam_service.dart';
+import '../../../services/entrance_test_service.dart';
+import 'entrance_test_builder_dialog.dart';
 
 class AdmissionsScreen extends StatefulWidget {
   const AdmissionsScreen({super.key});
@@ -59,10 +61,13 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   List<Map<String, dynamic>> _liveClasses = [];
 
   final _entranceService = EntranceExamService();
+  final _testService = EntranceTestService();
   List<Map<String, dynamic>> _entranceSubjects = [];
+  List<Map<String, dynamic>> _entranceTests = [];
   String _catalogGrade = 'Class 1';
   String _entranceRosterGrade = 'all';
   bool _entranceCatalogLoading = false;
+  bool _entranceTestsLoading = false;
 
   @override
   void initState() {
@@ -108,12 +113,34 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
   }
 
   Future<void> _loadEntranceCatalog(String className) async {
-    setState(() => _entranceCatalogLoading = true);
+    setState(() {
+      _entranceCatalogLoading = true;
+      _entranceTestsLoading = true;
+    });
     final subjects = await _entranceService.getSubjects(className);
+    final tests = await _testService.getTests(className: className);
+    final enriched = await Future.wait(tests.map((t) async {
+      final questions =
+          await _testService.getTestQuestions(t['id']?.toString() ?? '');
+      return <String, dynamic>{
+        ...t,
+        'questions': questions,
+        'question_count': questions.length,
+        'subject_count': questions
+            .map((q) => (q['subject'] ?? '').toString())
+            .where((s) => s.isNotEmpty)
+            .toSet()
+            .length,
+        'total_marks': questions.fold<int>(
+            0, (sum, q) => sum + ((q['marks'] as num?)?.toInt() ?? 0)),
+      };
+    }));
     if (!mounted) return;
     setState(() {
       _entranceSubjects = subjects;
+      _entranceTests = enriched;
       _entranceCatalogLoading = false;
+      _entranceTestsLoading = false;
     });
   }
 
@@ -831,7 +858,45 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
           'Runs before document verification • Offline marks entry or an AI paper built from previous-class + target-class topics • Each subject is worth 50 marks',
           style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            const Text('Class blueprint:',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B))),
+            const SizedBox(width: 8),
+            DropdownButton<String>(
+              value: _catalogGrade,
+              underline: const SizedBox.shrink(),
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A)),
+              items: _gradeOptions
+                  .where((g) => g != 'all')
+                  .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                  .toList(),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _catalogGrade = v);
+                _loadEntranceCatalog(v);
+              },
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () => context.push('/entrance-test'),
+              icon: const Icon(Icons.open_in_new_rounded, size: 15),
+              label: const Text('Open Candidate Portal',
+                  style:
+                      TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        _buildEntranceTestsCard(),
+        const SizedBox(height: 14),
         _buildEntranceCatalogCard(),
         const SizedBox(height: 18),
         Row(
@@ -887,6 +952,428 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     );
   }
 
+  // ============================================================================
+  // CLASS TEST BUILDER + CANDIDATE LOGINS
+  // ============================================================================
+  Widget _buildEntranceTestsCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.fact_check_outlined,
+                  size: 18, color: Color(0xFF2563EB)),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Class Entrance Tests',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A))),
+                    Text(
+                      'One page per subject • candidates sign in with an enrollment number and ddmmyy password',
+                      style:
+                          TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _entranceTestsLoading ? null : () => _openTestBuilder(),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Create / Edit Test',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_entranceTestsLoading)
+            const LinearProgressIndicator(
+                minHeight: 2, color: Color(0xFF2563EB))
+          else if (_entranceTests.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Text(
+                'No entrance test exists for $_catalogGrade yet. Create one to issue candidate logins and run the online exam.',
+                style: const TextStyle(
+                    fontSize: 11.5, color: Color(0xFF64748B)),
+              ),
+            )
+          else
+            ..._entranceTests.map(_buildEntranceTestRow),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEntranceTestRow(Map<String, dynamic> t) {
+    final title = (t['title'] ?? 'Entrance Test').toString();
+    final published =
+        (t['status'] ?? 'published').toString().toLowerCase() == 'published';
+    final subjectCount = (t['subject_count'] as num?)?.toInt() ?? 0;
+    final questionCount = (t['question_count'] as num?)?.toInt() ?? 0;
+    final totalMarks = (t['total_marks'] as num?)?.toInt() ?? 0;
+    final duration = (t['duration_minutes'] as num?)?.toInt() ?? 90;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.description_outlined,
+              size: 17, color: Color(0xFF2563EB)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A))),
+                const SizedBox(height: 2),
+                Text(
+                  '$subjectCount subject page(s) • $questionCount questions • $totalMarks marks • $duration min',
+                  style: const TextStyle(
+                      fontSize: 10.5, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: published
+                  ? const Color(0xFFECFDF5)
+                  : const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              published ? 'Published' : 'Draft',
+              style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  color: published
+                      ? const Color(0xFF047857)
+                      : const Color(0xFFB45309)),
+            ),
+          ),
+          const SizedBox(width: 6),
+          OutlinedButton.icon(
+            onPressed: () => _openTestBuilder(existing: t),
+            icon: const Icon(Icons.edit_rounded, size: 14),
+            label: const Text('Edit',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF2563EB),
+              side: const BorderSide(color: Color(0xFFBFDBFE)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Delete test',
+            onPressed: () => _deleteEntranceTest(t),
+            icon: const Icon(Icons.delete_outline_rounded,
+                size: 17, color: Color(0xFFDC2626)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openTestBuilder({Map<String, dynamic>? existing}) async {
+    final className = _catalogGrade;
+    final subjects = await _entranceService.getSubjects(className);
+    final questions = existing == null
+        ? const <Map<String, dynamic>>[]
+        : ((existing['questions'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((q) => Map<String, dynamic>.from(q))
+            .toList();
+    if (!mounted) return;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => EntranceTestBuilderDialog(
+        className: className,
+        subjects: subjects,
+        createdBy: _userRole,
+        existingTest: existing,
+        existingQuestions: questions,
+      ),
+    );
+    if (saved == true) {
+      await _loadEntranceCatalog(className);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Entrance test saved for $className.'),
+            backgroundColor: const Color(0xFF059669),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteEntranceTest(Map<String, dynamic> t) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete entrance test?',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text(
+            'Remove "${t['title'] ?? 'this test'}" and all of its questions? Candidates will not be able to take it afterwards.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _testService.deleteTest(t['id']?.toString() ?? '');
+    await _loadEntranceCatalog(_catalogGrade);
+  }
+
+  Future<void> _showTestCredentialsDialog(Map<String, dynamic> a) async {
+    final className = (a['grade_applying'] ?? '').toString().trim();
+    final test = await _testService.getPublishedTestForClass(className);
+    if (!mounted) return;
+
+    if (test == null) {
+      final openBuilder = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Create the class test first',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          content: Text(
+            'No published entrance test exists for ${className.isEmpty ? 'this class' : className}.\n\n'
+            'Build the test (one page per subject), then issue the candidate login.',
+            style: const TextStyle(fontSize: 12.5, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.add_rounded, size: 15),
+              label: const Text('Create Test'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white),
+            ),
+          ],
+        ),
+      );
+      if (openBuilder == true) {
+        setState(() => _catalogGrade =
+            className.isEmpty ? _catalogGrade : className);
+        await _loadEntranceCatalog(_catalogGrade);
+        await _openTestBuilder();
+      }
+      return;
+    }
+
+    final result = await _testService.issueCredentials(
+      admission: a,
+      className: className,
+      issuedBy: _userRole,
+      testId: test['id']?.toString(),
+    );
+    if (!mounted) return;
+
+    if (result['ok'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']?.toString() ??
+              'Could not issue the test login.'),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    final candidate =
+        Map<String, dynamic>.from(result['candidate'] as Map);
+    await _loadData();
+    if (!mounted) return;
+    _showIssuedCredentialsDialog(
+      a,
+      candidate,
+      result['test'] is Map
+          ? Map<String, dynamic>.from(result['test'] as Map)
+          : test,
+      reused: result['reused'] == true,
+    );
+  }
+
+  void _showIssuedCredentialsDialog(
+    Map<String, dynamic> a,
+    Map<String, dynamic> candidate,
+    Map<String, dynamic>? test, {
+    bool reused = false,
+  }) {
+    final enrollment = (candidate['enrollment_no'] ?? '').toString();
+    final password = (candidate['password'] ?? '').toString();
+    final className = (candidate['class_name'] ?? '').toString();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.key_rounded, size: 18, color: Color(0xFF2563EB)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                reused ? 'Candidate Test Login' : 'Test Login Issued',
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${a['applicant_name'] ?? candidate['candidate_name'] ?? ''} • $className',
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF334155)),
+              ),
+              if (test != null && (test['title'] ?? '').toString().isNotEmpty)
+                Text('Test: ${test['title']}',
+                    style: const TextStyle(
+                        fontSize: 11, color: Color(0xFF64748B))),
+              const SizedBox(height: 14),
+              _buildCredentialRow('Enrollment number', enrollment),
+              const SizedBox(height: 8),
+              _buildCredentialRow('Password (ddmmyy)', password),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: const Text(
+                  'Share these details with the candidate. They can sign in at /entrance-test and the test for their class opens automatically.',
+                  style: TextStyle(
+                      fontSize: 11, color: Color(0xFF1E40AF), height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close')),
+          TextButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(
+                  text: 'Enrollment: $enrollment\nPassword: $password\n'
+                      'Portal: /entrance-test'));
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                    content: Text('Candidate credentials copied.'),
+                    backgroundColor: Color(0xFF059669),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.copy_rounded, size: 15),
+            label: const Text('Copy'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/entrance-test');
+            },
+            icon: const Icon(Icons.open_in_new_rounded, size: 15),
+            label: const Text('Open Portal'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCredentialRow(String label, String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B))),
+          const SizedBox(height: 2),
+          SelectableText(value,
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                  color: Color(0xFF0F172A))),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEntranceCatalogCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -909,23 +1396,6 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF0F172A))),
-              ),
-              DropdownButton<String>(
-                value: _catalogGrade,
-                underline: const SizedBox.shrink(),
-                style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0F172A)),
-                items: _gradeOptions
-                    .where((g) => g != 'all')
-                    .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                    .toList(),
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() => _catalogGrade = v);
-                  _loadEntranceCatalog(v);
-                },
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
@@ -1092,7 +1562,8 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                         color: Color(0xFF0F172A))),
                 const SizedBox(height: 2),
                 Text(
-                  '${a['grade_applying']} • ${a['application_no'] ?? a['id']} • Stage: $status',
+                  '${a['grade_applying']} • ${a['application_no'] ?? a['id']} • Stage: $status'
+                  '${(a['entrance_enrollment_no'] ?? '').toString().isNotEmpty ? ' • Login: ${a['entrance_enrollment_no']}' : ''}',
                   style: const TextStyle(
                       fontSize: 11.5, color: Color(0xFF64748B)),
                 ),
@@ -1375,6 +1846,15 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                   TextButton.icon(
                     onPressed: () {
                       Navigator.pop(ctx);
+                      _showTestCredentialsDialog(a);
+                    },
+                    icon: const Icon(Icons.key_rounded, size: 15),
+                    label: const Text('Test Login'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
                       _showEntrancePaperDialog(a);
                     },
                     icon: const Icon(Icons.description_outlined, size: 15),
@@ -1473,6 +1953,24 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
             style:
                 const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         children: [
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showTestCredentialsDialog(a);
+            },
+            child: const Row(
+              children: [
+                Icon(Icons.key_rounded, size: 20, color: Color(0xFF2563EB)),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Candidate Test Login — issue or re-share the enrollment number and ddmmyy password.',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
           SimpleDialogOption(
             onPressed: () {
               Navigator.pop(ctx);

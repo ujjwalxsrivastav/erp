@@ -109,6 +109,7 @@ import '../features/school/transport/transport_screen.dart';
 import '../features/school/fee/school_fee_screen.dart';
 import '../features/school/admissions/admissions_screen.dart';
 import '../features/school/admissions/school_admission_application_screen.dart';
+import '../features/school/admissions/entrance_test_portal_screen.dart';
 import '../features/school/reports/school_reports_screen.dart';
 import '../features/school/library/school_library_screen.dart';
 import '../features/school/certificates/school_certificates_screen.dart';
@@ -899,6 +900,12 @@ final router = GoRouter(
     GoRoute(
       path: '/admissions/school-apply',
       builder: (context, state) => const SchoolAdmissionApplicationScreen(),
+    ),
+    // Public candidate entrance test portal — enrollment number + ddmmyy
+    // password issued by the admissions desk.
+    GoRoute(
+      path: '/entrance-test',
+      builder: (context, state) => const EntranceTestPortalScreen(),
     ),
     GoRoute(
       path: '/leads/capture-form',
