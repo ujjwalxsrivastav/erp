@@ -624,9 +624,19 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
-                  onPressed: () => _showEntranceExamChooser(a),
-                  icon: const Icon(Icons.quiz_rounded, size: 14),
-                  label: const Text('Entrance Exam', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  onPressed: () => _openEntranceDesk(a),
+                  icon: Icon(
+                    _isEntranceCompleted(a)
+                        ? Icons.assignment_turned_in_rounded
+                        : Icons.quiz_rounded,
+                    size: 14,
+                  ),
+                  label: Text(
+                      _isEntranceCompleted(a)
+                          ? 'Entrance Marks'
+                          : 'Entrance Exam',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF0284C7),
                     side: const BorderSide(color: Color(0xFFBAE6FD)),
@@ -635,12 +645,22 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
-                  onPressed: () => _showDocumentScrutinyDialog(a),
-                  icon: const Icon(Icons.fact_check_rounded, size: 14),
+                  onPressed: () => _openScrutinyOrGate(a),
+                  icon: Icon(
+                    _isEntranceCompleted(a)
+                        ? Icons.fact_check_rounded
+                        : Icons.lock_rounded,
+                    size: 14,
+                  ),
                   label: const Text('Scrutiny Documents', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2563EB),
-                    side: const BorderSide(color: Color(0xFFBFDBFE)),
+                    foregroundColor: _isEntranceCompleted(a)
+                        ? const Color(0xFF2563EB)
+                        : const Color(0xFF94A3B8),
+                    side: BorderSide(
+                        color: _isEntranceCompleted(a)
+                            ? const Color(0xFFBFDBFE)
+                            : const Color(0xFFE2E8F0)),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
@@ -694,7 +714,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                     status == 'Entrance Exam' ||
                     status == 'Documents Verified')
                   OutlinedButton.icon(
-                    onPressed: () => _showDocumentScrutinyDialog(a),
+                    onPressed: () => _openScrutinyOrGate(a),
                     icon: const Icon(Icons.lock_clock_rounded, size: 14),
                     label: const Text('Verify Documents First', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     style: OutlinedButton.styleFrom(
@@ -1093,33 +1113,359 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
             ),
           ),
           const SizedBox(width: 12),
-          OutlinedButton.icon(
-            onPressed: () => _showOfflineEntranceMarksDialog(a),
-            icon: const Icon(Icons.edit_note_rounded, size: 15),
-            label: const Text('Offline Marks',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF0F172A),
-              side: const BorderSide(color: Color(0xFFCBD5E1)),
+          if (completed) ...[
+            OutlinedButton.icon(
+              onPressed: () => _showEntranceMarksViewDialog(a),
+              icon: const Icon(Icons.assignment_turned_in_rounded, size: 15),
+              label: const Text('View Marks',
+                  style:
+                      TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0F172A),
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+              ),
             ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () => _showOfflineEntranceMarksDialog(a),
+              icon: const Icon(Icons.edit_note_rounded, size: 15),
+              label: const Text('Update Marks',
+                  style:
+                      TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ] else ...[
+            OutlinedButton.icon(
+              onPressed: () => _showOfflineEntranceMarksDialog(a),
+              icon: const Icon(Icons.edit_note_rounded, size: 15),
+              label: const Text('Offline Marks',
+                  style:
+                      TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0F172A),
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () => _showEntrancePaperDialog(a),
+              icon: const Icon(Icons.auto_awesome_rounded, size: 15),
+              label: const Text('AI Online Paper',
+                  style:
+                      TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  bool _isEntranceCompleted(Map<String, dynamic> a) =>
+      (a['entrance_exam_status'] ?? '').toString().toLowerCase() ==
+      'completed';
+
+  /// Opens the entrance desk. Once marks exist we show the recorded scorecard
+  /// (with an Update Marks action at the bottom) instead of the entry chooser.
+  void _openEntranceDesk(Map<String, dynamic> a) {
+    if (_isEntranceCompleted(a)) {
+      _showEntranceMarksViewDialog(a);
+    } else {
+      _showEntranceExamChooser(a);
+    }
+  }
+
+  /// Read-only scorecard for an applicant whose entrance exam is complete.
+  void _showEntranceMarksViewDialog(Map<String, dynamic> a) {
+    final scores = ((a['entrance_subjects'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    final total = (a['entrance_score'] as num?)?.toDouble() ?? 0;
+    final max = (a['entrance_max_score'] as num?)?.toDouble() ?? 0;
+    final pct = (a['entrance_percentage'] as num?)?.toDouble() ?? 0;
+    final mode = (a['entrance_exam_mode'] ?? 'offline').toString();
+    final at = (a['entrance_exam_at'] ?? '').toString();
+    final dateLabel = at.length >= 10 ? at.substring(0, 10) : at;
+    final grade = pct >= 90
+        ? 'A+'
+        : pct >= 80
+            ? 'A'
+            : pct >= 70
+                ? 'B'
+                : pct >= 60
+                    ? 'C'
+                    : pct >= 50
+                        ? 'D'
+                        : 'E';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: 520,
+          constraints: const BoxConstraints(maxHeight: 640),
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.assignment_turned_in_rounded,
+                      color: Color(0xFF059669), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Entrance Result • ${a['applicant_name'] ?? ''}',
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A)),
+                        ),
+                        Text(
+                          '${a['grade_applying'] ?? ''} • ${a['application_no'] ?? a['id'] ?? ''}',
+                          style: const TextStyle(
+                              fontSize: 11.5, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                ),
+                child: Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${pct.toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF047857))),
+                        Text('${total.toStringAsFixed(0)} / ${max.toStringAsFixed(0)} marks',
+                            style: const TextStyle(
+                                fontSize: 11.5, color: Color(0xFF047857))),
+                      ],
+                    ),
+                    const Spacer(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        _buildEntrancePill('Grade $grade'),
+                        const SizedBox(height: 4),
+                        _buildEntrancePill(mode == 'online'
+                            ? 'AI / Online paper'
+                            : 'Offline paper'),
+                        if (dateLabel.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text('Recorded $dateLabel',
+                              style: const TextStyle(
+                                  fontSize: 10.5, color: Color(0xFF64748B))),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text('Subject-wise marks',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A))),
+              const SizedBox(height: 6),
+              Flexible(
+                child: scores.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Text(
+                          'No subject-wise snapshot was stored for this result.',
+                          style: TextStyle(
+                              fontSize: 11.5, color: Color(0xFF64748B)),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Column(
+                          children: scores.map((s) {
+                            final subject =
+                                (s['subject'] ?? 'General').toString();
+                            final marks =
+                                (s['marks'] as num?)?.toDouble() ?? 0;
+                            final subjectMax =
+                                (s['max'] as num?)?.toDouble() ?? 50;
+                            final ratio = subjectMax > 0
+                                ? (marks / subjectMax).clamp(0.0, 1.0)
+                                : 0.0;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(8),
+                                border:
+                                    Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(subject,
+                                            style: const TextStyle(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF334155))),
+                                      ),
+                                      Text(
+                                        '${marks.toStringAsFixed(0)} / ${subjectMax.toStringAsFixed(0)}',
+                                        style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF0F172A)),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: ratio.toDouble(),
+                                      minHeight: 5,
+                                      backgroundColor:
+                                          const Color(0xFFE2E8F0),
+                                      valueColor:
+                                          const AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF059669)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showEntrancePaperDialog(a);
+                    },
+                    icon: const Icon(Icons.description_outlined, size: 15),
+                    label: const Text('View Paper'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showOfflineEntranceMarksDialog(a);
+                    },
+                    icon: const Icon(Icons.edit_note_rounded, size: 15),
+                    label: const Text('Update Marks'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEntrancePill(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFA7F3D0)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF047857)),
+      ),
+    );
+  }
+
+  /// Blocking gate shown when document scrutiny is opened before the entrance
+  /// exam has been recorded.
+  void _showEntranceRequiredDialog(Map<String, dynamic> a) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Entrance Exam Pending',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text(
+          'Document verification is unlocked only after the entrance exam is '
+          'recorded for ${a['applicant_name'] ?? 'this applicant'}.\n\n'
+          'Record the offline marks or generate the online paper first.',
+          style: const TextStyle(fontSize: 12.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
           ElevatedButton.icon(
-            onPressed: () => _showEntrancePaperDialog(a),
-            icon: const Icon(Icons.auto_awesome_rounded, size: 15),
-            label: const Text('AI Online Paper',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openEntranceDesk(a);
+            },
+            icon: const Icon(Icons.quiz_rounded, size: 15),
+            label: const Text('Open Entrance Exam'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0284C7),
-              foregroundColor: Colors.white,
-            ),
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white),
           ),
         ],
       ),
     );
   }
 
+  void _openScrutinyOrGate(Map<String, dynamic> a) {
+    if (_isEntranceCompleted(a)) {
+      _showDocumentScrutinyDialog(a);
+    } else {
+      _showEntranceRequiredDialog(a);
+    }
+  }
+
   void _showEntranceExamChooser(Map<String, dynamic> a) {
+    if (_isEntranceCompleted(a)) {
+      _showEntranceMarksViewDialog(a);
+      return;
+    }
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
@@ -1793,6 +2139,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
     final bool report = docs['previous_report_card'] == true;
     final bool med = docs['medical_fitness'] == true;
     final bool rteDoc = docs['rte_income_cert'] == true;
+    final entranceDone = _isEntranceCompleted(a);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1817,11 +2164,48 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                     ],
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showDocumentScrutinyDialog(a),
-                  icon: const Icon(Icons.edit_note_rounded, size: 16),
-                  label: const Text('Update Verification', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+                if (entranceDone)
+                  ElevatedButton.icon(
+                    onPressed: () => _showDocumentScrutinyDialog(a),
+                    icon: const Icon(Icons.edit_note_rounded, size: 16),
+                    label: const Text('Update Verification', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: () => _openEntranceDesk(a),
+                    icon: const Icon(Icons.lock_clock_rounded, size: 16),
+                    label: const Text('Complete Entrance Exam', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  entranceDone
+                      ? Icons.check_circle_rounded
+                      : Icons.info_rounded,
+                  size: 13,
+                  color: entranceDone
+                      ? const Color(0xFF059669)
+                      : const Color(0xFFD97706),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    entranceDone
+                        ? 'Entrance completed (${a['entrance_exam_mode'] ?? 'offline'}) • ${(a['entrance_percentage'] as num?)?.toStringAsFixed(1) ?? '0'}% • Verification unlocked'
+                        : 'Entrance exam pending — document verification is locked until the entrance result is recorded.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: entranceDone
+                          ? const Color(0xFF059669)
+                          : const Color(0xFFB45309),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -2245,7 +2629,21 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                   return;
                 }
                 final status = allDone ? 'Verified' : 'Pending';
-                await _schoolService.updateAdmissionDocStatus(a['id'], status, documents: docs);
+                final saved = await _schoolService.updateAdmissionDocStatus(
+                    a['id'], status,
+                    documents: docs);
+                if (!saved) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Entrance exam must be recorded before document verification.'),
+                        backgroundColor: Color(0xFFD97706),
+                      ),
+                    );
+                  }
+                  return;
+                }
                 if (ctx.mounted) Navigator.pop(ctx);
                 _loadData();
                 if (mounted) {

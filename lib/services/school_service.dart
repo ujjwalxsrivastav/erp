@@ -9314,6 +9314,38 @@ class SchoolService {
   }) async {
     final nowIso = DateTime.now().toUtc().toIso8601String();
     final verified = docStatus.trim().toLowerCase() == 'verified';
+
+    // The entrance exam runs before document verification. Refuse a
+    // "Verified" write when the applicant has no recorded entrance result.
+    // If the optional entrance columns are missing, allow the write so older
+    // installations are not hard-blocked.
+    if (verified) {
+      bool? entranceDone;
+      final localIdx =
+          _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
+      if (localIdx >= 0) {
+        entranceDone = (_admissionsStore[localIdx]['entrance_exam_status'] ?? '')
+                .toString()
+                .toLowerCase() ==
+            'completed';
+      } else {
+        try {
+          final row = await _supabase
+              .from('school_admissions')
+              .select('entrance_exam_status')
+              .eq('id', admissionId)
+              .maybeSingle();
+          entranceDone = (row?['entrance_exam_status'] ?? '')
+                  .toString()
+                  .toLowerCase() ==
+              'completed';
+        } catch (_) {
+          entranceDone = null;
+        }
+      }
+      if (entranceDone == false) return false;
+    }
+
     final idx =
         _admissionsStore.indexWhere((a) => a['id']?.toString() == admissionId);
     String? nextStatusDetail;
