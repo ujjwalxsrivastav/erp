@@ -2167,9 +2167,13 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
       return;
     }
 
-    final controllers = <String, TextEditingController>{};
+    // Step-wise entry: the admin picks a subject, enters its marks, then adds
+    // the next subject. Already-added subjects are listed below and can be
+    // edited or removed.
+    final entries = <Map<String, dynamic>>[];
     for (final s in subjects) {
       final subject = s['subject']?.toString() ?? 'General';
+      final max = (s['weightage'] as num?)?.toDouble() ?? 50;
       final existing = ((paper?['subjects'] as List?) ?? const [])
           .whereType<Map>()
           .where((e) =>
@@ -2185,74 +2189,314 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
       final priorMarks = existing.isNotEmpty
           ? existing.first['marks']
           : (existingScores.isNotEmpty ? existingScores.first['marks'] : null);
-      controllers[subject] = TextEditingController(
-          text: (priorMarks as num?)?.toString() ?? '');
+      if (priorMarks is num) {
+        entries.add({
+          'subject': subject,
+          'marks': priorMarks.toDouble().clamp(0, max),
+          'max': max,
+        });
+      }
     }
 
-    showDialog(
+    final marksCtrl = TextEditingController();
+
+    double maxFor(String subject) {
+      final match = subjects.firstWhere(
+        (s) =>
+            (s['subject']?.toString() ?? '').toLowerCase() ==
+            subject.toLowerCase(),
+        orElse: () => const <String, dynamic>{},
+      );
+      return (match['weightage'] as num?)?.toDouble() ?? 50;
+    }
+
+    List<String> remainingSubjects() {
+      final added = entries
+          .map((e) => (e['subject'] ?? '').toString().toLowerCase())
+          .toSet();
+      return subjects
+          .map((s) => s['subject']?.toString() ?? 'General')
+          .where((s) => !added.contains(s.toLowerCase()))
+          .toList();
+    }
+
+    var selectedSubject = remainingSubjects().isEmpty
+        ? null
+        : remainingSubjects().first;
+
+    await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDState) {
+          final remaining = remainingSubjects();
+          if (selectedSubject != null &&
+              !remaining.any((s) =>
+                  s.toLowerCase() == selectedSubject!.toLowerCase())) {
+            selectedSubject = remaining.isEmpty ? null : remaining.first;
+          }
+
           double total = 0;
-          for (final s in subjects) {
-            final subject = s['subject']?.toString() ?? 'General';
-            total += double.tryParse(controllers[subject]!.text.trim()) ?? 0;
+          for (final e in entries) {
+            total += (e['marks'] as num?)?.toDouble() ?? 0;
           }
           final max = subjects.fold<double>(
               0, (sum, s) => sum + ((s['weightage'] as num?)?.toDouble() ?? 50));
+          final allAdded = entries.length >= subjects.length;
+
+          void showHint(String message, {bool error = false}) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor:
+                    error ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+              ),
+            );
+          }
+
+          void addEntry() {
+            final subject = selectedSubject;
+            if (subject == null) {
+              showHint('Choose a subject first.', error: true);
+              return;
+            }
+            final subjectMax = maxFor(subject);
+            final raw = double.tryParse(marksCtrl.text.trim());
+            if (raw == null) {
+              showHint('Enter the marks obtained for $subject.', error: true);
+              return;
+            }
+            if (raw < 0 || raw > subjectMax) {
+              showHint(
+                  'Marks for $subject must be between 0 and ${subjectMax.toInt()}.',
+                  error: true);
+              return;
+            }
+            setDState(() {
+              entries.removeWhere((e) =>
+                  (e['subject']?.toString() ?? '').toLowerCase() ==
+                  subject.toLowerCase());
+              entries.add({
+                'subject': subject,
+                'marks': raw,
+                'max': subjectMax,
+              });
+              marksCtrl.clear();
+              final left = remainingSubjects();
+              selectedSubject = left.isEmpty ? null : left.first;
+            });
+          }
+
+          void editEntry(int index) {
+            final entry = entries.removeAt(index);
+            setDState(() {
+              selectedSubject = (entry['subject'] ?? '').toString();
+              marksCtrl.text =
+                  ((entry['marks'] as num?)?.toDouble() ?? 0).toString();
+            });
+          }
+
+          void removeEntry(int index) {
+            final entry = entries.removeAt(index);
+            setDState(() {
+              if (selectedSubject == null) {
+                selectedSubject = (entry['subject'] ?? '').toString();
+              }
+            });
+          }
+
           return AlertDialog(
             title: Text('Offline Entrance Marks: ${a['applicant_name']}',
                 style: const TextStyle(
                     fontSize: 16, fontWeight: FontWeight.w700)),
             content: SizedBox(
-              width: 480,
+              width: 500,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$className • Each subject is scored out of 50. Enter the marks obtained in the offline paper.',
+                      '$className • Choose a subject, enter the marks out of 50, then add the next subject.',
                       style: const TextStyle(
                           fontSize: 12, color: Color(0xFF64748B)),
                     ),
                     const SizedBox(height: 12),
-                    ...subjects.map((s) {
-                      final subject = s['subject']?.toString() ?? 'General';
-                      final subjectMax =
-                          (s['weightage'] as num?)?.toDouble() ?? 50;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
+                    if (!allAdded) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: Text(subject,
-                                  style: const TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600)),
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  labelText: 'Subject',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 12),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: selectedSubject,
+                                    isExpanded: true,
+                                    isDense: true,
+                                    hint: const Text('Choose subject',
+                                        style: TextStyle(
+                                            fontSize: 12.5,
+                                            color: Color(0xFF94A3B8))),
+                                    items: remaining
+                                        .map((s) => DropdownMenuItem(
+                                            value: s, child: Text(s)))
+                                        .toList(),
+                                    onChanged: (v) =>
+                                        setDState(() => selectedSubject = v),
+                                  ),
+                                ),
+                              ),
                             ),
+                            const SizedBox(width: 10),
                             SizedBox(
-                              width: 90,
+                              width: 110,
                               child: TextField(
-                                controller: controllers[subject],
+                                controller: marksCtrl,
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
                                         decimal: true),
                                 textAlign: TextAlign.center,
                                 decoration: InputDecoration(
                                   labelText: 'Marks',
-                                  helperText: 'of ${subjectMax.toInt()}',
+                                  helperText: selectedSubject == null
+                                      ? null
+                                      : 'of ${maxFor(selectedSubject!).toInt()}',
+                                  isDense: true,
                                   border: const OutlineInputBorder(),
                                   contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 8),
+                                      horizontal: 8, vertical: 12),
                                 ),
-                                onChanged: (_) => setDState(() {}),
                               ),
                             ),
                           ],
                         ),
-                      );
-                    }),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          onPressed: addEntry,
+                          icon: const Icon(Icons.add_rounded, size: 16),
+                          label: Text(entries.isEmpty
+                              ? 'Add Subject'
+                              : 'Add Another Subject'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0284C7),
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ] else
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: const Text(
+                          'All subjects have marks. You can edit or remove an entry below before saving.',
+                          style: TextStyle(
+                              fontSize: 11.5, color: Color(0xFF047857)),
+                        ),
+                      ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const Text('Added marks',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A))),
+                        const Spacer(),
+                        Text('${entries.length} of ${subjects.length} subjects',
+                            style: const TextStyle(
+                                fontSize: 11, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    if (entries.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Text(
+                          'No subject marks added yet. Pick a subject above and click Add Subject.',
+                          style: TextStyle(
+                              fontSize: 11.5, color: Color(0xFF94A3B8)),
+                        ),
+                      )
+                    else
+                      ...entries.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final e = entry.value;
+                        final subject = (e['subject'] ?? '').toString();
+                        final marks =
+                            (e['marks'] as num?)?.toDouble() ?? 0;
+                        final subjectMax =
+                            (e['max'] as num?)?.toDouble() ?? 50;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border:
+                                Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(subject,
+                                    style: const TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF334155))),
+                              ),
+                              Text(
+                                '${marks.toStringAsFixed(0)} / ${subjectMax.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A)),
+                              ),
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                tooltip: 'Edit marks',
+                                onPressed: () => editEntry(idx),
+                                icon: const Icon(Icons.edit_rounded,
+                                    size: 16, color: Color(0xFF64748B)),
+                              ),
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                tooltip: 'Remove',
+                                onPressed: () => removeEntry(idx),
+                                icon: const Icon(Icons.close_rounded,
+                                    size: 16, color: Color(0xFFDC2626)),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
                     const Divider(),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2260,7 +2504,8 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                         const Text('Total',
                             style: TextStyle(
                                 fontSize: 13, fontWeight: FontWeight.w700)),
-                        Text('${total.toStringAsFixed(1)} / ${max.toStringAsFixed(0)}',
+                        Text(
+                            '${total.toStringAsFixed(1)} / ${max.toStringAsFixed(0)}',
                             style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
@@ -2280,19 +2525,27 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
                     backgroundColor: const Color(0xFF059669),
                     foregroundColor: Colors.white),
                 onPressed: () async {
-                  final scores = <Map<String, dynamic>>[];
-                  for (final s in subjects) {
-                    final subject = s['subject']?.toString() ?? 'General';
-                    final subjectMax =
-                        (s['weightage'] as num?)?.toDouble() ?? 50;
-                    final raw =
-                        double.tryParse(controllers[subject]!.text.trim()) ?? 0;
-                    scores.add({
-                      'subject': subject,
-                      'marks': raw.clamp(0, subjectMax).toDouble(),
-                      'max': subjectMax,
-                    });
+                  if (entries.isEmpty) {
+                    showHint('Add the marks for at least one subject.',
+                        error: true);
+                    return;
                   }
+                  if (entries.length < subjects.length) {
+                    showHint(
+                        'Add marks for all subjects before saving '
+                        '(${entries.length} of ${subjects.length} added).',
+                        error: true);
+                    return;
+                  }
+                  final scores = entries
+                      .map((e) => <String, dynamic>{
+                            'subject': (e['subject'] ?? 'General').toString(),
+                            'marks': ((e['marks'] as num?)?.toDouble() ?? 0)
+                                .clamp(0, (e['max'] as num?)?.toDouble() ?? 50)
+                                .toDouble(),
+                            'max': (e['max'] as num?)?.toDouble() ?? 50,
+                          })
+                      .toList();
                   final res = await _schoolService
                       .recordAdmissionEntranceResult(
                     admissionId: a['id']?.toString() ?? '',
@@ -2321,6 +2574,7 @@ class _AdmissionsScreenState extends State<AdmissionsScreen>
         },
       ),
     );
+    marksCtrl.dispose();
   }
 
   void _showEntrancePaperDialog(Map<String, dynamic> a) {
