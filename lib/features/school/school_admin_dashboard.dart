@@ -380,6 +380,8 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                       delegate: SliverChildListDelegate([
                         _buildAttentionRequiredStrip(context),
                         const SizedBox(height: 16),
+                        _buildTeacherVacancyBanner(context),
+                        const SizedBox(height: 16),
                         _buildMorningPulseHeader(),
                         const SizedBox(height: 10),
                         _buildExecutiveMetricsGrid(context),
@@ -3015,6 +3017,111 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
   }
 
   // ==========================================
+  // TEACHER VACANCY BOARD — SCHOOL ADMIN ENTRY
+  // ==========================================
+  Widget _buildTeacherVacancyBanner(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => context.push('/school/teacher-vacancies'),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0F172A), Color(0xFF1E3A8A)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A0F172A),
+              blurRadius: 10,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.work_outline_rounded,
+                color: Color(0xFF93C5FD),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Teacher Vacancy Board',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.1,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      SizedBox(width: 6),
+                      _AdminOnlyBadge(),
+                    ],
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Publish faculty openings with eligibility, positions & closing dates',
+                    style: TextStyle(fontSize: 11, color: Color(0xFFCBD5E1)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Text(
+                    'Open Board',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E3A8A),
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 14,
+                    color: Color(0xFF1E3A8A),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
   // 4. CATEGORIZED MANAGEMENT MODULES MATRIX
   // ==========================================
   Widget _buildManagementDomainsMatrix(BuildContext context) {
@@ -3102,6 +3209,14 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
               desc: 'Manage classes, sections, room quotas & curriculum subjects',
               icon: Icons.meeting_room_rounded,
               route: '/school/masters',
+            ),
+            _ModuleItem(
+              title: 'Teacher Vacancy Board',
+              desc: 'Publish faculty openings with eligibility, positions & closing dates — admin-only creation',
+              icon: Icons.work_outline_rounded,
+              route: '/school/teacher-vacancies',
+              badge: 'Admin Only',
+              badgeColor: const Color(0xFF0EA5E9),
             ),
           ],
           context: context,
@@ -3882,6 +3997,16 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     onTap: () {
                       Navigator.pop(ctx);
                       _showStaffOversightModal(context);
+                    },
+                  ),
+                  _buildQuickActionRow(
+                    icon: Icons.work_outline_rounded,
+                    iconColor: const Color(0xFF0EA5E9),
+                    title: 'Teacher Vacancy Board',
+                    subtitle: 'Publish faculty openings with eligibility, positions & closing dates',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.push('/school/teacher-vacancies');
                     },
                   ),
                   _buildQuickActionRow(
@@ -5555,6 +5680,10 @@ class _SchoolAdminDashboardState extends State<SchoolAdminDashboard> {
                     Navigator.pop(context);
                     _showStaffOversightModal(context);
                   }),
+                  _buildDrawerItem(Icons.work_outline_rounded, 'Teacher Vacancy Board', () {
+                    Navigator.pop(context);
+                    context.push('/school/teacher-vacancies');
+                  }),
                   _buildDrawerCategory('AI & INSTITUTIONAL INTELLIGENCE'),
                   _buildDrawerItem(Icons.auto_awesome_rounded, 'AI Assistant & Policy Chatbot (SP11)', () {
                     Navigator.pop(context);
@@ -5716,4 +5845,28 @@ class _ModuleItem {
     this.badge,
     this.badgeColor,
   });
+}
+
+class _AdminOnlyBadge extends StatelessWidget {
+  const _AdminOnlyBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0EA5E9).withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Text(
+        'ADMIN ONLY',
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF7DD3FC),
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
 }

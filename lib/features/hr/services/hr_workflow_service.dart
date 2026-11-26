@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../services/auth_service.dart';
+
 /// HR Workflow Service — Recruitment, Appraisal (PBAS/API) and
 /// Exit & Full-and-Final workflows.
 /// Tables: job_postings, job_applications, appraisal_forms,
@@ -19,21 +21,81 @@ class HrWorkflowService {
     'store',
   ];
 
+  /// Roles allowed to create / publish teacher vacancies.
+  ///
+  /// Vacancy creation is deliberately restricted to administrators even when
+  /// the caller can reach an HR screen. The school-side administrator variants
+  /// (`sadmin`, `principal`, `superadmin`) normalise to `admin`.
+  static const Set<String> adminRoles = {'admin'};
+
+  static String normalizeRole(String? role) {
+    final raw = (role ?? '').toLowerCase().trim();
+    if (raw == 'sadmin' || raw == 'principal' || raw == 'superadmin') {
+      return 'admin';
+    }
+    return raw;
+  }
+
+  static bool isAdminRole(String? role) =>
+      adminRoles.contains(normalizeRole(role));
+
   // ============================================================
   // RECRUITMENT — JOB POSTINGS
   // ============================================================
-  Future<bool> createPosting(Map<String, dynamic> data) async {
+  /// Administrator-only vacancy creation.
+  ///
+  /// Returns a result map so callers can surface the exact reason when the
+  /// live role check fails (e.g. an HR user opening a stale screen).
+  Future<Map<String, dynamic>> createPostingWithResult(
+      Map<String, dynamic> data) async {
+    final role = await AuthService().getLiveUserRole();
+    if (!isAdminRole(role)) {
+      return {
+        'success': false,
+        'message':
+            'Only administrators can create teacher vacancies. Your role is "${role ?? 'unknown'}".',
+      };
+    }
+
+    final title = (data['title'] as String?)?.trim() ?? '';
+    if (title.isEmpty) {
+      return {'success': false, 'message': 'Vacancy title is required.'};
+    }
+
     try {
-      final status = data['status'] as String? ?? 'draft';
-      if (status == 'published' && data['published_at'] == null) {
-        data['published_at'] = DateTime.now().toIso8601String();
+      final payload = Map<String, dynamic>.from(data);
+      // Attribute the vacancy to the signed-in administrator; never trust a
+      // caller-supplied `created_by`.
+      final username = await AuthService().getCurrentUsername();
+      payload['created_by'] = username ?? payload['created_by'];
+      final status = payload['status'] as String? ?? 'draft';
+      if (status == 'published' && payload['published_at'] == null) {
+        payload['published_at'] = DateTime.now().toIso8601String();
       }
-      await _supabase.from('job_postings').insert(data);
-      return true;
+      final inserted = await _supabase
+          .from('job_postings')
+          .insert(payload)
+          .select()
+          .maybeSingle();
+      return {
+        'success': true,
+        'message': status == 'published'
+            ? 'Teacher vacancy published.'
+            : 'Teacher vacancy saved as draft.',
+        'data': inserted,
+      };
     } catch (e) {
       print('Create posting error: $e');
-      return false;
+      return {
+        'success': false,
+        'message': 'Failed to create the vacancy. Please try again.',
+      };
     }
+  }
+
+  Future<bool> createPosting(Map<String, dynamic> data) async {
+    final result = await createPostingWithResult(data);
+    return result['success'] == true;
   }
 
   Future<List<Map<String, dynamic>>> getPostings({String? status}) async {
@@ -49,6 +111,11 @@ class HrWorkflowService {
   }
 
   Future<bool> updatePostingStatus(String postingId, String status) async {
+    final role = await AuthService().getLiveUserRole();
+    if (!isAdminRole(role)) {
+      print('Update posting status denied for role: $role');
+      return false;
+    }
     try {
       final update = <String, dynamic>{
         'status': status,

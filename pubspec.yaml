@@ -103,3 +103,6 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/animations/
+    # Environment variables loaded at runtime by flutter_dotenv.
+    # CI creates an empty placeholder because .env is gitignored.
+    - .env

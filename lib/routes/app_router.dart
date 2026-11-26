@@ -64,6 +64,7 @@ import '../features/examination/screens/student_result_screen.dart';
 import '../features/admin/screens/nodues_management_screen.dart';
 import '../features/admin/screens/certificate_management_screen.dart';
 import '../features/admin/screens/grievance_management_screen.dart';
+import '../features/admin/screens/teacher_vacancy_screen.dart';
 // HR Workflow imports (Recruitment, Appraisal, Exit)
 import '../features/hr/screens/recruitment_screen.dart';
 import '../features/hr/screens/appraisal_screen.dart';
@@ -130,6 +131,15 @@ import '../features/school/admin/school_permission_matrix_screen.dart';
 import '../features/school/ai/school_ai_assistant_screen.dart';
 import '../features/school/calendar/school_academic_calendar_screen.dart';
 import '../features/school/admin/school_masters_screen.dart';
+// School Recruitment imports
+import '../features/school/recruitment/screens/school_vacancy_board_screen.dart';
+import '../features/school/recruitment/screens/school_vacancy_apply_screen.dart';
+import '../features/school/recruitment/screens/school_vacancy_review_screen.dart';
+import '../features/school/recruitment/screens/school_document_verification_screen.dart';
+import '../features/school/recruitment/screens/school_interview_board_screen.dart';
+import '../features/school/recruitment/screens/question_templates_screen.dart';
+import '../features/school/recruitment/screens/vacancy_form_builder_screen.dart'
+    show SchoolVacancyBuilderScreen;
 import '../services/auth_service.dart';
 
 /// Route permission mappings for School ERP (Deny-by-default access control)
@@ -154,6 +164,14 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
   '/school/permissions': {'admin', 'sadmin', 'superadmin'},
   '/school/masters': _schoolAdminRoles,
   '/school/payroll': _schoolAccountantRoles,
+  // School Recruitment (Admin)
+  '/school/teacher-vacancies': _schoolAdminRoles,
+  '/school/teacher-vacancies/create': _schoolAdminRoles,
+  '/school/teacher-vacancies/edit': _schoolAdminRoles,
+  '/school/teacher-vacancies/base-questions': _schoolAdminRoles,
+  '/school/teacher-vacancies/review': _schoolAdminRoles,
+  '/school/teacher-vacancies/verify-docs': _schoolAdminRoles,
+  '/school/teacher-vacancies/interview': _schoolAdminRoles,
 
   // Staff (Teacher + Admin)
   '/school/teacher-dashboard': _schoolStaffRoles,
@@ -187,6 +205,8 @@ final Map<String, Set<String>> _schoolRoutePermissions = {
 
   // Shared / Multi-role (views adapt based on role)
   '/school/ai-tools': _allSchoolRoles,
+  // School Recruitment (Public apply - anyone with link can apply)
+  '/school/teacher-vacancies/apply': _allSchoolRoles,
   '/school/ai-tools-faculty': _allSchoolRoles,
   '/school/ai-student': _allSchoolRoles,
   '/school/chatbot': _allSchoolRoles,
@@ -558,6 +578,58 @@ final router = GoRouter(
         return SchoolAiAssistantScreen(initialTab: initialTab);
       },
     ),
+
+    // ===== SCHOOL - RECRUITMENT (Admin) =====
+    GoRoute(
+      path: '/school/teacher-vacancies',
+      builder: (context, state) => const SchoolVacancyBoardScreen(),
+    ),
+    GoRoute(
+      path: '/school/teacher-vacancies/create',
+      builder: (context, state) => const SchoolVacancyBuilderScreen(),
+    ),
+    GoRoute(
+      path: '/school/teacher-vacancies/edit',
+      builder: (context, state) {
+        final id = state.uri.queryParameters['id'] ?? '';
+        return SchoolVacancyBuilderScreen(vacancyId: id.isEmpty ? null : id);
+      },
+    ),
+    GoRoute(
+      path: '/school/teacher-vacancies/base-questions',
+      builder: (context, state) => const SchoolQuestionTemplatesScreen(),
+    ),
+    GoRoute(
+      path: '/school/teacher-vacancies/review',
+      builder: (context, state) {
+        final id = state.uri.queryParameters['id'] ?? '';
+        return SchoolVacancyReviewScreen(vacancyId: id);
+      },
+    ),
+    GoRoute(
+      path: '/school/teacher-vacancies/verify-docs',
+      builder: (context, state) {
+        final id = state.uri.queryParameters['id'] ?? '';
+        return SchoolDocumentVerificationScreen(applicationId: id);
+      },
+    ),
+    GoRoute(
+      path: '/school/teacher-vacancies/interview',
+      builder: (context, state) {
+        final id = state.uri.queryParameters['id'] ?? '';
+        return SchoolInterviewBoardScreen(applicationId: id);
+      },
+    ),
+
+    // ===== SCHOOL - RECRUITMENT (Public Apply) =====
+    GoRoute(
+      path: '/school/teacher-vacancies/apply',
+      builder: (context, state) {
+        final id = state.uri.queryParameters['id'] ?? '';
+        return SchoolVacancyApplyScreen(vacancyId: id);
+      },
+    ),
+
     GoRoute(
       path: '/school/ai-student',
       builder: (context, state) => const SchoolAiAssistantScreen(initialTab: 3),
@@ -815,6 +887,10 @@ final router = GoRouter(
     GoRoute(
       path: '/admin/grievances',
       builder: (context, state) => const GrievanceManagementScreen(),
+    ),
+    GoRoute(
+      path: '/admin/teacher-vacancies',
+      builder: (context, state) => const TeacherVacancyScreen(),
     ),
 
     // ============================================================================

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../core/widgets/gradient_button.dart';
+import '../../../services/auth_service.dart';
 import '../services/hr_workflow_service.dart';
 
 class RecruitmentScreen extends StatefulWidget {
@@ -15,12 +16,16 @@ class RecruitmentScreen extends StatefulWidget {
 
 class _RecruitmentScreenState extends State<RecruitmentScreen> {
   final _service = HrWorkflowService();
+  final _authService = AuthService();
   List<Map<String, dynamic>> _postings = [];
   List<Map<String, dynamic>> _applications = [];
   Map<String, dynamic> _stats = {};
   Map<String, dynamic>? _selectedPosting;
   bool _isLoading = true;
   bool _isLoadingApplications = false;
+  bool _isAdmin = false;
+  bool _isRoleLoaded = false;
+  String _role = '';
 
   static const List<String> _postTypes = [
     'permanent',
@@ -32,12 +37,30 @@ class _RecruitmentScreenState extends State<RecruitmentScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await _loadRole();
+    if (!mounted) return;
+    await _loadData();
+  }
+
+  Future<void> _loadRole() async {
+    final role = await _authService.getLiveUserRole();
+    if (!mounted) return;
+    setState(() {
+      _role = role ?? 'unknown';
+      _isAdmin = HrWorkflowService.isAdminRole(role);
+      _isRoleLoaded = true;
+    });
   }
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final postings = await _service.getPostings();
+    // Drafts are visible only to administrators.
+    final postings =
+        await _service.getPostings(status: _isAdmin ? null : 'published');
     final stats = await _service.getRecruitmentStats();
     if (mounted) {
       setState(() {
@@ -136,6 +159,13 @@ class _RecruitmentScreenState extends State<RecruitmentScreen> {
 
   // ---------------- Create Posting ----------------
   Future<void> _showCreatePostingDialog() async {
+    if (!_isAdmin) {
+      _showMessage(
+        'Only administrators can create teacher vacancies.',
+        isError: true,
+      );
+      return;
+    }
     final formKey = GlobalKey<FormState>();
     final titleCtrl = TextEditingController();
     final deptCtrl = TextEditingController();
@@ -480,6 +510,13 @@ class _RecruitmentScreenState extends State<RecruitmentScreen> {
 
   Future<void> _changePostingStatus(
       Map<String, dynamic> posting, String status) async {
+    if (!_isAdmin) {
+      _showMessage(
+        'Only administrators can publish or close teacher vacancies.',
+        isError: true,
+      );
+      return;
+    }
     final ok =
         await _service.updatePostingStatus(posting['id'].toString(), status);
     _showMessage(ok ? 'Posting $status' : 'Failed to update posting',
@@ -492,13 +529,17 @@ class _RecruitmentScreenState extends State<RecruitmentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppTheme.teacherPrimary,
-        onPressed: _showCreatePostingDialog,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('New Posting',
-            style: TextStyle(color: Colors.white)),
-      ),
+      floatingActionButton: _isAdmin
+          ? FloatingActionButton.extended(
+              backgroundColor: AppTheme.teacherPrimary,
+              onPressed: _showCreatePostingDialog,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text(
+                'New Posting',
+                style: TextStyle(color: Colors.white),
+              ),
+            )
+          : null,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -570,8 +611,13 @@ class _RecruitmentScreenState extends State<RecruitmentScreen> {
                         style: AppTheme.h5
                             .copyWith(color: AppTheme.mediumGray)),
                     const SizedBox(height: AppTheme.sm),
-                    const Text('Create the first posting to start hiring.',
-                        style: TextStyle(color: AppTheme.lightGray)),
+                    Text(
+                      _isRoleLoaded && !_isAdmin
+                          ? 'Administrators have not published any vacancies yet.'
+                          : 'Create the first posting to start hiring.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppTheme.lightGray),
+                    ),
                   ],
                 ),
               ),
@@ -581,6 +627,39 @@ class _RecruitmentScreenState extends State<RecruitmentScreen> {
               padding: const EdgeInsets.all(AppTheme.md),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
+                  if (_isRoleLoaded && !_isAdmin) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: AppTheme.md),
+                      padding: const EdgeInsets.all(AppTheme.md),
+                      decoration: BoxDecoration(
+                        color: AppTheme.warning.withOpacity(0.08),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusMd),
+                        border: Border.all(
+                          color: AppTheme.warning.withOpacity(0.35),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.lock_outline,
+                            size: 20,
+                            color: AppTheme.warning,
+                          ),
+                          const SizedBox(width: AppTheme.sm),
+                          Expanded(
+                            child: Text(
+                              'Vacancy creation is restricted to administrators '
+                              '(your role: $_role). You can still review '
+                              'applications and manage candidates.',
+                              style: AppTheme.bodySmall
+                                  .copyWith(color: AppTheme.mediumGray),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   ..._postings.map(_buildPostingCard),
                   if (_selectedPosting != null) ...[
                     const SizedBox(height: AppTheme.lg),
@@ -671,13 +750,13 @@ class _RecruitmentScreenState extends State<RecruitmentScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (posting['status'] == 'draft')
+                if (_isAdmin && posting['status'] == 'draft')
                   TextButton.icon(
                     onPressed: () => _changePostingStatus(posting, 'published'),
                     icon: const Icon(Icons.publish, size: 18),
                     label: const Text('Publish'),
                   ),
-                if (posting['status'] == 'published')
+                if (_isAdmin && posting['status'] == 'published')
                   TextButton.icon(
                     onPressed: () => _changePostingStatus(posting, 'closed'),
                     icon: const Icon(Icons.lock_outline, size: 18),

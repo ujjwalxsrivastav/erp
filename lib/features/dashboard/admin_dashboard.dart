@@ -518,6 +518,12 @@ class _AdminDashboardState extends State<AdminDashboard>
                       onTap: () => context.push('/admin/timetable'),
                     ),
                     _ManagementCard(
+                      icon: Icons.work_outline,
+                      label: "Teacher Vacancies",
+                      color: const Color(0xFF0EA5E9),
+                      onTap: () => context.push('/admin/teacher-vacancies'),
+                    ),
+                    _ManagementCard(
                       icon: Icons.manage_accounts,
                       label: "Manage Users",
                       color: const Color(0xFF2563EB),

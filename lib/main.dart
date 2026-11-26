@@ -10,12 +10,13 @@ void main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Try to load .env file (for mobile), but don't fail if it doesn't exist (web)
+  // Load .env (declared as a Flutter asset in pubspec.yaml).
+  // Falls back to --dart-define values if the asset is unavailable.
   try {
     await dotenv.load(fileName: ".env");
     print('✅ .env file loaded successfully');
   } catch (e) {
-    print('ℹ️ .env file not found (expected for web builds): $e');
+    print('⚠️ Could not load .env asset (using --dart-define fallbacks): $e');
     try {
       dotenv.loadFromString(envString: '', isOptional: true);
     } catch (_) {}
