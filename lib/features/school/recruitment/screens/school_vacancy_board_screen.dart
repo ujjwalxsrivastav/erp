@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../services/auth_service.dart';
 import '../services/school_recruitment_service.dart';
@@ -355,8 +356,10 @@ class _SchoolVacancyBoardScreenState extends State<SchoolVacancyBoardScreen> {
     );
   }
 
-  void _copyLink(String id) {
+  Future<void> _copyLink(String id) async {
     final link = _service.shareLinkFor(id);
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Copied: $link'), backgroundColor: RecruitmentColors.navy),
     );

@@ -622,6 +622,14 @@ final router = GoRouter(
     ),
 
     // ===== SCHOOL - RECRUITMENT (Public Apply) =====
+    // Public shareable link (no login required). Used by shareLinkFor().
+    GoRoute(
+      path: '/apply/vacancy',
+      builder: (context, state) {
+        final id = state.uri.queryParameters['id'] ?? '';
+        return SchoolVacancyApplyScreen(vacancyId: id);
+      },
+    ),
     GoRoute(
       path: '/school/teacher-vacancies/apply',
       builder: (context, state) {

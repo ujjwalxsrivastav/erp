@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../services/auth_service.dart';
@@ -49,7 +50,6 @@ class _SchoolVacancyBuilderScreenState
   final Map<String, bool> _requiredOverrides = {};
   final List<Map<String, dynamic>> _customQuestions = [];
   List<Map<String, dynamic>> _documents = [];
-  Map<String, dynamic>? _vacancy;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -91,7 +91,6 @@ class _SchoolVacancyBuilderScreenState
     }
     if (!mounted) return;
 
-    _vacancy = vacancy;
     _templates = templates;
     _isAdmin = SchoolRecruitmentService.isAdminRole(role);
     _role = role ?? 'unknown';
@@ -133,7 +132,7 @@ class _SchoolVacancyBuilderScreenState
             .map((d) => <String, dynamic>{
                   'key': d['key']?.toString() ?? '',
                   'label': d['label']?.toString() ?? '',
-                  'required': d['required'] != false,
+                  'required': d['required'] == true,
                   'included': true,
                 })
             .where((d) => (d['key'] as String).isNotEmpty)
@@ -170,8 +169,10 @@ class _SchoolVacancyBuilderScreenState
         .map((d) => <String, dynamic>{
               'key': d['key'],
               'label': d['label'],
-              'required': d['required'] == true,
-              'included': d['required'] == true,
+              // Documents are optional by default. The admin can switch on
+              // "Required" for the ones a vacancy must collect.
+              'required': false,
+              'included': true,
             })
         .toList();
   }
@@ -183,7 +184,7 @@ class _SchoolVacancyBuilderScreenState
           'key': d['key'],
           'label': d['label'],
           'required': false,
-          'included': false,
+          'included': true,
         });
       }
     }
@@ -207,18 +208,27 @@ class _SchoolVacancyBuilderScreenState
     for (final t in _templates) {
       final key = _templateKey(t);
       if (key == null || !_selectedTemplateKeys.contains(key)) continue;
+      final type = t['question_type']?.toString() ?? 'short_answer';
       schema.add({
         'key': key,
         'label': t['question_text']?.toString() ?? 'Question',
-        'type': t['question_type']?.toString() ?? 'short_answer',
-        'required': _requiredOverrides[key] ?? (t['is_required'] == true),
+        'type': type,
+        // File-upload questions are handled through the Documents section,
+        // where the admin controls the "Required" toggle per document.
+        'required': type == 'file_upload'
+            ? false
+            : (_requiredOverrides[key] ?? (t['is_required'] == true)),
         'options': t['options'] is List ? t['options'] : <String>[],
         'help_text': t['help_text'],
       });
     }
     for (final q in _customQuestions) {
       if (q['key'] == null || q['key'].toString().isEmpty) continue;
-      schema.add(Map<String, dynamic>.from(q));
+      // Additional (custom) questions are always optional for the applicant.
+      schema.add({
+        ...Map<String, dynamic>.from(q),
+        'required': false,
+      });
     }
     return schema;
   }
@@ -333,6 +343,16 @@ class _SchoolVacancyBuilderScreenState
             ),
           ),
           actions: [
+            TextButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: link));
+                if (ctx.mounted) {
+                  showRecruitmentMessage(ctx, 'Link copied to clipboard.');
+                }
+              },
+              icon: const Icon(Icons.copy_rounded, size: 16),
+              label: const Text('Copy link'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Close'),
@@ -432,7 +452,6 @@ class _SchoolVacancyBuilderScreenState
           : '',
     );
     String type = existing?['type']?.toString() ?? 'short_answer';
-    bool required = existing?['required'] != false;
 
     final saved = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -492,14 +511,10 @@ class _SchoolVacancyBuilderScreenState
                         'Helper text (optional)',
                       ),
                     ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: required,
-                      onChanged: (v) => setDialogState(() => required = v),
-                      title: const Text(
-                        'Required question',
-                        style: TextStyle(fontSize: 13),
-                      ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Additional questions are always optional for applicants.',
+                      style: kRecruitmentCaption,
                     ),
                   ],
                 ),
@@ -535,7 +550,7 @@ class _SchoolVacancyBuilderScreenState
                         'custom_${DateTime.now().microsecondsSinceEpoch}',
                     'label': labelCtrl.text.trim(),
                     'type': type,
-                    'required': required,
+                    'required': false,
                     'options': options,
                     'help_text': helpCtrl.text.trim().isEmpty
                         ? null
@@ -557,7 +572,7 @@ class _SchoolVacancyBuilderScreenState
     setState(() {
       if (isEdit) {
         final index = _customQuestions.indexWhere(
-          (q) => q['key'] == existing!['key'],
+          (q) => q['key'] == existing['key'],
         );
         if (index >= 0) {
           _customQuestions[index] = saved;
@@ -989,8 +1004,7 @@ class _SchoolVacancyBuilderScreenState
                   ),
                 ),
                 Text(
-                  '${SchoolRecruitmentService.questionTypeLabel(type)}'
-                  '${question['required'] == true ? ' • Required' : ' • Optional'}',
+                  '${SchoolRecruitmentService.questionTypeLabel(type)} • Optional',
                   style: kRecruitmentCaption,
                 ),
               ],

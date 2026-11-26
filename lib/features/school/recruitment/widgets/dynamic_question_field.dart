@@ -85,16 +85,20 @@ class DynamicQuestionField extends StatelessWidget {
       case 'paragraph':
         return TextFormField(
           controller: controller,
+          initialValue: controller == null ? value?.toString() : null,
           enabled: enabled,
           maxLines: 4,
           textCapitalization: TextCapitalization.sentences,
+          onChanged: enabled ? (v) => onChanged(v) : null,
           decoration: recruitmentFieldDecoration('Your answer'),
         );
       case 'number':
         return TextFormField(
           controller: controller,
+          initialValue: controller == null ? value?.toString() : null,
           enabled: enabled,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: enabled ? (v) => onChanged(v) : null,
           decoration: recruitmentFieldDecoration('Enter a number'),
         );
       case 'date':
@@ -220,8 +224,10 @@ class DynamicQuestionField extends StatelessWidget {
       default:
         return TextFormField(
           controller: controller,
+          initialValue: controller == null ? value?.toString() : null,
           enabled: enabled,
           textCapitalization: TextCapitalization.sentences,
+          onChanged: enabled ? (v) => onChanged(v) : null,
           decoration: recruitmentFieldDecoration('Your answer'),
         );
     }

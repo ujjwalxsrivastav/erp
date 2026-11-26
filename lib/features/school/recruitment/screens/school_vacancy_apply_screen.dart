@@ -65,8 +65,26 @@ class _SchoolVacancyApplyScreenState extends State<SchoolVacancyApplyScreen> {
 
     final schema = vacancy['form_schema'];
     final docs = vacancy['required_documents'];
-    final questions = schema is List ? schema.whereType<Map<String, dynamic>>().toList() : <Map<String, dynamic>>[];
-    final requiredDocs = docs is List ? docs.whereType<Map<String, dynamic>>().toList() : <Map<String, dynamic>>[];
+    final questions = schema is List
+        ? schema.whereType<Map<String, dynamic>>().map((q) {
+            // Additional (custom) questions are never compulsory, even on
+            // forms published before this rule existed.
+            final copy = Map<String, dynamic>.from(q);
+            if ((copy['key']?.toString() ?? '').startsWith('custom_')) {
+              copy['required'] = false;
+            }
+            return copy;
+          }).toList()
+        : <Map<String, dynamic>>[];
+    final requiredDocs = docs is List
+        ? docs.whereType<Map<String, dynamic>>().map((d) {
+            final copy = Map<String, dynamic>.from(d);
+            if ((copy['key']?.toString() ?? '').startsWith('custom_')) {
+              copy['required'] = false;
+            }
+            return copy;
+          }).toList()
+        : <Map<String, dynamic>>[];
 
     setState(() {
       _vacancy = vacancy;
@@ -130,13 +148,14 @@ class _SchoolVacancyApplyScreenState extends State<SchoolVacancyApplyScreen> {
 
     // Validate required questions
     for (final q in _schema) {
-      if (q['required'] == true) {
-        final key = q['key'].toString();
-        final val = _answers[key];
-        if (val == null || (val is String && val.trim().isEmpty)) {
-          _showMessage('Please answer "${q['label']}"', isError: true);
-          return;
-        }
+      if (q['required'] != true) continue;
+      // File-upload questions are validated through the Documents section.
+      if (q['type']?.toString() == 'file_upload') continue;
+      final key = q['key'].toString();
+      final val = _answers[key];
+      if (val == null || (val is String && val.trim().isEmpty)) {
+        _showMessage('Please answer "${q['label']}"', isError: true);
+        return;
       }
     }
 

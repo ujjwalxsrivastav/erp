@@ -56,9 +56,9 @@ class SchoolRecruitmentService {
   ];
 
   static const List<Map<String, dynamic>> defaultRequiredDocuments = [
-    {'key': 'resume', 'label': 'Resume / CV', 'required': true},
-    {'key': 'degree', 'label': 'Degree certificate', 'required': true},
-    {'key': 'id_proof', 'label': 'Government ID proof', 'required': true},
+    {'key': 'resume', 'label': 'Resume / CV', 'required': false},
+    {'key': 'degree', 'label': 'Degree certificate', 'required': false},
+    {'key': 'id_proof', 'label': 'Government ID proof', 'required': false},
     {
       'key': 'experience_letter',
       'label': 'Experience letter',
